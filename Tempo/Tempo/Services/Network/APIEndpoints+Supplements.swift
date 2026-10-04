@@ -5,8 +5,20 @@
 // Wire contract for the supplement catalog backend (feat/supplements):
 //
 //   GET /v1/supplements/lookup/:upc        → Envelope<SupplementLookupDTO>
-//       Barcode → product (NIH DSLD first, Open Food Facts fallback).
-//       404 when neither knows the code.
+//       Barcode → product (NIH DSLD by UPC, then the Open Facts family).
+//       404 when none knows the code; 502 when the databases didn't answer.
+//   GET /v1/supplements/search?q=…         → Envelope<[SupplementSearchHit]>
+//   GET /v1/supplements/label/:id          → Envelope<SupplementLookupDTO>
+//   POST /v1/supplements/read-label       → Envelope<SupplementLookupDTO>
+//       Photo of the Supplement Facts panel → AI-read product (source
+//       "label_photo", not saved). Pro + AI consent only (402). 422 = not a readable label;
+//       429 / 503 = busy.
+//   POST /v1/supplements/catalog           → Envelope<SupplementLookupDTO>
+//       Shares a product with the Tempo catalog (source "tempo") so the next
+//       user's scan / search finds it. Ids from search are source-prefixed:
+//       "dsld:123", "off:<barcode>", "tempo:<uuid>".
+//   POST /v1/supplements/catalog/:id/report → Envelope<SupplementReportResponse>
+//       "Report wrong info" on a Tempo-sourced product (one per user; hidden at 2+ reports).
 //   GET /v1/supplements/picks/:kind?name=… → Envelope<SupplementPicksDTO>
 //       2–3 vetted, third-party-tested products for a supplement type.
 //       `verified == false` means the AI fallback produced them (unusual
@@ -36,15 +48,28 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
     let fatGramsPerServing: Double?
     /// e.g. ["NSF Certified for Sport"] when the label/database says so.
     let certifications: [String]
-    /// "dsld" | "openfoodfacts"
+    /// "dsld" | "openfoodfacts" | "openproductsfacts" | "openbeautyfacts" |
+    /// "tempo" (shared catalog) | "label_photo" (AI read, not yet saved) |
+    /// "shelf" | "label" (legacy on-device photo read)
     let source: String
+    /// Active ingredients with amounts ("Vitamin D3 25 mcg"), when known.
+    let ingredients: [String]?
+    /// Only for source == "tempo": how many distinct users submitted or
+    /// confirmed this product. Absent on older backends.
+    let communityConfirmations: Int?
+    /// Only for source == "tempo": true when users submitted different key
+    /// figures for this product. Absent otherwise.
+    let disputed: Bool?
+    /// Only for source == "tempo": the shared-catalog entry id (for "Report wrong info").
+    let catalogID: String?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
         dosePerServing: String?, servingsPerContainer: Double?,
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
-        certifications: [String], source: String
+        certifications: [String], source: String, ingredients: [String]? = nil,
+        communityConfirmations: Int? = nil, disputed: Bool? = nil, catalogID: String? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -58,6 +83,10 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         self.fatGramsPerServing = fatGramsPerServing
         self.certifications = certifications
         self.source = source
+        self.ingredients = ingredients
+        self.communityConfirmations = communityConfirmations
+        self.disputed = disputed
+        self.catalogID = catalogID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -73,6 +102,67 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         case fatGramsPerServing = "fat_grams_per_serving"
         case certifications
         case source
+        case ingredients
+        case communityConfirmations = "community_confirmations"
+        case disputed
+        case catalogID = "catalog_id"
+    }
+}
+
+// MARK: - SupplementSearchHit
+
+/// One DSLD name-search result; `SupplementLookupService.label(id:)` turns it
+/// into a full `SupplementLookupDTO`.
+struct SupplementSearchHit: Codable, Sendable, Equatable, Identifiable {
+    let id: String
+    let brand: String?
+    let name: String
+    let kind: String
+    let netContents: String?
+    let onMarket: Bool
+    /// "dsld" | "openfoodfacts" | "tempo". Nil from older backends (legacy
+    /// numeric ids are DSLD).
+    let source: String?
+
+    init(id: String, brand: String?, name: String, kind: String, netContents: String?, onMarket: Bool, source: String? = nil) {
+        self.id = id
+        self.brand = brand
+        self.name = name
+        self.kind = kind
+        self.netContents = netContents
+        self.onMarket = onMarket
+        self.source = source
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case brand
+        case name
+        case kind
+        case netContents = "net_contents"
+        case onMarket = "on_market"
+        case source
+    }
+
+    /// Which database the hit came from: the `source` field, else the id prefix.
+    var origin: Origin {
+        switch source ?? id.split(separator: ":").first.map(String.init) {
+        case "tempo": .tempo
+        case "openfoodfacts", "off": .openFoodFacts
+        default: .nih
+        }
+    }
+
+    enum Origin: Equatable {
+        case nih, openFoodFacts, tempo
+
+        var badge: String {
+            switch self {
+            case .nih: "NIH"
+            case .openFoodFacts: "Open Food Facts"
+            case .tempo: "Tempo users"
+            }
+        }
     }
 }
 
@@ -130,6 +220,92 @@ extension APIEndpoint where Response == SupplementLookupDTO {
     static func supplementLookup(upc: String) -> Self {
         let digits = upc.filter(\.isNumber)
         return APIEndpoint(path: "/v1/supplements/lookup/\(digits)", method: .get)
+    }
+}
+
+extension APIEndpoint where Response == [SupplementSearchHit] {
+    /// Pass the text as the `q` query item.
+    static func supplementSearch() -> Self {
+        APIEndpoint(path: "/v1/supplements/search", method: .get)
+    }
+}
+
+extension APIEndpoint where Response == SupplementLookupDTO {
+    static func supplementLabel(id: String) -> Self {
+        APIEndpoint(path: "/v1/supplements/label/\(sanitizedLabelID(id))", method: .get)
+    }
+
+    /// Keeps the source prefix ("dsld:123", "off:0123…", "tempo:<uuid>") and
+    /// strips anything that could break out of the path.
+    static func sanitizedLabelID(_ id: String) -> String {
+        id.filter { $0.isLetter || $0.isNumber || $0 == ":" || $0 == "-" }
+    }
+
+    /// Photo of the label → AI-read product. Body: `SupplementReadLabelRequest`.
+    static func supplementReadLabel() -> Self {
+        APIEndpoint(path: "/v1/supplements/read-label", method: .post, disablesRetry: true)
+    }
+
+    /// Share a product with the Tempo catalog. Body: `SupplementCatalogSubmission`.
+    static func supplementCatalogSubmit() -> Self {
+        APIEndpoint(path: "/v1/supplements/catalog", method: .post, disablesRetry: true)
+    }
+}
+
+struct SupplementReportResponse: Codable, Sendable, Equatable {
+    let reported: Bool
+}
+
+extension APIEndpoint where Response == SupplementReportResponse {
+    /// Flag a shared-catalog product as wrong. Idempotent per user.
+    static func supplementCatalogReport(id: String) -> Self {
+        APIEndpoint(path: "/v1/supplements/catalog/\(APIEndpoint<SupplementLookupDTO>.sanitizedLabelID(id))/report", method: .post, disablesRetry: true)
+    }
+}
+
+// MARK: - Request bodies
+
+struct SupplementReadLabelRequest: Encodable, Sendable, Equatable {
+    /// Base64 without a `data:` prefix.
+    let imageBase64: String
+    /// "image/jpeg" — the app always re-encodes to JPEG.
+    let mediaType: String
+    let upc: String?
+
+    enum CodingKeys: String, CodingKey {
+        case imageBase64 = "image_base64"
+        case mediaType = "media_type"
+        case upc
+    }
+}
+
+enum SupplementCatalogOrigin: String, Sendable, Equatable {
+    case labelPhoto = "label_photo"
+    case manual
+}
+
+struct SupplementCatalogSubmission: Encodable, Sendable, Equatable {
+    let upc: String?
+    let brand: String?
+    let name: String
+    let kind: String
+    let dosePerServing: String?
+    let servingsPerContainer: Double?
+    let proteinGramsPerServing: Double?
+    let caloriesPerServing: Double?
+    let carbsGramsPerServing: Double?
+    let fatGramsPerServing: Double?
+    let ingredients: [String]?
+    let origin: String
+
+    enum CodingKeys: String, CodingKey {
+        case upc, brand, name, kind, ingredients, origin
+        case dosePerServing = "dose_per_serving"
+        case servingsPerContainer = "servings_per_container"
+        case proteinGramsPerServing = "protein_grams_per_serving"
+        case caloriesPerServing = "calories_per_serving"
+        case carbsGramsPerServing = "carbs_grams_per_serving"
+        case fatGramsPerServing = "fat_grams_per_serving"
     }
 }
 

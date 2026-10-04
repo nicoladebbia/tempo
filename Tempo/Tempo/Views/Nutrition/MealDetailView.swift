@@ -58,10 +58,12 @@ struct MealDetailView: View {
     @State
     private var presentEatTimeEditor: Bool = false
 
-    /// Drives the "Undo — not eaten" confirmation dialog in the `.eaten`
+    /// Drives the "Undo — not eaten" confirmation sheet in the `.eaten`
     /// status branch.
     @State
     private var presentUndoConfirm: Bool = false
+    @State
+    private var undoConfirmed: Bool = false
     @State
     private var eatTimeEdit: Date = .now
     /// When true, the Mark-Eaten sheet opens straight into the "Ate something
@@ -202,21 +204,25 @@ struct MealDetailView: View {
             eatTimeEditorSheet
                 .presentationDetents([.height(280)])
         }
-        .confirmationDialog(
-            isUnplannedLog ? "Delete this log?" : "Undo this meal?",
-            isPresented: $presentUndoConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(isUnplannedLog ? "Delete log" : "Mark as not eaten", role: .destructive) {
+        .sheet(isPresented: $presentUndoConfirm, onDismiss: {
+            // Undo runs once the sheet is gone: it may pop this screen.
+            if undoConfirmed {
+                undoConfirmed = false
                 undoEaten()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if isUnplannedLog {
-                Text("This removes \(meal.mealName) from today's totals. Any pantry stock it used is added back.")
-            } else {
-                Text("This puts \(meal.mealName) back to planned (with the original dish) and removes it from today's totals. Any pantry stock it used is added back.")
-            }
+        }) {
+            UndoMealSheet(
+                mealName: meal.mealName,
+                kcal: Int(meal.totalCalories.rounded()),
+                isLog: isUnplannedLog,
+                onConfirm: {
+                    undoConfirmed = true
+                    presentUndoConfirm = false
+                },
+                onCancel: { presentUndoConfirm = false }
+            )
+            .presentationDetents([.height(440), .large])
+            .presentationDragIndicator(.visible)
         }
         .alert("Save as preset", isPresented: $presentPresetAlert) {
             TextField("Preset name", text: $presetNameDraft)

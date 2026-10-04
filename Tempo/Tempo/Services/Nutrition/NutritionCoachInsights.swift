@@ -32,6 +32,8 @@ struct CoachMealSnapshot: Sendable, Equatable {
     /// "HH:mm" — actual eaten time when known, otherwise the scheduled slot.
     let time: String
     let items: [String]
+    /// Eaten out (not from the kitchen). false when unknown.
+    var ateOut: Bool = false
 }
 
 extension CoachMealSnapshot {
@@ -53,7 +55,8 @@ extension CoachMealSnapshot {
             carbs: meal.totalCarbs,
             fat: meal.totalFat,
             time: time,
-            items: meal.foods.map(\.name)
+            items: meal.foods.map(\.name),
+            ateOut: meal.origin == .out || meal.origin == .mixed || meal.foods.contains { $0.origin == .out }
         )
     }
 }
@@ -493,7 +496,8 @@ extension NutritionCoachService: NutritionCoachInsightProviding {
             mealProtein: meal.protein,
             mealCarbs: meal.carbs,
             mealFat: meal.fat,
-            mealItems: meal.items.isEmpty ? meal.name : meal.items.joined(separator: ", "),
+            mealItems: (meal.items.isEmpty ? meal.name : meal.items.joined(separator: ", "))
+                + (meal.ateOut ? " (eaten out)" : ""),
             todayCalories: day.caloriesConsumed,
             todayProtein: day.proteinConsumed,
             todayCarbs: day.carbsConsumed,

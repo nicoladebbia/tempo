@@ -47,6 +47,12 @@ struct MealRequest: Equatable, Identifiable {
     let action: Action
 }
 
+/// A Nutrition section (and Kitchen sub-section) a notification wants shown.
+struct NutritionRoute: Equatable {
+    var section: NutritionSection
+    var kitchen: KitchenSection?
+}
+
 // MARK: - AppState
 
 @Observable
@@ -63,6 +69,9 @@ final class AppState {
     /// Set by a meal notification (tap, "Log meal", "View meal"):
     /// ContentView presents that meal.
     var requestedMeal: MealRequest?
+    /// Set by a notification that wants a specific Nutrition section (Plan for
+    /// "week is ready", Kitchen › Supplements …); ContentView applies and clears it.
+    var requestedNutrition: NutritionRoute?
     var isOffline: Bool = false
 
     private let authService: AuthService

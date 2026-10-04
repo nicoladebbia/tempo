@@ -371,7 +371,7 @@ enum CoachTools {
                     && meal.mealNumber == nearestMealNumber
             }
         )
-        guard let meal = try context.fetch(descriptor).first else {
+        guard let meal = try context.fetch(descriptor).first(where: CanonicalMeals.isCanonical) else {
             return ToolOutput(
                 summary: "Inserted activity '\(name)' \(formatRange(startMin: startMin, endMin: endMin))",
                 sideEffects: sideEffects + ["No meal \(nearestMealNumber) found on this day — left meals as-is."]

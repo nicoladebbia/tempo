@@ -28,6 +28,7 @@ final class APIContractTests: XCTestCase {
         "devices-register", "devices-delete",
         "insights-training-program", "nutrition-ai-meal-timing", "insights-study-schedule",
         "supplements-lookup", "supplements-picks-verified", "supplements-picks-unverified",
+        "supplements-search", "supplements-catalog", "supplements-read-label", "supplements-lookup-disputed",
         "grocery-shared-put", "grocery-shared-get", "grocery-shared-revoke", "grocery-instacart-cart",
         "exercise-images-post",
         "program-import-transcribe", "program-import-structure", "program-import-quota", "program-import-feedback",
@@ -193,7 +194,45 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(r.servingsPerContainer, 100)
         XCTAssertNotNil(r.proteinGramsPerServing)
         XCTAssertFalse(r.certifications.isEmpty)
-        XCTAssertEqual(r.source, "dsld")
+        // The test-mode stub answers from Open Food Facts (DSLD is live-only).
+        XCTAssertEqual(r.source, "openfoodfacts")
+    }
+
+    func testSupplementSearch() throws {
+        let hits: [SupplementSearchHit] = try decode("supplements-search")
+        XCTAssertFalse(hits.isEmpty)
+        // Ids are source-prefixed so /label/:id can route them.
+        XCTAssertTrue(hits.allSatisfy { $0.id.contains(":") })
+        XCTAssertEqual(Set(hits.compactMap(\.source)), ["dsld", "openfoodfacts"])
+    }
+
+    func testSupplementCatalog() throws {
+        let r: SupplementLookupDTO = try decode("supplements-catalog")
+        XCTAssertEqual(r.source, "tempo")
+        XCTAssertEqual(r.communityConfirmations, 1)
+        XCTAssertNotNil(r.catalogID)
+        XCTAssertNil(r.disputed)
+        XCTAssertEqual(r.proteinGramsPerServing, 25)
+        XCTAssertEqual(r.ingredients?.first, "Whey protein isolate 25 g")
+    }
+
+    func testSupplementLookupDisputed() throws {
+        let r: SupplementLookupDTO = try decode("supplements-lookup-disputed")
+        XCTAssertEqual(r.source, "tempo")
+        XCTAssertEqual(r.disputed, true)
+        XCTAssertEqual(r.communityConfirmations, 1)
+        XCTAssertNotNil(r.catalogID)
+        XCTAssertEqual(SupplementEditSheet.sourceLine(r), SupplementEditSheet.disputedLine)
+    }
+
+    func testSupplementReadLabel() throws {
+        let r: SupplementLookupDTO = try decode("supplements-read-label")
+        XCTAssertEqual(r.source, "label_photo")
+        XCTAssertEqual(r.upc, "012345678905")
+        XCTAssertNil(r.communityConfirmations)
+        XCTAssertNil(r.disputed)
+        XCTAssertNil(r.catalogID)
+        XCTAssertEqual(r.servingsPerContainer, 30)
     }
 
     func testSupplementPicksVerified() throws {

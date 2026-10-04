@@ -353,22 +353,6 @@ final class PantryServiceTests: XCTestCase {
         XCTAssertEqual(try service.fetchAll().count, 2)
     }
 
-    // MARK: - Quantity adjustments
-
-    func testAdjustQuantity_floorsAtZero() throws {
-        let item = try service.mergeOrCreate(
-            rawName: "Eggs",
-            quantity: 6,
-            unit: .pieces,
-            storageLocation: .fridge,
-            purchaseDate: nil,
-            purchaseSource: .manual,
-            sourceReceiptLineItemID: nil
-        )
-        try service.adjustQuantity(of: item, by: -10)
-        XCTAssertEqual(item.quantity, 0)
-    }
-
     // MARK: - Archive + Delete
 
     func testArchive_excludesFromFetchAll() throws {

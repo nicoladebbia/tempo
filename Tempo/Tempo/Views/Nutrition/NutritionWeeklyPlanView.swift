@@ -32,6 +32,8 @@ struct NutritionWeeklyPlanView: View {
     @State
     private var showProfileSetup = false
     @State
+    private var showEditSetup = false
+    @State
     private var showRebuildConfirm = false
     @AppStorage("tempo.nutrition.disclaimerAccepted")
     private var disclaimerAccepted = false
@@ -90,7 +92,11 @@ struct NutritionWeeklyPlanView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe)
+            // Pin the content to the screen width: nothing inside can make the
+            // page wider, so it only ever scrolls up and down.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .alert("AI-Generated Meal Plan", isPresented: $showDisclaimerAlert) {
             Button("I Understand") {
                 disclaimerAccepted = true
@@ -118,29 +124,21 @@ struct NutritionWeeklyPlanView: View {
                 }
             })
         }
+        .sheet(isPresented: $showEditSetup) {
+            FuelSetupView(startInReview: true)
+        }
         .sheet(item: $wizardSnapshot) { snapshot in
             MealPlanIntakeWizardView(
                 snapshot: snapshot,
                 onComplete: { intake in
                     wizardSnapshot = nil
-                    // Persist grocery preferences AFTER the user
-                    // confirms the whole wizard. Previously
-                    // GroceryIntentStepView wrote to UserSettings the
-                    // moment the user advanced past it, which leaked
-                    // partial state when the user cancelled on a later
-                    // step (e.g. typed broccoli on Temporary Exclusions
-                    // then cancelled — budget cap was already saved).
+                    // The wizard only asks THIS WEEK's questions; they're
+                    // stored against this week's Monday and expire with it.
+                    // Everything permanent (eating window, leftovers, budget,
+                    // stores...) lives in Fuel setup.
                     let descriptor = FetchDescriptor<UserSettings>()
                     if let settings = (try? modelContext.fetch(descriptor))?.first {
-                        // Persist the intake: leftover style + eating window
-                        // stay; this week's answers (cooking days, exclusions,
-                        // recovery) are kept only until the week ends. Grocery prefs are persisted
-                        // on the same record (kept explicit for clarity).
-                        intake.persist(to: settings, dailyPlan: UserDailyPlanProfile.current(in: modelContext))
-                        if let grocery = intake.groceryIntent {
-                            settings.groceryBudgetCapUSD = grocery.budgetCapUSD
-                            settings.groceryPreferredStores = grocery.preferredStores
-                        }
+                        intake.persist(to: settings)
                         try? modelContext.save()
                     }
                     viewModel.generatePlan(
@@ -288,6 +286,7 @@ struct NutritionWeeklyPlanView: View {
                         .font(.tempoBody)
                         .fontWeight(isToday ? .bold : .medium)
                         .foregroundStyle(isToday ? Color.tempoViolet : Color.tempoTextPrimary)
+                        .lineLimit(1)
 
                     if isToday {
                         Text("TODAY")
@@ -341,6 +340,8 @@ struct NutritionWeeklyPlanView: View {
     }
 
     private func compactMealRow(_ meal: PlannedMeal) -> some View {
+        // Every cell is bounded: the name truncates instead of widening the
+        // row, so a long recipe name can never push the page past the screen.
         HStack(spacing: TempoSpacing.sm) {
             Circle()
                 .fill(mealStatusColor(meal.status))
@@ -349,17 +350,27 @@ struct NutritionWeeklyPlanView: View {
             Text(meal.mealName)
                 .font(.tempoCaption1)
                 .foregroundStyle(Color.tempoTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(0)
 
             Text(meal.scheduledTime)
                 .font(.tempoCaption2)
                 .foregroundStyle(Color.tempoTextTertiary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: TempoSpacing.xs)
 
             Text("\(Int(meal.totalCalories)) kcal")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .foregroundStyle(Color.tempoTextSecondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
     }
 
@@ -383,12 +394,12 @@ struct NutritionWeeklyPlanView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, TempoSpacing.xl)
 
-            if !viewModel.hasProfile {
+            if !viewModel.hasProfile || FuelSetupDraft.requiredMissingMessage(in: modelContext) != nil {
                 HStack(spacing: TempoSpacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
                         .foregroundStyle(Color.tempoWarning)
-                    Text("Set up your dietary profile first.")
+                    Text(FuelSetupDraft.requiredMissingMessage(in: modelContext) ?? "Set up your dietary profile first.")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoWarning)
                 }
@@ -413,7 +424,7 @@ struct NutritionWeeklyPlanView: View {
 
     private var generateButtonInner: some View {
         Button {
-            guard viewModel.hasProfile else {
+            guard viewModel.hasProfile, FuelSetupDraft.requiredMissingMessage(in: modelContext) == nil else {
                 showProfileSetup = true
                 return
             }
@@ -463,27 +474,17 @@ struct NutritionWeeklyPlanView: View {
         }
     }
 
-    /// Pushes the editable AI Meals preferences page. Saving there can trigger
-    /// a regenerate via the same `generatePlan(intake: nil)` path the wizard
-    /// uses — `nil` makes it reload the freshly-saved persisted preferences.
+    /// Opens Fuel setup on its review/edit step: the one place for permanent
+    /// settings. Saving there posts `.tempoDietaryProfileChanged`, which the
+    /// plan already follows (outdated-plan banner / rebuild prompt).
     private var aiMealsPreferencesLink: some View {
-        NavigationLink {
-            AIMealsSettingsView(onRegenerate: {
-                viewModel.generatePlan(
-                    modelContext: modelContext,
-                    whoop: services.whoop,
-                    apiClient: services.apiClient,
-                    notifications: services.notifications,
-                    intake: nil,
-                    trainingEngine: services.trainingEngine,
-                    healthKit: services.healthKit
-                )
-            })
+        Button {
+            showEditSetup = true
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "slider.horizontal.3")
                     .font(.system(size: 14))
-                Text("Edit AI Meal Preferences")
+                Text("Edit setup")
                     .font(.system(size: 14, weight: .medium))
                 Spacer()
                 Image(systemName: "chevron.right")

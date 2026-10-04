@@ -14,9 +14,6 @@ import SwiftData
 
 protocol FoodSearchServiceProtocol: Sendable {
     func searchUSDA(query: String) async throws -> [FoodSearchResult]
-    func lookupBarcode(_ barcode: String) async throws -> FoodSearchResult?
-    func searchLocal(query: String, context: ModelContext) -> [CachedFood]
-    func cacheFood(_ food: FoodSearchResult, context: ModelContext)
 }
 
 // MARK: - FoodSearchService
@@ -106,106 +103,8 @@ final class FoodSearchService: FoodSearchServiceProtocol, @unchecked Sendable {
     // Rate limit: 100 requests/minute for product GET.
     // Required: User-Agent header per OFF terms of use.
 
-    func lookupBarcode(_ barcode: String) async throws -> FoodSearchResult? {
-        let trimmed = barcode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        guard let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(trimmed)") else {
-            throw NutritionError.searchFailed("Invalid barcode URL")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Tempo/1.0 (tempo-app@example.com)", forHTTPHeaderField: "User-Agent")
-        request.timeoutInterval = 15
-
-        do {
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NutritionError.searchFailed("No HTTP response")
-            }
-
-            switch httpResponse.statusCode {
-            case 200 ... 299:
-                break
-            case 429:
-                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
-                    .flatMap { TimeInterval($0) }
-                throw NutritionError.rateLimited(retryAfter: retryAfter)
-            case 404:
-                logger.info("Barcode '\(trimmed)' not found in OpenFoodFacts")
-                return nil
-            default:
-                throw NutritionError.searchFailed("OFF returned status \(httpResponse.statusCode)")
-            }
-
-            let offResponse = try decoder.decode(OFFProductResponse.self, from: data)
-
-            guard offResponse.status == 1, let product = offResponse.product else {
-                logger.info("Barcode '\(trimmed)': product not found or incomplete")
-                return nil
-            }
-
-            let result = product.toFoodSearchResult(barcode: trimmed)
-            if let result {
-                logger.info("Barcode '\(trimmed)': found '\(result.name)'")
-            }
-            return result
-        } catch let error as NutritionError {
-            throw error
-        } catch {
-            logger.error("Barcode lookup failed: \(error.localizedDescription)")
-            throw NutritionError.searchFailed(error.localizedDescription)
-        }
-    }
-
     // MARK: - Local Search (SwiftData)
-
-    func searchLocal(query: String, context: ModelContext) -> [CachedFood] {
-        let lowered = query.lowercased()
-        let predicate = #Predicate<CachedFood> { food in
-            food.searchKeywords.contains(lowered)
-        }
-        let descriptor = FetchDescriptor<CachedFood>(
-            predicate: predicate,
-            sortBy: [SortDescriptor(\.useCount, order: .reverse)]
-        )
-
-        do {
-            let results = try context.fetch(descriptor)
-            logger.debug("Local search '\(query)': \(results.count) cached results")
-            return results
-        } catch {
-            logger.error("Local search failed: \(error.localizedDescription)")
-            return []
-        }
-    }
 
     // MARK: - Cache Food
 
-    func cacheFood(_ food: FoodSearchResult, context: ModelContext) {
-        // Check if already cached
-        let foodId = food.id
-        let predicate = #Predicate<CachedFood> { cached in
-            cached.id == foodId
-        }
-        let descriptor = FetchDescriptor<CachedFood>(predicate: predicate)
-
-        do {
-            let existing = try context.fetch(descriptor)
-            if let cached = existing.first {
-                cached.useCount += 1
-                cached.cachedAt = Date()
-            } else {
-                let cached = CachedFood(from: food)
-                context.insert(cached)
-            }
-            try context.save()
-        } catch {
-            logger.error("Failed to cache food: \(error.localizedDescription)")
-        }
-    }
 }

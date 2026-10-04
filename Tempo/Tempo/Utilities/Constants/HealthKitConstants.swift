@@ -45,6 +45,9 @@ enum HealthKitConstants {
             HKQuantityType(.height),
             HKQuantityType(.bodyFatPercentage),
             HKQuantityType(.leanBodyMass),
+            // Profile characteristics (Fuel setup shows age and sex from Health read-only)
+            HKCharacteristicType(.dateOfBirth),
+            HKCharacteristicType(.biologicalSex),
 
             // Workouts
             HKWorkoutType.workoutType(),

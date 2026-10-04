@@ -2,11 +2,13 @@
 // SupplementsView.swift
 // Tempo
 //
-// The user's supplement shelf — what they OWN (whey, creatine, omega-3, …).
-// The meal-plan AI reads this shelf (see MealPlanPrompts.supplementShelfBlock)
-// and makes a per-day take/skip decision, surfaced on the Today tab. This
-// screen is just inventory management: add / edit / archive. Reached from the
-// Pantry tab header (the two "what I own" shelves live together).
+// Kitchen > Supplements: the shelf of what you OWN, grouped by time of day
+// exactly like Today's supplements card. Every row shows name, brand, dose,
+// when you take it, how many days are left and a Reorder chip when it's low.
+// Tap a row for the detail page (schedule, stock, reminders, macros, "Took
+// it" history, Delete). One clear "Add" menu on top: Scan barcode / Search by
+// name / Quick add common / Type it. The meal-plan AI reads this shelf (see
+// MealPlanPrompts.supplementShelfBlock).
 //
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 //
@@ -17,6 +19,14 @@ import SwiftUI
 // MARK: - SupplementsView
 
 struct SupplementsView: View {
+    /// Set by Today's card (and notifications) to open one supplement's detail
+    /// page straight away; cleared once handled.
+    var openSupplementID: Binding<UUID?>
+
+    init(openSupplementID: Binding<UUID?> = .constant(nil)) {
+        self.openSupplementID = openSupplementID
+    }
+
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -29,77 +39,173 @@ struct SupplementsView: View {
     )
     private var supplements: [Supplement]
 
-    @State private var showAddSheet = false
-    @State private var showQuickAdd = false
+    @State private var activeSheet: ShelfSheet?
     @State private var showBarcodeScan = false
-    @State private var editing: Supplement?
+    @State private var detailTarget: Supplement?
+    @State private var reorderTarget: Supplement?
+    /// Quiet confirmation after a best-effort catalog share.
+    @State private var catalogNote: String?
+
+    /// One sheet at a time (a sheet swap goes through `present`).
+    private enum ShelfSheet: Identifiable {
+        case search
+        case typeIt
+        case quickAdd
+        case readLabel
+        case prefilled(id: UUID, dto: SupplementLookupDTO)
+
+        var id: String {
+            switch self {
+            case .search: "search"
+            case .typeIt: "typeIt"
+            case .quickAdd: "quickAdd"
+            case .readLabel: "readLabel"
+            case let .prefilled(id, _): "prefilled-\(id)"
+            }
+        }
+    }
 
     var body: some View {
-        ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
-
+        let logs = fetchRecentLogs()
+        let sections = shelfSections(logs: logs)
+        VStack(spacing: 0) {
+            topBar(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+            if let catalogNote {
+                Label(catalogNote, systemImage: "checkmark.circle")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .padding(.bottom, TempoSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("supplementCatalogNote")
+            }
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.lg) {
-                    headerCard
                     SupplementReorderBanner()
                     if supplements.isEmpty {
                         emptyState
                     } else {
-                        shelfSection
+                        ForEach(sections) { section in
+                            sectionCard(section)
+                        }
                     }
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.md)
+                .padding(.top, TempoSpacing.sm)
                 .padding(.bottom, TempoSpacing.bottomSafe)
             }
         }
-        .navigationTitle("Supplements")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showAddSheet) {
-            SupplementEditSheet(existing: nil, prefillUPC: nil) { draft in
-                modelContext.insert(draft)
-                try? modelContext.save()
-                notifyShelfChanged()
-            }
+        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .navigationDestination(item: $detailTarget) { supplement in
+            SupplementDetailView(supplement: supplement)
         }
-        .sheet(item: $editing) { supp in
-            SupplementEditSheet(existing: supp, prefillUPC: nil) { _ in
-                try? modelContext.save()
-                notifyShelfChanged()
-            }
+        .sheet(item: $activeSheet) { sheet in
+            sheetContent(sheet)
         }
-        .sheet(isPresented: $showQuickAdd) {
-            SupplementQuickAddSheet(existingNames: supplements.map(\.name)) { drafts in
-                for draft in drafts {
-                    modelContext.insert(draft)
-                }
-                try? modelContext.save()
-                notifyShelfChanged()
-            }
+        .sheet(item: $reorderTarget) { supplement in
+            SupplementReorderSheet(supplement: supplement)
         }
         .fullScreenCover(isPresented: $showBarcodeScan) {
-            SupplementBarcodeScanView(shelf: supplements) {
+            UniversalScanView(context: .supplements(shelf: supplements, onSaved: {
                 try? modelContext.save()
                 notifyShelfChanged()
-            }
+            }))
             .environment(services)
         }
+        .onAppear(perform: openRequestedSupplement)
+        .onChange(of: openSupplementID.wrappedValue) { _, _ in
+            openRequestedSupplement()
+        }
+    }
+
+    // MARK: - Sheets
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: ShelfSheet) -> some View {
+        switch sheet {
+        case .search:
+            SupplementSearchSheet(
+                onPick: { dto in present(.prefilled(id: UUID(), dto: dto)) },
+                onTypeIt: { present(.typeIt) },
+                onReadLabel: { present(.readLabel) }
+            )
+            .environment(services)
+        case .readLabel:
+            SupplementLabelCaptureSheet(
+                upc: nil,
+                onResult: { dto in present(.prefilled(id: UUID(), dto: dto)) },
+                onTypeIt: { present(.typeIt) }
+            )
+            .environment(services)
+        case .typeIt:
+            SupplementEditSheet(existing: nil, prefillUPC: nil) { draft in
+                insert([draft])
+            }
+        case .quickAdd:
+            SupplementQuickAddSheet(existingNames: supplements.map(\.name)) { drafts in
+                insert(drafts)
+            }
+        case let .prefilled(_, dto):
+            SupplementEditSheet(existing: nil, prefillUPC: nil, prefill: dto) { draft in
+                insert([draft])
+                shareWithCatalog(draft, origin: SupplementCatalogSubmitter.origin(prefillSource: dto.source, hadBarcode: false))
+            }
+        }
+    }
+
+    /// Best effort: a failure never touches the save that already happened.
+    private func shareWithCatalog(_ draft: Supplement, origin: SupplementCatalogOrigin?) {
+        guard let origin else { return }
+        let service = LiveSupplementLookupService(apiClient: services.apiClient)
+        Task {
+            if await SupplementCatalogSubmitter.submit(draft: draft, origin: origin, using: service) {
+                catalogNote = SupplementCatalogSubmitter.confirmation
+                try? await Task.sleep(for: .seconds(5))
+                catalogNote = nil
+            }
+        }
+    }
+
+    /// Swaps one sheet for another without SwiftUI dropping the second.
+    private func present(_ next: ShelfSheet) {
+        if activeSheet == nil {
+            activeSheet = next
+            return
+        }
+        activeSheet = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            activeSheet = next
+        }
+    }
+
+    private func insert(_ drafts: [Supplement]) {
+        for draft in drafts {
+            modelContext.insert(draft)
+        }
+        try? modelContext.save()
+        notifyShelfChanged()
     }
 
     /// Fires after every shelf mutation (add / edit / archive / restock) so
     /// anything that caches the shelf elsewhere — reminders, the meal-plan
     /// AI's supplement block — can react.
-    ///
-    /// Reminders and the reorder check re-read the shelf on this.
     private func notifyShelfChanged() {
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
     }
 
-    // MARK: - Header
+    private func openRequestedSupplement() {
+        guard let id = openSupplementID.wrappedValue else { return }
+        if let target = supplements.first(where: { $0.id == id }) {
+            detailTarget = target
+        }
+        openSupplementID.wrappedValue = nil
+    }
 
-    /// Last `intakeWindowDays` of intake — the LOW badge uses the same
-    /// days-of-supply rule as the reorder banner and alert.
-    /// Fetched once per body evaluation and handed to every row.
+    // MARK: - Data
+
+    /// Last `intakeWindowDays` of intake — the days-left / LOW rule is the same
+    /// as the reorder banner and the Today chip.
     private func fetchRecentLogs() -> [SupplementIntakeLog] {
         let windowStart = SupplementReorderService.intakeWindowStart()
         let descriptor = FetchDescriptor<SupplementIntakeLog>(
@@ -108,48 +214,67 @@ struct SupplementsView: View {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
 
-    private var headerCard: some View {
+    private func shelfSections(logs: [SupplementIntakeLog]) -> [SupplementShelfSection] {
+        guard !supplements.isEmpty else { return [] }
+        let context = SupplementDayContext.build(date: Date(), modelContext: modelContext)
+        let doses = SupplementScheduleEngine.schedule(supplements: supplements, context: context)
+        return SupplementShelfBoard.build(supplements: supplements, doses: doses, recentLogs: logs)
+    }
+
+    // MARK: - Top bar
+
+    private func topBar(lowCount: Int) -> some View {
         HStack(alignment: .center, spacing: TempoSpacing.md) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("YOUR SHELF")
                     .font(.tempoModuleTag)
+                    .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextTertiary)
-                Text("\(supplements.count) supplement\(supplements.count == 1 ? "" : "s")")
-                    .font(.tempoBody)
+                Text("\(supplements.count) supplement\(supplements.count == 1 ? "" : "s")" + (lowCount > 0 ? " · \(lowCount) to reorder" : ""))
+                    .font(.tempoBodyBold)
                     .foregroundStyle(Color.tempoTextPrimary)
             }
-            Spacer()
-            addMenu {
+            Spacer(minLength: TempoSpacing.sm)
+            Menu {
+                addMenuItems
+            } label: {
                 Label("Add", systemImage: "plus")
+                    .fixedSize()
             }
             .buttonStyle(.tempoPrimary)
+            .accessibilityIdentifier("supplementAddMenu")
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.vertical, TempoSpacing.sm)
     }
 
-    /// Toolbar "+" → a menu with all three add paths, per DESIGN_SYSTEM.md
-    /// menu conventions. Shared by the header button and the empty state.
-    private func addMenu(@ViewBuilder label: () -> some View) -> some View {
-        Menu {
-            Button {
-                showQuickAdd = true
-            } label: {
-                Label("Quick add", systemImage: "square.grid.2x2")
-            }
-            Button {
-                showBarcodeScan = true
-            } label: {
-                Label("Scan barcode", systemImage: "barcode.viewfinder")
-            }
-            Button {
-                showAddSheet = true
-            } label: {
-                Label("Add manually", systemImage: "square.and.pencil")
-            }
+    @ViewBuilder
+    private var addMenuItems: some View {
+        Button {
+            showBarcodeScan = true
         } label: {
-            label()
+            Label("Scan barcode", systemImage: "barcode.viewfinder")
+        }
+        Button {
+            activeSheet = .search
+        } label: {
+            Label("Search by name", systemImage: "magnifyingglass")
+        }
+        Button {
+            activeSheet = .readLabel
+        } label: {
+            Label("Read a label", systemImage: "camera.viewfinder")
+        }
+        .accessibilityIdentifier("supplementReadLabel")
+        Button {
+            activeSheet = .quickAdd
+        } label: {
+            Label("Quick add common", systemImage: "square.grid.2x2")
+        }
+        Button {
+            activeSheet = .typeIt
+        } label: {
+            Label("Type it", systemImage: "square.and.pencil")
         }
     }
 
@@ -171,21 +296,38 @@ struct SupplementsView: View {
             .multilineTextAlignment(.center)
             VStack(spacing: TempoSpacing.buttonStackVertical) {
                 Button {
-                    showQuickAdd = true
-                } label: {
-                    Label("Quick add", systemImage: "square.grid.2x2")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                Button {
                     showBarcodeScan = true
                 } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
                         .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.tempoPrimary)
+                Button {
+                    activeSheet = .search
+                } label: {
+                    Label("Search by name", systemImage: "magnifyingglass")
+                        .frame(maxWidth: .infinity)
+                }
                 .buttonStyle(.tempoSecondary)
-                Button("Add manually") {
-                    showAddSheet = true
+                Button {
+                    activeSheet = .readLabel
+                } label: {
+                    Label("Read a label", systemImage: "camera.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoSecondary)
+                Button {
+                    activeSheet = .quickAdd
+                } label: {
+                    Label("Quick add common", systemImage: "square.grid.2x2")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoSecondary)
+                Button {
+                    activeSheet = .typeIt
+                } label: {
+                    Label("Type it", systemImage: "square.and.pencil")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoGhost)
             }
@@ -197,280 +339,89 @@ struct SupplementsView: View {
 
     // MARK: - Shelf
 
-    private var shelfSection: some View {
-        let logs = fetchRecentLogs()
-        return VStack(spacing: TempoSpacing.sm) {
-            ForEach(supplements) { supp in
-                supplementRow(supp, recentLogs: logs)
+    private func sectionCard(_ section: SupplementShelfSection) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label(section.period.title.uppercased(), systemImage: section.period.icon)
+                .font(.tempoModuleTag)
+                .tracking(TempoTracking.drillLabel)
+                .foregroundStyle(Color.tempoTextTertiary)
+                .padding(.bottom, TempoSpacing.xs)
+            ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
+                if index > 0 {
+                    Divider().overlay(Color.tempoDivider)
+                }
+                shelfRow(row)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    private func supplementRow(_ supp: Supplement, recentLogs: [SupplementIntakeLog]) -> some View {
-        Button {
-            editing = supp
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: supp.kind.icon)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 24)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(titleText(for: supp))
-                            .font(.tempoBody)
+    private func shelfRow(_ row: SupplementShelfRow) -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Button {
+                detailTarget = row.supplement
+            } label: {
+                HStack(spacing: TempoSpacing.md) {
+                    Image(systemName: row.supplement.kind.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.tempoSignal)
+                        .frame(width: 36, height: 36)
+                        .background(Color.tempoBgTertiary)
+                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.supplement.name)
+                            .font(.tempoBodyBold)
                             .foregroundStyle(Color.tempoTextPrimary)
-                        if supp.takeDaily {
-                            tag("DAILY", color: Color.tempoSignal)
-                        }
-                        if SupplementReorderService.needsReorder(for: supp, recentLogs: recentLogs) {
-                            tag("LOW", color: Color.tempoWarning)
-                        }
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Text(row.brandDoseLine)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .lineLimit(1)
+                        Label(row.statusLine, systemImage: "clock")
+                            .font(.tempoCaption2)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                            .lineLimit(1)
                     }
-                    Text(subtitle(for: supp))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: TempoSpacing.xs) {
+                        if let stock = row.stockLine, !row.needsReorder {
+                            Text(stock)
+                                .font(.tempoCaption2)
+                                .foregroundStyle(Color.tempoTextSecondary)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextTertiary)
+                    }
                 }
-                Spacer()
-                Button(role: .destructive) {
-                    supp.isArchived = true
-                    supp.updatedAt = Date()
-                    try? modelContext.save()
-                    notifyShelfChanged()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
+            .accessibilityIdentifier("supplementRow.\(row.supplement.name)")
+
+            if row.needsReorder {
+                Button {
+                    reorderTarget = row.supplement
                 } label: {
-                    Image(systemName: "trash")
+                    Label(row.stockLine ?? "Low", systemImage: "cart")
+                        .font(.tempoCaption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber)
+                        .padding(.horizontal, TempoSpacing.sm)
+                        .padding(.vertical, TempoSpacing.xs)
+                        .background((row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber).opacity(TempoOpacity.o15))
+                        .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(.vertical, 6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func tag(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .clipShape(Capsule())
-    }
-
-    private func subtitle(for supp: Supplement) -> String {
-        var parts: [String] = [supp.kind.displayName]
-        if !supp.dosePerServing.isEmpty {
-            parts.append(supp.dosePerServing)
-        }
-        if let kcal = supp.caloriesPerServing, kcal > 0 {
-            parts.append("\(Int(kcal.rounded())) kcal")
-        }
-        if supp.proteinGramsPerServing > 0 {
-            parts.append("\(Int(supp.proteinGramsPerServing.rounded()))g protein")
-        }
-        if supp.servingsRemaining > 0 {
-            parts.append("\(Int(supp.servingsRemaining)) left")
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    /// "Thorne · Creatine" when a brand is on file, else just the name.
-    private func titleText(for supp: Supplement) -> String {
-        guard let brand = supp.brand, !brand.isEmpty else {
-            return supp.name
-        }
-        return "\(brand) · \(supp.name)"
-    }
-}
-
-// MARK: - SupplementEditSheet
-
-/// Internal (not `private`) — also presented from SupplementBarcodeScanView's
-/// "add manually" fallback (404 / offline / camera unavailable).
-struct SupplementEditSheet: View {
-    /// Non-nil when editing an existing shelf item; nil when adding a new one.
-    let existing: Supplement?
-    /// Prefills `upc` on a fresh add — set when this sheet is the fallback
-    /// after a barcode scan the lookup couldn't resolve.
-    let prefillUPC: String?
-    /// Called with the supplement to persist (a fresh insert when adding, or
-    /// the mutated existing item when editing).
-    let onSave: (Supplement) -> Void
-
-    @Environment(\.dismiss)
-    private var dismiss
-
-    @State private var name: String
-    @State private var kind: SupplementKind
-    @State private var brand: String
-    @State private var dose: String
-    @State private var proteinPerServingText: String
-    @State private var caloriesPerServingText: String
-    @State private var carbsPerServingText: String
-    @State private var fatPerServingText: String
-    @State private var servingsText: String
-    @State private var servingsPerContainerText: String
-    @State private var notes: String
-
-    init(existing: Supplement?, prefillUPC: String?, onSave: @escaping (Supplement) -> Void) {
-        self.existing = existing
-        self.prefillUPC = prefillUPC
-        self.onSave = onSave
-        _name = State(initialValue: existing?.name ?? "")
-        _kind = State(initialValue: existing?.kind ?? .protein)
-        _brand = State(initialValue: existing?.brand ?? "")
-        _dose = State(initialValue: existing?.dosePerServing ?? "")
-        _proteinPerServingText = State(initialValue: Self.macroText(existing?.proteinGramsPerServing))
-        _caloriesPerServingText = State(initialValue: Self.macroText(existing?.caloriesPerServing))
-        _carbsPerServingText = State(initialValue: Self.macroText(existing?.carbsGramsPerServing))
-        _fatPerServingText = State(initialValue: Self.macroText(existing?.fatGramsPerServing))
-        _servingsText = State(
-            initialValue: (existing?.servingsRemaining ?? 0) > 0
-                ? String(Int(existing?.servingsRemaining ?? 0)) : ""
-        )
-        _servingsPerContainerText = State(
-            initialValue: (existing?.servingsPerContainer ?? 0) > 0
-                ? String(Int(existing?.servingsPerContainer ?? 0)) : ""
-        )
-        _notes = State(initialValue: existing?.userNotes ?? "")
-    }
-
-    /// "24", "1.5" — empty for nil / zero.
-    private static func macroText(_ value: Double?) -> String {
-        guard let value, value > 0 else { return "" }
-        return value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
-    }
-
-    private static func macroValue(_ text: String) -> Double? {
-        guard let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0 else { return nil }
-        return value
-    }
-
-    private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Supplement") {
-                    TextField("Name (e.g. Whey Isolate)", text: $name)
-                    TextField("Brand (optional)", text: $brand)
-                    Picker("Type", selection: $kind) {
-                        ForEach(SupplementKind.allCases, id: \.rawValue) { k in
-                            Text(k.displayName).tag(k)
-                        }
-                    }
-                }
-                Section {
-                    TextField("Calories per serving (kcal)", text: $caloriesPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Protein per serving (g)", text: $proteinPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Carbs per serving (g)", text: $carbsPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Fat per serving (g)", text: $fatPerServingText)
-                        .keyboardType(.decimalPad)
-                } header: {
-                    Text("Macros per serving")
-                } footer: {
-                    Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
-                }
-                Section {
-                    TextField("Dose per serving (e.g. 25 g, 5 g, 1000 mg)", text: $dose)
-                    TextField("Servings left (optional)", text: $servingsText)
-                        .keyboardType(.numberPad)
-                    TextField("Servings per container (optional)", text: $servingsPerContainerText)
-                        .keyboardType(.numberPad)
-                } header: {
-                    Text("Details (optional)")
-                } footer: {
-                    Text(
-                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
-                    )
-                }
-                if let existing {
-                    SupplementTimingSection(supplement: existing)
-                    Section {
-                        NavigationLink {
-                            SupplementPicksView(supplement: existing)
-                        } label: {
-                            Label("Better products & where to buy", systemImage: "checkmark.seal")
-                        }
-                    }
-                }
-                Section("Notes (optional)") {
-                    TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
-                }
-            }
-            .navigationTitle(existing == nil ? "Add Supplement" : "Edit Supplement")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
-                }
+                .accessibilityLabel("\(row.supplement.name) running low, reorder")
+                .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }
         }
-    }
-
-    private func save() {
-        let trimmedName = name.trimmingCharacters(in: .whitespaces)
-        let trimmedBrand = brand.trimmingCharacters(in: .whitespaces)
-        let protein = Self.macroValue(proteinPerServingText) ?? 0
-        let calories = Self.macroValue(caloriesPerServingText)
-        let carbs = Self.macroValue(carbsPerServingText)
-        let fat = Self.macroValue(fatPerServingText)
-        let servings = Double(servingsText) ?? 0
-        let servingsPerContainer = Double(servingsPerContainerText)
-        let trimmedNotes = notes.trimmingCharacters(in: .whitespaces)
-
-        if let existing {
-            existing.name = trimmedName
-            existing.kind = kind
-            existing.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
-            existing.dosePerServing = dose
-            existing.proteinGramsPerServing = max(0, protein)
-            existing.caloriesPerServing = calories
-            existing.carbsGramsPerServing = carbs
-            existing.fatGramsPerServing = fat
-            existing.servingsRemaining = max(0, servings)
-            existing.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
-            // takeDaily is no longer a user choice — the AI infers daily-vs-
-            // conditional from the kind. Keep it aligned to the (possibly
-            // changed) kind's default so the prompt's "daily by default" hint
-            // stays sensible.
-            existing.takeDaily = kind.defaultsToDaily
-            existing.userNotes = trimmedNotes.isEmpty ? nil : trimmedNotes
-            existing.updatedAt = Date()
-            onSave(existing)
-        } else {
-            let new = Supplement(
-                name: trimmedName,
-                kind: kind,
-                dosePerServing: dose,
-                proteinGramsPerServing: max(0, protein),
-                servingsRemaining: max(0, servings),
-                userNotes: trimmedNotes.isEmpty ? nil : trimmedNotes
-            )
-            new.caloriesPerServing = calories
-            new.carbsGramsPerServing = carbs
-            new.fatGramsPerServing = fat
-            new.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
-            new.servingsPerContainer = servingsPerContainer.map { max(0, $0) }
-            new.upc = prefillUPC
-            onSave(new)
-        }
-        HapticManager.notification(.success)
-        dismiss()
+        .padding(.vertical, TempoSpacing.sm)
     }
 }

@@ -162,11 +162,14 @@ final class PlanTrustFixesTests: XCTestCase {
         // Next week they're gone and the saved prefs are back.
         let nextWeek = MealPlanIntake.loadPersisted(from: settings, now: now.addingTimeInterval(8 * 86400))
         XCTAssertEqual(nextWeek.cookableDaysThisWeek, 5)
-        XCTAssertEqual(nextWeek.temporaryExclusions, ["shellfish"])
+        // This week's skips don't carry over (permanent ones live on the
+        // profile now, not in the intake).
+        XCTAssertTrue(nextWeek.temporaryExclusions.isEmpty)
         XCTAssertFalse(nextWeek.recoveryAdjusted)
-        // Durable answers did stick.
-        XCTAssertEqual(nextWeek.leftoverTolerance, .freshDaily)
-        XCTAssertEqual(nextWeek.eatingWindow, EatingWindow(firstMealHour: 9, lastMealHour: 21))
+        // The wizard writes nothing permanent: leftovers + window untouched.
+        XCTAssertNil(settings.mealIntakeLeftoverToleranceRaw)
+        XCTAssertNil(settings.mealIntakeFirstMealHour)
+        XCTAssertNil(settings.mealIntakeLastMealHour)
     }
 
     // MARK: - 6. One eating window
@@ -205,12 +208,11 @@ final class PlanTrustFixesTests: XCTestCase {
         XCTAssertEqual(daily.eatingWindowEndMinutes, 19 * 60 + 45)
     }
 
-    func testWizardPersistWritesWindowThroughToo() {
+    func testWizardPersistLeavesTheEatingWindowAlone() {
         let settings = UserSettings()
-        let daily = UserDailyPlanProfile()
-        intake(cook: 3, exclusions: [], recovery: false).persist(to: settings, dailyPlan: daily)
-        XCTAssertEqual(daily.eatingWindowStartMinutes, 9 * 60)
-        XCTAssertEqual(daily.eatingWindowEndMinutes, 21 * 60)
+        intake(cook: 3, exclusions: [], recovery: false).persist(to: settings)
+        XCTAssertNil(settings.mealIntakeFirstMealHour)
+        XCTAssertNil(settings.mealIntakeLastMealHour)
     }
 
     // MARK: - 7. Recipe backoff

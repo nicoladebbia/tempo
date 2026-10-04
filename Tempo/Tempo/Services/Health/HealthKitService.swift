@@ -539,6 +539,25 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         return result
     }
 
+    func fetchProfileCharacteristics() async -> HealthProfileCharacteristics {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            return HealthProfileCharacteristics()
+        }
+        var result = HealthProfileCharacteristics()
+        if let parts = try? healthStore.dateOfBirthComponents(), let birth = Calendar.current.date(from: parts) {
+            let years = Calendar.current.dateComponents([.year], from: birth, to: Date()).year
+            result.ageYears = years.flatMap { (1 ... 120).contains($0) ? $0 : nil }
+        }
+        if let sex = try? healthStore.biologicalSex().biologicalSex {
+            switch sex {
+            case .male: result.sex = .male
+            case .female: result.sex = .female
+            default: break
+            }
+        }
+        return result
+    }
+
     private func fetchLatestQuantity(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit) async -> Double? {
         let type = HKQuantityType(identifier)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)

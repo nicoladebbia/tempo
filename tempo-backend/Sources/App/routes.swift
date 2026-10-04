@@ -8,6 +8,7 @@ func routes(
     _ app: Application,
     instacartClient: InstacartClient = InstacartAPIClient(),
     supplementLookupClient: SupplementLookupClient = SupplementLookupAPIClient(),
+    supplementLabelReader: SupplementLabelReading = ClaudeSupplementLabelReader(),
     brandCatalogRefresher: BrandCatalogRefreshing = NullBrandCatalogRefresher()
 ) throws {
     // Health check — no auth, no versioning
@@ -203,10 +204,12 @@ func routes(
     // Supplement catalog — feat/supplements-picks
     // GET /v1/supplements/lookup/:upc (DSLD → Open Food Facts)
     // GET /v1/supplements/picks/:kind (curated catalog → Claude Haiku fallback)
+    // GET /v1/supplements/search, /label/:id (tempo + DSLD + Open Food Facts)
+    // POST /v1/supplements/read-label (Claude vision), POST /v1/supplements/catalog (shared catalog)
     // ─────────────────────────────────────────────────
     try protected.grouped("supplements")
         .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
-        .register(collection: SupplementController(lookupClient: supplementLookupClient))
+        .register(collection: SupplementController(lookupClient: supplementLookupClient, labelReader: supplementLabelReader))
 
     // ─────────────────────────────────────────────────
     // Webhooks (no JWT — verified via HMAC)

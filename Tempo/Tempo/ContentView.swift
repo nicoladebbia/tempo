@@ -39,6 +39,9 @@ struct ContentView: View {
     private var nutritionViewModel = NutritionTabViewModel()
     @Environment(\.scenePhase)
     private var scenePhase
+    /// The scanner-resume record is only acted on once per process (cold launch).
+    @State
+    private var hasCheckedScanResume = false
 
     private var accentColor: Color {
         switch accentColorChoice {
@@ -218,11 +221,40 @@ struct ContentView: View {
                 rescheduleMealReminders()
             }
         }
+        // Back from iOS Settings with the camera allowed: reopen the scanner.
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            guard phase == .active else {
+                return
+            }
+            // Only a cold launch reopens the scanner (iOS kills the app when the
+            // camera permission changes). Any later activation means the process
+            // survived, so the scanner is still up (or was closed on purpose):
+            // just drop the record instead of stacking a second scanner.
+            guard !hasCheckedScanResume else {
+                ScanResume.clear()
+                return
+            }
+            hasCheckedScanResume = true
+            if let resume = ScanResume.consume() {
+                appState.activeTab = .nutrition
+                nutritionViewModel.apply(NutritionRoute(section: resume.nutritionSection, kitchen: nil))
+                nutritionViewModel.scanResume = resume
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWeeklyPlanApplied)) { _ in
             nutritionViewModel.adoptActivePlan(modelContext: modelContext, notifications: services.notifications)
         }
         .sheet(isPresented: $appState.weeklyCheckInRequested) {
             WeeklyCheckInView()
+        }
+        // A notification asking for a Nutrition section (Plan, Kitchen …). `initial`
+        // covers a cold launch where the tap set it before this view appeared.
+        .onChange(of: appState.requestedNutrition, initial: true) { _, route in
+            guard let route else {
+                return
+            }
+            nutritionViewModel.apply(route)
+            appState.requestedNutrition = nil
         }
         // A meal notification opens that meal; pre-meal reminders follow the plan.
         .mealNotificationHooks(request: $appState.requestedMeal) {

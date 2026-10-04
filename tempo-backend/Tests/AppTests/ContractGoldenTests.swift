@@ -232,6 +232,33 @@ struct ContractGoldenTests {
             )
             try golden("supplements-picks-unverified", await envelopeJSON(app, unverified))
 
+            // Merged search (Tempo catalog + DSLD + Open Food Facts), driven against the test-mode fixtures.
+            try golden("supplements-search", await call(app, .GET, "v1/supplements/search?q=monohydrate", token: session.accessToken))
+
+            // Shared catalog. Cleared first so a re-run is a create (1 confirmation), never a confirm.
+            try await SupplementCatalogEntry.query(on: app.db).filter(\.$entryKey == "name:contract labs|contract whey").delete()
+            let catalogBody = #"{"brand":"Contract Labs","name":"Contract Whey","kind":"protein","dose_per_serving":"1 scoop (31 g)","servings_per_container":30,"protein_grams_per_serving":25,"calories_per_serving":120,"carbs_grams_per_serving":2,"fat_grams_per_serving":1,"ingredients":["Whey protein isolate 25 g"],"origin":"label_photo"}"#
+            try golden("supplements-catalog", await call(app, .POST, "v1/supplements/catalog", token: session.accessToken, body: catalogBody))
+
+            // read-label needs a real Claude key (see header): encode the server's type, everything filled.
+            let readLabel = SupplementLookupDTO(
+                upc: "012345678905", brand: "Test Labs", name: "Whey Isolate (test)", kind: "protein",
+                dosePerServing: "1 scoop (31 g)", servingsPerContainer: 30, proteinGramsPerServing: 25,
+                caloriesPerServing: 120, carbsGramsPerServing: 2, fatGramsPerServing: 1,
+                certifications: [], source: "label_photo", ingredients: ["Whey protein isolate 25 g"]
+            )
+            try golden("supplements-read-label", await envelopeJSON(app, readLabel))
+
+            // A shared-catalog entry users disagree on (`disputed` is only ever sent as true).
+            let disputed = SupplementLookupDTO(
+                upc: "012345678905", brand: "Test Labs", name: "Whey Isolate (test)", kind: "protein",
+                dosePerServing: "1 scoop (31 g)", servingsPerContainer: 30, proteinGramsPerServing: 25,
+                caloriesPerServing: 120, carbsGramsPerServing: 2, fatGramsPerServing: 1,
+                certifications: [], source: "tempo", ingredients: ["Whey protein isolate 25 g"],
+                communityConfirmations: 1, disputed: true, catalogID: UUID().uuidString.lowercased()
+            )
+            try golden("supplements-lookup-disputed", await envelopeJSON(app, disputed))
+
             let alias = #"{"store_chain":"publix","raw_text":"PBX CHKN BRST \#(UUID().uuidString.prefix(8))","expanded_name":"Publix chicken breast","canonical_food_name":"chicken breast","barcode":"0123456789012"}"#
             try golden("nutrition-receipt-aliases-confirm", await call(app, .POST, "v1/nutrition/receipt-aliases/confirm", token: session.accessToken, body: alias))
         }

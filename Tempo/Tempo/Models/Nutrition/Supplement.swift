@@ -161,6 +161,10 @@ final class Supplement {
     /// `servingsRemaining` to, and the base for the reorder warning.
     var servingsPerContainer: Double?
 
+    /// Active ingredients with amounts, one per line ("Vitamin D3 25 mcg"),
+    /// from the label database (added Oct 2026, lightweight migration).
+    var ingredientsSummary: String?
+
     /// When `servingsRemaining` was last reset by a restock.
     var lastRestockedAt: Date?
 

@@ -964,13 +964,15 @@ struct FoodProductView: View {
             onAdd(product.foodItem(grams: grams))
         } label: {
             Text("Add \(Self.format(grams)) \(product.unit) · \(kcal) kcal")
-                .frame(maxWidth: .infinity)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .buttonStyle(.tempoPrimary)
         .disabled(!product.per100g.hasCoreMacros || grams <= 0)
         .accessibilityIdentifier("foodProductAdd")
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.top, TempoSpacing.md)
+        .padding(.bottom, TempoSpacing.sm)
         .background(Color.tempoBgPrimary)
     }
 

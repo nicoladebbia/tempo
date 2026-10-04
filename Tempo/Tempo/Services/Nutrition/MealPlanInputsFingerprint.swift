@@ -75,6 +75,14 @@ enum MealPlanInputsFingerprint {
             "favorite=\(list(profile.favoriteFoods))",
             "bored=\(list(profile.boredOfFoods))",
         ]
+        // Only when set, so an untouched profile keeps its old fingerprint.
+        + [
+            profile.favoriteCuisines.isEmpty ? nil : "cuisines=\(list(profile.favoriteCuisines))",
+            profile.spiceLevelRaw.map { "spice=\($0)" },
+            profile.breakfastStyleRaw.map { "breakfastStyle=\($0)" },
+            profile.snacksPerDay.map { "snacks=\($0)" },
+            profile.appetiteRaw.map { "appetite=\($0)" },
+        ].compactMap { $0 }
     }
 
     /// Reads the current inputs from SwiftData and digests them.
@@ -93,6 +101,11 @@ enum MealPlanInputsFingerprint {
             profile: profileFields(profile),
             schedule: scheduleFields(settings: settings, in: context) + routineFields(in: context)
                 + intakeFields(settings: settings, dailyPlan: UserDailyPlanProfile.current(in: context))
+                + setupFlagFields(
+                    settings: settings,
+                    equipment: (try? context.fetch(FetchDescriptor<KitchenEquipment>())) ?? [],
+                    clearSkinFocus: ClearSkinFocusSetting.resolve(modelContext: context)
+                )
         ))
     }
 
@@ -138,6 +151,36 @@ enum MealPlanInputsFingerprint {
             if !dailyPlan.postWorkoutMandatory {
                 lines.append("postWorkoutMandatory=false")
             }
+        }
+        return lines
+    }
+
+    /// Kitchen equipment (only appliances differing from their seeded
+    /// availability), the permanent recovery skew and the clear-skin focus —
+    /// Fuel setup answers the generator reads. Lines appear only when
+    /// non-default, so untouched installs keep their fingerprint.
+    static func setupFlagFields(
+        settings: UserSettings?,
+        equipment: [KitchenEquipment],
+        clearSkinFocus: Bool
+    ) -> [String] {
+        var lines: [String] = []
+        let changed = equipment
+            .compactMap { row -> String? in
+                guard let kind = row.kind, row.isAvailable != kind.seededAvailable else {
+                    return nil
+                }
+                return "\(kind.rawValue)=\(row.isAvailable)"
+            }
+            .sorted()
+        if !changed.isEmpty {
+            lines.append("equipment=\(changed.joined(separator: ","))")
+        }
+        if settings?.mealIntakeRecoveryAdjusted == true {
+            lines.append("recoveryAdjusted=true")
+        }
+        if clearSkinFocus {
+            lines.append("clearSkinFocus=true")
         }
         return lines
     }

@@ -78,6 +78,20 @@ enum SupplementIntakeStore {
         return ids
     }
 
+    /// When each shelf item was ticked on `day` (same ownership rules as
+    /// `takenIDs`; the earliest tick wins if a row was somehow duplicated).
+    static func takenTimes(on day: Date, in modelContext: ModelContext) -> [UUID: Date] {
+        var times: [UUID: Date] = [:]
+        for row in logs(on: day, in: modelContext) {
+            let id = row.supplementID ?? shelfItems(named: row.supplementName, in: modelContext).first?.id
+            guard let id else {
+                continue
+            }
+            times[id] = min(times[id] ?? row.takenAt, row.takenAt)
+        }
+        return times
+    }
+
     /// One-off upgrade of legacy name-only rows to IDs where the name maps to
     /// exactly one shelf item — keeps history attached through a later rename.
     static func backfillIDs(in modelContext: ModelContext) {

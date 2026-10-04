@@ -55,6 +55,12 @@ enum MealPlanPrompts {
         let favoriteFoods: [String]
         /// Foods the user is bored of (rotate away, don't overuse).
         let boredOfFoods: [String]
+        /// Optional Fuel-setup personalisation (nil / empty = no preference).
+        let favoriteCuisines: [String]
+        let spiceLevel: SpiceLevel?
+        let breakfastStyle: BreakfastStyle?
+        let snacksPerDay: Int?
+        let appetite: AppetiteSize?
 
         init(from profile: DietaryProfile) {
             isLactoseFree = profile.isLactoseFree
@@ -70,6 +76,11 @@ enum MealPlanPrompts {
             dislikedFoods = profile.dislikedFoods
             favoriteFoods = profile.favoriteFoods
             boredOfFoods = profile.boredOfFoods
+            favoriteCuisines = profile.favoriteCuisines
+            spiceLevel = profile.spiceLevel
+            breakfastStyle = profile.breakfastStyle
+            snacksPerDay = profile.snacksPerDay
+            appetite = profile.appetite
         }
 
         init(
@@ -85,7 +96,12 @@ enum MealPlanPrompts {
             allergies: [String] = [],
             dislikedFoods: [String] = [],
             favoriteFoods: [String] = [],
-            boredOfFoods: [String] = []
+            boredOfFoods: [String] = [],
+            favoriteCuisines: [String] = [],
+            spiceLevel: SpiceLevel? = nil,
+            breakfastStyle: BreakfastStyle? = nil,
+            snacksPerDay: Int? = nil,
+            appetite: AppetiteSize? = nil
         ) {
             self.isLactoseFree = isLactoseFree
             self.noCoffee = noCoffee
@@ -100,15 +116,27 @@ enum MealPlanPrompts {
             self.dislikedFoods = dislikedFoods
             self.favoriteFoods = favoriteFoods
             self.boredOfFoods = boredOfFoods
+            self.favoriteCuisines = favoriteCuisines
+            self.spiceLevel = spiceLevel
+            self.breakfastStyle = breakfastStyle
+            self.snacksPerDay = snacksPerDay
+            self.appetite = appetite
         }
 
-        /// `<taste_preferences>` prompt block — favorites + bored-of. Empty
-        /// string when neither is set so callers interpolate unconditionally.
+        /// `<taste_preferences>` prompt block — favorites, bored-of and the optional
+        /// Fuel-setup taste answers. Empty string when none is set so callers interpolate unconditionally.
         var tastePreferencesBlock: String {
-            guard !favoriteFoods.isEmpty || !boredOfFoods.isEmpty else {
-                return ""
-            }
             var lines: [String] = []
+            if !favoriteCuisines.isEmpty {
+                let safe = favoriteCuisines.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
+                lines.append("FAVOURITE CUISINES (lean the week toward these styles of cooking): \(safe)")
+            }
+            lines += [
+                spiceLevel?.promptLine,
+                breakfastStyle?.promptLine,
+                snacksPerDay.map { SnackHabit.promptLine(min(max($0, 0), 2)) },
+                appetite?.promptLine,
+            ].compactMap { $0 }
             if !favoriteFoods.isEmpty {
                 let safe = favoriteFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
                 lines.append("LOVES (prefer these foods/cuisines, work them in often): \(safe)")
@@ -119,6 +147,9 @@ enum MealPlanPrompts {
                     .append(
                         "BORED OF (rotate AWAY from these — do not overuse; an occasional appearance is fine, but never the weekly default): \(safe)"
                     )
+            }
+            guard !lines.isEmpty else {
+                return ""
             }
             return """
 
@@ -193,7 +224,7 @@ enum MealPlanPrompts {
             }
             if !dislikedFoods.isEmpty {
                 let safe = dislikedFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
-                lines.append("- DISLIKED FOODS (avoid): \(safe)")
+                lines.append("- WON'T EAT (permanent, never include in any meal): \(safe)")
             }
             if lines.isEmpty {
                 return "None."

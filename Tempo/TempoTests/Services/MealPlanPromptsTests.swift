@@ -10,6 +10,30 @@
 import XCTest
 
 final class MealPlanPromptsTests: XCTestCase {
+    // MARK: - Permanent + temporary exclusions reach the plan prompt
+
+    func testWeeklyPlanPrompt_includesPermanentAndThisWeekExclusions() {
+        let restrictions = MealPlanPrompts.DietaryRestrictions(dislikedFoods: ["mushrooms", "olives"])
+        var intake = MealPlanIntake.default
+        intake.temporaryExclusions = ["broccoli"]
+        let (_, prompt) = MealPlanPrompts.weeklyPlanPrompt(
+            targets: [:], restrictions: restrictions, preferences: "", intake: intake
+        )
+        XCTAssertTrue(prompt.contains("WON'T EAT (permanent, never include in any meal): mushrooms, olives"))
+        XCTAssertTrue(prompt.contains("Off-limits this week"))
+        XCTAssertTrue(prompt.contains("broccoli"))
+    }
+
+    func testKeyboardDismisser_textInputsAreNotDismissTargets() {
+        let container = UIView()
+        let field = UITextField()
+        container.addSubview(field)
+        XCTAssertTrue(KeyboardDismisser.isTextInput(field))
+        XCTAssertTrue(KeyboardDismisser.isTextInput(UIButton()))
+        XCTAssertFalse(KeyboardDismisser.isTextInput(container))
+        XCTAssertFalse(KeyboardDismisser.isTextInput(nil))
+    }
+
     // MARK: - weeklyIntakeBlock
 
     func testWeeklyIntakeBlock_nilIntake_returnsEmptyString() {

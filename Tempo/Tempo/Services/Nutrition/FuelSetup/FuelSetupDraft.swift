@@ -32,6 +32,18 @@ struct FuelSetupDraft: Equatable, Sendable {
     var allergies: [String] = []
     var dislikedFoods: [String] = []
     var favoriteFoods: [String] = []
+    /// Foods the user is tired of (planner rotates them down, not out).
+    var boredOfFoods: [String] = []
+    /// Low-GI / low-dairy skin focus (`ClearSkinFocusSetting`).
+    var clearSkinFocus = false
+
+    // Optional personalisation (the planner reads these; nil / empty = no preference)
+    var favoriteCuisines: [String] = []
+    var spiceLevel: SpiceLevel?
+    var breakfastStyle: BreakfastStyle?
+    /// Standalone snacks a day (0...2).
+    var snacksPerDay: Int?
+    var appetite: AppetiteSize?
 
     // Eating pattern
     var mealsPerDay: Int?
@@ -45,6 +57,12 @@ struct FuelSetupDraft: Equatable, Sendable {
     var cookMinutesWeekend: Int?
     var cookableDaysPerWeek: Int?
     var leftoverTolerance: LeftoverTolerance?
+    /// Appliances at home, `KitchenApplianceKind.rawValue` → owned. Empty
+    /// until loaded; the planner only programs recipes these can make.
+    var equipment: [String: Bool] = [:]
+    /// Shift fuel toward training days using recovery data (permanent
+    /// default; the plan wizard can override it for one week).
+    var recoveryAdjusted = false
 
     // Shopping
     var weeklyBudgetUSD: Int?
@@ -68,7 +86,6 @@ struct FuelSetupDraft: Equatable, Sendable {
         case age
         case sex
         case goal
-        case wakeTime
         case meals
 
         var label: String {
@@ -78,7 +95,6 @@ struct FuelSetupDraft: Equatable, Sendable {
             case .age: "age"
             case .sex: "sex"
             case .goal: "goal"
-            case .wakeTime: "wake-up time"
             case .meals: "meals a day"
             }
         }
@@ -90,13 +106,14 @@ struct FuelSetupDraft: Equatable, Sendable {
             case .age: "How old are you?"
             case .sex: "Male or female (for the calorie formula)?"
             case .goal: "What's the goal — lose fat, maintain, or gain muscle?"
-            case .wakeTime: "What time do you usually wake up on weekdays?"
             case .meals: "How many meals a day do you want — and do you eat breakfast?"
             }
         }
     }
 
-    /// What the planner can't work without. Asked as follow-ups.
+    /// What the planner can't work without: the REQUIRED sections only
+    /// (You, Goal, Meals). Everything else is optional and has defaults.
+    /// Asked as follow-ups.
     var missingFields: [Field] {
         var missing: [Field] = []
         if weightKg == nil {
@@ -113,9 +130,6 @@ struct FuelSetupDraft: Equatable, Sendable {
         }
         if goal == nil {
             missing.append(.goal)
-        }
-        if routine.typicalWakeMinutes == nil {
-            missing.append(.wakeTime)
         }
         if mealsPerDay == nil, breakfastSkipped == nil, eatingWindowStartMinutes == nil {
             missing.append(.meals)
@@ -136,6 +150,11 @@ struct FuelSetupDraft: Equatable, Sendable {
     /// AI left out (`returnedDays`, Mon=1).
     func adopting(_ updated: FuelSetupDraft, returnedDays: Set<Int>) -> FuelSetupDraft {
         var out = updated
+        // Not on the wire: the AI can't see or change these, keep ours.
+        out.boredOfFoods = boredOfFoods
+        out.clearSkinFocus = clearSkinFocus
+        out.equipment = equipment
+        out.recoveryAdjusted = recoveryAdjusted
         out.routine = routine.adopting(updated.routine, returnedDays: returnedDays)
         return out
     }
@@ -236,6 +255,12 @@ extension FuelSetupDraft {
             draft.allergies = profile.allergies
             draft.dislikedFoods = profile.dislikedFoods
             draft.favoriteFoods = profile.favoriteFoods
+            draft.boredOfFoods = profile.boredOfFoods
+            draft.favoriteCuisines = profile.favoriteCuisines
+            draft.spiceLevel = profile.spiceLevel
+            draft.breakfastStyle = profile.breakfastStyle
+            draft.snacksPerDay = profile.snacksPerDay
+            draft.appetite = profile.appetite
             draft.cookingSkill = profile.cookingSkill
             draft.trainingDaysPerWeek = profile.trainingFrequency
         }
@@ -258,6 +283,19 @@ extension FuelSetupDraft {
             }
         }
         if let settings {
+            // One "won't eat" list: fold in the retired AI Meals exclusions.
+            if MealPlanIntake.migrateLegacyExclusions(settings: settings, profile: profile) {
+                draft.dislikedFoods = profile?.dislikedFoods ?? draft.dislikedFoods
+                try? context.save()
+            } else if profile == nil {
+                // No profile yet, so nothing was migrated: show the legacy list
+                // in the draft, because save() clears it and would lose it.
+                draft.dislikedFoods = MealPlanIntake.mergedFoods(
+                    draft.dislikedFoods,
+                    MealPlanIntake.legacyExclusions(settings: settings)
+                )
+            }
+            draft.recoveryAdjusted = settings.mealIntakeRecoveryAdjusted
             draft.mealsPerDay = settings.mealsPerDayPreference
             draft.cookMinutesWeekday = settings.cookTimeWeekdayMins
             draft.cookMinutesWeekend = settings.cookTimeWeekendMins
@@ -274,107 +312,238 @@ extension FuelSetupDraft {
                 }
             }
         }
+        let rows = (try? context.fetch(FetchDescriptor<KitchenEquipment>())) ?? []
+        for kind in KitchenApplianceKind.allCases {
+            draft.equipment[kind.rawValue] = rows.first { $0.kindRaw == kind.rawValue }?.isAvailable ?? kind.seededAvailable
+        }
+        draft.clearSkinFocus = ClearSkinFocusSetting.resolve(modelContext: context)
         return draft
+    }
+
+    /// Plan generation's gate: what REQUIRED setup (You, Goal, Meals) is still
+    /// missing in the stores, as one sentence; nil when it can go ahead. Reads
+    /// only (no migration, no writes), so it is safe to call from a view body.
+    @MainActor
+    static func requiredMissingMessage(in context: ModelContext) -> String? {
+        var draft = FuelSetupDraft()
+        if let profile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first {
+            draft.weightKg = profile.currentWeightKg
+            draft.heightCm = profile.heightCm
+            draft.age = profile.age
+            draft.sex = profile.biologicalSex
+            draft.goal = profile.primaryGoal
+        }
+        if let daily = UserDailyPlanProfile.current(in: context) {
+            draft.breakfastSkipped = daily.breakfastSkipped
+            draft.eatingWindowStartMinutes = daily.eatingWindowStartMinutes
+        }
+        draft.mealsPerDay = MealPlanGeneratorService.fetchUserSettings(modelContext: context)?.mealsPerDayPreference
+        return draft.requiredMissingMessage
     }
 
     /// Write every answer to the store its readers use, then announce the
     /// change so the meal plan follows (ContentView's debounced handler).
+    @discardableResult
     @MainActor
-    func save(to context: ModelContext, now: Date = Date()) {
-        let profile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first
-            ?? {
-                let new = DietaryProfile()
-                context.insert(new)
-                return new
-            }()
-        if let weightKg {
-            profile.currentWeightKg = weightKg
-        }
-        if let heightCm {
-            profile.heightCm = heightCm
-        }
-        if let age {
-            profile.age = age
-        }
-        if let sex {
-            profile.biologicalSex = sex
-        }
-        profile.bodyFatPercent = bodyFatPercent
-        if let goal {
-            profile.primaryGoal = goal
-            profile.goalWeightKg = goal == .maintain ? nil : goalWeightKg
-            profile.weeklyRateKg = goal == .maintain ? nil : weeklyRateKg
-        }
-        for restriction in DietRestriction.allCases {
-            profile.set(restriction, restrictions.contains(restriction))
-        }
-        profile.allergies = allergies
-        profile.dislikedFoods = dislikedFoods
-        profile.favoriteFoods = favoriteFoods
-        if let cookingSkill {
-            profile.cookingSkill = cookingSkill
-        }
-        profile
-            .trainingFrequency = trainingDaysPerWeek ??
-            (routine.trainingDaysPerWeek > 0 ? routine.trainingDaysPerWeek : profile.trainingFrequency)
-        profile.updatedAt = now
+    func save(to context: ModelContext, now: Date = Date()) -> Set<FuelSetupSection> {
+        save(sections: Set(FuelSetupSection.allCases), to: context, now: now)
+    }
 
-        let daily = UserDailyPlanProfile.current(in: context) ?? {
-            let new = UserDailyPlanProfile()
+    /// A first profile needs the body and goal answers; without them the model
+    /// would fall back to made-up defaults (75 kg / 175 cm / 22 / male).
+    var canCreateProfile: Bool {
+        weightKg != nil && heightCm != nil && age != nil && sex != nil && goal != nil
+    }
+
+    /// Writes ONLY the given sections' answers — through the same stores and
+    /// rules as the full save, so editing "Food" never rewrites the routine or
+    /// the budget — and posts `.tempoDietaryProfileChanged` once.
+    ///
+    /// Returns the sections that were actually stored. Sections that live on
+    /// the DietaryProfile (You, Goal, Food, and Cooking's skill) are NOT stored while no
+    /// profile exists and this draft can't create one (`canCreateProfile`);
+    /// they stay in the draft until it can.
+    @discardableResult
+    @MainActor
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    func save(sections requested: Set<FuelSetupSection>, to context: ModelContext, now: Date = Date()) -> Set<FuelSetupSection> {
+        var sections = requested
+        func has(_ section: FuelSetupSection) -> Bool {
+            sections.contains(section)
+        }
+        let needsProfile = has(.you) || has(.goal) || has(.food) || has(.cooking)
+        let existingProfile = (try? context.fetch(FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })))?.first
+        if existingProfile == nil {
+            if needsProfile, canCreateProfile {
+                // Born with real body and goal answers, never model defaults.
+                sections.formUnion([.you, .goal])
+            } else {
+                sections.subtract([.you, .goal, .food])
+            }
+        }
+        let profile: DietaryProfile? = existingProfile ?? {
+            guard needsProfile, canCreateProfile else {
+                return nil
+            }
+            let new = DietaryProfile()
             context.insert(new)
             return new
         }()
-        if let wake = routine.typicalWakeMinutes {
-            daily.wakeTimeMinutes = wake
+        if let profile {
+            if has(.you) {
+                if let weightKg {
+                    profile.currentWeightKg = weightKg
+                }
+                if let heightCm {
+                    profile.heightCm = heightCm
+                }
+                if let age {
+                    profile.age = age
+                }
+                if let sex {
+                    profile.biologicalSex = sex
+                }
+                profile.bodyFatPercent = bodyFatPercent
+            }
+            if has(.goal), let goal {
+                profile.primaryGoal = goal
+                profile.goalWeightKg = goal == .maintain ? nil : goalWeightKg
+                profile.weeklyRateKg = goal == .maintain ? nil : weeklyRateKg
+            }
+            if has(.food) {
+                for restriction in DietRestriction.allCases {
+                    profile.set(restriction, restrictions.contains(restriction))
+                }
+                profile.allergies = allergies
+                profile.dislikedFoods = dislikedFoods
+                profile.favoriteFoods = favoriteFoods
+                profile.boredOfFoods = boredOfFoods
+                profile.favoriteCuisines = favoriteCuisines
+                profile.spiceLevel = spiceLevel
+                profile.breakfastStyle = breakfastStyle
+                profile.snacksPerDay = snacksPerDay
+                profile.appetite = appetite
+            }
+            if has(.cooking), let cookingSkill {
+                profile.cookingSkill = cookingSkill
+            }
+            if has(.goal) {
+                profile.trainingFrequency = trainingDaysPerWeek
+                    ?? (has(.week) && routine.trainingDaysPerWeek > 0 ? routine.trainingDaysPerWeek : profile.trainingFrequency)
+            } else if has(.week), trainingDaysPerWeek == nil, routine.trainingDaysPerWeek > 0 {
+                profile.trainingFrequency = routine.trainingDaysPerWeek
+            }
+            profile.updatedAt = now
         }
-        if let breakfastSkipped {
-            daily.breakfastSkipped = breakfastSkipped
-        }
-        if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes, end > start {
-            daily.eatingWindowStartMinutes = start
-            daily.eatingWindowEndMinutes = end
-            daily.eatingWindowPreset = .custom
-        }
-        daily.weeklyRoutine = routine
-        daily.fuelSetupNotes = notes.isEmpty ? nil : notes
-        daily.updatedAt = now
 
-        if let settings = MealPlanGeneratorService.fetchUserSettings(modelContext: context) {
-            if let wake = routine.typicalWakeMinutes {
-                settings.wakeTimeMinutes = wake
+        var daily: UserDailyPlanProfile?
+        if has(.meals) || has(.week) {
+            let row = UserDailyPlanProfile.current(in: context) ?? {
+                let new = UserDailyPlanProfile()
+                context.insert(new)
+                return new
+            }()
+            daily = row
+            if has(.week), let wake = routine.typicalWakeMinutes {
+                row.wakeTimeMinutes = wake
             }
-            if let bed = routine.typicalBedMinutes {
-                settings.bedtimeTargetMinutes = bed
-            }
-            settings.mealsPerDayPreference = mealsPerDay ?? settings.mealsPerDayPreference
-            settings.cookTimeWeekdayMins = cookMinutesWeekday ?? settings.cookTimeWeekdayMins
-            settings.cookTimeWeekendMins = cookMinutesWeekend ?? settings.cookTimeWeekendMins
-            if cookableDaysPerWeek != nil {
-                // The wizard's "this week" answer would otherwise keep
-                // winning over the days just saved here, even when they
-                // equal the stored value.
-                settings.mealIntakeTempWeekStart = nil
-                settings.mealIntakeTempCookableDays = nil
-            }
-            settings.mealIntakeCookableDays = cookableDaysPerWeek ?? settings.mealIntakeCookableDays
-            if let leftoverTolerance {
-                settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
-            }
-            if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
-                let window = EatingWindow(firstMealHour: Int((Double(start) / 60).rounded(.up)), lastMealHour: min(23, end / 60))
-                if window.isValid {
-                    MealPlanIntake.saveEatingWindow(window, settings: settings, dailyPlan: daily)
+            if has(.meals) {
+                if let breakfastSkipped {
+                    row.breakfastSkipped = breakfastSkipped
+                }
+                if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes, end > start {
+                    row.eatingWindowStartMinutes = start
+                    row.eatingWindowEndMinutes = end
+                    row.eatingWindowPreset = .custom
                 }
             }
-            settings.groceryBudgetCapUSD = weeklyBudgetUSD ?? settings.groceryBudgetCapUSD
-            if !stores.isEmpty {
-                settings.groceryPreferredStores = stores
+            if has(.week) {
+                row.weeklyRoutine = routine
+                row.fuelSetupNotes = notes.isEmpty ? nil : notes
+            }
+            row.updatedAt = now
+        }
+
+        if let settings = MealPlanGeneratorService.fetchUserSettings(modelContext: context) {
+            if has(.week) {
+                if let wake = routine.typicalWakeMinutes {
+                    settings.wakeTimeMinutes = wake
+                }
+                if let bed = routine.typicalBedMinutes {
+                    settings.bedtimeTargetMinutes = bed
+                }
+            }
+            if has(.meals) {
+                settings.mealsPerDayPreference = mealsPerDay ?? settings.mealsPerDayPreference
+                if let daily, let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
+                    let window = EatingWindow(firstMealHour: Int((Double(start) / 60).rounded(.up)), lastMealHour: min(23, end / 60))
+                    if window.isValid {
+                        MealPlanIntake.saveEatingWindow(window, settings: settings, dailyPlan: daily)
+                    }
+                }
+            }
+            if has(.cooking) {
+                settings.cookTimeWeekdayMins = cookMinutesWeekday ?? settings.cookTimeWeekdayMins
+                settings.cookTimeWeekendMins = cookMinutesWeekend ?? settings.cookTimeWeekendMins
+                // Clear only the "this week" answer this save supersedes, so the
+                // rest of the week's wizard answers (skipped foods, the other
+                // toggle) survive. A temp value that differs from what was just
+                // saved would otherwise keep winning.
+                if let cookableDaysPerWeek, cookableDaysPerWeek != settings.mealIntakeCookableDays {
+                    settings.mealIntakeTempCookableDays = nil
+                }
+                settings.mealIntakeCookableDays = cookableDaysPerWeek ?? settings.mealIntakeCookableDays
+                if let leftoverTolerance {
+                    settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
+                }
+            }
+            if has(.recovery) {
+                if recoveryAdjusted != settings.mealIntakeRecoveryAdjusted {
+                    settings.mealIntakeTempRecoveryAdjusted = recoveryAdjusted
+                }
+                settings.mealIntakeRecoveryAdjusted = recoveryAdjusted
+            }
+            if has(.food) {
+                // "Won't eat" has one home (DietaryProfile.dislikedFoods, above);
+                // the retired AI Meals list must not come back.
+                settings.mealIntakeExclusionsRaw = ""
+            }
+            if has(.shopping) {
+                settings.groceryBudgetCapUSD = weeklyBudgetUSD ?? settings.groceryBudgetCapUSD
+                if !stores.isEmpty {
+                    settings.groceryPreferredStores = stores
+                }
             }
             settings.updatedAt = now
         }
 
+        if has(.cooking) {
+            if !equipment.isEmpty {
+                let rows = (try? context.fetch(FetchDescriptor<KitchenEquipment>())) ?? []
+                for kind in KitchenApplianceKind.allCases {
+                    guard let owned = equipment[kind.rawValue] else {
+                        continue
+                    }
+                    if let row = rows.first(where: { $0.kindRaw == kind.rawValue }) {
+                        if row.isAvailable != owned {
+                            row.isAvailable = owned
+                            row.updatedAt = now
+                        }
+                    } else {
+                        context.insert(KitchenEquipment(kind: kind, isAvailable: owned, updatedAt: now))
+                    }
+                }
+            }
+            ClearSkinFocusSetting.setEnabled(clearSkinFocus)
+        }
+
         try? context.save()
         NotificationCenter.default.post(name: .tempoDietaryProfileChanged, object: nil)
+        // Cooking's kitchen answers live in settings, but its skill needs the profile.
+        if profile == nil, cookingSkill != nil {
+            sections.remove(.cooking)
+        }
+        return sections
     }
 }
 

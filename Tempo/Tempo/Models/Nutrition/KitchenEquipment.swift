@@ -59,7 +59,7 @@ enum KitchenApplianceKind: String, Codable, CaseIterable, Sendable {
         case .slowCooker: "timer"
         case .toaster: "square.split.1x2"
         case .kettle: "cup.and.saucer"
-        case .grill: "grill"
+        case .grill: "flame.fill"
         }
     }
 

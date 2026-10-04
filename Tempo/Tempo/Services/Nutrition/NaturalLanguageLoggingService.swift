@@ -25,6 +25,48 @@ struct ParsedFoodItem: Identifiable {
     /// Set when the item came from the scanner / food search (not a text parse).
     var source: FoodDataSource?
     var barcode: String?
+    /// Kitchen (comes off the pantry) or out, per food. Set by the review
+    /// sheet's draft; nil = follows the meal.
+    var origin: MealOrigin?
+
+    /// A single dish above this is probably an over-estimate (or a very big
+    /// plate): the review sheet nudges the user to check the portion.
+    static let bigPortionKcal = 1100.0
+
+    var isBigPortion: Bool {
+        calories > Self.bigPortionKcal
+    }
+
+    /// This item at `factor` times its portion: grams and every macro scale
+    /// together (½ → half the rice, half the kcal).
+    func scaled(by factor: Double) -> ParsedFoodItem {
+        guard factor > 0, factor != 1 else {
+            return self
+        }
+        var copy = ParsedFoodItem(
+            id: id,
+            name: name,
+            quantityGrams: quantityGrams * factor,
+            calories: (calories * factor).rounded(),
+            proteinG: (proteinG * factor * 10).rounded() / 10,
+            carbsG: (carbsG * factor * 10).rounded() / 10,
+            fatG: (fatG * factor * 10).rounded() / 10,
+            isVerified: isVerified
+        )
+        copy.source = source
+        copy.barcode = barcode
+        copy.origin = origin
+        return copy
+    }
+
+    /// This item at exactly `grams`. Unchanged when the original weight is
+    /// unknown (0): there is no density to scale from.
+    func scaled(toGrams grams: Double) -> ParsedFoodItem {
+        guard quantityGrams > 0, grams > 0 else {
+            return self
+        }
+        return scaled(by: grams / quantityGrams)
+    }
 
     /// Formatted portion string using natural portions when available.
     var formattedPortion: String {
@@ -107,8 +149,16 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         defer { isProcessing = false }
 
         let response = try await sendParseRequest(text)
-        let (rawItems, mealType, eatenAt) = try parseResponse(response)
+        let (rawItems, _, modelEatenAt) = try parseResponse(response)
         let verifiedItems = crossReferenceWithDatabase(rawItems)
+        // What the user literally wrote ("at 1pm", "yesterday dinner") beats
+        // the model's guess.
+        let hints = MealTimeHints.parse(text)
+        // The model's own meal guess is NOT used: it called "eggs and toast"
+        // breakfast at 14:00. Only a meal the user literally named wins; else
+        // the review sheet derives the meal from the time.
+        let mealType = hints.mealType?.rawValue
+        let eatenAt = hints.date ?? modelEatenAt
 
         logger.info("Parsed \(verifiedItems.count) food items from: \"\(text.prefix(50))\"; type=\(mealType ?? "nil") at=\(eatenAt?.description ?? "nil")")
 
@@ -149,7 +199,7 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
 
         Return ONLY valid JSON (start with {, no markdown, no code blocks) matching this schema:
         {
-            "meal_type": "breakfast | lunch | dinner | snack | null  (null when the text gives no hint)",
+            "meal_type": "breakfast | lunch | dinner | snack | null  (ONLY when the user literally names the meal, e.g. 'for lunch'. Never infer it from the foods: eggs at 2pm are not breakfast. Otherwise null)",
             "eaten_at": "HH:mm in 24-hour local time, or null when no time mentioned. Resolve fuzzy references: 'this morning' → 08:00, 'lunchtime' → 12:30, 'late dinner' → 21:30, 'an hour ago' → null (we'll default to now).",
             "items": [
                 {
@@ -172,6 +222,16 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         - Separate composite foods into individual items (e.g. "chicken and rice" = two items) so the user can see per-item calories.
         - For oils/dressings/sauces, default to a realistic single-serving size: "olive oil" without quantity = ~10g (1 tbsp). Vinegar = ~5g. A pat of butter = ~7g.
         - If the input mentions a brand or prepared food you cannot verify, estimate from the closest generic food.
+        - For a named restaurant/chain bowl or plate ("chicken kitchen bowl", "burrito bowl", "kebab plate"), \
+          break it into its components and give each one its typical portion in `quantityGrams` \
+          (state the weight you assumed, never a tiny tasting-size). A full bowl is usually 450-700g in total.
+        - Calibrate to typical menu values and do NOT inflate. Anchors: chicken fried rice, one restaurant plate ~800 kcal \
+          (700-900); Chipotle burrito bowl ~650-900 kcal; a slice of pizza ~285 kcal; a cheeseburger ~300-500 kcal; \
+          a restaurant pasta dish ~700-900 kcal; a sushi roll (6-8 pieces) ~250-350 kcal. \
+          A single dish rarely tops 1100 kcal; when you are between two sizes pick the typical one, not the biggest. \
+          Do not add oil, sauce or sides the user did not mention.
+        - Do not shrink a portion to look healthy either: typical means typical.
+        - Time words ("at 1pm", "for lunch", "yesterday dinner") are NOT food: never turn them into items.
         """
 
         var lastError: Error?
@@ -182,7 +242,7 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
                     model: "haiku",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 500,
+                    maxTokens: 900,
                     temperature: 0.2,
                     caller: "nl_parse"
                 )

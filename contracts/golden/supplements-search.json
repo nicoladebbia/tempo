@@ -1,0 +1,35 @@
+{
+  "data" : [
+    {
+      "brand" : "Test Labs",
+      "id" : "dsld:999001",
+      "kind" : "creatine",
+      "name" : "Creatine Monohydrate Powder",
+      "on_market" : true,
+      "source" : "dsld"
+    },
+    {
+      "brand" : "Test Labs",
+      "id" : "off:5060000000026",
+      "kind" : "protein",
+      "name" : "Whey Protein (test)",
+      "net_contents" : "900 g",
+      "on_market" : true,
+      "source" : "openfoodfacts"
+    },
+    {
+      "brand" : "Test Foods",
+      "id" : "off:5060000000019",
+      "kind" : "other",
+      "name" : "Test Cereal Bar",
+      "net_contents" : "40 g",
+      "on_market" : true,
+      "source" : "openfoodfacts"
+    }
+  ],
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

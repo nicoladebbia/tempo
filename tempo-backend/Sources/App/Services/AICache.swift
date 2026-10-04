@@ -138,12 +138,33 @@ struct AICacheKey: Sendable {
 
     /// Barcode → product lookup (DSLD / Open Food Facts proxy). Not an AI
     /// call, but reuses this cache-aside utility rather than duplicating it —
-    /// barcode data is effectively static, so a long TTL is safe. Caches
-    /// misses too (value is `SupplementLookupDTO?`) so a repeatedly-scanned
-    /// unknown barcode doesn't keep hitting both upstream APIs.
+    /// barcode data is effectively static, so a long TTL is safe. Only hits
+    /// are cached (misses and upstream failures are not). Key is versioned (v2)
+    /// because the old value shape cached nulls.
+    /// Supplement name search (NIH DSLD). A day is plenty: results change
+    /// slowly and every keystroke-debounced query would otherwise hit NIH.
+    static func supplementSearch(query: String) -> AICacheKey {
+        AICacheKey(
+            value: "supplement:search:v2:\(query.lowercased())",
+            storage: .redis,
+            feature: "supplement_search",
+            ttl: 24 * 3600
+        )
+    }
+
+    /// One DSLD label by id (a search hit opened). Labels are immutable.
+    static func supplementLabel(id: String) -> AICacheKey {
+        AICacheKey(
+            value: "supplement:label:v1:\(id)",
+            storage: .redis,
+            feature: "supplement_label",
+            ttl: 30 * 24 * 3600
+        )
+    }
+
     static func supplementLookup(upc: String) -> AICacheKey {
         AICacheKey(
-            value: "supplement:lookup:\(upc)",
+            value: "supplement:lookup:v2:\(upc)",
             storage: .redis,
             feature: "supplement_lookup",
             ttl: 30 * 24 * 3600

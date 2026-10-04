@@ -138,6 +138,9 @@ struct SupplementDose: Identifiable, Equatable, Sendable {
     /// nil only when the time came from a raw pinned minute with no anchor.
     let anchor: SupplementTimingAnchor?
     let reason: String
+    /// True only when the plan AI explicitly decided "skip today". A skip the
+    /// engine inferred on its own (rest day, no plan) is not a decision.
+    var skippedByPlan = false
 
     var id: UUID {
         supplementID
@@ -349,7 +352,7 @@ enum SupplementScheduleEngine {
         let (take, reason) = resolveTakeDecision(supplement: supplement, planDecision: planDecision, isTrainingDay: context.isTrainingDay)
         let source = resolveTimeSource(supplement: supplement, planDecision: planDecision)
         let resolvedMinutes = resolveMinutes(source: source, supplement: supplement, context: context)
-        return SupplementDose(
+        var dose = SupplementDose(
             supplementID: supplement.id,
             name: supplement.name,
             kind: supplement.kind,
@@ -359,6 +362,8 @@ enum SupplementScheduleEngine {
             anchor: source.anchor,
             reason: reason
         )
+        dose.skippedByPlan = planDecision != nil && !take
+        return dose
     }
 
     /// Today's full shelf, sorted chronologically (ties broken by name so the
