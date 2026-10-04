@@ -135,7 +135,7 @@ final class SupplementLabelImageTests: XCTestCase {
         XCTAssertEqual(sub.upc, "748927028669")
         XCTAssertEqual(sub.kind, "protein")
         XCTAssertEqual(sub.proteinGramsPerServing, 24)
-        XCTAssertNil(sub.carbsGramsPerServing, "zero/unset macros are omitted")
+        XCTAssertNil(sub.carbsGramsPerServing, "unset macros are omitted")
         XCTAssertEqual(sub.ingredients, ["Whey protein 24 g", "Lecithin 1 g"])
         XCTAssertEqual(sub.origin, "label_photo")
 
@@ -143,6 +143,22 @@ final class SupplementLabelImageTests: XCTestCase {
         XCTAssertEqual(obj["dose_per_serving"] as? String, "1 scoop (30 g)")
         XCTAssertEqual(obj["servings_per_container"] as? Double, 30)
         XCTAssertNil(obj["fat_grams_per_serving"])
+    }
+
+    func testExplicitZeroMacrosAreSent() throws {
+        let draft = Supplement(name: "Creatine", kind: .creatine)
+        draft.carbsGramsPerServing = 0
+        draft.fatGramsPerServing = 0
+        let sub = try XCTUnwrap(SupplementCatalogSubmission(draft: draft, origin: .manual))
+        XCTAssertEqual(sub.fatGramsPerServing, 0)
+        XCTAssertEqual(sub.carbsGramsPerServing, 0)
+        XCTAssertNil(sub.caloriesPerServing)
+    }
+
+    func testAIPostsNeverAutoRetry() {
+        XCTAssertTrue(APIEndpoint<SupplementLookupDTO>.supplementReadLabel().disablesRetry)
+        XCTAssertTrue(APIEndpoint<SupplementLookupDTO>.supplementCatalogSubmit().disablesRetry)
+        XCTAssertFalse(APIEndpoint<SupplementLookupDTO>.supplementLabel(id: "dsld:1").disablesRetry)
     }
 
     func testNoNameMeansNoSubmission() {

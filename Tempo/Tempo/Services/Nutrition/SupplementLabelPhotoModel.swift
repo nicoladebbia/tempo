@@ -43,6 +43,11 @@ extension SupplementCatalogSubmission {
             guard let value, value > 0 else { return nil }
             return value
         }
+        /// An explicit 0 g is real data (0 g fat / 0 g carbs); only nil is dropped.
+        func nonNegative(_ value: Double?) -> Double? {
+            guard let value, value >= 0 else { return nil }
+            return value
+        }
         let lines = (draft.ingredientsSummary ?? "")
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -55,9 +60,9 @@ extension SupplementCatalogSubmission {
             dosePerServing: clean(draft.dosePerServing),
             servingsPerContainer: positive(draft.servingsPerContainer),
             proteinGramsPerServing: positive(draft.proteinGramsPerServing),
-            caloriesPerServing: positive(draft.caloriesPerServing),
-            carbsGramsPerServing: positive(draft.carbsGramsPerServing),
-            fatGramsPerServing: positive(draft.fatGramsPerServing),
+            caloriesPerServing: nonNegative(draft.caloriesPerServing),
+            carbsGramsPerServing: nonNegative(draft.carbsGramsPerServing),
+            fatGramsPerServing: nonNegative(draft.fatGramsPerServing),
             ingredients: lines.isEmpty ? nil : Array(lines.prefix(60)),
             origin: origin.rawValue
         )

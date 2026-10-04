@@ -231,12 +231,12 @@ extension APIEndpoint where Response == SupplementLookupDTO {
 
     /// Photo of the label → AI-read product. Body: `SupplementReadLabelRequest`.
     static func supplementReadLabel() -> Self {
-        APIEndpoint(path: "/v1/supplements/read-label", method: .post)
+        APIEndpoint(path: "/v1/supplements/read-label", method: .post, disablesRetry: true)
     }
 
     /// Share a product with the Tempo catalog. Body: `SupplementCatalogSubmission`.
     static func supplementCatalogSubmit() -> Self {
-        APIEndpoint(path: "/v1/supplements/catalog", method: .post)
+        APIEndpoint(path: "/v1/supplements/catalog", method: .post, disablesRetry: true)
     }
 }
 

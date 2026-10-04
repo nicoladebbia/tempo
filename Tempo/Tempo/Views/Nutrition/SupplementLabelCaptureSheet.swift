@@ -30,6 +30,8 @@ struct SupplementLabelCaptureSheet: View {
 
     @State private var model: SupplementLabelPhotoModel?
     @State private var pickerSource: PhotoSource?
+    /// The in-flight read; cancelled on Cancel / dismiss so no review sheet pops up later.
+    @State private var readTask: Task<Void, Never>?
 
     private enum PhotoSource: String, Identifiable {
         case camera, library
@@ -51,7 +53,10 @@ struct SupplementLabelCaptureSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        readTask?.cancel()
+                        dismiss()
+                    }
                 }
             }
             .fullScreenCover(item: $pickerSource) { source in
@@ -63,6 +68,7 @@ struct SupplementLabelCaptureSheet: View {
                 }
                 .ignoresSafeArea()
             }
+            .onDisappear { readTask?.cancel() }
             .onAppear {
                 if model == nil {
                     model = SupplementLabelPhotoModel(
@@ -206,16 +212,20 @@ struct SupplementLabelCaptureSheet: View {
 
     private func start(_ image: UIImage) {
         guard let model else { return }
-        Task {
+        readTask?.cancel()
+        readTask = Task {
             await model.read(image: image)
+            guard !Task.isCancelled else { return }
             deliver(model)
         }
     }
 
     private func retry() {
         guard let model else { return }
-        Task {
+        readTask?.cancel()
+        readTask = Task {
             await model.retry()
+            guard !Task.isCancelled else { return }
             deliver(model)
         }
     }
