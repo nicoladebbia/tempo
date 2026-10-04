@@ -20,6 +20,9 @@ struct SupplementSearchSheet: View {
     let onPick: (SupplementLookupDTO) -> Void
     /// "Type it yourself" — the caller opens the blank form.
     let onTypeIt: () -> Void
+    /// "Photograph the label" — the caller opens the label-photo sheet.
+    /// Nil hides the button.
+    var onReadLabel: (() -> Void)?
     var injectedService: (any SupplementLookupServicing)?
 
     @Environment(\.dismiss)
@@ -82,7 +85,7 @@ struct SupplementSearchSheet: View {
                 }
 
                 if !hits.isEmpty {
-                    Section("NIH supplement label database") {
+                    Section("Supplements") {
                         ForEach(hits) { hit in
                             Button {
                                 open(hit)
@@ -91,7 +94,8 @@ struct SupplementSearchSheet: View {
                                     icon: (SupplementKind(rawValue: hit.kind) ?? .other).icon,
                                     title: hit.name,
                                     subtitle: [hit.brand, hit.netContents].compactMap { $0 }.joined(separator: " · "),
-                                    busy: isOpening == hit.id
+                                    busy: isOpening == hit.id,
+                                    badge: hit.origin.badge
                                 )
                             }
                             .disabled(isOpening != nil)
@@ -105,9 +109,17 @@ struct SupplementSearchSheet: View {
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                     } else if trimmed.count >= 2, !isSearching, hits.isEmpty, commonMatches.isEmpty {
-                        Label("Nothing found for \"\(trimmed)\". Try the brand and the product name.", systemImage: "magnifyingglass")
+                        Label("Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label.", systemImage: "magnifyingglass")
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    if let onReadLabel {
+                        Button {
+                            onReadLabel()
+                        } label: {
+                            Label("Photograph the label", systemImage: "camera.viewfinder")
+                        }
+                        .accessibilityIdentifier("supplementSearchReadLabel")
                     }
                     Button {
                         onTypeIt()
@@ -131,7 +143,7 @@ struct SupplementSearchSheet: View {
         }
     }
 
-    private func resultRow(icon: String, title: String, subtitle: String, busy: Bool = false) -> some View {
+    private func resultRow(icon: String, title: String, subtitle: String, busy: Bool = false, badge: String? = nil) -> some View {
         HStack(spacing: TempoSpacing.md) {
             Image(systemName: icon)
                 .foregroundStyle(Color.tempoSignal)
@@ -145,6 +157,16 @@ struct SupplementSearchSheet: View {
                     Text(subtitle)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
+                }
+                if let badge {
+                    Text(badge)
+                        .font(.tempoCaption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.tempoTextTertiary)
+                        .padding(.horizontal, TempoSpacing.xs)
+                        .padding(.vertical, 1)
+                        .background(Color.tempoSurfaceElevated)
+                        .clipShape(Capsule())
                 }
             }
             Spacer()
@@ -183,7 +205,7 @@ struct SupplementSearchSheet: View {
         } catch {
             guard !Task.isCancelled else { return }
             hits = []
-            message = "Couldn't reach the label database. Check your connection, or type it yourself."
+            message = "Couldn't reach the supplement databases. Check your connection, or type it yourself."
         }
     }
 

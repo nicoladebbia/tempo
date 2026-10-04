@@ -73,7 +73,8 @@ extension SupplementLookupDTO {
             proteinGramsPerServing: proteinGramsPerServing,
             caloriesPerServing: caloriesPerServing, carbsGramsPerServing: carbsGramsPerServing,
             fatGramsPerServing: fatGramsPerServing,
-            certifications: certifications, source: source, ingredients: ingredients
+            certifications: certifications, source: source, ingredients: ingredients,
+            communityConfirmations: communityConfirmations
         )
     }
 }
