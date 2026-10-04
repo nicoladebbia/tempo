@@ -28,6 +28,8 @@ struct SupplementEditSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
 
     @State private var name: String
     @State private var kind: SupplementKind
@@ -78,8 +80,11 @@ struct SupplementEditSheet: View {
         return value
     }
 
+    static let disputedLine = "Users disagree on this one — check your label."
+
     static func sourceLine(_ dto: SupplementLookupDTO) -> String? {
-        switch dto.source {
+        if dto.source == "tempo", dto.disputed == true { return Self.disputedLine }
+        return switch dto.source {
         case "label": "Read from your photo. Check every number before you save."
         case "label_photo": "Read from your photo. Check it against your label."
         case "tempo":
@@ -103,6 +108,9 @@ struct SupplementEditSheet: View {
                         Label(line, systemImage: "sparkles")
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
+                        if prefill.source == "tempo", let catalogID = prefill.catalogID {
+                            SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
+                        }
                     }
                 }
                 Section("Supplement") {
@@ -115,25 +123,19 @@ struct SupplementEditSheet: View {
                     }
                 }
                 Section {
-                    TextField("Calories per serving (kcal)", text: $caloriesPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Protein per serving (g)", text: $proteinPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Carbs per serving (g)", text: $carbsPerServingText)
-                        .keyboardType(.decimalPad)
-                    TextField("Fat per serving (g)", text: $fatPerServingText)
-                        .keyboardType(.decimalPad)
+                    SupplementFieldRow(label: "Calories", unit: "kcal", placeholder: "0", text: $caloriesPerServingText, keyboard: .decimalPad)
+                    SupplementFieldRow(label: "Protein", unit: "g", placeholder: "0", text: $proteinPerServingText, keyboard: .decimalPad)
+                    SupplementFieldRow(label: "Carbs", unit: "g", placeholder: "0", text: $carbsPerServingText, keyboard: .decimalPad)
+                    SupplementFieldRow(label: "Fat", unit: "g", placeholder: "0", text: $fatPerServingText, keyboard: .decimalPad)
                 } header: {
                     Text("Macros per serving")
                 } footer: {
                     Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
                 }
                 Section {
-                    TextField("Dose per serving (e.g. 25 g, 5 g, 1000 mg)", text: $dose)
-                    TextField("Servings left (optional)", text: $servingsText)
-                        .keyboardType(.numberPad)
-                    TextField("Servings per container (optional)", text: $servingsPerContainerText)
-                        .keyboardType(.numberPad)
+                    SupplementFieldRow(label: "Dose per serving", unit: nil, placeholder: "e.g. 25 g, 1000 mg", text: $dose, keyboard: .default)
+                    SupplementFieldRow(label: "Servings left", unit: nil, placeholder: "optional", text: $servingsText, keyboard: .numberPad)
+                    SupplementFieldRow(label: "Servings per container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
                 } header: {
                     Text("Details (optional)")
                 } footer: {
@@ -153,6 +155,14 @@ struct SupplementEditSheet: View {
                 }
                 Section("Notes (optional)") {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
+                }
+                if SupplementCatalogSubmitter.willShare(isNew: existing == nil, prefill: prefill, prefillUPC: prefillUPC) {
+                    Section {
+                        Label(SupplementCatalogSubmitter.disclosure, systemImage: "person.2")
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                            .accessibilityIdentifier("supplementShareDisclosure")
+                    }
                 }
             }
             .navigationTitle(existing == nil ? (prefill == nil ? "Add Supplement" : "Check & add") : "Edit Supplement")
@@ -223,5 +233,63 @@ struct SupplementEditSheet: View {
         }
         HapticManager.notification(.success)
         dismiss()
+    }
+}
+
+// MARK: - SupplementFieldRow
+
+/// One labelled form row: the label stays visible after the field is filled
+/// (a placeholder vanishes), with the unit trailing.
+struct SupplementFieldRow: View {
+    let label: String
+    let unit: String?
+    let placeholder: String
+    @Binding var text: String
+    let keyboard: UIKeyboardType
+
+    var body: some View {
+        HStack(spacing: TempoSpacing.sm) {
+            Text(label)
+                .foregroundStyle(Color.tempoTextPrimary)
+            Spacer(minLength: TempoSpacing.sm)
+            TextField(placeholder, text: $text)
+                .keyboardType(keyboard)
+                .multilineTextAlignment(.trailing)
+                .accessibilityLabel(unit.map { "\(label) (\($0))" } ?? label)
+            if let unit {
+                Text(unit)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .frame(minWidth: 28, alignment: .leading)
+            }
+        }
+    }
+}
+
+// MARK: - SupplementReportButton
+
+/// "Report wrong info" on a Tempo-sourced product. Quiet: one tap, a one-line thank-you.
+struct SupplementReportButton: View {
+    let catalogID: String
+    let service: any SupplementLookupServicing
+    @State private var sent = false
+
+    var body: some View {
+        if sent {
+            Text(SupplementCatalogSubmitter.reportThanks)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        } else {
+            Button {
+                sent = true
+                Task { try? await service.reportCatalogEntry(id: catalogID) }
+            } label: {
+                Text("Report wrong info")
+                    .font(.tempoCaption2)
+                    .underline()
+                    .foregroundStyle(Color.tempoTextTertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("supplementReportButton")
+        }
     }
 }

@@ -29,6 +29,14 @@ struct SupplementShelfRow: Identifiable {
         "\(dose.timeLabel) · \(dose.timingLabel)"
     }
 
+    /// The shelf row's timing line. A dose the plan skipped says so; a protein /
+    /// pre-workout item with no plan decision on a rest day is not "skipped" (a
+    /// brand-new item never is): it reads "Training days only".
+    var statusLine: String {
+        if dose.take { return scheduleLine }
+        return dose.skippedByPlan ? "Skipping today" : "Training days only"
+    }
+
     /// "Brand · 5 g".
     var brandDoseLine: String {
         var parts: [String] = []

@@ -25,6 +25,8 @@ protocol SupplementLookupServicing: Sendable {
     func readLabel(imageBase64: String, mediaType: String, upc: String?) async throws -> SupplementLookupDTO
     /// Shares a product with the Tempo catalog. Best effort for callers.
     func submitToCatalog(_ submission: SupplementCatalogSubmission) async throws -> SupplementLookupDTO
+    /// "Report wrong info" on a Tempo-sourced product.
+    func reportCatalogEntry(id: String) async throws
 }
 
 extension SupplementLookupServicing {
@@ -41,6 +43,10 @@ extension SupplementLookupServicing {
     }
 
     func submitToCatalog(_: SupplementCatalogSubmission) async throws -> SupplementLookupDTO {
+        throw APIError.notFound
+    }
+
+    func reportCatalogEntry(id _: String) async throws {
         throw APIError.notFound
     }
 }
@@ -69,6 +75,10 @@ struct LiveSupplementLookupService: SupplementLookupServicing {
 
     func submitToCatalog(_ submission: SupplementCatalogSubmission) async throws -> SupplementLookupDTO {
         try await apiClient.request(.supplementCatalogSubmit(), body: submission)
+    }
+
+    func reportCatalogEntry(id: String) async throws {
+        _ = try await apiClient.request(.supplementCatalogReport(id: id))
     }
 }
 

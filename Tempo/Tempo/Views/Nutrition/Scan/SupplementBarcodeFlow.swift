@@ -266,6 +266,9 @@ struct SupplementBarcodeFlow: View {
                         .font(.tempoCaption2)
                         .foregroundStyle(Color.tempoTextTertiary)
                 }
+                if dto.source == "tempo", let catalogID = dto.catalogID {
+                    SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
+                }
                 Text("UPC \(dto.upc)")
                     .font(.tempoCaption2)
                     .foregroundStyle(Color.tempoTextTertiary)
@@ -289,7 +292,8 @@ struct SupplementBarcodeFlow: View {
     }
 
     private static func sourceName(_ dto: SupplementLookupDTO) -> String? {
-        switch dto.source {
+        if dto.source == "tempo", dto.disputed == true { return SupplementEditSheet.disputedLine }
+        return switch dto.source {
         case "tempo":
             dto.communityConfirmations.map { "Added by Tempo users · confirmed by \($0). Check it against your label." }
                 ?? "Added by Tempo users. Check it against your label."

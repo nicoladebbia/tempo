@@ -71,6 +71,17 @@ extension SupplementCatalogSubmission {
 
 enum SupplementCatalogSubmitter {
     static let confirmation = "Added to Tempo's catalog — the next scan finds it."
+    /// Shown on the review screen before saving, when the save will be shared.
+    static let disclosure = "Saving also shares this product (not you) with Tempo's catalog."
+
+    /// True when saving a fresh add from the review screen shares it (same rule as `origin`).
+    static func willShare(isNew: Bool, prefill: SupplementLookupDTO?, prefillUPC: String?) -> Bool {
+        guard isNew else { return false }
+        let hadBarcode = prefill == nil && !(prefillUPC ?? "").isEmpty
+        return origin(prefillSource: prefill?.source, hadBarcode: hadBarcode) != nil
+    }
+
+    static let reportThanks = "Thanks. We'll look at it."
 
     /// Which origin (if any) a freshly reviewed add should be shared under.
     /// Label photos always; a manual entry only when it came from a barcode
@@ -198,7 +209,7 @@ final class SupplementLabelPhotoModel {
         }
         switch api {
         case let .unknown(status) where status == 422 || status == 415: return .unreadable
-        case .rateLimited: return .busy
+        case .rateLimited, .serverError(statusCode: 503): return .busy
         case .networkError, .connectionRefused, .timeout, .noResponse: return .offline
         case .unauthorized: return .other("Sign in to read labels with AI, or type it in.")
         case .payloadTooLarge: return .unreadable

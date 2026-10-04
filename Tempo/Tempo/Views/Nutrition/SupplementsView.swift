@@ -381,7 +381,7 @@ struct SupplementsView: View {
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
                             .lineLimit(1)
-                        Label(row.dose.take ? row.scheduleLine : "Skipping today", systemImage: "clock")
+                        Label(row.statusLine, systemImage: "clock")
                             .font(.tempoCaption2)
                             .foregroundStyle(Color.tempoTextTertiary)
                             .lineLimit(1)
@@ -401,7 +401,7 @@ struct SupplementsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.scheduleLine). Open details")
+            .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
             .accessibilityIdentifier("supplementRow.\(row.supplement.name)")
 
             if row.needsReorder {

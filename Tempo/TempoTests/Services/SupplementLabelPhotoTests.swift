@@ -276,6 +276,40 @@ final class SupplementLabelWireTests: XCTestCase {
         let post = MockURLProtocol.recordedRequests.last
         XCTAssertEqual(post?.httpMethod, "POST")
         XCTAssertEqual(post?.url?.path, "/v1/supplements/read-label")
+        MockURLProtocol.setHandler { _ in .init(statusCode: 503) }
+        let unavailable = await SupplementLabelPhotoModel.failure(for: expectError { try await service.readLabel(imageBase64: "QQ==", mediaType: "image/jpeg", upc: nil) })
+        XCTAssertEqual(unavailable, .busy)
+    }
+
+    func testReportCatalogEntryPostsToTheReportRoute() async throws {
+        let service = LiveSupplementLookupService(apiClient: APIClient(session: MockURLProtocol.makeSession()))
+        MockURLProtocol.setHandler { _ in .init(statusCode: 200, data: Data(#"{"ok":true,"data":{"reported":true},"meta":{"request_id":"r","timestamp":"2026-01-01T00:00:00Z"}}"#.utf8)) }
+        try await service.reportCatalogEntry(id: "tempo:0A1B2C3D-0000-4000-8000-000000000001")
+        let post = MockURLProtocol.recordedRequests.last
+        XCTAssertEqual(post?.httpMethod, "POST")
+        XCTAssertEqual(post?.url?.path, "/v1/supplements/catalog/tempo:0A1B2C3D-0000-4000-8000-000000000001/report")
+    }
+
+    func testReadLabelProAndConsentBlockersMapToBlocked() async {
+        let service = LiveSupplementLookupService(apiClient: APIClient(session: MockURLProtocol.makeSession()))
+        MockURLProtocol.setHandler { _ in .init(statusCode: 402, data: Data(#"{"error":true,"reason":"Pro","code":"subscription_required"}"#.utf8)) }
+        let pro = await SupplementLabelPhotoModel.failure(for: expectError { try await service.readLabel(imageBase64: "QQ==", mediaType: "image/jpeg", upc: nil) })
+        XCTAssertEqual(pro, .blocked(.proRequired))
+        MockURLProtocol.setHandler { _ in .init(statusCode: 402, data: Data(#"{"error":true,"reason":"Consent","code":"ai_consent_required"}"#.utf8)) }
+        let consent = await SupplementLabelPhotoModel.failure(for: expectError { try await service.readLabel(imageBase64: "QQ==", mediaType: "image/jpeg", upc: nil) })
+        XCTAssertEqual(consent, .blocked(.aiConsentRequired))
+    }
+
+    func testDisclosureShowsOnlyWhenTheSaveWillShare() {
+        func dto(_ source: String) -> SupplementLookupDTO {
+            SupplementLookupDTO(upc: "", brand: nil, name: "X", kind: "protein", dosePerServing: nil, servingsPerContainer: nil, proteinGramsPerServing: nil, certifications: [], source: source)
+        }
+        XCTAssertTrue(SupplementCatalogSubmitter.willShare(isNew: true, prefill: dto("label_photo"), prefillUPC: nil))
+        XCTAssertTrue(SupplementCatalogSubmitter.willShare(isNew: true, prefill: nil, prefillUPC: "012345678905"))
+        XCTAssertFalse(SupplementCatalogSubmitter.willShare(isNew: true, prefill: dto("dsld"), prefillUPC: nil))
+        XCTAssertFalse(SupplementCatalogSubmitter.willShare(isNew: true, prefill: dto("tempo"), prefillUPC: nil))
+        XCTAssertFalse(SupplementCatalogSubmitter.willShare(isNew: true, prefill: nil, prefillUPC: nil))
+        XCTAssertFalse(SupplementCatalogSubmitter.willShare(isNew: false, prefill: dto("label_photo"), prefillUPC: nil))
     }
 
     private func expectError(_ call: () async throws -> some Any) async -> Error {

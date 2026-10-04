@@ -133,6 +133,27 @@ final class SupplementShelfBoardTests: XCTestCase {
         XCTAssertEqual(sections[0].rows.last?.scheduleLine, "08:00 · With breakfast")
     }
 
+    func testNewItemWithNoPlanDecisionNeverReadsAsSkipped() {
+        // A protein added on a rest day: the engine infers "not today" itself (no plan decision).
+        let whey = Supplement(name: "Whey Isolate", kind: .protein, dosePerServing: "1 scoop")
+        let context = SupplementDayContext(isTrainingDay: false)
+        let inferred = SupplementScheduleEngine.dose(for: whey, context: context)
+        XCTAssertFalse(inferred.take)
+        XCTAssertFalse(inferred.skippedByPlan)
+        let row = SupplementShelfBoard.build(supplements: [whey], doses: [inferred], recentLogs: []).first?.rows.first
+        XCTAssertEqual(row?.statusLine, "Training days only")
+
+        // A skip the plan itself decided still says so.
+        let planned = SupplementDayContext(planDecisions: ["Whey Isolate": SupplementDecision(name: "Whey Isolate", take: false, timing: nil, reason: "Rest day")])
+        let skipped = SupplementScheduleEngine.dose(for: whey, context: planned)
+        XCTAssertTrue(skipped.skippedByPlan)
+        XCTAssertEqual(SupplementShelfBoard.build(supplements: [whey], doses: [skipped], recentLogs: []).first?.rows.first?.statusLine, "Skipping today")
+
+        // A taken dose shows its time.
+        let taken = SupplementScheduleEngine.dose(for: whey, context: SupplementDayContext(isTrainingDay: true))
+        XCTAssertEqual(SupplementShelfBoard.build(supplements: [whey], doses: [taken], recentLogs: []).first?.rows.first?.statusLine, taken.timeLabel + " · " + taken.timingLabel)
+    }
+
     func testRowShowsBrandDoseAndStock() {
         let s = Supplement(name: "Creatine", kind: .creatine, dosePerServing: "5 g", servingsRemaining: 40)
         s.brand = "Thorne"

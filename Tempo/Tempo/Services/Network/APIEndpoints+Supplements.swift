@@ -11,11 +11,14 @@
 //   GET /v1/supplements/label/:id          → Envelope<SupplementLookupDTO>
 //   POST /v1/supplements/read-label       → Envelope<SupplementLookupDTO>
 //       Photo of the Supplement Facts panel → AI-read product (source
-//       "label_photo", not saved). 422 = not a readable label; 429 = AI budget.
+//       "label_photo", not saved). Pro + AI consent only (402). 422 = not a readable label;
+//       429 / 503 = busy.
 //   POST /v1/supplements/catalog           → Envelope<SupplementLookupDTO>
 //       Shares a product with the Tempo catalog (source "tempo") so the next
 //       user's scan / search finds it. Ids from search are source-prefixed:
 //       "dsld:123", "off:<barcode>", "tempo:<uuid>".
+//   POST /v1/supplements/catalog/:id/report → Envelope<SupplementReportResponse>
+//       "Report wrong info" on a Tempo-sourced product (one per user; hidden at 2+ reports).
 //   GET /v1/supplements/picks/:kind?name=… → Envelope<SupplementPicksDTO>
 //       2–3 vetted, third-party-tested products for a supplement type.
 //       `verified == false` means the AI fallback produced them (unusual
@@ -54,6 +57,11 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
     /// Only for source == "tempo": how many distinct users submitted or
     /// confirmed this product. Absent on older backends.
     let communityConfirmations: Int?
+    /// Only for source == "tempo": true when users submitted different key
+    /// figures for this product. Absent otherwise.
+    let disputed: Bool?
+    /// Only for source == "tempo": the shared-catalog entry id (for "Report wrong info").
+    let catalogID: String?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
@@ -61,7 +69,7 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
         certifications: [String], source: String, ingredients: [String]? = nil,
-        communityConfirmations: Int? = nil
+        communityConfirmations: Int? = nil, disputed: Bool? = nil, catalogID: String? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -77,6 +85,8 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         self.source = source
         self.ingredients = ingredients
         self.communityConfirmations = communityConfirmations
+        self.disputed = disputed
+        self.catalogID = catalogID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -94,6 +104,8 @@ struct SupplementLookupDTO: Codable, Sendable, Equatable {
         case source
         case ingredients
         case communityConfirmations = "community_confirmations"
+        case disputed
+        case catalogID = "catalog_id"
     }
 }
 
@@ -237,6 +249,17 @@ extension APIEndpoint where Response == SupplementLookupDTO {
     /// Share a product with the Tempo catalog. Body: `SupplementCatalogSubmission`.
     static func supplementCatalogSubmit() -> Self {
         APIEndpoint(path: "/v1/supplements/catalog", method: .post, disablesRetry: true)
+    }
+}
+
+struct SupplementReportResponse: Codable, Sendable, Equatable {
+    let reported: Bool
+}
+
+extension APIEndpoint where Response == SupplementReportResponse {
+    /// Flag a shared-catalog product as wrong. Idempotent per user.
+    static func supplementCatalogReport(id: String) -> Self {
+        APIEndpoint(path: "/v1/supplements/catalog/\(APIEndpoint<SupplementLookupDTO>.sanitizedLabelID(id))/report", method: .post, disablesRetry: true)
     }
 }
 
