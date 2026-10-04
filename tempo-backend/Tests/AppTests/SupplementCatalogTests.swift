@@ -372,6 +372,14 @@ struct SupplementCatalogTests {
         #expect(hits.allSatisfy { $0.source == "openfoodfacts" })
     }
 
+    @Test func searchALiciousShapeWithBrandArrayAndNamelessHitMaps() throws {
+        let json = #"{"hits":[{"code":"5056307359490","brands":["Myprotein","Other"],"product_name":"Myprotein Creatine","categories_tags":["en:dietary-supplements"],"quantity":"365 Tablets"},{"code":"5056307359491","brands":["X"]}]}"#
+        let hits = SupplementLookupAPIClient.mapOpenFactsHits(try JSONDecoder().decode(OFFSearchResponse.self, from: Data(json.utf8)))
+        #expect(hits.map(\.id) == ["off:5056307359490"])
+        #expect(hits.first?.brand == "Myprotein")
+        #expect(hits.first?.kind == "creatine")
+    }
+
     // MARK: POST /read-label
 
     private func readLabelBody(media: String = "image/jpeg", upc: String? = nil, image: String = "/9j/4AAQ") -> String {

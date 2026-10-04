@@ -134,12 +134,29 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
     func searchOpenFacts(query: String, on req: Request) async throws -> [SupplementSearchHit] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard q.count >= 2 else { return [] }
-        let uri = URI(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(Self.percentEncode(q))&search_simple=1&action=process&json=1&page_size=15&fields=code,product_name,brands,quantity,categories_tags")
+        // One 4 s budget for the whole OFF source: Search-a-licious first (reliable),
+        // the legacy cgi/search.pl (often 503) only when the primary errors.
+        return try await withTimeout(Self.searchTimeoutSeconds) {
+            do {
+                return try await Self.fetchOpenFactsSearch(
+                    "https://search.openfoodfacts.org/search?q=\(Self.percentEncode(q))&page_size=15&fields=code,product_name,brands,categories_tags,quantity",
+                    on: req
+                )
+            } catch {
+                return try await Self.fetchOpenFactsSearch(
+                    "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(Self.percentEncode(q))&search_simple=1&action=process&json=1&page_size=15&fields=code,product_name,brands,quantity,categories_tags",
+                    on: req
+                )
+            }
+        }
+    }
+
+    private static func fetchOpenFactsSearch(_ url: String, on req: Request) async throws -> [SupplementSearchHit] {
         let headers: HTTPHeaders = [HTTPHeaders.Name.userAgent.description: "TempoApp/1.0 (support@tempo.app)"]
-        let response = try await withTimeout(Self.searchTimeoutSeconds) { try await req.client.get(uri, headers: headers) }
+        let response = try await req.client.get(URI(string: url), headers: headers)
         guard response.status == .ok else { throw SupplementLookupError.upstreamUnavailable }
         let decoded = try response.content.decode(OFFSearchResponse.self, using: JSONDecoder())
-        return Self.mapOpenFactsHits(decoded)
+        return mapOpenFactsHits(decoded)
     }
 
     func openFactsLabel(barcode: String, on req: Request) async throws -> SupplementLookupDTO? {
@@ -491,7 +508,12 @@ struct OFFSearchResponse: Decodable {
             code = (try? c.decodeIfPresent(String.self, forKey: .code))
                 ?? c.flexDouble(.code).map { String(Int($0)) }
             productName = try? c.decodeIfPresent(String.self, forKey: .productName)
-            brands = try? c.decodeIfPresent(String.self, forKey: .brands)
+            // cgi/search.pl sends "A, B"; Search-a-licious sends ["A", "B"].
+            if let list = try? c.decodeIfPresent([String].self, forKey: .brands) {
+                brands = list.joined(separator: ",")
+            } else {
+                brands = try? c.decodeIfPresent(String.self, forKey: .brands)
+            }
             quantity = try? c.decodeIfPresent(String.self, forKey: .quantity)
             categoriesTags = (try? c.decodeIfPresent([String].self, forKey: .categoriesTags)) ?? []
         }
@@ -506,11 +528,12 @@ struct OFFSearchResponse: Decodable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         // One malformed row must not sink the page.
-        let rows = (try? c.decodeIfPresent([LossyProduct].self, forKey: .products)) ?? []
+        let rows = (try? c.decodeIfPresent([LossyProduct].self, forKey: .products))
+            ?? (try? c.decodeIfPresent([LossyProduct].self, forKey: .hits)) ?? []
         products = rows.compactMap(\.value)
     }
 
-    enum CodingKeys: String, CodingKey { case products }
+    enum CodingKeys: String, CodingKey { case products, hits }
 
     private struct LossyProduct: Decodable {
         let value: Product?

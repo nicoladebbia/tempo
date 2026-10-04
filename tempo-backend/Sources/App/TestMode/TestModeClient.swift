@@ -22,7 +22,7 @@ struct TestModeClient: Client {
     }
 
     static let supplementDatabaseHosts: Set<String> = [
-        "api.ods.od.nih.gov", "world.openfoodfacts.org", "world.openproductsfacts.org", "world.openbeautyfacts.org",
+        "api.ods.od.nih.gov", "search.openfoodfacts.org", "world.openfoodfacts.org", "world.openproductsfacts.org", "world.openbeautyfacts.org",
     ]
 
     static var hasRealAnthropicKey: Bool {
@@ -62,6 +62,8 @@ struct TestModeClient: Client {
             return try await anthropic(request)
         case "api.nal.usda.gov":
             return Self.json(TestFixtures.usdaSearch(query: Self.queryValue("query", in: request.url) ?? ""))
+        case "search.openfoodfacts.org":
+            return Self.json(TestFixtures.openFoodFactsSearchALicious)
         case "world.openfoodfacts.org":
             if path.hasPrefix("/cgi/search") {
                 return Self.json(TestFixtures.openFoodFactsSearch)
