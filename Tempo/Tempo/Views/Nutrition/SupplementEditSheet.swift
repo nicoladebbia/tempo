@@ -135,7 +135,7 @@ struct SupplementEditSheet: View {
                 Section {
                     SupplementFieldRow(label: "Dose per serving", unit: nil, placeholder: "e.g. 25 g, 1000 mg", text: $dose, keyboard: .default)
                     SupplementFieldRow(label: "Servings left", unit: nil, placeholder: "optional", text: $servingsText, keyboard: .numberPad)
-                    SupplementFieldRow(label: "Servings per container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
+                    SupplementFieldRow(label: "Servings/container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
                 } header: {
                     Text("Details (optional)")
                 } footer: {
