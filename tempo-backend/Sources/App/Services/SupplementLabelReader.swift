@@ -110,7 +110,9 @@ enum SupplementLabelParser {
     /// Number or numeric string, clamped to 0…10000; nil for anything else (including NaN).
     private static func number(_ value: Any?) -> Double? {
         var raw: Double?
-        if let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() {
+        // `objCType == "c"` marks a JSON true/false on both Darwin and Linux
+        // Foundation (CFGetTypeID doesn't exist on Linux).
+        if let n = value as? NSNumber, String(cString: n.objCType) != "c" {
             raw = n.doubleValue
         } else if let s = value as? String {
             raw = Double(s.trimmingCharacters(in: .whitespaces))
