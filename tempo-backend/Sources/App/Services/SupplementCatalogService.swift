@@ -167,7 +167,7 @@ enum SupplementCatalogService {
                 } else if SupplementText.dedupeKey(brand: existing.brand, name: existing.name)
                     == SupplementText.dedupeKey(brand: s.brand, name: s.name)
                 {
-                    let refreshed = try await confirm(existing, userID: userID, on: db)
+                    let refreshed = try await confirm(existing, agrees: agrees(existing, s), userID: userID, on: db)
                     return try await dto(refreshed, on: db)
                 }
                 // else: someone else's entry for this barcode with different data: leave it alone.
@@ -180,6 +180,8 @@ enum SupplementCatalogService {
             entry.origin = s.origin
             entry.contributorID = userID
             entry.confirmationCount = 1
+            entry.disputeCount = 0
+            entry.reportCount = 0
             entry.createdAt = Date()
             entry.updatedAt = entry.createdAt
             do {
@@ -210,38 +212,114 @@ enum SupplementCatalogService {
         entry.ingredients = s.ingredients
     }
 
-    /// Idempotent: one confirmation per user. The stored count is recomputed from the
-    /// confirmations table in ONE UPDATE statement, so parallel confirms can't leave a
-    /// stale number behind.
-    private static func confirm(_ entry: SupplementCatalogEntry, userID: String, on db: Database) async throws -> SupplementCatalogEntry {
-        let entryID = try entry.requireID()
-        let already = try await SupplementCatalogConfirmation.query(on: db)
-            .filter(\.$entryID == entryID).filter(\.$userID == userID).count()
-        if already == 0 {
-            do {
-                try await SupplementCatalogConfirmation(entryID: entryID, userID: userID).save(on: db)
-            } catch {
-                // Same user confirmed in parallel: the unique index made it a no-op.
-            }
+    /// Key figures within tolerance (+-10% or +-1 g/kcal): protein, calories, carbs, fat per
+    /// serving, and servings per container, each compared only when both sides gave a number.
+    /// A second user whose figures differ doesn't confirm the entry, they dispute it.
+    static func agrees(_ entry: SupplementCatalogEntry, _ s: SupplementCatalogSubmission) -> Bool {
+        func close(_ a: Double?, _ b: Double?) -> Bool {
+            guard let a, let b else { return true }
+            return abs(a - b) <= max(1, 0.1 * max(abs(a), abs(b)))
         }
-        if let sql = db as? SQLDatabase {
+        return close(entry.proteinGramsPerServing, s.proteinGramsPerServing)
+            && close(entry.caloriesPerServing, s.caloriesPerServing)
+            && close(entry.carbsGramsPerServing, s.carbsGramsPerServing)
+            && close(entry.fatGramsPerServing, s.fatGramsPerServing)
+            && close(entry.servingsPerContainer, s.servingsPerContainer)
+    }
+
+    /// Idempotent: one row per user (agreeing = a confirmation, otherwise a dispute; a later
+    /// submit by the same user replaces their earlier vote). Counts are recomputed from the
+    /// tables in ONE UPDATE statement, so parallel confirms can't leave a stale number behind.
+    private static func confirm(
+        _ entry: SupplementCatalogEntry, agrees: Bool, userID: String, on db: Database
+    ) async throws -> SupplementCatalogEntry {
+        let entryID = try entry.requireID()
+        if let row = try await SupplementCatalogConfirmation.query(on: db)
+            .filter(\.$entryID == entryID).filter(\.$userID == userID).first()
+        {
+            if row.agrees != agrees {
+                row.agrees = agrees
+                try await row.save(on: db)
+            }
+        } else {
+            let row = SupplementCatalogConfirmation(entryID: entryID, userID: userID)
+            row.agrees = agrees
+            // A parallel insert by the same user hits the unique index: a harmless no-op.
+            try? await row.save(on: db)
+        }
+        try await recount(entryIDs: [entryID], on: db)
+        return try await SupplementCatalogEntry.find(entryID, on: db) ?? entry
+    }
+
+    /// Recomputes confirmation / dispute / report counts for entries from their rows.
+    static func recount(entryIDs: [UUID], on db: Database) async throws {
+        guard let sql = db as? SQLDatabase else { return }
+        for entryID in entryIDs {
             try await sql.raw("""
-            UPDATE supplement_catalog_entries SET confirmation_count = GREATEST(1, \
-            (SELECT COUNT(*) FROM supplement_catalog_confirmations WHERE entry_id = \(bind: entryID))) \
+            UPDATE supplement_catalog_entries SET \
+            confirmation_count = GREATEST(1, (SELECT COUNT(*) FROM supplement_catalog_confirmations \
+            WHERE entry_id = \(bind: entryID) AND agrees)), \
+            dispute_count = (SELECT COUNT(*) FROM supplement_catalog_confirmations \
+            WHERE entry_id = \(bind: entryID) AND NOT agrees), \
+            report_count = (SELECT COUNT(*) FROM supplement_catalog_reports WHERE entry_id = \(bind: entryID)) \
             WHERE id = \(bind: entryID)
             """).run()
         }
-        return try await SupplementCatalogEntry.find(entryID, on: db) ?? entry
+    }
+
+    // MARK: Reports (App Store 1.2: users can flag wrong info)
+
+    /// Hidden from lookup and search once at least 2 people reported it AND reports >= confirmations.
+    static func isHidden(_ entry: SupplementCatalogEntry) -> Bool {
+        entry.reportCount >= 2 && entry.reportCount >= entry.confirmationCount
+    }
+
+    /// One report per user per entry; repeating it changes nothing.
+    static func report(entryID: UUID, userID: String, on db: Database) async throws {
+        guard try await SupplementCatalogEntry.find(entryID, on: db) != nil else {
+            throw Abort(.notFound, reason: "Product not found.")
+        }
+        let already = try await SupplementCatalogReport.query(on: db)
+            .filter(\.$entryID == entryID).filter(\.$userID == userID).count()
+        if already == 0 {
+            try? await SupplementCatalogReport(entryID: entryID, userID: userID).save(on: db)
+        }
+        try await recount(entryIDs: [entryID], on: db)
+    }
+
+    // MARK: Account deletion
+
+    /// The user's footprint in the shared catalog: entries they created stay for everyone else
+    /// but lose the link to them; their confirmations, disputes and reports go, and the
+    /// affected entries' counts are recomputed.
+    static func forget(userID: String, on db: Database) async throws {
+        var affected = Set<UUID>()
+        for row in try await SupplementCatalogConfirmation.query(on: db).filter(\.$userID == userID).all() {
+            affected.insert(row.entryID)
+        }
+        for row in try await SupplementCatalogReport.query(on: db).filter(\.$userID == userID).all() {
+            affected.insert(row.entryID)
+        }
+        for entry in try await SupplementCatalogEntry.query(on: db).filter(\.$contributorID == userID).all() {
+            if let id = entry.id { affected.insert(id) }
+        }
+        try await SupplementCatalogEntry.query(on: db).filter(\.$contributorID == userID)
+            .set(\.$contributorID, to: nil).update()
+        try await SupplementCatalogConfirmation.query(on: db).filter(\.$userID == userID).delete()
+        try await SupplementCatalogReport.query(on: db).filter(\.$userID == userID).delete()
+        try await recount(entryIDs: Array(affected), on: db)
     }
 
     // MARK: Read
 
     static func entry(upc: String, on db: Database) async throws -> SupplementCatalogEntry? {
-        try await SupplementCatalogEntry.query(on: db).filter(\.$entryKey == "upc:\(upc)").first()
+        let found = try await SupplementCatalogEntry.query(on: db).filter(\.$entryKey == "upc:\(upc)").first()
+        return found.flatMap { isHidden($0) ? nil : $0 }
     }
 
     static func entry(id: UUID, on db: Database) async throws -> SupplementCatalogEntry? {
-        try await SupplementCatalogEntry.find(id, on: db)
+        let found = try await SupplementCatalogEntry.find(id, on: db)
+        return found.flatMap { isHidden($0) ? nil : $0 }
     }
 
     /// Entries where every query word appears in brand or name (case-insensitive), best-confirmed first.
@@ -257,7 +335,8 @@ enum SupplementCatalogService {
                 group.filter(\.$brand, .custom("ILIKE"), pattern)
             }
         }
-        return try await builder.sort(\.$confirmationCount, .descending).sort(\.$updatedAt, .descending).limit(limit).all()
+        return try await builder.sort(\.$confirmationCount, .descending).sort(\.$updatedAt, .descending).limit(limit * 3).all()
+            .filter { !isHidden($0) }.prefix(limit).map { $0 }
     }
 
     static func dto(_ entry: SupplementCatalogEntry, on _: Database) async throws -> SupplementLookupDTO {
@@ -275,7 +354,8 @@ enum SupplementCatalogService {
             certifications: [],
             source: "tempo",
             ingredients: entry.ingredients.isEmpty ? nil : entry.ingredients,
-            communityConfirmations: max(1, entry.confirmationCount)
+            communityConfirmations: max(1, entry.confirmationCount),
+            disputed: entry.disputeCount > 0 ? true : nil
         )
     }
 

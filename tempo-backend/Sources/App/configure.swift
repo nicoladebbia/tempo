@@ -195,6 +195,7 @@ func configure(
     app.migrations.add(AddAPNsRoutingToDeviceTokens())
     app.migrations.add(CreateSharedGroceryLists())
     app.migrations.add(CreateSupplementCatalog())
+    app.migrations.add(AddSupplementCatalogReports())
 
     // Arena module — per BUILD_PLAN step 14.1
     app.migrations.add(CreateXPEvents())

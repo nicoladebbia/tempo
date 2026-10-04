@@ -68,6 +68,14 @@ final class SupplementCatalogEntry: Model, @unchecked Sendable {
     @Field(key: "confirmation_count")
     var confirmationCount: Int
 
+    /// Users whose submission for this entry disagreed with its key figures.
+    @Field(key: "dispute_count")
+    var disputeCount: Int
+
+    /// Distinct users who flagged this entry as wrong (`supplement_catalog_reports`).
+    @Field(key: "report_count")
+    var reportCount: Int
+
     @Field(key: "created_at")
     var createdAt: Date
 
@@ -81,6 +89,36 @@ final class SupplementCatalogEntry: Model, @unchecked Sendable {
 /// `community_confirmations`. The contributor gets one at creation.
 final class SupplementCatalogConfirmation: Model, @unchecked Sendable {
     static let schema = "supplement_catalog_confirmations"
+
+    @ID(key: .id)
+    var id: UUID?
+
+    @Field(key: "entry_id")
+    var entryID: UUID
+
+    @Field(key: "user_id")
+    var userID: String
+
+    /// True = a confirmation (key figures match); false = a dispute.
+    @Field(key: "agrees")
+    var agrees: Bool
+
+    @Field(key: "created_at")
+    var createdAt: Date
+
+    init() {}
+
+    init(entryID: UUID, userID: String) {
+        self.entryID = entryID
+        self.userID = userID
+        agrees = true
+        createdAt = Date()
+    }
+}
+
+/// One row per (entry, user): "Report wrong info".
+final class SupplementCatalogReport: Model, @unchecked Sendable {
+    static let schema = "supplement_catalog_reports"
 
     @ID(key: .id)
     var id: UUID?

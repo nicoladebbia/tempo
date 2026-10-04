@@ -1,0 +1,28 @@
+{
+  "data" : {
+    "brand" : "Test Labs",
+    "calories_per_serving" : 120,
+    "carbs_grams_per_serving" : 2,
+    "certifications" : [
+
+    ],
+    "community_confirmations" : 1,
+    "disputed" : true,
+    "dose_per_serving" : "1 scoop (31 g)",
+    "fat_grams_per_serving" : 1,
+    "ingredients" : [
+      "Whey protein isolate 25 g"
+    ],
+    "kind" : "protein",
+    "name" : "Whey Isolate (test)",
+    "protein_grams_per_serving" : 25,
+    "servings_per_container" : 30,
+    "source" : "tempo",
+    "upc" : "012345678905"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

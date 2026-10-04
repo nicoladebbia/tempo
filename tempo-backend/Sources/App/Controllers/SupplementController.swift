@@ -13,6 +13,7 @@ import Vapor
 //   GET /v1/supplements/label/:id           → Envelope<SupplementLookupDTO> (a search hit, in full:
 //       "123"/"dsld:123", "off:<barcode>", "tempo:<uuid>")
 //   POST /v1/supplements/read-label         → Envelope<SupplementLookupDTO> (Claude vision reads a label photo)
+//   POST /v1/supplements/catalog/:id/report → Envelope<SupplementReportResponse> (flag wrong info; hides at >=2 reports)
 //   POST /v1/supplements/catalog            → Envelope<SupplementLookupDTO> (add to / confirm in the shared catalog)
 //   GET /v1/supplements/picks/:kind?name=… → Envelope<SupplementPicksDTO>
 //       2–3 vetted, third-party-tested products for a supplement type. A
@@ -47,9 +48,13 @@ struct SupplementController: RouteCollection {
         // Vision photo: same body ceiling idea as nutrition/ai/proxy/vision (5 MB image
         // as base64 plus JSON overhead), and a tighter per-user rate limit than the
         // group's, since every call is a Sonnet vision request.
+        // Pro + AI consent, like every other Sonnet vision route (SubscriptionMiddleware: 402
+        // subscription_required / ai_consent_required). The rest of the supplements API stays free.
         routes.grouped(RateLimitMiddleware(limit: 10, window: .minutes(1), scope: .user))
+            .grouped(SubscriptionMiddleware())
             .on(.POST, "read-label", body: .collect(maxSize: "6mb"), use: readLabel)
         routes.on(.POST, "catalog", body: .collect(maxSize: "64kb"), use: catalog)
+        routes.post("catalog", ":id", "report", use: reportEntry)
     }
 
     // MARK: - GET /v1/supplements/lookup/:upc
@@ -241,6 +246,20 @@ struct SupplementController: RouteCollection {
         return Envelope(data: dto, requestID: req.requestID)
     }
 
+    // MARK: - POST /v1/supplements/catalog/:id/report
+
+    @Sendable
+    func reportEntry(_ req: Request) async throws -> Envelope<SupplementReportResponse> {
+        let userID = try req.auth.requireUserID()
+        guard let raw = req.parameters.get("id"),
+              let id = UUID(uuidString: raw.hasPrefix("tempo:") ? String(raw.dropFirst(6)) : raw)
+        else {
+            throw Abort(.badRequest, reason: "Bad product id.")
+        }
+        try await SupplementCatalogService.report(entryID: id, userID: userID, on: req.db)
+        return Envelope(data: SupplementReportResponse(reported: true), requestID: req.requestID)
+    }
+
     // MARK: - GET /v1/supplements/picks/:kind
 
     @Sendable
@@ -287,6 +306,10 @@ private enum SupplementKindWire: String {
 
 struct SupplementLookupMiss: Error {}
 
+struct SupplementReportResponse: Content, Equatable {
+    let reported: Bool
+}
+
 /// camelCase on purpose: the global decoder converts the snake_case wire keys.
 struct SupplementReadLabelRequest: Content {
     let imageBase64: String
@@ -317,6 +340,9 @@ struct SupplementLookupDTO: Content, Equatable {
     /// Only set when `source == "tempo"`: distinct users who submitted or
     /// confirmed this shared-catalog entry (>= 1).
     let communityConfirmations: Int?
+    /// Only set (true) when `source == "tempo"` and users submitted different key figures
+    /// for the same product. Omitted otherwise.
+    let disputed: Bool?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
@@ -324,7 +350,7 @@ struct SupplementLookupDTO: Content, Equatable {
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
         certifications: [String], source: String, ingredients: [String]? = nil,
-        communityConfirmations: Int? = nil
+        communityConfirmations: Int? = nil, disputed: Bool? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -340,6 +366,7 @@ struct SupplementLookupDTO: Content, Equatable {
         self.source = source
         self.ingredients = ingredients
         self.communityConfirmations = communityConfirmations
+        self.disputed = disputed
     }
 
     enum CodingKeys: String, CodingKey {
@@ -354,6 +381,7 @@ struct SupplementLookupDTO: Content, Equatable {
         case source
         case ingredients
         case communityConfirmations = "community_confirmations"
+        case disputed
     }
 }
 

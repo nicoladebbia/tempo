@@ -148,6 +148,10 @@ struct UserController: RouteCollection {
                 .filter(\.$cacheKey ~~ ":\(userID):")
                 .delete()
 
+            // 3b. Shared supplement catalog: entries stay for others but lose the
+            //     link to this user; their confirmations/reports go, counts recomputed.
+            try await SupplementCatalogService.forget(userID: userID, on: db)
+
             // 4. Soft-delete the User row. Keep the row for the 30-day
             //    recovery window (User.isRecoverable) but null out anything
             //    that identifies the user. apple_user_id stays so a re-sign-

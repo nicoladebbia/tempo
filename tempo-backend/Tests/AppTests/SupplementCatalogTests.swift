@@ -33,11 +33,18 @@ struct SupplementCatalogTests {
         try await app.asyncShutdown()
     }
 
-    private func makeUser(app: Application) async throws -> (id: String, token: String) {
+    private func makeUser(app: Application, pro: Bool = true, consent: Bool = true) async throws -> (id: String, token: String) {
         let suffix = UUID().uuidString.prefix(12)
         let user = User(appleUserID: "apple_\(suffix)", username: "user_\(suffix)", displayName: "Test User")
         user.tosAcceptedAt = Date()
+        if consent { user.aiConsentAt = Date() }
         try await user.save(on: app.db)
+        if pro {
+            try await UserSubscription(
+                userID: user.requireID(), productId: "tempo_pro_monthly", originalTransactionId: "orig_\(suffix)",
+                purchaseDate: Date().addingTimeInterval(-86400), expirationDate: Date().addingTimeInterval(30 * 86400)
+            ).save(on: app.db)
+        }
         let req = Request(application: app, on: app.eventLoopGroup.next())
         let token = try await JWTService.issueAccessToken(userID: user.requireID(), deviceID: "test-device", on: req)
         return (try user.requireID(), token)
@@ -179,14 +186,15 @@ struct SupplementCatalogTests {
             let name = "Iso \(uniqueWord())"
             _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name, protein: 25))
 
-            // Same product, different numbers (and different case): a confirmation, data untouched.
+            // Same product, numbers within tolerance (and different case): a confirmation, data untouched.
             for _ in 0 ..< 2 {
                 let (status, body) = try await send(app, .POST, "v1/supplements/catalog", token: other.token,
-                                                    json: catalogBody(upc: upc, brand: "ACME", name: name.uppercased(), protein: 99))
+                                                    json: catalogBody(upc: upc, brand: "ACME", name: name.uppercased(), protein: 26))
                 #expect(status == .ok)
                 let dto = try decode(body, as: SupplementLookupDTO.self)
                 #expect(dto.communityConfirmations == 2) // idempotent: the second call doesn't make 3
                 #expect(dto.proteinGramsPerServing == 25)
+                #expect(dto.disputed == nil)
             }
         }
     }
@@ -205,6 +213,165 @@ struct SupplementCatalogTests {
             #expect(dto.name == name)
             #expect(dto.brand == "Acme")
             #expect(dto.communityConfirmations == 1)
+        }
+    }
+
+    // MARK: Disputes, reports, account deletion, read-label gate
+
+    private func entryRow(_ app: Application, upc: String) async throws -> SupplementCatalogEntry {
+        try #require(try await SupplementCatalogEntry.query(on: app.db).filter(\.$entryKey == "upc:\(upc)").first())
+    }
+
+    @Test func catalogDifferentNumbersAreADisputeNotAConfirmation() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let other = try await makeUser(app: app)
+            let upc = freshUPC()
+            let name = "Dispute \(uniqueWord())"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name, protein: 25))
+            for _ in 0 ..< 2 {
+                let (status, body) = try await send(app, .POST, "v1/supplements/catalog", token: other.token,
+                                                    json: catalogBody(upc: upc, name: name, protein: 99))
+                #expect(status == .ok)
+                let dto = try decode(body, as: SupplementLookupDTO.self)
+                #expect(dto.communityConfirmations == 1)
+                #expect(dto.disputed == true)
+                #expect(dto.proteinGramsPerServing == 25)
+            }
+            let entry = try await entryRow(app, upc: upc)
+            #expect(entry.confirmationCount == 1 && entry.disputeCount == 1)
+            // The same user fixing their numbers turns the dispute into a confirmation.
+            let (_, body) = try await send(app, .POST, "v1/supplements/catalog", token: other.token,
+                                           json: catalogBody(upc: upc, name: name, protein: 25))
+            let dto = try decode(body, as: SupplementLookupDTO.self)
+            #expect(dto.communityConfirmations == 2 && dto.disputed == nil)
+        }
+    }
+
+    @Test func agreementToleranceIsTenPercentOrOneUnit() throws {
+        let entry = SupplementCatalogEntry()
+        entry.proteinGramsPerServing = 25
+        entry.caloriesPerServing = 120
+        entry.servingsPerContainer = 30
+        func sub(protein: Double? = 25, calories: Double? = 120, servings: Double? = 30) -> SupplementCatalogSubmission {
+            SupplementCatalogSubmission(
+                upc: nil, brand: nil, name: "x", kind: "other", servingsPerContainer: servings,
+                proteinGramsPerServing: protein, caloriesPerServing: calories, ingredients: [], origin: "manual"
+            )
+        }
+        #expect(SupplementCatalogService.agrees(entry, sub(protein: 27.5, calories: 131)))
+        #expect(!SupplementCatalogService.agrees(entry, sub(protein: 28)))
+        #expect(!SupplementCatalogService.agrees(entry, sub(calories: 140)))
+        #expect(!SupplementCatalogService.agrees(entry, sub(servings: 60)))
+        #expect(SupplementCatalogService.agrees(entry, sub(protein: nil, servings: nil)))
+        entry.fatGramsPerServing = 0
+        var s = sub()
+        s.fatGramsPerServing = 0.9
+        #expect(SupplementCatalogService.agrees(entry, s)) // within 1 g
+    }
+
+    @Test func reportsHideAnEntryOnlyAtTwoAndAtLeastTheConfirmations() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let r1 = try await makeUser(app: app)
+            let r2 = try await makeUser(app: app)
+            let upc = freshUPC()
+            let word = uniqueWord()
+            let name = "Reported \(word)"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name))
+            let id = try await entryRow(app, upc: upc).requireID()
+
+            // Idempotent per user: one report, however many taps.
+            for _ in 0 ..< 3 {
+                let (status, _) = try await send(app, .POST, "v1/supplements/catalog/\(id.uuidString)/report", token: r1.token)
+                #expect(status == .ok)
+            }
+            #expect(try await entryRow(app, upc: upc).reportCount == 1)
+            #expect(try await send(app, .GET, "v1/supplements/lookup/\(upc)", token: owner.token).status == .ok)
+
+            _ = try await send(app, .POST, "v1/supplements/catalog/tempo:\(id.uuidString.lowercased())/report", token: r2.token)
+            #expect(try await entryRow(app, upc: upc).reportCount == 2)
+            #expect(try await send(app, .GET, "v1/supplements/lookup/\(upc)", token: owner.token).status == .notFound)
+            let (_, searchBody) = try await send(app, .GET, "v1/supplements/search?q=\(word)", token: owner.token)
+            #expect(try decode(searchBody, as: [SupplementSearchHit].self).isEmpty)
+            #expect(try await send(app, .GET, "v1/supplements/label/tempo:\(id.uuidString.lowercased())", token: owner.token).status == .notFound)
+        }
+    }
+
+    @Test func reportsDoNotHideAWellConfirmedEntry() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let upc = freshUPC()
+            let name = "Popular \(uniqueWord())"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name))
+            for _ in 0 ..< 2 {
+                let u = try await makeUser(app: app)
+                _ = try await send(app, .POST, "v1/supplements/catalog", token: u.token, json: catalogBody(upc: upc, name: name))
+            }
+            let id = try await entryRow(app, upc: upc).requireID()
+            for _ in 0 ..< 2 {
+                let u = try await makeUser(app: app)
+                _ = try await send(app, .POST, "v1/supplements/catalog/\(id.uuidString)/report", token: u.token)
+            }
+            let entry = try await entryRow(app, upc: upc)
+            #expect(entry.reportCount == 2 && entry.confirmationCount == 3)
+            #expect(try await send(app, .GET, "v1/supplements/lookup/\(upc)", token: owner.token).status == .ok)
+        }
+    }
+
+    @Test func reportUnknownEntryIs404AndBadIdIs400() async throws {
+        try await withApp { app in
+            let user = try await makeUser(app: app)
+            #expect(try await send(app, .POST, "v1/supplements/catalog/\(UUID().uuidString)/report", token: user.token).status == .notFound)
+            #expect(try await send(app, .POST, "v1/supplements/catalog/nope/report", token: user.token).status == .badRequest)
+        }
+    }
+
+    @Test func accountDeletionUnlinksCatalogEntriesAndRecountsConfirmations() async throws {
+        try await withApp { app in
+            let owner = try await makeUser(app: app)
+            let friend = try await makeUser(app: app)
+            let upc = freshUPC()
+            let name = "Forget \(uniqueWord())"
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: owner.token, json: catalogBody(upc: upc, name: name))
+            _ = try await send(app, .POST, "v1/supplements/catalog", token: friend.token, json: catalogBody(upc: upc, name: name))
+            let id = try await entryRow(app, upc: upc).requireID()
+            _ = try await send(app, .POST, "v1/supplements/catalog/\(id.uuidString)/report", token: friend.token)
+            #expect(try await entryRow(app, upc: upc).confirmationCount == 2)
+
+            // The friend deletes their account: their confirmation and report go.
+            let (status, _) = try await send(app, .DELETE, "v1/user/me", token: friend.token)
+            #expect(status == .ok)
+            var entry = try await entryRow(app, upc: upc)
+            #expect(entry.confirmationCount == 1 && entry.reportCount == 0)
+            #expect(entry.contributorID == owner.id)
+
+            // The owner deletes theirs: the entry stays, unlinked.
+            #expect(try await send(app, .DELETE, "v1/user/me", token: owner.token).status == .ok)
+            entry = try await entryRow(app, upc: upc)
+            #expect(entry.contributorID == nil)
+            #expect(try await SupplementCatalogConfirmation.query(on: app.db).filter(\.$entryID == id).count() == 0)
+            #expect(entry.confirmationCount == 1) // floor of 1: the entry still exists
+        }
+    }
+
+    @Test func readLabelRequiresProAndAIConsent() async throws {
+        try await withApp { app in
+            let free = try await makeUser(app: app, pro: false)
+            let noConsent = try await makeUser(app: app, consent: false)
+            let pro = try await makeUser(app: app)
+            let body = readLabelBody(upc: "012345678905")
+            let (freeStatus, freeBody) = try await send(app, .POST, "v1/supplements/read-label", token: free.token, json: body)
+            #expect(freeStatus == .paymentRequired)
+            #expect(String(decoding: freeBody, as: UTF8.self).contains("subscription_required"))
+            let (noConsentStatus, noConsentBody) = try await send(app, .POST, "v1/supplements/read-label", token: noConsent.token, json: body)
+            #expect(noConsentStatus == .paymentRequired)
+            #expect(String(decoding: noConsentBody, as: UTF8.self).contains("ai_consent_required"))
+            // Pro with consent passes the gate (the fake reader's "{}" is "not a label": 422).
+            #expect(try await send(app, .POST, "v1/supplements/read-label", token: pro.token, json: body).status != .paymentRequired)
+            // Everything else stays free.
+            #expect(try await send(app, .GET, "v1/supplements/search?q=whey", token: free.token).status != .paymentRequired)
+            #expect(try await send(app, .POST, "v1/supplements/catalog", token: free.token, json: catalogBody(upc: freshUPC(), name: "Free \(uniqueWord())")).status == .ok)
         }
     }
 
