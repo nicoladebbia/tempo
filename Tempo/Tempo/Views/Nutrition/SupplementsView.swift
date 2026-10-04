@@ -43,12 +43,15 @@ struct SupplementsView: View {
     @State private var showBarcodeScan = false
     @State private var detailTarget: Supplement?
     @State private var reorderTarget: Supplement?
+    /// Quiet confirmation after a best-effort catalog share.
+    @State private var catalogNote: String?
 
     /// One sheet at a time (a sheet swap goes through `present`).
     private enum ShelfSheet: Identifiable {
         case search
         case typeIt
         case quickAdd
+        case readLabel
         case prefilled(id: UUID, dto: SupplementLookupDTO)
 
         var id: String {
@@ -56,6 +59,7 @@ struct SupplementsView: View {
             case .search: "search"
             case .typeIt: "typeIt"
             case .quickAdd: "quickAdd"
+            case .readLabel: "readLabel"
             case let .prefilled(id, _): "prefilled-\(id)"
             }
         }
@@ -66,6 +70,15 @@ struct SupplementsView: View {
         let sections = shelfSections(logs: logs)
         VStack(spacing: 0) {
             topBar(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+            if let catalogNote {
+                Label(catalogNote, systemImage: "checkmark.circle")
+                    .font(.tempoCaption1)
+                    .foregroundStyle(Color.tempoTextSecondary)
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .padding(.bottom, TempoSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("supplementCatalogNote")
+            }
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: TempoSpacing.lg) {
                     SupplementReorderBanner()
@@ -113,6 +126,14 @@ struct SupplementsView: View {
         case .search:
             SupplementSearchSheet(
                 onPick: { dto in present(.prefilled(id: UUID(), dto: dto)) },
+                onTypeIt: { present(.typeIt) },
+                onReadLabel: { present(.readLabel) }
+            )
+            .environment(services)
+        case .readLabel:
+            SupplementLabelCaptureSheet(
+                upc: nil,
+                onResult: { dto in present(.prefilled(id: UUID(), dto: dto)) },
                 onTypeIt: { present(.typeIt) }
             )
             .environment(services)
@@ -127,6 +148,20 @@ struct SupplementsView: View {
         case let .prefilled(_, dto):
             SupplementEditSheet(existing: nil, prefillUPC: nil, prefill: dto) { draft in
                 insert([draft])
+                shareWithCatalog(draft, origin: SupplementCatalogSubmitter.origin(prefillSource: dto.source, hadBarcode: false))
+            }
+        }
+    }
+
+    /// Best effort: a failure never touches the save that already happened.
+    private func shareWithCatalog(_ draft: Supplement, origin: SupplementCatalogOrigin?) {
+        guard let origin else { return }
+        let service = LiveSupplementLookupService(apiClient: services.apiClient)
+        Task {
+            if await SupplementCatalogSubmitter.submit(draft: draft, origin: origin, using: service) {
+                catalogNote = SupplementCatalogSubmitter.confirmation
+                try? await Task.sleep(for: .seconds(5))
+                catalogNote = nil
             }
         }
     }
@@ -226,6 +261,12 @@ struct SupplementsView: View {
             Label("Search by name", systemImage: "magnifyingglass")
         }
         Button {
+            activeSheet = .readLabel
+        } label: {
+            Label("Read a label", systemImage: "camera.viewfinder")
+        }
+        .accessibilityIdentifier("supplementReadLabel")
+        Button {
             activeSheet = .quickAdd
         } label: {
             Label("Quick add common", systemImage: "square.grid.2x2")
@@ -265,6 +306,13 @@ struct SupplementsView: View {
                     activeSheet = .search
                 } label: {
                     Label("Search by name", systemImage: "magnifyingglass")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tempoSecondary)
+                Button {
+                    activeSheet = .readLabel
+                } label: {
+                    Label("Read a label", systemImage: "camera.viewfinder")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tempoSecondary)

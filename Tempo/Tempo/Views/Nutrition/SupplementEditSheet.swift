@@ -78,9 +78,13 @@ struct SupplementEditSheet: View {
         return value
     }
 
-    private static func sourceLine(_ dto: SupplementLookupDTO) -> String? {
+    static func sourceLine(_ dto: SupplementLookupDTO) -> String? {
         switch dto.source {
         case "label": "Read from your photo. Check every number before you save."
+        case "label_photo": "Read from your photo. Check it against your label."
+        case "tempo":
+            dto.communityConfirmations.map { "Added by Tempo users · confirmed by \($0). Check it against your label." }
+                ?? "Added by Tempo users. Check it against your label."
         case "dsld": "From the NIH supplement label database. Check it against your bottle."
         case "openfoodfacts", "openproductsfacts", "openbeautyfacts": "From the Open Facts database. Check it against your bottle."
         default: nil
