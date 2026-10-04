@@ -343,6 +343,8 @@ struct SupplementLookupDTO: Content, Equatable {
     /// Only set (true) when `source == "tempo"` and users submitted different key figures
     /// for the same product. Omitted otherwise.
     let disputed: Bool?
+    /// Only set when `source == "tempo"`: the shared-catalog entry id ("Report wrong info").
+    let catalogID: String?
 
     init(
         upc: String, brand: String?, name: String, kind: String,
@@ -350,7 +352,7 @@ struct SupplementLookupDTO: Content, Equatable {
         proteinGramsPerServing: Double?,
         caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
         certifications: [String], source: String, ingredients: [String]? = nil,
-        communityConfirmations: Int? = nil, disputed: Bool? = nil
+        communityConfirmations: Int? = nil, disputed: Bool? = nil, catalogID: String? = nil
     ) {
         self.upc = upc
         self.brand = brand
@@ -367,6 +369,7 @@ struct SupplementLookupDTO: Content, Equatable {
         self.ingredients = ingredients
         self.communityConfirmations = communityConfirmations
         self.disputed = disputed
+        self.catalogID = catalogID
     }
 
     enum CodingKeys: String, CodingKey {
@@ -382,6 +385,7 @@ struct SupplementLookupDTO: Content, Equatable {
         case ingredients
         case communityConfirmations = "community_confirmations"
         case disputed
+        case catalogID = "catalog_id"
     }
 }
 

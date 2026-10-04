@@ -355,7 +355,8 @@ enum SupplementCatalogService {
             source: "tempo",
             ingredients: entry.ingredients.isEmpty ? nil : entry.ingredients,
             communityConfirmations: max(1, entry.confirmationCount),
-            disputed: entry.disputeCount > 0 ? true : nil
+            disputed: entry.disputeCount > 0 ? true : nil,
+            catalogID: entry.id?.uuidString.lowercased()
         )
     }
 

@@ -107,6 +107,7 @@ struct SupplementCatalogTests {
             #expect(dto.source == "tempo")
             #expect(dto.communityConfirmations == 1)
             #expect(dto.name == name)
+            #expect(dto.catalogID != nil)
             #expect(dto.proteinGramsPerServing == 24)
             #expect(!String(decoding: body, as: UTF8.self).contains(userID))
         }

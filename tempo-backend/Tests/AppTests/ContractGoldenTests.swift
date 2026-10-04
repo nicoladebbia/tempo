@@ -255,7 +255,7 @@ struct ContractGoldenTests {
                 dosePerServing: "1 scoop (31 g)", servingsPerContainer: 30, proteinGramsPerServing: 25,
                 caloriesPerServing: 120, carbsGramsPerServing: 2, fatGramsPerServing: 1,
                 certifications: [], source: "tempo", ingredients: ["Whey protein isolate 25 g"],
-                communityConfirmations: 1, disputed: true
+                communityConfirmations: 1, disputed: true, catalogID: UUID().uuidString.lowercased()
             )
             try golden("supplements-lookup-disputed", await envelopeJSON(app, disputed))
 

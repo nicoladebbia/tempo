@@ -3,6 +3,7 @@
     "brand" : "Contract Labs",
     "calories_per_serving" : 120,
     "carbs_grams_per_serving" : 2,
+    "catalog_id" : "00000000-0000-0000-0000-000000000001",
     "certifications" : [
 
     ],
