@@ -5,7 +5,8 @@
 // Why a plan build can't succeed no matter how often it is retried: the user
 // needs Pro, or hasn't allowed AI features. These never fall back to an
 // on-device build (it asks the same backend) and the UI offers the fix
-// (paywall / turn on AI) instead of a generic "try again".
+// (paywall / turn on AI) instead of a generic "try again". The mapping is the
+// shared `AIBlocker`; only the plan-specific wording lives here.
 //
 
 import Foundation
@@ -15,26 +16,25 @@ enum PlanGenerationBlocker: Equatable {
     case aiConsentRequired
 
     init?(_ error: Error) {
-        switch error {
-        case let api as APIError:
-            switch api {
-            case .subscriptionRequired: self = .proRequired
-            case .aiConsentRequired: self = .aiConsentRequired
-            default: return nil
-            }
-        case let MealPlanGeneratorError.generationFailed(inner):
-            guard let blocker = PlanGenerationBlocker(inner) else {
-                return nil
-            }
-            self = blocker
-        case let WeeklyPlanService.BuildError.server(code):
-            switch code {
-            case "subscription_required": self = .proRequired
-            case "ai_consent_required": self = .aiConsentRequired
-            default: return nil
-            }
-        default:
-            return nil
+        switch AIBlocker(error) {
+        case .proRequired?: self = .proRequired
+        case .aiConsentRequired?: self = .aiConsentRequired
+        case nil: return nil
+        }
+    }
+
+    init(from blocker: AIBlocker) {
+        switch blocker {
+        case .proRequired: self = .proRequired
+        case .aiConsentRequired: self = .aiConsentRequired
+        }
+    }
+
+    /// The shared blocker this maps to (card, action and consent flow).
+    var aiBlocker: AIBlocker {
+        switch self {
+        case .proRequired: .proRequired
+        case .aiConsentRequired: .aiConsentRequired
         }
     }
 
@@ -47,10 +47,7 @@ enum PlanGenerationBlocker: Equatable {
 
     /// Button label for the fix.
     var actionTitle: String {
-        switch self {
-        case .proRequired: "See Pro"
-        case .aiConsentRequired: "Turn on AI"
-        }
+        aiBlocker.actionTitle
     }
 
     /// What the user reads for any plan-build failure.
@@ -58,6 +55,6 @@ enum PlanGenerationBlocker: Equatable {
         if let blocker = PlanGenerationBlocker(error) {
             return blocker.message
         }
-        return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        return AIBlocker.readableDescription(error)
     }
 }

@@ -25,6 +25,9 @@ extension Supplement {
             proteinGramsPerServing: dto.proteinGramsPerServing ?? 0,
             servingsRemaining: dto.servingsPerContainer ?? 0
         )
+        caloriesPerServing = dto.caloriesPerServing
+        carbsGramsPerServing = dto.carbsGramsPerServing
+        fatGramsPerServing = dto.fatGramsPerServing
         brand = dto.brand
         upc = dto.upc
         servingsPerContainer = dto.servingsPerContainer

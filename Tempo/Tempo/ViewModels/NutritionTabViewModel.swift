@@ -198,6 +198,9 @@ final class NutritionTabViewModel {
     var isLoadingMealSuggestions: Bool = false
     var mealSuggestions: [MealSuggestion] = []
     var mealSuggestionError: String?
+    /// Set when meal ideas are blocked by Pro / AI-off; the Nutrition root
+    /// shows the shared alert with the fix.
+    var mealSuggestionBlocker: AIBlocker?
 
     // MARK: - Recovery (Whoop)
 
@@ -999,24 +1002,6 @@ final class NutritionTabViewModel {
         )
     }
 
-    /// Records the user's AI-features consent with the backend, clears the
-    /// blocker and rebuilds. Returns false when the consent call failed.
-    func grantAIConsentAndRebuild(modelContext: ModelContext, services: ServiceContainer) async -> Bool {
-        do {
-            let _: AIConsentResponseDTO = try await services.apiClient.request(
-                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
-                body: AIConsentRequestDTO(consented: true)
-            )
-        } catch {
-            Logger.nutrition.error("[Diag.Plan] AI consent failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-        planGenerationBlocker = nil
-        planGenerationError = nil
-        rebuildRestOfWeek(modelContext: modelContext, services: services)
-        return true
-    }
-
     // MARK: - Server-built plan
 
     /// A plan the Sunday job saved while this screen wasn't generating it:
@@ -1290,6 +1275,7 @@ final class NutritionTabViewModel {
                 )
             }
         }
+        scheduleMealReminders(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Wizard Snapshot Builder
@@ -1329,6 +1315,7 @@ final class NutritionTabViewModel {
     func getMealSuggestions(apiClient: APIClient) {
         isLoadingMealSuggestions = true
         mealSuggestionError = nil
+        mealSuggestionBlocker = nil
         HapticManager.lightImpact()
 
         if coachService == nil {
@@ -1383,42 +1370,20 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.success)
             } catch {
                 isLoadingMealSuggestions = false
-                mealSuggestionError = error.localizedDescription
+                mealSuggestionError = AIBlocker.message(for: error)
+                mealSuggestionBlocker = AIBlocker(error)
                 HapticManager.notification(.error)
             }
         }
     }
 
-    // MARK: - Meal Reminders (Phase 4)
+    // MARK: - Meal Reminders
 
-    // Schedule a local notification 5min before each planned meal's
-    // scheduled time. Skips meals already eaten/skipped/delayed.
-
-    func scheduleMealReminders(notifications: any NotificationServiceProtocol, calendar: Calendar = .current) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let today = calendar.startOfDay(for: Date())
-        for meal in todayMeals where meal.status == .planned {
-            guard let time = formatter.date(from: meal.scheduledTime) else {
-                continue
-            }
-            let comps = calendar.dateComponents([.hour, .minute], from: time)
-            guard let scheduled = calendar.date(
-                bySettingHour: comps.hour ?? 0,
-                minute: comps.minute ?? 0,
-                second: 0,
-                of: today
-            )
-            else {
-                continue
-            }
-            let fire = scheduled.addingTimeInterval(-5 * 60)
-            // Avoid scheduling already-past reminders.
-            guard fire > Date() else {
-                continue
-            }
-            notifications.scheduleMealReminder(mealName: meal.mealName, time: fire)
-        }
+    /// Pre-meal reminders (15 min before every planned meal, only while the
+    /// Meal Reminders switch is on) follow the plan: called after every plan
+    /// build / adoption. See `MealReminderPlanner`.
+    func scheduleMealReminders(modelContext: ModelContext, notifications: any NotificationServiceProtocol) {
+        MealReminderPlanner.reschedule(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Recovery Data

@@ -35,6 +35,13 @@ struct NutritionTabView: View {
     /// the user was on Today / Coach / Log / Pantry at the time.
     @State
     private var planErrorToast: ToastData?
+    /// Pro / AI-off blocker for a plan build started outside the Plan tab
+    /// (the Plan tab shows its own card).
+    @State
+    private var planBlockerAlert: AIBlocker?
+    /// Same, for Coach meal ideas.
+    @State
+    private var mealIdeasBlocker: AIBlocker?
 
     /// Presents the grocery list as a sheet. Driven by the "Open Grocery List"
     /// button in the pantry-gap alert, which previously only switched to the
@@ -101,14 +108,31 @@ struct NutritionTabView: View {
                 guard let newError, !newError.isEmpty else {
                     return
                 }
+                if let blocker = viewModel.planGenerationBlocker {
+                    if viewModel.selectedTab != .plan {
+                        planBlockerAlert = blocker.aiBlocker
+                    }
+                    return
+                }
                 planErrorToast = ToastData(
-                    message: viewModel.planGenerationBlocker != nil
-                        ? newError
-                        : "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
+                    message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
                     style: .error
                 )
             }
             .tempoToast($planErrorToast)
+            .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
+                if let blocker {
+                    mealIdeasBlocker = blocker
+                }
+            }
+            .aiBlockerAlert($mealIdeasBlocker) {
+                viewModel.getMealSuggestions(apiClient: services.apiClient)
+            }
+            .aiBlockerAlert($planBlockerAlert) {
+                viewModel.planGenerationBlocker = nil
+                viewModel.planGenerationError = nil
+                viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
+            }
             .sheet(isPresented: $showDietaryProfileSetup) {
                 FuelSetupView(onSaveAndGenerate: { _ in
                     // Switch to Plan tab and auto-generate

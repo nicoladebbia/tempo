@@ -109,7 +109,9 @@ extension DashboardViewModel {
             // a synthetic .eaten PlannedMeal, so plan-less logs are counted
             // here too.
             let eaten = plannedMeals.filter { $0.status == .eaten }
-            totals.mealsLogged = eaten.count
+            // A ticked supplement's entry counts its macros, not as a meal.
+            let eatenMeals = eaten.filter { !EatenMealRecorder.isSupplementDose($0) }
+            totals.mealsLogged = eatenMeals.count
             totals.calories = Int(eaten.reduce(0.0) { $0 + $1.totalCalories })
             totals.protein = Int(eaten.reduce(0.0) { $0 + $1.totalProtein })
             totals.carbs = Int(eaten.reduce(0.0) { $0 + $1.totalCarbs })
@@ -117,7 +119,7 @@ extension DashboardViewModel {
 
             // Last-eaten timestamp from PlannedMeal.actualEatenAt (Mark
             // Eaten + Quick Log both set it).
-            totals.lastEatenAt = eaten.compactMap(\.actualEatenAt).max()
+            totals.lastEatenAt = eatenMeals.compactMap(\.actualEatenAt).max()
         }
 
         return totals

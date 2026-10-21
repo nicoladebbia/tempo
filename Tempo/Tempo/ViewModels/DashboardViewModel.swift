@@ -642,6 +642,7 @@ final class DashboardViewModel {
         fuelData.nextMeal = nutritionTotals.nextMeal
         fuelData.lastEatenAt = nutritionTotals.lastEatenAt
         fuel = carryingTodayState(into: fuelData, now: now)
+        reloadHydration()
 
         // Build Mind quadrant — exams from calendar, study data local
         // Per BUILD_PLAN step 13.2 — exam countdown from real calendar data.
@@ -735,10 +736,10 @@ final class DashboardViewModel {
         pushWidgetSnapshot()
     }
 
-    /// Carry today's in-memory Fuel state across refreshBody's rebuild:
-    /// hydration taps and meal-timing suggestions (set by
-    /// refreshTrainingStatus) used to reset on every refresh — e.g. logging a
-    /// meal zeroed the water count. A new day starts clean.
+    /// Carry today's in-memory Fuel state across refreshBody's rebuild
+    /// (meal-timing suggestions set by refreshTrainingStatus). Water isn't
+    /// carried: `reloadHydration` reads it from the saved WaterStore. A new
+    /// day starts clean.
     private func carryingTodayState(into fresh: FuelQuadrantData, now: Date) -> FuelQuadrantData {
         guard let previousSync = fuel.lastSync,
               Calendar.current.isDate(previousSync, inSameDayAs: now)
@@ -746,7 +747,6 @@ final class DashboardViewModel {
             return fresh
         }
         var merged = fresh
-        merged.hydrationMl = fuel.hydrationMl
         merged.mealTimingSuggestions = fuel.mealTimingSuggestions
         return merged
     }
@@ -1084,8 +1084,13 @@ final class DashboardViewModel {
 
     // MARK: - Hydration
 
-    func addHydration(_ ml: Int = 250) {
-        fuel.addHydration(ml)
+    /// Re-read today's saved water (WaterStore) into the Fuel tile. Cheap, no
+    /// full refresh: called after every refresh and on `.tempoWaterLogged`.
+    func reloadHydration() {
+        guard let context = fuelContext else {
+            return
+        }
+        fuel.hydrationMl = WaterStore.total(on: Date(), in: context)
     }
 
     // MARK: - Meal Timing Refresh

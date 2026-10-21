@@ -152,6 +152,7 @@ struct FuelQuadrantData {
 
     // MARK: - Hydration Tracking
 
+    /// Today's saved water (WaterStore), set by the Dashboard refresh.
     var hydrationMl: Int = 0
     var hydrationTargetMl: Int {
         adjustedTargets?.hydrationTargetMl ?? 2500
@@ -306,11 +307,6 @@ struct FuelQuadrantData {
         isConnected: false
     )
 
-    // MARK: - Mutating Helpers
-
-    mutating func addHydration(_ ml: Int) {
-        hydrationMl += ml
-    }
 }
 
 // MARK: - MindQuadrantData

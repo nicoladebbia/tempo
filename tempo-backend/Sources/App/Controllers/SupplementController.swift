@@ -111,15 +111,44 @@ struct SupplementLookupDTO: Content, Equatable {
     let dosePerServing: String?
     let servingsPerContainer: Double?
     let proteinGramsPerServing: Double?
+    /// Optional macros per serving (added Oct 2026). Omitted when the label
+    /// data doesn't carry them; older clients ignore the keys.
+    let caloriesPerServing: Double?
+    let carbsGramsPerServing: Double?
+    let fatGramsPerServing: Double?
     let certifications: [String]
     /// "dsld" | "openfoodfacts"
     let source: String
+
+    init(
+        upc: String, brand: String?, name: String, kind: String,
+        dosePerServing: String?, servingsPerContainer: Double?,
+        proteinGramsPerServing: Double?,
+        caloriesPerServing: Double? = nil, carbsGramsPerServing: Double? = nil, fatGramsPerServing: Double? = nil,
+        certifications: [String], source: String
+    ) {
+        self.upc = upc
+        self.brand = brand
+        self.name = name
+        self.kind = kind
+        self.dosePerServing = dosePerServing
+        self.servingsPerContainer = servingsPerContainer
+        self.proteinGramsPerServing = proteinGramsPerServing
+        self.caloriesPerServing = caloriesPerServing
+        self.carbsGramsPerServing = carbsGramsPerServing
+        self.fatGramsPerServing = fatGramsPerServing
+        self.certifications = certifications
+        self.source = source
+    }
 
     enum CodingKeys: String, CodingKey {
         case upc, brand, name, kind
         case dosePerServing = "dose_per_serving"
         case servingsPerContainer = "servings_per_container"
         case proteinGramsPerServing = "protein_grams_per_serving"
+        case caloriesPerServing = "calories_per_serving"
+        case carbsGramsPerServing = "carbs_grams_per_serving"
+        case fatGramsPerServing = "fat_grams_per_serving"
         case certifications
         case source
     }

@@ -72,7 +72,8 @@ struct PlanUpdateBanner: View {
 // MARK: - PlanBlockerCard
 
 /// Shown when the plan can't be built because the user needs Pro or hasn't
-/// allowed AI features: the reason, and a button to fix it.
+/// allowed AI features: the shared AI blocker card, with plan wording and a
+/// rebuild once AI is switched on.
 struct PlanBlockerCard: View {
     let blocker: PlanGenerationBlocker
     @Bindable
@@ -81,63 +82,13 @@ struct PlanBlockerCard: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
-    @State
-    private var showPaywall = false
-    @State
-    private var isWorking = false
-    @State
-    private var consentError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xs) {
-                Image(systemName: "lock.fill")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoAmber)
-                Text(blocker.message)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-            }
-            if let consentError {
-                Text(consentError)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoError)
-            }
-            Button {
-                act()
-            } label: {
-                Text(isWorking ? "Working…" : blocker.actionTitle)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
-            }
-            .buttonStyle(.plain)
-            .disabled(isWorking)
-            .accessibilityIdentifier("planBlockerAction")
+        AIBlockerCard(blocker: blocker.aiBlocker, message: blocker.message) {
+            viewModel.planGenerationBlocker = nil
+            viewModel.planGenerationError = nil
+            viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-        }
-    }
-
-    private func act() {
-        switch blocker {
-        case .proRequired:
-            showPaywall = true
-        case .aiConsentRequired:
-            isWorking = true
-            consentError = nil
-            Task {
-                if await viewModel.grantAIConsentAndRebuild(modelContext: modelContext, services: services) == false {
-                    consentError = "Couldn't turn on AI features. Try again."
-                }
-                isWorking = false
-            }
-        }
+        .accessibilityIdentifier("planBlockerCard")
     }
 }

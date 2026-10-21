@@ -25,6 +25,8 @@ struct WeeklyCheckInView: View {
     @State
     private var errorMessage: String?
     @State
+    private var blocker: AIBlocker?
+    @State
     private var sent = false
 
     private let weekStart = WeeklyPlanService.weekStart()
@@ -86,7 +88,12 @@ struct WeeklyCheckInView: View {
             }
             VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 120)
                 .accessibilityIdentifier("weeklyCheckInSaid")
-            if let errorMessage {
+            if let blocker {
+                AIBlockerCard(blocker: blocker, message: PlanGenerationBlocker(from: blocker).message) {
+                    self.blocker = nil
+                    send()
+                }
+            } else if let errorMessage {
                 Text(errorMessage)
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoError)
@@ -128,6 +135,7 @@ struct WeeklyCheckInView: View {
 
     private func send() {
         errorMessage = nil
+        blocker = nil
         isSending = true
         Task {
             // So the "ready" push can reach this phone.
@@ -144,6 +152,7 @@ struct WeeklyCheckInView: View {
                 sent = true
             } catch {
                 errorMessage = Self.message(for: error)
+                blocker = AIBlocker(error)
             }
             isSending = false
         }

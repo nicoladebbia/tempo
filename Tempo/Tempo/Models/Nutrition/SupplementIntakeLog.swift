@@ -45,6 +45,12 @@ final class SupplementIntakeLog {
     /// treats those as one serving. Additive, lightweight migration.
     var stockDecrement: Double?
 
+    /// The "Supplements" eaten entry this tick created in today's totals
+    /// (`PlannedMeal.id`), so an untick removes exactly it. nil for a
+    /// zero-macro supplement and for rows from before macros counted.
+    /// Additive, lightweight migration.
+    var mealID: UUID?
+
     init(
         id: UUID = UUID(),
         supplementName: String,

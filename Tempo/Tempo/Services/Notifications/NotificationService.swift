@@ -312,6 +312,93 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         )
     }
 
+    // MARK: - Pre-meal reminder (keyed by meal id)
+
+    /// Pending pre-meal reminders kept at once — leaves room under iOS's 64
+    /// for prep / defrost / overdue / supplement / trainer reminders.
+    static let maxMealReminders = 28
+    static let mealReminderIDPrefix = "meal_"
+    /// The meal's name, so a snoozed reminder can say "Time for X" instead
+    /// of repeating "X in 15 min".
+    static let mealNameUserInfoKey = "mealName"
+
+    static func mealReminderID(mealID: UUID) -> String {
+        "\(mealReminderIDPrefix)\(mealID.uuidString)"
+    }
+
+    private func mealReminderRequest(_ reminder: MealReminderRequest) -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = "Fuel Up"
+        content.body = "\(reminder.mealName) in \(MealReminderPlanner.leadMinutes) min. Don't skip it."
+        content.categoryIdentifier = "MEAL_REMINDER"
+        content.threadIdentifier = "tempo.meals.\(dateKey(reminder.fireDate))"
+        content.interruptionLevel = .active
+        content.sound = sound(for: "MEAL_REMINDER")
+        content.userInfo = [
+            Self.mealIDUserInfoKey: reminder.mealID.uuidString,
+            Self.mealNameUserInfoKey: reminder.mealName,
+        ]
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: reminder.fireDate
+        )
+        return UNNotificationRequest(
+            identifier: Self.mealReminderID(mealID: reminder.mealID),
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+    }
+
+    /// Meal reminders skip the daily budget and the 30-minute anti-spam gap:
+    /// each is a discrete event for one specific meal, and meals can sit
+    /// closer together than that.
+    func scheduleMealReminder(mealID: UUID, mealName: String, fireDate: Date) {
+        guard fireDate > Date() else {
+            return
+        }
+        let request = mealReminderRequest(MealReminderRequest(mealID: mealID, mealName: mealName, fireDate: fireDate))
+        center.add(request) { [logger] error in
+            if let error {
+                logger.error("Failed to schedule meal reminder: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func cancelMealReminder(mealID: UUID) {
+        center.removePendingNotificationRequests(withIdentifiers: [Self.mealReminderID(mealID: mealID)])
+    }
+
+    func replaceMealReminders(_ reminders: [MealReminderRequest]) {
+        let now = Date()
+        let wanted = reminders
+            .filter { $0.fireDate > now }
+            .sorted { $0.fireDate < $1.fireDate }
+            .prefix(Self.maxMealReminders)
+        center.getPendingNotificationRequests { [weak self] pending in
+            guard let self else {
+                return
+            }
+            let existing = pending.filter {
+                $0.content.categoryIdentifier == "MEAL_REMINDER" && $0.identifier.hasPrefix(Self.mealReminderIDPrefix)
+            }
+            let room = max(0, Self.maxPendingNotifications - (pending.count - existing.count))
+            let final = Array(wanted.prefix(room))
+            let keep = Set(final.map { Self.mealReminderID(mealID: $0.mealID) })
+            let stale = existing.map(\.identifier).filter { !keep.contains($0) }
+            if !stale.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: stale)
+            }
+            for reminder in final {
+                center.add(mealReminderRequest(reminder)) { error in
+                    if let error {
+                        self.logger.error("Failed to schedule meal reminder: \(error.localizedDescription)")
+                    }
+                }
+            }
+            logger.info("Meal reminders: \(final.count) scheduled, \(stale.count) removed")
+        }
+    }
+
     func cancelMealReminder(mealName: String, on day: Date) {
         center.removePendingNotificationRequests(
             withIdentifiers: ["meal_\(mealName.lowercased())_\(dateKey(day))"]
@@ -350,7 +437,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             priority: 4,
             // Defrost reminders are discrete, time-critical events tied to food
             // physically spoiling — never skip them due to daily-budget pressure.
-            bypassBudget: true
+            bypassBudget: true,
+            // A tap / "View meal" opens this meal.
+            userInfo: [Self.mealIDUserInfoKey: mealID.uuidString]
         )
     }
 
@@ -393,7 +482,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             budgetCost: 0.5,
             priority: 4,
             // Same rationale as defrost — discrete, time-critical, food-physical.
-            bypassBudget: true
+            bypassBudget: true,
+            // A tap / "View meal" opens this meal.
+            userInfo: [Self.mealIDUserInfoKey: mealID.uuidString]
         )
     }
 
@@ -849,46 +940,6 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
                 self?.logger.info("Cancelled \(idsToCancel.count) pending escalation notifications on foreground")
             }
         }
-    }
-
-    // MARK: - Reschedule All
-
-    // Per TECHNICAL_FEASIBILITY_AUDIT.md Section 3.1 — Reschedule on app foreground.
-
-    func rescheduleAllForToday(
-        briefing: BriefingContent?,
-        briefingTime: Date?,
-        escalations: [(tier: EscalationTier, time: Date, content: String)],
-        meals: [(name: String, time: Date)],
-        bedtime: Date?
-    ) {
-        // Clear all existing local notifications
-        center.removeAllPendingNotificationRequests()
-        resetDailyBudget()
-
-        // 1. Schedule today's notifications first (highest priority)
-        if let briefing, let time = briefingTime, time > Date() {
-            scheduleMorningBriefing(for: time, content: briefing)
-        }
-
-        for escalation in escalations where escalation.time > Date() {
-            scheduleAccountabilityEscalation(
-                tier: escalation.tier,
-                time: escalation.time,
-                content: escalation.content
-            )
-        }
-
-        for meal in meals where meal.time > Date() {
-            scheduleMealReminder(mealName: meal.name, time: meal.time)
-        }
-
-        if let bedtime, bedtime > Date() {
-            scheduleBedtimeReminder(time: bedtime)
-        }
-
-        // 2. Log pending count
-        logPendingCount()
     }
 
     // MARK: - Badge Count

@@ -132,7 +132,17 @@ final class ServiceContainer {
     /// exists, so `watchActionRouter` can act on real SwiftData rows.
     func configure(modelContext: ModelContext) {
         watchActionRouter.configure(modelContext: modelContext)
+        // Eaten meals -> Apple Health food log. Live Health only: previews and
+        // mock containers don't need (or want) the observer.
+        if healthKit is HealthKitService, healthNutritionSync == nil {
+            let sync = HealthNutritionSync(healthKit: healthKit, context: modelContext)
+            healthNutritionSync = sync
+            sync.start()
+        }
     }
+
+    /// Owns the eaten-meal -> Apple Health reconcile loop (started in `configure`).
+    private(set) var healthNutritionSync: HealthNutritionSync?
 
     static func mock() -> ServiceContainer {
         let auth = AuthService()

@@ -32,6 +32,21 @@ enum Tab: String, CaseIterable {
     }
 }
 
+// MARK: - MealRequest
+
+/// A meal a notification wants on screen.
+struct MealRequest: Equatable, Identifiable {
+    enum Action: Equatable {
+        /// Show the meal.
+        case open
+        /// Show the meal with Mark eaten already open.
+        case markEaten
+    }
+
+    let id: UUID
+    let action: Action
+}
+
 // MARK: - AppState
 
 @Observable
@@ -45,6 +60,9 @@ final class AppState {
     /// Set by the Sunday notification's "Something's different" — ContentView
     /// opens the weekly check-in.
     var weeklyCheckInRequested = false
+    /// Set by a meal notification (tap, "Log meal", "View meal"):
+    /// ContentView presents that meal.
+    var requestedMeal: MealRequest?
     var isOffline: Bool = false
 
     private let authService: AuthService

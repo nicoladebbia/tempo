@@ -101,17 +101,27 @@ enum FoodFit {
         var checks: [FoodFitCheck] = []
         let allergens = Set(product.allergens)
         let analysis = Set(product.ingredientsAnalysis)
-        let ingredients = (product.ingredientsText ?? "").lowercased()
 
-        // Hard rules.
-        if context.glutenFree, allergens.contains("gluten") {
-            checks.append(.init(kind: .conflict, text: "Contains gluten"))
+        // Hard rules. Allergen rules read the confirmed tags AND the
+        // ingredient text (a product with no "gluten" tag but "wheat flour"
+        // in its ingredients still contains gluten); a "may contain" trace is
+        // a warning, never a conflict, and never silently safe.
+        let text = AllergenText(product)
+        let glutenFreeLabel = product.labels.contains { $0.contains("gluten-free") || $0.contains("no-gluten") }
+        if context.glutenFree {
+            allergenRule(
+                &checks, label: "gluten", display: ["Gluten"], terms: glutenTerms, text: text, product: product,
+                skipText: glutenFreeLabel
+            )
         }
-        if context.nutFree, !allergens.isDisjoint(with: ["nuts", "peanuts"]) {
-            checks.append(.init(kind: .conflict, text: "Contains nuts"))
+        if context.nutFree {
+            allergenRule(&checks, label: "nuts", display: ["Tree nuts", "Peanuts"], terms: nutTerms, text: text, product: product)
         }
-        if context.shellfishAllergy, !allergens.isDisjoint(with: ["crustaceans", "molluscs"]) {
-            checks.append(.init(kind: .conflict, text: "Contains shellfish"))
+        if context.shellfishAllergy {
+            allergenRule(
+                &checks, label: "shellfish", display: ["Crustaceans", "Molluscs"], terms: shellfishTerms, text: text,
+                product: product
+            )
         }
         if context.vegan {
             if analysis.contains("non-vegan") {
@@ -125,15 +135,28 @@ enum FoodFit {
         if context.halal, let halalCheck = halalCheck(for: product) {
             checks.append(halalCheck)
         }
-        for allergy in context.allergies {
-            let term = allergy.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard term.count >= 3 else {
-                continue
-            }
+        let namedAllergies = context.allergies
+            .map { (original: $0, term: $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()) }
+            .filter { $0.term.count >= 3 }
+        for (allergy, term) in namedAllergies {
             let tagged = allergens.contains { $0.contains(term) || term.contains($0) }
-            if tagged || ingredients.contains(term) {
+            if tagged || text.body.contains(term) {
                 checks.append(.init(kind: .conflict, text: "Contains \(allergy) (your allergy)"))
+            } else if (product.traces ?? []).contains(where: { $0.contains(term) || term.contains($0) })
+                || product.displayTraces.contains(where: { $0.lowercased().contains(term) || term.contains($0.lowercased()) })
+                || text.traces.contains(term)
+            {
+                checks.append(.init(kind: .warning, text: "May contain \(allergy) (your allergy) — shared line"))
             }
+        }
+        // No allergen or ingredient data at all on a packaged product: that is
+        // NOT "safe". Say so, loudly, whenever the user has an allergy rule.
+        let hasAllergyRule = context.glutenFree || context.nutFree || context.shellfishAllergy || !namedAllergies.isEmpty
+        if hasAllergyRule, claimsAllergenData(product), !hasAllergenData(product) {
+            checks.append(.init(
+                kind: .warning,
+                text: "Can't verify allergens — no ingredient data. Read the pack before you eat it."
+            ))
         }
 
         // Soft rules.
@@ -178,6 +201,86 @@ enum FoodFit {
             checks.append(goalCheck)
         }
         return checks.sorted { $0.kind.rawValue < $1.kind.rawValue }
+    }
+
+    // MARK: - Allergen helpers
+
+    /// Sources that plausibly ship allergen data (Open Food Facts and
+    /// user-added labels). Built-in / USDA table rows were never asked.
+    static func claimsAllergenData(_ product: FoodProduct) -> Bool {
+        product.source == .openFoodFacts || product.source == .userAdded
+    }
+
+    static func hasAllergenData(_ product: FoodProduct) -> Bool {
+        !product.allergens.isEmpty
+            || !(product.traces ?? []).isEmpty
+            || !(product.ingredientsText ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private static let glutenTerms = [
+        "wheat", "barley", "rye", "spelt", "kamut", "gluten", "semolina", "farro", "triticale", "bulgur", "couscous", "seitan", "malt",
+    ]
+    private static let nutTerms = [
+        "peanut", "groundnut", "almond", "hazelnut", "walnut", "cashew", "pecan", "pistachio", "macadamia", "brazil nut",
+        "pine nut", "tree nut", "nut", "praline", "marzipan", "nougat",
+    ]
+    private static let shellfishTerms = [
+        "shrimp", "prawn", "crab", "lobster", "crayfish", "crawfish", "langoustine", "krill", "mussel", "oyster", "clam",
+        "scallop", "squid", "octopus", "shellfish", "crustacean", "mollusc", "mollusk",
+    ]
+
+    /// Ingredient text split into what the food IS made of (`body`, plus the
+    /// product name) and its "may contain / traces of / made in a facility"
+    /// statements (`traces`) — those are warnings, not ingredients.
+    struct AllergenText {
+        let body: String
+        let traces: String
+
+        init(_ product: FoodProduct) {
+            let raw = (product.ingredientsText ?? "").lowercased()
+            let pattern = #"(may contain|contains traces of|traces of|traces|produced in a facility|manufactured in a facility|made in a facility|made on equipment)[^.;]*"#
+            var traceParts: [String] = []
+            var body = raw
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let ns = raw as NSString
+                for match in regex.matches(in: raw, range: NSRange(location: 0, length: ns.length)).reversed() {
+                    traceParts.append(ns.substring(with: match.range))
+                    body = (body as NSString).replacingCharacters(in: match.range, with: " ")
+                }
+            }
+            // "gluten-free" / "nut free" claims are not ingredients.
+            self.body = (body + " " + product.name.lowercased())
+                .replacingOccurrences(of: #"\b(gluten|wheat|nut|peanut|shellfish)[- ]free\b"#, with: " ", options: .regularExpression)
+            traces = traceParts.joined(separator: " ")
+        }
+
+        func mentions(_ terms: [String], in text: String) -> Bool {
+            terms.contains { term in
+                text.range(of: "\\b\(NSRegularExpression.escapedPattern(for: term))(?:s|es)?\\b", options: .regularExpression) != nil
+            }
+        }
+    }
+
+    /// Conflict when the tag or the ingredient text names the allergen;
+    /// warning when only a "may contain" trace does.
+    private static func allergenRule(
+        _ checks: inout [FoodFitCheck],
+        label: String,
+        display: [String],
+        terms: [String],
+        text: AllergenText,
+        product: FoodProduct,
+        skipText: Bool = false
+    ) {
+        let confirmed = !Set(product.displayAllergens).isDisjoint(with: display)
+        if confirmed || (!skipText && text.mentions(terms, in: text.body)) {
+            checks.append(.init(kind: .conflict, text: "Contains \(label)"))
+            return
+        }
+        let traced = !Set(product.displayTraces).isDisjoint(with: display) || text.mentions(terms, in: text.traces)
+        if traced {
+            checks.append(.init(kind: .warning, text: "May contain traces of \(label) — shared line"))
+        }
     }
 
     /// Conflict when the ingredients/labels show pork, unspecified gelatin
@@ -257,5 +360,43 @@ enum FoodFit {
 
     private static func format(_ value: Double) -> String {
         value < 10 ? String(format: "%.1f", value) : String(Int(value.rounded()))
+    }
+}
+
+// MARK: - Enriched allergen data
+
+extension FoodProduct {
+    /// This product with allergen / trace / ingredient data taken from a
+    /// re-fetched full record (`FoodCatalog.enrichAllergensIfMissing`) — the
+    /// search index often omits them. Everything else stays as it was.
+    func mergingAllergenData(from source: FoodProduct?) -> FoodProduct {
+        guard let source else {
+            return self
+        }
+        var merged = self
+        if merged.allergens.isEmpty { merged.allergens = source.allergens }
+        if (merged.traces ?? []).isEmpty { merged.traces = source.traces }
+        if merged.ingredientsText == nil { merged.ingredientsText = source.ingredientsText }
+        if merged.ingredientsAnalysis.isEmpty { merged.ingredientsAnalysis = source.ingredientsAnalysis }
+        return merged
+    }
+}
+
+// MARK: - Swap eligibility
+
+extension FoodFitContext {
+    /// Only the parts that decide whether a food is allowed for this user
+    /// (not today's remaining calories) — part of the swap-suggestion cache
+    /// key so a profile change never serves a stale list.
+    var restrictionsKey: String {
+        let flags = [lactoseFree, glutenFree, vegan, vegetarian, nutFree, shellfishAllergy, halal]
+            .map { $0 ? "1" : "0" }.joined()
+        let named = allergies.map { $0.lowercased() }.sorted().joined(separator: ",")
+        return "\(flags)|\(named)"
+    }
+
+    /// False for a candidate that breaks a hard rule (allergy, diet).
+    func allows(_ product: FoodProduct) -> Bool {
+        !FoodFit.checks(for: product, grams: 100, context: self).contains { $0.kind == .conflict }
     }
 }

@@ -544,16 +544,22 @@ extension FoodProduct {
 extension FoodCatalog {
     /// Always-there suggestions for any product. Empty only when nothing at
     /// all could be found (offline and no built-in peers of the same shelf).
-    func suggestions(for product: FoodProduct, limit: Int = 6) async -> FoodSuggestions {
-        if let cached = suggestionsCache[product.id] {
+    ///
+    /// `context` is the user's diet/allergy profile: a candidate that breaks
+    /// a hard rule (`.conflict` — allergy, vegan, halal…) is never suggested.
+    /// The restrictions are part of the cache key, so a profile change never
+    /// serves a stale (unsafe) list.
+    func suggestions(for product: FoodProduct, limit: Int = 6, context: FoodFitContext = .none) async -> FoodSuggestions {
+        let key = "\(product.id)|\(context.restrictionsKey)"
+        if let cached = suggestionsCache[key] {
             return cached
         }
-        let result = await computeSuggestions(for: product, limit: limit)
-        suggestionsCache[product.id] = result
+        let result = await computeSuggestions(for: product, limit: limit, context: context)
+        suggestionsCache[key] = result
         return result
     }
 
-    private func computeSuggestions(for product: FoodProduct, limit: Int) async -> FoodSuggestions {
+    private func computeSuggestions(for product: FoodProduct, limit: Int, context: FoodFitContext) async -> FoodSuggestions {
         let currentTotal = FoodScore.evaluate(product)?.total
 
         var candidates: [FoodProduct] = []
@@ -567,17 +573,17 @@ extension FoodCatalog {
         }
 
         if !candidates.isEmpty {
-            let ranked = Self.rank(candidates: candidates, excluding: product, currentTotal: currentTotal, limit: limit)
+            let ranked = Self.rank(candidates: candidates, excluding: product, currentTotal: currentTotal, limit: limit, context: context)
             if !ranked.items.isEmpty {
                 return ranked
             }
         }
-        return builtInFallback(for: product, currentTotal: currentTotal, limit: limit)
+        return builtInFallback(for: product, currentTotal: currentTotal, limit: limit, context: context)
     }
 
     /// Peers from Tempo's own table, same shelf, scored the same way — works
     /// fully offline and whenever Open Food Facts has nothing to offer.
-    private func builtInFallback(for product: FoodProduct, currentTotal: Int?, limit: Int) -> FoodSuggestions {
+    private func builtInFallback(for product: FoodProduct, currentTotal: Int?, limit: Int, context: FoodFitContext) -> FoodSuggestions {
         let group = product.foodGroup
         let excludedName = product.name.lowercased()
         let peers = FoodMacroDatabase.macrosPer100g
@@ -587,7 +593,7 @@ extension FoodCatalog {
         guard !peers.isEmpty else {
             return .empty
         }
-        return Self.rank(candidates: peers, excluding: product, currentTotal: currentTotal, limit: limit)
+        return Self.rank(candidates: peers, excluding: product, currentTotal: currentTotal, limit: limit, context: context)
     }
 
     /// Scores every candidate, drops the product itself and duplicates
@@ -597,7 +603,13 @@ extension FoodCatalog {
     /// something "healthier" (see `isMeaningfulImprovement`); failing that,
     /// peers within 5 points or the same rating tier; failing that, whatever
     /// scored at all. Items with a photo sort first within each tier.
-    private static func rank(candidates: [FoodProduct], excluding product: FoodProduct, currentTotal: Int?, limit: Int) -> FoodSuggestions {
+    static func rank(
+        candidates: [FoodProduct],
+        excluding product: FoodProduct,
+        currentTotal: Int?,
+        limit: Int,
+        context: FoodFitContext = .none
+    ) -> FoodSuggestions {
         struct Scored {
             let product: FoodProduct
             let total: Int
@@ -621,6 +633,10 @@ extension FoodCatalog {
             // Same product, different listing ("Coca-Cola" vs "Coca-Cola by
             // Coke"): near-identical normalized name, regardless of brand.
             guard jaccard(nameTokens(candidate), productTokens) < 0.8 else {
+                return nil
+            }
+            // Never suggest something the user can't eat.
+            guard context.allows(candidate) else {
                 return nil
             }
             guard let score = FoodScore.evaluate(candidate) else {

@@ -34,7 +34,8 @@ final class SupplementQuickAddCatalogTests: XCTestCase {
     }
 
     func testOnlyProteinKindItemsCarryProteinGrams() {
-        for item in SupplementQuickAddCatalog.items where item.kind != .protein {
+        // Collagen (kind .other) is the one non-powder with protein (9 g/scoop).
+        for item in SupplementQuickAddCatalog.items where item.kind != .protein && item.name != "Collagen" {
             XCTAssertEqual(item.proteinGrams, 0, "\(item.name) is not a protein powder; proteinGrams should be 0")
         }
     }

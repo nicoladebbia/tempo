@@ -36,6 +36,8 @@ struct VoicePantryView: View {
         case thinking
         case confirming
         case failed(String)
+        /// Pro / AI-off: the card offers the fix.
+        case blocked(AIBlocker)
     }
 
     /// A mutable, per-row editable copy of one resolved item. The confirm card
@@ -72,6 +74,8 @@ struct VoicePantryView: View {
                     confirmationSection
                 case let .failed(message):
                     failureSection(message)
+                case let .blocked(blocker):
+                    blockedSection(blocker) { Task { await runResolve() } }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -232,7 +236,7 @@ struct VoicePantryView: View {
                 ? .failed("No pantry items found. Try again.")
                 : .confirming
         } catch {
-            phase = .failed(error.localizedDescription)
+            phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
         }
     }
 
@@ -428,6 +432,14 @@ struct VoicePantryView: View {
     }
 
     // MARK: - Failure
+
+    private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
+        VStack(spacing: TempoSpacing.lg) {
+            Spacer()
+            AIBlockerCard(blocker: blocker, onConsentGranted: retry)
+            Spacer()
+        }
+    }
 
     private func failureSection(_ message: String) -> some View {
         VStack(spacing: TempoSpacing.lg) {

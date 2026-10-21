@@ -139,6 +139,9 @@ struct SupplementLookupAPIClient: SupplementLookupClient {
             dosePerServing: dosePerServing,
             servingsPerContainer: servingsPerContainer,
             proteinGramsPerServing: proteinGramsPerServing,
+            caloriesPerServing: dsld?.caloriesPerServing ?? off.nutriments?.energyKcalServing,
+            carbsGramsPerServing: dsld?.gramsPerServing(named: ["total carbohydrate", "carbohydrate"]) ?? off.nutriments?.carbohydratesServing,
+            fatGramsPerServing: dsld?.gramsPerServing(named: ["total fat"]) ?? off.nutriments?.fatServing,
             certifications: Array(certifications).sorted(),
             source: dsld != nil ? "dsld" : "openfoodfacts"
         )
@@ -308,9 +311,15 @@ struct OFFProduct: Content {
 
 struct OFFNutriments: Content {
     let proteinsServing: Double?
+    let energyKcalServing: Double?
+    let carbohydratesServing: Double?
+    let fatServing: Double?
 
     enum CodingKeys: String, CodingKey {
         case proteinsServing = "proteins_serving"
+        case energyKcalServing = "energy-kcal_serving"
+        case carbohydratesServing = "carbohydrates_serving"
+        case fatServing = "fat_serving"
     }
 }
 
@@ -357,6 +366,27 @@ struct DSLDLabel: Content {
         }
         guard !grams.isEmpty else { return nil }
         return grams.reduce(0, +)
+    }
+
+    /// Calories per serving from a DSLD "Calories" ingredient row.
+    var caloriesPerServing: Double? {
+        guard let row = ingredientRows?.first(where: { $0.name?.lowercased() == "calories" }),
+              let quantity = row.quantity?.first?.quantity
+        else {
+            return nil
+        }
+        return quantity
+    }
+
+    /// Grams of the first ingredient row whose name equals one of `names`
+    /// (case-insensitive) — e.g. "Total Fat", "Total Carbohydrate".
+    func gramsPerServing(named names: [String]) -> Double? {
+        guard let row = ingredientRows?.first(where: { names.contains($0.name?.lowercased() ?? "") }),
+              let quantity = row.quantity?.first
+        else {
+            return nil
+        }
+        return Self.toGrams(quantity.quantity, unit: quantity.unit)
     }
 
     private static func toGrams(_ value: Double?, unit: String?) -> Double? {

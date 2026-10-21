@@ -267,7 +267,7 @@ final class RecoveryAIInsightService: @unchecked Sendable {
         // not legacy MealLog.
         let meals = EatenMealHistory.fetch(from: yStart, to: yEnd, in: modelContext)
         if !meals.isEmpty {
-            ctx.mealCount = meals.count
+            ctx.mealCount = meals.count(where: { !EatenMealRecorder.isSupplementDose($0) })
             ctx.mealCalories = meals.reduce(0) { $0 + $1.totalCalories }
             ctx.mealProtein = meals.reduce(0) { $0 + $1.totalProtein }
         }

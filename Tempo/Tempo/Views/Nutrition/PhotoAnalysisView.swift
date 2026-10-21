@@ -41,6 +41,8 @@ struct PhotoAnalysisView: View {
         case analyzing
         case complete
         case error(String)
+        /// Pro / AI-off: the card offers the fix.
+        case blocked(AIBlocker)
     }
 
     // MARK: - Body
@@ -186,6 +188,12 @@ struct PhotoAnalysisView: View {
 
                 case let .error(message):
                     analysisErrorState(message: message)
+
+                case let .blocked(blocker):
+                    AIBlockerCard(blocker: blocker) {
+                        analyzePhoto()
+                    }
+                    .padding(.horizontal, TempoSpacing.screenEdge)
                 }
             }
             .padding(.top, TempoSpacing.md)
@@ -453,7 +461,11 @@ struct PhotoAnalysisView: View {
                 analysisState = .complete
                 HapticManager.notification(.success)
             } catch {
-                analysisState = .error(error.localizedDescription)
+                if let blocker = AIBlocker(error) {
+                    analysisState = .blocked(blocker)
+                } else {
+                    analysisState = .error(AIBlocker.readableDescription(error))
+                }
                 HapticManager.notification(.error)
             }
         }

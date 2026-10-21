@@ -92,7 +92,8 @@ extension SupplementDayContext {
             predicate: #Predicate<PlannedMeal> { $0.dayDate >= dayStart && $0.dayDate < nextDayStart }
         )
         let meals = ((try? modelContext.fetch(mealDescriptor)) ?? []).compactMap { meal -> SupplementMealTime? in
-            guard let minutes = RoutineTime.minutes(from: meal.scheduledTime) else {
+            // A ticked dose's own "Supplements" entry is not a meal to time doses around.
+            guard !EatenMealRecorder.isSupplementDose(meal), let minutes = RoutineTime.minutes(from: meal.scheduledTime) else {
                 return nil
             }
             return SupplementMealTime(mealNumber: meal.mealNumber, mealName: meal.mealName, minutes: minutes)

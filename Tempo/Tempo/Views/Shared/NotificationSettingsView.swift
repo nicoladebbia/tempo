@@ -364,7 +364,11 @@ struct NotificationSettingsView: View {
                     icon: "fork.knife",
                     onToggle: { enabled in
                         persistToggle(\.mealRemindersEnabled, value: enabled)
-                        if !enabled {
+                        if enabled {
+                            MealReminderPlanner.reschedule(
+                                modelContext: modelContext, notifications: services.notifications
+                            )
+                        } else {
                             services.notifications.cancelCategory("MEAL_REMINDER")
                         }
                     }

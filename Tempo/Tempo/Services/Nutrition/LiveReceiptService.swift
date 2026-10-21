@@ -243,11 +243,13 @@ final class LiveReceiptService: ReceiptServiceProtocol {
             receipt.ocrStatus = .failed
             receipt.updatedAt = Date()
             try? modelContext.save()
-            // APIError.localizedDescription stringifies to "(Tempo.APIError
-            // error 1.)" — useless to the user. Surface the friendly
-            // .userMessage instead (covers 502, 413, truncation in one place).
-            let message = (error as? APIError)?.userMessage ?? error.localizedDescription
             logger.error("[Diag.Receipt] structuring failed: \(error.localizedDescription, privacy: .public)")
+            // Pro / AI-off pass through untouched so the UI can offer the fix.
+            if AIBlocker(error) != nil {
+                throw error
+            }
+            // Friendly text (covers 502, 413, truncation in one place).
+            let message = AIBlocker.readableDescription(error)
             throw ReceiptServiceError.structuringFailed(message)
         }
 

@@ -168,56 +168,6 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertEqual(NutritionTabViewModel.chronological(meals).map(\.mealNumber), [4, 1, 2, 3])
     }
 
-    // MARK: - Meal Reminder Scheduling
-
-    func testScheduleMealReminders_skipsAlreadyEaten() throws {
-        try skipNearMidnight()
-        let mock = MockNotificationService()
-        viewModel._testSetTodayMeals([
-            makePlanned(
-                meal: 1,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .eaten,
-                scheduled: nextTimeString(addingMinutes: 30)
-            ),
-            makePlanned(
-                meal: 2,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .planned,
-                scheduled: nextTimeString(addingMinutes: 60)
-            ),
-        ])
-        viewModel.scheduleMealReminders(notifications: mock)
-        let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }
-        XCTAssertEqual(reminders.count, 1, "Only the planned meal should be scheduled")
-    }
-
-    func testScheduleMealReminders_skipsPastTimes() throws {
-        try skipNearMidnight()
-        let mock = MockNotificationService()
-        viewModel._testSetTodayMeals([
-            // Scheduled 30 minutes ago — skipped because the 5-min-prior fire time is in the past.
-            makePlanned(
-                meal: 1,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .planned,
-                scheduled: nextTimeString(addingMinutes: -30)
-            ),
-        ])
-        viewModel.scheduleMealReminders(notifications: mock)
-        let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }
-        XCTAssertTrue(reminders.isEmpty)
-    }
-
     // MARK: - Helpers
 
     private func makePlanned(

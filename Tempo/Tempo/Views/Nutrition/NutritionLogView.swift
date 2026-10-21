@@ -24,6 +24,9 @@ struct NutritionLogView: View {
     @Environment(ServiceContainer.self)
     private var services
 
+    /// Pro / AI-off: asks for the fix instead of a "Parse failed" toast.
+    @State
+    private var aiBlocker: AIBlocker?
     @State
     private var naturalLanguageInput: String = ""
     @State
@@ -156,6 +159,9 @@ struct NutritionLogView: View {
             )
         }
         .tempoToast($toast)
+        .aiBlockerAlert($aiBlocker) {
+            submitNaturalLanguage()
+        }
         .alert(
             "Already logged",
             isPresented: Binding(
@@ -588,8 +594,12 @@ struct NutritionLogView: View {
                 // a meal type and taps Confirm — only THEN do we persist.
                 parsedFoodsForReview = parsed.items
             } catch {
+                if let blocker = AIBlocker(error) {
+                    aiBlocker = blocker
+                    return
+                }
                 toast = ToastData(
-                    message: "Parse failed: \(error.localizedDescription)",
+                    message: "Couldn't parse that: \(AIBlocker.message(for: error))",
                     style: .error
                 )
             }
