@@ -702,7 +702,7 @@ struct WorkoutHistoryView: View {
                             let r = set.actualReps ?? set.targetReps
                             let dispW = WeightUnit.kg.convert(w, to: weightUnit)
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(Int(dispW))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
+                            Text("\(WeightFormat.number(dispW))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextTertiary)
                                 .padding(.horizontal, 4)
@@ -722,7 +722,7 @@ struct WorkoutHistoryView: View {
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(Int(dispW))x\(repsText)")
+                            Text(dispW > 0 ? "\(WeightFormat.number(dispW))x\(repsText)" : "BWx\(repsText)")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(Color.tempoTextSecondary)
                                 .padding(.horizontal, 4)
@@ -770,11 +770,6 @@ struct WorkoutHistoryView: View {
 
     /// Formats a kg volume into the user's preferred unit.
     private func formatVolume(_ volumeKg: Double) -> String {
-        let v = WeightUnit.kg.convert(volumeKg, to: weightUnit)
-        let unit = weightUnit.abbreviation
-        if v >= 1000 {
-            return String(format: "%.1fk %@", v / 1000, unit)
-        }
-        return "\(Int(v)) \(unit)"
+        WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
     }
 }

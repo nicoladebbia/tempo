@@ -168,8 +168,7 @@ struct ActiveWorkoutView: View {
     /// Human hint under the added-load stepper: "= 77.7 kg effective · assisted".
     private var bodyweightEffectiveHint: String {
         let unit = weightUnit.abbreviation
-        let effDisplay = WeightUnit.kg.convert(bodyweightEffectiveKg, to: weightUnit)
-        let effStr = String(format: weightUnit == .kg ? "%.1f" : "%.0f", effDisplay)
+        let effStr = WeightFormat.number(kg: bodyweightEffectiveKg, unit: weightUnit)
         let tag = if inputAddedLoad > 0 {
             "weighted"
         } else if inputAddedLoad < 0 {
@@ -655,7 +654,7 @@ struct ActiveWorkoutView: View {
 
     /// Display-unit conversion for stored-kg history values.
     private func displayWeight(_ kg: Double) -> String {
-        String(format: "%.0f", WeightUnit.kg.convert(kg, to: weightUnit))
+        WeightFormat.number(kg: kg, unit: weightUnit)
     }
 
     /// Best working set of the most recent PRIOR session of this lift.
@@ -667,8 +666,12 @@ struct ActiveWorkoutView: View {
         let prior = rows
             .filter { !cal.isDateInToday($0.date) }
             .max { $0.date < $1.date }
-        guard let prior, let w = prior.bestSetWeight, let r = prior.bestSetReps else {
+        guard let prior, let r = prior.bestSetReps, r > 0 else {
             return nil
+        }
+        // Bodyweight lifts with no logged load read "BW × 10", never "0 × 10".
+        guard let w = prior.bestSetWeight, w > 0 else {
+            return "BW × \(r)"
         }
         return "\(displayWeight(w)) × \(r)"
     }
@@ -1045,8 +1048,7 @@ struct ActiveWorkoutView: View {
     private func warmupTargetLabel(_ set: PlannedSet) -> String {
         let reps = SideRepsFormat.reps(set.targetReps, perSide: set.plannedExercise?.perSide == true)
         if let w = set.targetWeight, w > 0 {
-            let display = WeightUnit.kg.convert(w, to: weightUnit)
-            return "\(Int(display)) \(weightUnit.abbreviation) × \(reps)"
+            return "\(WeightFormat.number(kg: w, unit: weightUnit)) \(weightUnit.abbreviation) × \(reps)"
         }
         return "Bodyweight × \(reps)"
     }

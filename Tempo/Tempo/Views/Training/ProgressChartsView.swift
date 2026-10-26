@@ -471,7 +471,7 @@ struct ProgressChartsView: View {
                     .lineLimit(1)
 
                 if let e1rm = exercise.currentEstimated1RM {
-                    Text("e1RM: \(String(format: "%.1f", e1rm)) kg")
+                    Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
@@ -732,10 +732,6 @@ struct ProgressChartsView: View {
 
     /// Stored kg → the user's display unit (a lbs lifter reads lbs totals).
     private func formatVolume(_ volumeKg: Double) -> String {
-        let value = WeightUnit.kg.convert(volumeKg, to: weightUnit)
-        if value >= 1000 {
-            return String(format: "%.1fk %@", value / 1000, weightUnit.abbreviation)
-        }
-        return "\(Int(value)) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: volumeKg, unit: weightUnit)
     }
 }

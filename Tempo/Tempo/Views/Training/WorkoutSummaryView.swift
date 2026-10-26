@@ -211,7 +211,7 @@ struct WorkoutSummaryView: View {
 
                     Spacer()
 
-                    Text(pr.type == .mostReps ? "\(Int(pr.value)) reps" : formattedWeight(pr.value, decimals: 1))
+                    Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
                         .font(.tempoHeadline)
                         .foregroundStyle(Color.tempoTextPrimary)
                 }
@@ -405,10 +405,8 @@ struct WorkoutSummaryView: View {
     /// consistent with the timer-bar volume (which already converts) — fixes the
     /// bug where per-set/per-exercise rows were hardcoded "kg" while the volume
     /// header showed the user's actual unit.
-    private func formattedWeight(_ kg: Double, decimals: Int = 0) -> String {
-        let value = WeightUnit.kg.convert(kg, to: viewModel.weightUnit)
-        let unit = viewModel.weightUnit.abbreviation
-        return String(format: "%.\(decimals)f %@", value, unit)
+    private func formattedWeight(_ kg: Double) -> String {
+        WeightFormat.text(kg: kg, unit: viewModel.weightUnit)
     }
 
     // MARK: - Save Button

@@ -49,9 +49,8 @@ enum PRDisplay {
     }
 
     /// `pr.value` (always kg) converted and formatted in `unit`.
-    static func weightLabel(_ pr: PersonalRecord, unit: WeightUnit, decimals: Int = 1) -> String {
-        let display = WeightUnit.kg.convert(pr.value, to: unit)
-        return String(format: "%.\(decimals)f %@", display, unit.abbreviation)
+    static func weightLabel(_ pr: PersonalRecord, unit: WeightUnit) -> String {
+        WeightFormat.text(kg: pr.value, unit: unit)
     }
 
     /// Short subtitle for a PR row/toast — type-aware, unit-agnostic (never
@@ -76,7 +75,7 @@ enum PRDisplay {
 
     /// The record's headline number: a weight in `unit`, or reps for a
     /// bodyweight most-reps record (whose `value` is a count, not kg).
-    static func valueLabel(_ pr: PersonalRecord, unit: WeightUnit, decimals: Int = 1) -> String {
-        pr.type == .mostReps ? "\(Int(pr.value)) reps" : weightLabel(pr, unit: unit, decimals: decimals)
+    static func valueLabel(_ pr: PersonalRecord, unit: WeightUnit) -> String {
+        pr.type == .mostReps ? "\(Int(pr.value)) reps" : weightLabel(pr, unit: unit)
     }
 }

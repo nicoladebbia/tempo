@@ -126,10 +126,20 @@ final class Exercise {
 
     @Transient
     var currentEstimated1RM: Double? {
-        history?
-            .sorted { $0.date > $1.date }
-            .first?
-            .estimated1RM
+        Self.currentEstimated1RM(from: history ?? [])
+    }
+
+    /// "Current" 1RM = the strongest positive estimate from the last 6 weeks
+    /// (one light or deload session must not read as "you got weaker"; a
+    /// session without an estimate — bodyweight, cardio — must not read as 0).
+    /// With nothing that recent, the latest positive estimate on record.
+    static func currentEstimated1RM(from rows: [ExerciseHistory], asOf date: Date = Date()) -> Double? {
+        let positive = rows.filter { ($0.estimated1RM ?? 0) > 0 }
+        let cutoff = Calendar.current.date(byAdding: .day, value: -42, to: date) ?? .distantPast
+        if let recent = positive.filter({ $0.date >= cutoff }).compactMap(\.estimated1RM).max() {
+            return recent
+        }
+        return positive.max { $0.date < $1.date }?.estimated1RM
     }
 
     @Transient
