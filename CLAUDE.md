@@ -5,6 +5,7 @@ Native iOS app (Swift/SwiftUI) + Vapor backend (`tempo-backend/`) unifying fitne
 ## Docs
 
 - `docs/INDEX.md` — index of all 39 docs (reading orders, glossary). Start here to find anything.
+- `docs/NUTRITIONIST_ENGINE.md` — the new micronutrient Nutritionist (gap detector, targets, plan solver): decisions, what's built, next stages. Read before touching nutrition.
 - `ARCHITECTURE.md` overview · `docs/BUILD_PLAN.md` / `docs/BUILD_PROGRESS.md` = the original build plan (124/124 done; history only).
 - Read before coding: `docs/CROSS_DOC_AUDIT.md` (47 known inconsistencies — canonical values), `docs/TECHNICAL_FEASIBILITY_AUDIT.md` (what WON'T work + alternatives), `docs/ARCHITECTURE_DECISIONS.md` (30 ADRs). The two audits are read-only.
 

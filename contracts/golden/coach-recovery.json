@@ -1,0 +1,82 @@
+{
+  "data" : {
+    "missing" : [
+
+    ],
+    "notes" : [
+      "Breathing-water loss from Mitchell 1972 and fuel-burn mass from Maughan 2007, using your WHOOP energy and the weather.",
+      "WHOOP energy is assumed accurate within 20% (not verified).",
+      "Mitchell tested dry air only (7-10 mmHg water vapour); today is 20 mmHg, so the breathing-water term is extrapolated.",
+      "Weigh in the same clothes (or none), towel-dry, after the toilet, and before drinking."
+    ],
+    "plan" : {
+      "carb_window_hours" : 2,
+      "carbs_grams" : 124.80000000000001,
+      "drink_liters" : 1.2000000000000028,
+      "evidence" : [
+        "Non-sweat mass: Mitchell 1972 + Maughan 2007 equations when WHOOP energy and weather exist; otherwise Baker 2017 (PMC5371639), 5-15% of mass lost",
+        "ACSM 2007 (Sawka): sweat Na+ averages ~35 mEq/L, range 10-70; same range in Baker 2017",
+        "Sweat estimate is +/-11% (95%): Breathing-water and fuel-burn mass modelled from WHOOP energy and weather (Mitchell 1972, Maughan 2007). Scale precision is assumed (0.05 kg steps per Withings, 0.05 kg repeatability), not measured on your scale. Your fluid estimate is assumed within 10% of the true amount.",
+        "ACSM 2007 (Sawka): ~1.5 L per kg lost for rapid recovery; Maughan 1996 (PMID 8781863): 150% with a meal restored balance",
+        "Kerksick 2017 (PMC5596471): 0.8 g/kg/h carbs combined with 0.2-0.4 g/kg/h protein",
+        "Jäger 2017, ISSN protein (PMC5477153): 0.25 g/kg per dose"
+      ],
+      "leucine_mg_high" : 3000,
+      "leucine_mg_low" : 700,
+      "protein_grams" : 20,
+      "reasons" : [
+        "You lost 1.2 kg over 1.3 h, so about 1.5-1.6 L of that was sweat.",
+        "No hard session within 12 hours, so replacing what you lost with normal drinks and meals is enough (ACSM).",
+        "Drink it with a meal that has salt and potassium. In a lab study, water alone at 150% still left people about 0.35 L short six hours later, while water with a meal restored balance.",
+        "No hard session soon, so timing matters less: a carb-rich meal in the next 2 hours is enough, then normal meals.",
+        "Protein: about 20 g in one go (0.25 g per kg, kept inside 20-40 g)."
+      ],
+      "sodium_mg_high" : 2602.5516818298534,
+      "sodium_mg_low" : 345.5635001670222,
+      "sodium_mg_plan" : 1255.374045749752
+    },
+    "post_weigh_in" : {
+      "kg" : 76.799999999999997,
+      "source" : "withings",
+      "time" : "2026-01-01T00:00:00Z"
+    },
+    "pre_weigh_in" : {
+      "kg" : 78,
+      "source" : "withings",
+      "time" : "2026-01-01T00:00:00Z"
+    },
+    "session" : {
+      "average_heart_rate" : 150,
+      "end" : "2026-01-01T00:00:00Z",
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "kilojoules" : 3500,
+      "percent_recorded" : 100,
+      "sport_name" : "soccer",
+      "start" : "2026-01-01T00:00:00Z",
+      "strain" : 14.800000000000001
+    },
+    "status" : "ready",
+    "sweat" : {
+      "assumptions" : [
+        "Breathing-water and fuel-burn mass modelled from WHOOP energy and weather (Mitchell 1972, Maughan 2007).",
+        "Scale precision is assumed (0.05 kg steps per Withings, 0.05 kg repeatability), not measured on your scale.",
+        "Your fluid estimate is assumed within 10% of the true amount."
+      ],
+      "is_lower_bound" : false,
+      "margin_of_error_percent" : 10.710821515979276,
+      "mass_lost_kg" : 1.2000000000000028,
+      "meets_five_percent_target" : false,
+      "percent_body_mass_lost" : 1.5384615384615421,
+      "protocol_quality" : "tight",
+      "sweat_liters_high" : 1.617194856042909,
+      "sweat_liters_low" : 1.5031035239974868,
+      "sweat_liters_mid" : 1.5672040040476403,
+      "sweat_liters_raw" : 1.7000000000000028
+    }
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

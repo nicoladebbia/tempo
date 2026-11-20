@@ -1,54 +1,60 @@
-import Vapor
 import Crypto
+import Foundation
+import Vapor
 
 // MARK: - Whoop Webhook Middleware
-// Per INTEGRATION_SPECS.md Section 1.4 — HMAC-SHA256 verification for Whoop webhooks.
+//
+// Signature check exactly as WHOOP documents it (developer.whoop.com, "Webhooks Security", read 2026-11-20):
+//   headers   X-WHOOP-Signature            the signature, base64
+//             X-WHOOP-Signature-Timestamp  milliseconds since epoch
+//   expected  base64( HMAC-SHA256( timestamp_header + raw_body, client_secret ) )   (no separator between the two)
+// The secret is the app's client secret from the WHOOP Developer Dashboard.
 
 struct WhoopWebhookMiddleware: AsyncMiddleware {
+    /// Reject deliveries whose timestamp is more than this far from now (replay protection).
+    static let maxAge: TimeInterval = 5 * 60
+
+    /// `WHOOP_WEBHOOK_SECRET` if set, otherwise the app's `WHOOP_CLIENT_SECRET` (which is what WHOOP signs with).
+    static func secret() -> String? {
+        for name in ["WHOOP_WEBHOOK_SECRET", "WHOOP_CLIENT_SECRET"] {
+            if let value = Environment.get(name), !value.isEmpty { return value }
+        }
+        return nil
+    }
+
+    static func expectedSignature(timestamp: String, body: String, secret: String) -> String {
+        let mac = HMAC<SHA256>.authenticationCode(for: Data((timestamp + body).utf8), using: SymmetricKey(data: Data(secret.utf8)))
+        return Data(mac).base64EncodedString()
+    }
 
     func respond(to request: Request, chainingTo next: AsyncResponder) async throws -> Response {
-        // 1. Read raw body for signature verification
-        guard let rawBody = request.body.data else {
-            throw Abort(.badRequest, reason: "Empty body")
-        }
+        guard let rawBody = request.body.data else { throw Abort(.badRequest, reason: "Empty body") }
         let bodyString = String(buffer: rawBody)
 
-        // 2. Extract signature and timestamp headers
-        guard let signature = request.headers.first(name: "X-Whoop-Signature") else {
-            throw Abort(.badRequest, reason: "Missing X-Whoop-Signature header")
+        guard let signature = request.headers.first(name: "X-WHOOP-Signature") else {
+            throw Abort(.badRequest, reason: "Missing X-WHOOP-Signature header")
         }
-        guard let timestampString = request.headers.first(name: "X-Whoop-Timestamp"),
-              let timestamp = Double(timestampString) else {
-            throw Abort(.badRequest, reason: "Missing or invalid X-Whoop-Timestamp header")
+        guard let timestampString = request.headers.first(name: "X-WHOOP-Signature-Timestamp"), let timestampMs = Double(timestampString) else {
+            throw Abort(.badRequest, reason: "Missing or invalid X-WHOOP-Signature-Timestamp header")
         }
 
-        // 3. Replay attack prevention: reject if timestamp is >5 minutes old
-        let webhookTime = Date(timeIntervalSince1970: timestamp)
-        let fiveMinutesAgo = Date().addingTimeInterval(-300)
-        guard webhookTime > fiveMinutesAgo else {
-            request.logger.warning("Whoop webhook replay attempt: timestamp \(timestampString)")
+        // Replay protection: the timestamp is in MILLISECONDS.
+        let sentAt = Date(timeIntervalSince1970: timestampMs / 1000)
+        guard abs(Date().timeIntervalSince(sentAt)) <= Self.maxAge else {
+            request.logger.warning("Whoop webhook outside the allowed time window: \(timestampString)")
             throw Abort(.unauthorized, reason: "Timestamp too old")
         }
 
-        // 4. HMAC-SHA256 verification
-        guard let webhookSecret = Environment.get("WHOOP_WEBHOOK_SECRET") else {
-            request.logger.error("WHOOP_WEBHOOK_SECRET not configured")
+        guard let secret = Self.secret() else {
+            request.logger.error("Neither WHOOP_WEBHOOK_SECRET nor WHOOP_CLIENT_SECRET is configured")
             throw Abort(.internalServerError, reason: "Webhook secret not configured")
         }
 
-        let signatureInput = "\(timestampString).\(bodyString)"
-        let expectedSignature = HMAC<SHA256>.authenticationCode(
-            for: Data(signatureInput.utf8),
-            using: SymmetricKey(data: Data(webhookSecret.utf8))
-        )
-        let expectedHex = expectedSignature.map { String(format: "%02x", $0) }.joined()
-
-        // Timing-safe comparison to prevent timing attacks
-        guard timingSafeEqual(signature, expectedHex) else {
+        let expected = Self.expectedSignature(timestamp: timestampString, body: bodyString, secret: secret)
+        guard timingSafeEqual(signature, expected) else {
             request.logger.warning("Whoop webhook signature mismatch")
             throw Abort(.unauthorized, reason: "Invalid signature")
         }
-
         return try await next.respond(to: request)
     }
 
@@ -58,7 +64,7 @@ struct WhoopWebhookMiddleware: AsyncMiddleware {
         let bBytes = Array(b.utf8)
         guard aBytes.count == bBytes.count else { return false }
         var result: UInt8 = 0
-        for i in 0..<aBytes.count {
+        for i in 0 ..< aBytes.count {
             result |= aBytes[i] ^ bBytes[i]
         }
         return result == 0

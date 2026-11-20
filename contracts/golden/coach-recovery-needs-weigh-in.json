@@ -1,0 +1,44 @@
+{
+  "data" : {
+    "missing" : [
+      "pre_weigh_in",
+      "post_weigh_in"
+    ],
+    "notes" : [
+      "No weigh-in in the 3 hours before the session.",
+      "No weigh-in in the 2 hours after the session."
+    ],
+    "plan" : {
+      "carb_window_hours" : 2,
+      "carbs_grams" : 124.80000000000001,
+      "evidence" : [
+        "Kerksick 2017 (PMC5596471): 0.8 g/kg/h carbs combined with 0.2-0.4 g/kg/h protein",
+        "Jäger 2017, ISSN protein (PMC5477153): 0.25 g/kg per dose"
+      ],
+      "leucine_mg_high" : 3000,
+      "leucine_mg_low" : 700,
+      "protein_grams" : 20,
+      "reasons" : [
+        "No usable weigh-in around this session, so I'm not giving fluid or sodium numbers. Weigh yourself to unlock them.",
+        "No hard session soon, so timing matters less: a carb-rich meal in the next 2 hours is enough, then normal meals.",
+        "Protein: about 20 g in one go (0.25 g per kg, kept inside 20-40 g)."
+      ]
+    },
+    "session" : {
+      "average_heart_rate" : 150,
+      "end" : "2026-01-01T00:00:00Z",
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "kilojoules" : 3500,
+      "percent_recorded" : 100,
+      "sport_name" : "soccer",
+      "start" : "2026-01-01T00:00:00Z",
+      "strain" : 14.800000000000001
+    },
+    "status" : "needs_weigh_in"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

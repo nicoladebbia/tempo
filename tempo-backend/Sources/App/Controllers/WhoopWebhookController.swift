@@ -57,17 +57,33 @@ struct WhoopWebhookController: RouteCollection {
 
 // MARK: - Webhook Event DTO
 
+/// WHOOP v1 events carry a numeric `id`, v2 events a UUID string: accept both. Keys are read the way the app-wide
+/// decoder hands them over (it converts `user_id` to `userId`), so no CodingKeys that would fight that conversion.
 struct WhoopWebhookEvent: Content {
     let type: String
-    let id: Int64
+    let id: String
     let userId: Int
     let traceId: String
 
-    enum CodingKeys: String, CodingKey {
-        case type
-        case id
-        case userId = "user_id"
-        case traceId = "trace_id"
+    private enum Keys: String, CodingKey { case type, id, userId, traceId }
+
+    init(type: String, id: String, userId: Int, traceId: String) {
+        self.type = type
+        self.id = id
+        self.userId = userId
+        self.traceId = traceId
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        type = try c.decode(String.self, forKey: .type)
+        if let text = try? c.decode(String.self, forKey: .id) {
+            id = text
+        } else {
+            id = String(try c.decode(Int64.self, forKey: .id))
+        }
+        userId = try c.decode(Int.self, forKey: .userId)
+        traceId = try c.decode(String.self, forKey: .traceId)
     }
 }
 
@@ -78,7 +94,7 @@ struct WhoopWebhookJob: AsyncJob {
     struct Payload: Codable {
         let userId: String
         let eventType: String
-        let resourceId: Int64
+        let resourceId: String
         let traceId: String
     }
 
@@ -106,6 +122,12 @@ struct WhoopWebhookJob: AsyncJob {
                 on: context.application
             )
             context.logger.info("Workout updated for user \(payload.userId)")
+            // Recovery coach: a big workout may have just finished. Never fail the webhook over it.
+            do {
+                try await CoachWorkoutWatch().check(userID: payload.userId, app: context.application, now: context.application.now)
+            } catch {
+                context.logger.error("Coach workout check failed for user \(payload.userId): \(error)")
+            }
 
         case "cycle.updated":
             try await invalidateCache(

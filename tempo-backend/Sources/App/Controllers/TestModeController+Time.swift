@@ -64,6 +64,7 @@ extension TestModeController {
         case drillSergeant = "drill-sergeant"
         case leaderboardRefresh = "leaderboard-refresh"
         case notificationsCleanup = "notifications-cleanup"
+        case coachWorkoutWatch = "coach-workout-watch"
     }
 
     struct JobRequest: Content {
@@ -113,6 +114,13 @@ extension TestModeController {
         case .notificationsCleanup:
             try await ProcessedNotificationsCleanupJob().purge(app: app, now: now)
             affected = nil
+        case .coachWorkoutWatch:
+            if let userID {
+                // A named test user has no WHOOP connection or device: run the check directly.
+                affected = try await CoachWorkoutWatch().check(userID: userID, app: app, now: now, requireDevice: false)
+            } else {
+                affected = try await CoachWorkoutWatchJob().sweep(app: app, now: now)
+            }
         }
         req.logger.info("[test-mode] ran \(job.rawValue) at \(now) → \(affected.map(String.init) ?? "done")")
         return JobResponse(job: job.rawValue, now: now, affected: affected)

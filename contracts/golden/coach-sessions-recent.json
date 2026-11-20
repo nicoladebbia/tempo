@@ -1,0 +1,19 @@
+{
+  "data" : [
+    {
+      "average_heart_rate" : 150,
+      "end" : "2026-01-01T00:00:00Z",
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "kilojoules" : 3500,
+      "percent_recorded" : 100,
+      "sport_name" : "soccer",
+      "start" : "2026-01-01T00:00:00Z",
+      "strain" : 14.800000000000001
+    }
+  ],
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}
