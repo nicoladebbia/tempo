@@ -107,7 +107,8 @@ struct CoachWorkoutWatchJob: AsyncScheduledJob {
         }
 
         var sent = 0
-        for integration in try await query.all() {
+        // An expired phone-shared token can't be refreshed here; skip it until the phone shares a new one.
+        for integration in try await query.all() where !integration.isExpiredPhoneLink {
             let userID = integration.$user.id
             do {
                 sent += try await CoachWorkoutWatch().check(userID: userID, app: app, now: now, requireDevice: only == nil)

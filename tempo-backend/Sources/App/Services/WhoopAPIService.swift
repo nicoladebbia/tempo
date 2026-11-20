@@ -213,6 +213,10 @@ actor WhoopAPIService {
         for integration: WhoopIntegration,
         on req: Request
     ) async throws -> String {
+        // The phone refreshes its own token (single-use refresh tokens): refreshing here would log the phone out.
+        if integration.isPhoneManaged {
+            throw TempoError.whoopPhoneLinkExpired
+        }
         let refreshToken = try integration.refreshToken()
 
         let tokenResponse: WhoopOAuthService.TokenResponse

@@ -81,6 +81,27 @@ final class WhoopIntegration: Model, Content, @unchecked Sendable {
         try EncryptionService.decrypt(encryptedRefreshToken)
     }
 
+    /// The phone owns this link: it shared only its WHOOP access token (no refresh token), keeps refreshing it
+    /// itself and re-shares every new one. The server must NEVER refresh it: WHOOP refresh tokens are single-use,
+    /// so a server refresh would break the phone's own WHOOP login.
+    var isPhoneManaged: Bool {
+        // Only a refresh token that decrypts to "" counts: an unreadable one is a broken server link, not a phone one.
+        (try? refreshToken()) == ""
+    }
+
+    /// A phone-managed access token that has run out: nothing the server can do until the phone shares a new one.
+    var isExpiredPhoneLink: Bool {
+        isPhoneManaged && tokenExpiresAt <= Date()
+    }
+
+    /// Store an access token the phone shared (no refresh token on the server).
+    func adoptPhoneToken(accessToken: String, expiresAt: Date) throws {
+        self.encryptedAccessToken = try EncryptionService.encrypt(accessToken)
+        self.encryptedRefreshToken = try EncryptionService.encrypt("")
+        self.tokenExpiresAt = expiresAt
+        if lastSyncStatus == "token_revoked" { lastSyncStatus = nil }
+    }
+
     /// Update tokens with new encrypted values.
     func updateTokens(accessToken: String, refreshToken: String, expiresIn: Int) throws {
         self.encryptedAccessToken = try EncryptionService.encrypt(accessToken)

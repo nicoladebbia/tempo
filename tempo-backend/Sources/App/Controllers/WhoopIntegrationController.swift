@@ -8,6 +8,7 @@ import Fluent
 // GET  /v1/integrations/whoop/callback   — Handle OAuth callback
 // DELETE /v1/integrations/whoop          — Disconnect
 // GET  /v1/integrations/whoop/status     — Connection status
+// PUT  /v1/integrations/whoop/token      — Phone shares its current WHOOP access token
 
 struct WhoopIntegrationController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
@@ -15,6 +16,7 @@ struct WhoopIntegrationController: RouteCollection {
         routes.get("callback", use: callback)
         routes.delete(use: disconnect)
         routes.get("status", use: status)
+        routes.put("token", use: shareToken)
     }
 
     // MARK: - GET /authorize
@@ -26,8 +28,7 @@ struct WhoopIntegrationController: RouteCollection {
         // Check if already connected
         if let existing = try await WhoopIntegration.query(on: req.db)
             .filter(\.$user.$id == userID)
-            .first() {
-            _ = existing
+            .first(), !existing.isPhoneManaged {
             throw Abort(.conflict, reason: "Whoop already connected.")
         }
 
@@ -92,6 +93,8 @@ struct WhoopIntegrationController: RouteCollection {
             whoopUserID: whoopUserID,
             scopes: WhoopOAuthService.scopes
         )
+        // Replace a phone-shared link (one row per user).
+        try await WhoopIntegration.query(on: req.db).filter(\.$user.$id == userID).delete()
         try await integration.save(on: req.db)
 
         return req.redirect(to: "tempo://integrations/whoop/success")
@@ -142,6 +145,48 @@ struct WhoopIntegrationController: RouteCollection {
             lastSync: integration.lastSyncAt,
             connectedSince: integration.connectedAt
         )
+    }
+
+    // MARK: - PUT /token
+    // The phone connects to WHOOP directly and owns the refresh token. It shares each new ACCESS token here so the
+    // server (recovery coach, workout sweep, webhook) can read WHOOP while that token lasts (about an hour).
+    // A link the server made itself through /authorize keeps its own refresh token and is left untouched.
+
+    func shareToken(_ req: Request) async throws -> WhoopTokenShareResponse {
+        let userID = try req.auth.requireUserID()
+        let body = try req.content.decode(WhoopTokenShareRequest.self)
+        let token = body.accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty, token.count <= 4096 else {
+            throw Abort(.badRequest, reason: "Missing WHOOP access token.")
+        }
+        let now = Date()
+        guard body.expiresAt > now, body.expiresAt < now.addingTimeInterval(48 * 3600) else {
+            throw Abort(.unprocessableEntity, reason: "WHOOP token expiry is out of range.")
+        }
+
+        if let existing = try await WhoopIntegration.query(on: req.db).filter(\.$user.$id == userID).first() {
+            guard existing.isPhoneManaged else {
+                return WhoopTokenShareResponse(linked: true, managedBy: "server", expiresAt: existing.tokenExpiresAt)
+            }
+            try existing.adoptPhoneToken(accessToken: token, expiresAt: body.expiresAt)
+            if existing.whoopUserID == nil {
+                existing.whoopUserID = try? await WhoopOAuthService.fetchUserProfile(accessToken: token, on: req)
+            }
+            try await existing.save(on: req.db)
+            return WhoopTokenShareResponse(linked: true, managedBy: "phone", expiresAt: existing.tokenExpiresAt)
+        }
+
+        let integration = WhoopIntegration(
+            userID: userID,
+            encryptedAccessToken: try EncryptionService.encrypt(token),
+            encryptedRefreshToken: try EncryptionService.encrypt(""),
+            tokenExpiresAt: body.expiresAt,
+            // Needed to route WHOOP webhooks (they name the WHOOP user) to this Tempo user.
+            whoopUserID: try? await WhoopOAuthService.fetchUserProfile(accessToken: token, on: req),
+            scopes: WhoopOAuthService.scopes
+        )
+        try await integration.save(on: req.db)
+        return WhoopTokenShareResponse(linked: true, managedBy: "phone", expiresAt: body.expiresAt)
     }
 
     // MARK: - Helpers
@@ -202,6 +247,18 @@ struct WhoopAuthorizeResponse: Content {
 
 struct WhoopDisconnectResponse: Content {
     let disconnected: Bool
+}
+
+struct WhoopTokenShareRequest: Content {
+    let accessToken: String
+    let expiresAt: Date
+}
+
+struct WhoopTokenShareResponse: Content {
+    let linked: Bool
+    /// "phone": the server holds only the phone's access token. "server": the server has its own OAuth link.
+    let managedBy: String
+    let expiresAt: Date
 }
 
 struct WhoopStatusResponse: Content {
