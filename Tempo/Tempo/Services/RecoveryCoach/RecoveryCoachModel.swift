@@ -122,6 +122,10 @@ final class RecoveryCoachModel {
             adoptStoredState(requestedID: requestedID)
         } catch {
             guard mine == generation else { return }
+            if Task.isCancelled {
+                phase = .idle
+                return
+            }
             logger.error("recent sessions failed: \(error.localizedDescription, privacy: .public)")
             // Keep what we have; the card/screen still works from the phone's memory.
             if session == nil {
@@ -226,7 +230,12 @@ final class RecoveryCoachModel {
             isOfflineResult = false
             phase = .idle
         } catch {
+            // A cancelled request is not "offline": the next refresh will redo it.
             guard mine == generation else { return }
+            if Task.isCancelled {
+                phase = .idle
+                return
+            }
             logger.error("recovery failed: \(error.localizedDescription, privacy: .public)")
             if result != nil {
                 isOfflineResult = true

@@ -32,7 +32,8 @@ struct RecoveryCoachView: View {
                 .padding(.bottom, TempoSpacing.bottomSafe)
                 .padding(.top, TempoSpacing.md)
             }
-            .refreshable { await model.refresh() }
+            // Own task: SwiftUI cancels a refreshable body when the view updates mid-load.
+            .refreshable { await Task { await model.refresh() }.value }
         }
         .background(Color.tempoBgPrimary.ignoresSafeArea())
         .sheet(isPresented: $showWeighIn) {
