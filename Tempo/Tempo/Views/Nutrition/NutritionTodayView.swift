@@ -79,6 +79,7 @@ struct NutritionTodayView: View {
                 if let banner = viewModel.lastRedistributionBanner {
                     redistributionBanner(banner)
                 }
+                RecoveryCoachCard()
                 macroRingsSection
                 UseUpSoonCard(viewModel: viewModel)
                 calorieProgressSection

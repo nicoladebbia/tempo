@@ -260,6 +260,8 @@ struct ContentView: View {
         .mealNotificationHooks(request: $appState.requestedMeal) {
             rescheduleMealReminders()
         }
+        // Recovery Coach: weigh-in push -> coach screen, foreground refresh, pre-match reminder.
+        .recoveryCoachHooks(appState: appState, services: services, modelContext: modelContext)
         // Training settings (split / football days / trainer program) and
         // diet-profile edits can happen from Training, Dashboard Settings or
         // Nutrition. Handle them here, app-wide, so the meal plan follows even
