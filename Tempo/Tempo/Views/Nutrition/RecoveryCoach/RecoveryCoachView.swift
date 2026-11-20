@@ -33,7 +33,7 @@ struct RecoveryCoachView: View {
                 .padding(.top, TempoSpacing.md)
             }
             // Own task: SwiftUI cancels a refreshable body when the view updates mid-load.
-            .refreshable { await Task { await model.refresh() }.value }
+            .refreshable { await Task { await model.refresh(requestedID: model.session?.id) }.value }
         }
         .background(Color.tempoBgPrimary.ignoresSafeArea())
         .sheet(isPresented: $showWeighIn) {
@@ -144,7 +144,7 @@ struct RecoveryCoachView: View {
             Text(message)
                 .font(.tempoSubheadline)
                 .foregroundStyle(Color.tempoTextSecondary)
-            Button("Try again") { Task { await model.refresh() } }
+            Button("Try again") { Task { await model.refresh(requestedID: model.session?.id) } }
                 .buttonStyle(.tempoSecondary)
                 .accessibilityIdentifier("coach.retry")
         }
@@ -226,7 +226,7 @@ struct RecoveryCoachView: View {
     /// What Apple Health returned for this session's window, so "why isn't it using my scale?" has an answer.
     private var healthReadings: some View {
         card {
-            Text("WEIGHTS USED")
+            Text("WEIGHTS NEAR THE SESSION")
                 .font(.tempoModuleTag)
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
@@ -234,7 +234,7 @@ struct RecoveryCoachView: View {
                 Text(note).font(.tempoSubheadline).foregroundStyle(Color.tempoWarning)
             }
             if model.weighIns.isEmpty {
-                Text("Nothing from Apple Health or entered by hand between 3 hours before and 2 hours after the session. Your Withings scale sends a weight to Health after you step on it.")
+                Text("Nothing from Apple Health or entered by hand between 3 hours before and 2.5 hours after the session. Your Withings scale sends a weight to Health after you step on it.")
                     .font(.tempoSubheadline)
                     .foregroundStyle(Color.tempoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)

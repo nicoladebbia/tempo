@@ -52,6 +52,21 @@ final class PreMatchWeighInPlanTests: XCTestCase {
         XCTAssertTrue(a.first?.identifier.hasPrefix(PreMatchWeighInPlan.idPrefix) == true)
     }
 
+    func testFootballBlockKeepsWallClockTimeAcrossDST() throws {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = try XCTUnwrap(TimeZone(identifier: "America/New_York"))
+        // 2026-11-01: clocks go back. A 15:00 block must stay 15:00 local.
+        let day = try XCTUnwrap(cal.date(from: DateComponents(year: 2026, month: 11, day: 1)))
+        let out = PreMatchWeighInPlan.kickoffs(matchKickoffs: [], footballBlocks: [(day: day, startMinuteOfDay: 15 * 60)], calendar: cal)
+        let parts = cal.dateComponents([.hour, .minute], from: try XCTUnwrap(out.first))
+        XCTAssertEqual(parts.hour, 15)
+        XCTAssertEqual(parts.minute, 0)
+        // 2027-03-14: clocks go forward.
+        let spring = try XCTUnwrap(cal.date(from: DateComponents(year: 2027, month: 3, day: 14)))
+        let out2 = PreMatchWeighInPlan.kickoffs(matchKickoffs: [], footballBlocks: [(day: spring, startMinuteOfDay: 15 * 60)], calendar: cal)
+        XCTAssertEqual(cal.component(.hour, from: try XCTUnwrap(out2.first)), 15)
+    }
+
     func testKickoffsMergeMatchesAndFootballBlocks() throws {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))

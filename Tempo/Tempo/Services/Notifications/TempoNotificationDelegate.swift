@@ -53,6 +53,7 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         case (CoachNotifications.postCategoryID, _) where CoachNotifications.quickAnswer(forAction: action) != nil:
             // Stored on the phone only: works in the background with no network.
             if let answer = CoachNotifications.handleQuickAnswer(action: action, userInfo: userInfo) {
+                NotificationCenter.default.post(name: .tempoCoachAnswerStored, object: nil)
                 await CoachNotifications.postConfirmation(answer, bottleMl: RecoveryCoachStore.shared.read().bottleMl)
             }
             return

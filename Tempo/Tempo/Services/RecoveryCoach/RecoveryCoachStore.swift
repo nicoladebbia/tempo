@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import os
 
 struct CoachQuickAnswer: Codable, Equatable, Sendable {
     /// 0, 0.5, 1 or 2.
@@ -80,18 +81,27 @@ final class RecoveryCoachStore: @unchecked Sendable {
             var state = load()
             change(&state)
             Self.prune(&state, now: now)
-            if let data = try? Self.encoder().encode(state) {
-                defaults.set(data, forKey: key)
+            do {
+                defaults.set(try Self.encoder().encode(state), forKey: key)
+            } catch {
+                logger.error("coach state not saved: \(error.localizedDescription, privacy: .public)")
             }
             return state
         }
     }
 
+    private let logger = Logger(subsystem: "app.tempo", category: "recovery-coach-store")
+
     private func load() -> RecoveryCoachState {
-        guard let data = defaults.data(forKey: key),
-              let state = try? Self.decoder().decode(RecoveryCoachState.self, from: data)
-        else { return RecoveryCoachState() }
-        return state
+        guard let data = defaults.data(forKey: key) else { return RecoveryCoachState() }
+        do {
+            return try Self.decoder().decode(RecoveryCoachState.self, from: data)
+        } catch {
+            // Keep the unreadable blob so nothing is lost for good, then start empty.
+            logger.error("coach state unreadable, starting empty: \(error.localizedDescription, privacy: .public)")
+            defaults.set(data, forKey: key + ".unreadable")
+            return RecoveryCoachState()
+        }
     }
 
     static func prune(_ state: inout RecoveryCoachState, now: Date) {

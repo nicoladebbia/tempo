@@ -100,6 +100,14 @@ final class RecoveryCoachMathTests: XCTestCase {
         XCTAssertTrue(store.read().manualWeighIns.isEmpty)
     }
 
+    func testUnreadableStateIsKeptAside() {
+        let defaults = UserDefaults(suiteName: "coach-test-\(UUID().uuidString)")!
+        defaults.set(Data("not json".utf8), forKey: "k")
+        let store = RecoveryCoachStore(defaults: defaults, key: "k")
+        XCTAssertTrue(store.read().quickAnswers.isEmpty)
+        XCTAssertEqual(defaults.data(forKey: "k.unreadable"), Data("not json".utf8))
+    }
+
     func testStateRoundTripsACachedResult() throws {
         let json = """
         {"status":"needs_weigh_in","missing":["pre_weigh_in"],"notes":["n"]}

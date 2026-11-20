@@ -33,6 +33,22 @@ enum RecoveryWeighIns {
         (start.addingTimeInterval(-before), end.addingTimeInterval(after))
     }
 
+    /// Fluids count from the weigh-in the server uses as "before" to the one it uses as "after".
+    /// Server rule (SweatBalance.pair): before = LATEST weight in [start - 3 h, start + 10 min],
+    /// after = EARLIEST weight in [end - 10 min, end + 2 h]. Without one, fall back to
+    /// start - 15 min and `now`. Only copies which weights the server picks; no sweat math.
+    static func waterWindow(
+        weighIns: [CoachWeighIn], start: Date, end: Date, now: Date
+    ) -> (from: Date, to: Date) {
+        let before = weighIns
+            .filter { $0.time >= start.addingTimeInterval(-3 * 3600) && $0.time <= start.addingTimeInterval(10 * 60) }
+            .map(\.time).max()
+        let after = weighIns
+            .filter { $0.time >= end.addingTimeInterval(-10 * 60) && $0.time <= end.addingTimeInterval(2 * 3600) }
+            .map(\.time).min()
+        return (before ?? start.addingTimeInterval(-15 * 60), after ?? now)
+    }
+
     /// Any source containing "Withings" is `withings`; everything else is `manual`.
     static func source(forHealthSourceName name: String) -> String {
         name.localizedCaseInsensitiveContains("withings") ? CoachWeighIn.sourceWithings : CoachWeighIn.sourceManual

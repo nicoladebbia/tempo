@@ -60,7 +60,7 @@ enum PreMatchWeighInPlan {
         matchKickoffs: [Date], footballBlocks: [(day: Date, startMinuteOfDay: Int)], calendar: Calendar = .current
     ) -> [Date] {
         let fromBlocks = footballBlocks.compactMap { block in
-            calendar.date(byAdding: .minute, value: block.startMinuteOfDay, to: calendar.startOfDay(for: block.day))
+            calendar.date(bySettingHour: block.startMinuteOfDay / 60, minute: block.startMinuteOfDay % 60, second: 0, of: block.day)
         }
         return matchKickoffs + fromBlocks
     }
@@ -108,7 +108,9 @@ enum PreMatchWeighInScheduler {
             content.categoryIdentifier = CoachNotifications.preCategoryID
             content.sound = .default
             content.interruptionLevel = .timeSensitive
-            let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.fireDate)
+            // With the zone, so the reminder stays at the same instant if the phone changes time zone.
+            var parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.fireDate)
+            parts.timeZone = Calendar.current.timeZone
             let request = UNNotificationRequest(
                 identifier: reminder.identifier, content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)

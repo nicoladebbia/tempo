@@ -189,10 +189,11 @@ final class RecoveryCoachModel {
 
         let sent = RecoveryWeighIns.select(health: health, manual: state.manualWeighIns, start: session.start, end: session.end)
         weighIns = sent
-        let postTime = sent.last(where: { $0.time >= session.end.addingTimeInterval(-600) })?.time ?? now()
+        let water = RecoveryWeighIns.waterWindow(weighIns: sent, start: session.start, end: session.end, now: now())
         fluids = CoachFluidBreakdown(
-            loggedMl: waterMl(session.start.addingTimeInterval(-15 * 60), postTime),
-            quickAnswerLiters: state.quickAnswers[session.id]?.liters,
+            loggedMl: waterMl(water.from, water.to),
+            // Priced at today's bottle size, so changing the size also re-prices an earlier answer.
+            quickAnswerLiters: state.quickAnswers[session.id].map { $0.bottles * Double(state.bottleMl) / 1000 },
             editedLiters: state.fluidEdits[session.id]
         )
 
@@ -208,7 +209,7 @@ final class RecoveryCoachModel {
         var bodyMass = sent.last?.kg
         if bodyMass == nil, let healthKit {
             do {
-                bodyMass = try await healthKit.fetchBodyComposition().weightKg
+                bodyMass = try await healthKit.fetchBodyComposition().weightKg.flatMap { RecoveryWeighIns.plausibleKg.contains($0) ? $0 : nil }
             } catch {
                 logger.error("body composition read failed: \(error.localizedDescription, privacy: .public)")
             }
@@ -270,7 +271,17 @@ final class RecoveryCoachModel {
         await recompute()
     }
 
-    /// nil clears the typed amount.
+    /// Forgets the typed amount AND the quick answer for this session.
+    func clearFluid() async {
+        guard let session else { return }
+        store.update { state in
+            state.fluidEdits[session.id] = nil
+            state.quickAnswers[session.id] = nil
+        }
+        await recompute()
+    }
+
+    /// Sets the typed amount.
     func editFluid(liters: Double?) async {
         guard let session else { return }
         store.update { $0.fluidEdits[session.id] = liters }

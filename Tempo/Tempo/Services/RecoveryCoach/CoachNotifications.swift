@@ -13,6 +13,11 @@ import Foundation
 import os
 import UserNotifications
 
+extension Notification.Name {
+    /// A notification button stored a fluid answer: an open coach screen recomputes.
+    static let tempoCoachAnswerStored = Notification.Name("tempoCoachAnswerStored")
+}
+
 enum CoachNotifications {
     static let postCategoryID = "POST_WORKOUT_WEIGHIN"
     static let preCategoryID = "PRE_MATCH_WEIGHIN"

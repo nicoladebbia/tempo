@@ -38,6 +38,10 @@ private struct RecoveryCoachHooks: ViewModifier {
                 guard let request, let model else { return }
                 Task { await model.refresh(requestedID: request.id) }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .tempoCoachAnswerStored)) { _ in
+                guard let model, model.hasSession else { return }
+                Task { await model.recompute() }
+            }
             .onReceive(
                 NotificationCenter.default.publisher(for: .tempoCoachSettingsChanged)
                     .merge(with: NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged))

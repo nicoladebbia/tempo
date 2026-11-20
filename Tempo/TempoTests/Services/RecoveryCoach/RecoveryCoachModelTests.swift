@@ -147,6 +147,47 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(api.requests.last).weighIns.isEmpty)
     }
 
+    func testClearFluidRemovesTheQuickAnswerToo() async throws {
+        let api = FakeCoachAPI()
+        api.sessions = .success([session()])
+        api.recovery = .success(try response(ready))
+        let (model, store) = make(api: api)
+        store.recordQuickAnswer(sessionID: "s1", bottles: 1, now: now)
+        await model.refresh()
+        XCTAssertNotNil(api.requests.last?.drankLiters)
+        await model.clearFluid()
+        XCTAssertNil(api.requests.last?.drankLiters)
+        XCTAssertNil(store.read().quickAnswers["s1"])
+    }
+
+    func testChangingTheBottleSizeRepricesAnEarlierAnswer() async throws {
+        let api = FakeCoachAPI()
+        api.sessions = .success([session()])
+        api.recovery = .success(try response(ready))
+        let (model, store) = make(api: api)
+        store.recordQuickAnswer(sessionID: "s1", bottles: 1, now: now) // 750 mL at the time
+        await model.refresh()
+        XCTAssertEqual(try XCTUnwrap(api.requests.last?.drankLiters), 0.75, accuracy: 0.0001)
+        model.setBottleMl(500)
+        await model.recompute()
+        XCTAssertEqual(try XCTUnwrap(api.requests.last?.drankLiters), 0.5, accuracy: 0.0001)
+    }
+
+    func testRefreshKeepsTheScreensSessionWhenANewerOneNeedsAttention() async throws {
+        let api = FakeCoachAPI()
+        let a = session()
+        let newer = CoachSession(
+            id: "newer", start: a.start.addingTimeInterval(30 * 60), end: a.end.addingTimeInterval(30 * 60),
+            sportName: nil, strain: nil, kilojoules: nil, averageHeartRate: nil, percentRecorded: nil
+        )
+        api.sessions = .success([a, newer])
+        api.recovery = .success(try response(needs))
+        let (model, _) = make(api: api)
+        await model.refresh(requestedID: "s1")
+        await model.refresh(requestedID: model.session?.id)
+        XCTAssertEqual(model.session?.id, "s1")
+    }
+
     func testRequestedSessionWinsOverLatest() async throws {
         let api = FakeCoachAPI()
         let a = session()

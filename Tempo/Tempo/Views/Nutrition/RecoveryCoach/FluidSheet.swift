@@ -15,6 +15,7 @@ struct FluidSheet: View {
     @State private var exactText = ""
     @State private var bottleText = ""
     @State private var error: String?
+    @State private var bottleAtOpen = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -98,7 +99,7 @@ struct FluidSheet: View {
 
                     if model.fluids.editedLiters != nil || model.fluids.quickAnswerLiters != nil {
                         Button("Clear and start over") {
-                            Task { await model.editFluid(liters: nil) }
+                            Task { await model.clearFluid() }
                             dismiss()
                         }
                         .buttonStyle(.tempoGhost)
@@ -110,7 +111,14 @@ struct FluidSheet: View {
             }
         }
         .background(Color.tempoBgPrimary.ignoresSafeArea())
-        .onAppear { bottleText = String(model.bottleMl) }
+        .onAppear {
+            bottleText = String(model.bottleMl)
+            bottleAtOpen = model.bottleMl
+        }
+        .onDisappear {
+            // A new bottle size re-prices an earlier "one bottle" answer.
+            if model.bottleMl != bottleAtOpen { Task { await model.recompute() } }
+        }
     }
 
     private func saveExact() {
