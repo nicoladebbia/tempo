@@ -1,0 +1,6 @@
+{
+  "access_token" : "eyJhbGciOiJIUzI1NiJ9.e30.c2ln",
+  "expires_in" : 900,
+  "refresh_token" : "rt_00000000000000000000000000000001",
+  "token_type" : "Bearer"
+}

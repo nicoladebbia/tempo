@@ -115,7 +115,8 @@ final class MealPlanInputsFingerprintTests: XCTestCase {
     }
 
     func testIntakeFieldsAreEmptyForDefaultsSoOldFingerprintsSurvive() throws {
-        let context = try TempoModelContainer.create(inMemory: true).mainContext
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
         let settings = UserSettings()
         let daily = UserDailyPlanProfile()
         context.insert(settings)
@@ -129,7 +130,8 @@ final class MealPlanInputsFingerprintTests: XCTestCase {
     }
 
     func testIntakeFieldsChangeTheFingerprint() throws {
-        let context = try TempoModelContainer.create(inMemory: true).mainContext
+        let container = try TempoModelContainer.create(inMemory: true)
+        let context = container.mainContext
         let settings = UserSettings()
         let daily = UserDailyPlanProfile()
         context.insert(settings)

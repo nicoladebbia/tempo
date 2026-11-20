@@ -136,6 +136,23 @@ final class GuidedRunSessionTests: XCTestCase {
 
     // MARK: - Countdown
 
+    func testStartedAtIsFirstStepAndEndedAtIsEndMoment() {
+        let clock = FakeGuidedRunClock()
+        let t0 = clock.current
+        let session = GuidedRunSession(plan: repsPlan(), clock: clock)
+        session.start()
+        XCTAssertNil(session.startedAt, "the countdown isn't part of the run")
+        clock.advance(3)
+        session.tick()
+        XCTAssertEqual(session.startedAt, t0.addingTimeInterval(3))
+        XCTAssertNil(session.endedAt)
+
+        clock.advance(40)
+        session.endEarly()
+        XCTAssertEqual(session.endedAt, t0.addingTimeInterval(43))
+        XCTAssertEqual(session.startedAt, t0.addingTimeInterval(3), "later steps never move the start")
+    }
+
     func testCountdownFiresThreeTwoOneThenGoAndEntersFirstWorkStep() {
         let clock = FakeGuidedRunClock()
         let session = GuidedRunSession(plan: repsPlan(), clock: clock)

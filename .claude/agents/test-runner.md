@@ -18,8 +18,8 @@ You run tests and analyze results. You don't just report pass/fail — you diagn
    - If Views were built → run snapshot tests (if available)
    - If everything → run full suite
 2. Run the appropriate test command:
-   - iOS: `xcodebuild test -project Tempo/Tempo.xcodeproj -scheme Tempo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:TempoTests` (targets: TempoTests, TempoUITests, TempoSnapshotTests; if the simulator name is missing, pick one from `xcrun simctl list devices available`)
-   - Backend: `cd tempo-backend && swift test`
+   - iOS: `scripts/sim.sh test` from the worktree root (runs TempoTests on this worktree's own simulator and DerivedData; narrow with `-only-testing:TempoTests/<Class>`; other targets: TempoUITests, TempoSnapshotTests). Never pass `-destination 'name=iPhone 17'` or use the default DerivedData — a shared simulator makes the run hang behind another session's tests
+   - Backend: `scripts/testenv.sh db && eval "$(scripts/testenv.sh test-env)" && cd tempo-backend && swift test` from the worktree root (local Postgres + Redis in Docker; without that env the DB suites fail). `LiveActivityCoordinatorTests.testEndingActiveResumesHighestPrioritySuspendedAliveParticipant` is known flaky: rerun it alone before reporting it as a regression
 3. Parse the output:
    - Count total tests, passes, failures, skips
    - For each failure: extract test name, assertion, expected vs actual values

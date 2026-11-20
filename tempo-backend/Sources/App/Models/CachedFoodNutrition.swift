@@ -50,6 +50,10 @@ final class CachedFoodNutrition: Model, Content, @unchecked Sendable {
     @OptionalField(key: "sugars")
     var sugars: Double?
 
+    /// Per-100g micronutrients keyed by `Nutrient.rawValue`. NULL on rows cached before this column existed.
+    @OptionalField(key: "micros")
+    var micros: [String: Double]?
+
     @OptionalField(key: "confidence")
     var confidence: Double?
 
@@ -82,6 +86,7 @@ final class CachedFoodNutrition: Model, Content, @unchecked Sendable {
         fat = resolved?.fat
         fiber = resolved?.fiber
         sugars = resolved?.sugars
+        micros = resolved?.micros
         confidence = resolved?.confidence
     }
 
@@ -101,6 +106,7 @@ final class CachedFoodNutrition: Model, Content, @unchecked Sendable {
             fat: fat,
             fiber: fiber,
             sugars: sugars,
+            micros: micros,
             confidence: confidence
         )
     }

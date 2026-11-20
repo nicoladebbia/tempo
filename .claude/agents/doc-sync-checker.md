@@ -47,7 +47,7 @@ You detect DRIFT between documentation and implementation. When code doesn't mat
 ## Doc Sync: [filename]
 
 📖 Spec: docs/DATA_MODELS_IOS.md Section 3
-📝 Implementation: Tempo/Models/DailySnapshot.swift
+📝 Implementation: Tempo/Tempo/Models/DailySnapshot.swift
 
 ### Drift Detected
 1. Missing field: `spo2_percentage` (in spec, not in code)

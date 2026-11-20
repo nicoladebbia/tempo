@@ -32,9 +32,9 @@ Run ALL validation agents in parallel against the current codebase. This is the 
       - Feed it all model and view files
       - Cross-check against DATA_MODELS_IOS.md, WIREFRAMES.md, STATE_MACHINES.md
 
-   e. **build-reviewer** (Sonnet — thorough)
-      - Feed it the current build step context
-      - Overall quality and completeness check
+   e. **code-reviewer** (Sonnet — thorough)
+      - Feed it the changed files / branch diff
+      - Bugs, data-loss, integration and missing-test check
 
 3. **Compile results** into a single report:
 
@@ -50,7 +50,7 @@ Run ALL validation agents in parallel against the current codebase. This is the 
 | Swift Compiler | ✅ / ⚠️ / ❌ | N issues |
 | Architecture Guard | ✅ / ⚠️ / ❌ | N issues |
 | Doc Sync Checker | ✅ / ⚠️ / ❌ | N issues |
-| Build Reviewer | ✅ / ⚠️ / ❌ | N issues |
+| Code Reviewer | ✅ / ⚠️ / ❌ | N issues |
 
 ### Critical Issues (must fix)
 1. [issue from any agent]

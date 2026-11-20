@@ -59,6 +59,26 @@ final class WorkoutPlan {
     /// migrates it automatically (no manual migration).
     var pausedSeconds: Double = 0
 
+    /// When the CURRENT pause / phone call began; nil while the session is
+    /// running. `pausedSeconds` is only bumped on resume, so without this a
+    /// kill while paused made crash recovery count the whole pause (and the
+    /// time the app was dead) as training. Optional, so SwiftData migrates it
+    /// automatically.
+    var pausedAt: Date?
+
+    /// When crash recovery last settled this session's clock. Everything before
+    /// it is already accounted for, so a second kill with no new set can't
+    /// count the same dead stretch twice. Optional, so SwiftData migrates it
+    /// automatically.
+    var crashRecoveredAt: Date?
+
+    /// The session is saved but the engine hasn't learned from it yet.
+    /// Learning (prediction outcomes, error-fit, venue pattern, adaptive
+    /// profile) waits until the summary closes, so the last set's feedback —
+    /// usually entered ON the summary — is part of what it learns from.
+    /// Defaulted → lightweight migration.
+    var learningPending: Bool = false
+
     /// §8 connect — when the daily brain's final prescription moves the day to
     /// a DIFFERENT modality (e.g. planned pool → prescribed rest at yellow
     /// recovery), the plan row is reshaped to match and the ORIGINAL template
@@ -102,6 +122,11 @@ final class WorkoutPlan {
     /// ordinary generated rest day for Today's card and the trainer report.
     /// Optional → lightweight SwiftData migration.
     var pausedReasonRaw: String?
+
+    /// Set on every workout created by one CSV import (Strong / Hevy / generic)
+    /// so the whole import can be removed in one tap. nil = not imported.
+    /// Optional → lightweight SwiftData migration.
+    var importBatchID: UUID?
 
     // MARK: - Relationships
 
@@ -203,12 +228,25 @@ final class WorkoutPlan {
         (exercises ?? []).reduce(0) { $0 + $1.totalVolume }
     }
 
+    /// Active training seconds (pauses / calls excluded — same rule as the
+    /// live clock, so every screen shows one duration for one workout).
     @Transient
-    var actualDurationMinutes: Int? {
+    var actualDurationSeconds: TimeInterval? {
         guard let start = startedAt, let end = finishedAt else {
             return nil
         }
-        return Int(end.timeIntervalSince(start) / 60)
+        return max(0, end.timeIntervalSince(start) - pausedSeconds)
+    }
+
+    /// Nearest whole minute (2:56 reads 3, not a truncated 2).
+    @Transient
+    var actualDurationMinutes: Int? {
+        actualDurationSeconds.map { Int(($0 / 60).rounded()) }
+    }
+
+    /// "<1 min" under a minute, otherwise "N min" at the nearest minute.
+    nonisolated static func durationLabel(seconds: TimeInterval) -> String {
+        seconds < 60 ? "<1 min" : "\(Int((seconds / 60).rounded())) min"
     }
 
     // MARK: - Init

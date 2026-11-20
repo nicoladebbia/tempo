@@ -1,0 +1,14 @@
+{
+  "data" : {
+    "is_pro" : false,
+    "limit" : 2,
+    "remaining" : 2,
+    "resets_at" : "2026-01-01T00:00:00Z",
+    "used" : 0
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

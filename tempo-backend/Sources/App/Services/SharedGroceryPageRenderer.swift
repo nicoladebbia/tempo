@@ -13,7 +13,27 @@ import Foundation
 // server-side `.htmlEscaped` used for the title/store embedded directly here.
 
 enum SharedGroceryPageRenderer {
-    static func render(title: String, store: String?, token: String) -> String {
+    /// 16 random bytes, base64 — a fresh one per response. The page's inline
+    /// <style>/<script> only run because they carry it (SecurityHeadersMiddleware
+    /// otherwise sends `default-src 'none'`, which blocks all inline code).
+    static func makeNonce() -> String {
+        var rng = SystemRandomNumberGenerator()
+        let bytes = (0 ..< 16).map { _ in UInt8.random(in: .min ... .max, using: &rng) }
+        return Data(bytes).base64EncodedString()
+    }
+
+    /// CSP for the live list page: inline style/script by nonce only, same-origin
+    /// fetches (`/g/:token/state`, `/g/:token/items/:id`), nothing else.
+    static func contentSecurityPolicy(nonce: String) -> String {
+        "default-src 'none'; style-src 'nonce-\(nonce)'; script-src 'nonce-\(nonce)'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    }
+
+    /// CSP for the static "expired" page: inline style only, no script.
+    static func goneContentSecurityPolicy(nonce: String) -> String {
+        "default-src 'none'; style-src 'nonce-\(nonce)'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    }
+
+    static func render(title: String, store: String?, token: String, nonce: String) -> String {
         let safeTitle = title.htmlEscaped
         let subtitle = store.map { "<p class=\"store\">\($0.htmlEscaped)</p>" } ?? ""
         let safeToken = token.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? token
@@ -25,7 +45,7 @@ enum SharedGroceryPageRenderer {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
         <title>\(safeTitle) — Tempo</title>
-        <style>\(css)</style>
+        <style nonce="\(nonce)">\(css)</style>
         </head>
         <body>
           <main>
@@ -38,13 +58,13 @@ enum SharedGroceryPageRenderer {
             <ul id="list"></ul>
             <p class="footer">Shared from Tempo. Ticks sync automatically — no app or account needed.</p>
           </main>
-          <script>\(js(token: safeToken))</script>
+          <script nonce="\(nonce)">\(js(token: safeToken))</script>
         </body>
         </html>
         """
     }
 
-    static func renderGone() -> String {
+    static func renderGone(nonce: String) -> String {
         """
         <!DOCTYPE html>
         <html lang="en">
@@ -52,7 +72,7 @@ enum SharedGroceryPageRenderer {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Link expired — Tempo</title>
-        <style>\(css)</style>
+        <style nonce="\(nonce)">\(css)</style>
         </head>
         <body>
           <main class="gone">

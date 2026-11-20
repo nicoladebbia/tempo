@@ -48,6 +48,12 @@ func routes(
         .grouped(RateLimitMiddleware(limit: 100, window: .minutes(1), scope: .user))
         .register(collection: WhoopDataController())
 
+    // Recovery coach: finished WHOOP sessions, sweat estimate and recovery plan.
+    // GET /v1/coach/sessions/recent, POST /v1/coach/recovery
+    try protected.grouped("coach")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
+        .register(collection: CoachRecoveryController())
+
     // Device token management — per BUILD_PLAN step 12.1
     // POST /v1/devices/register, DELETE /v1/devices/:deviceID
     try protected.grouped("devices")

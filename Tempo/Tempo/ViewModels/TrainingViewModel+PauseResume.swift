@@ -84,9 +84,25 @@ extension TrainingViewModel {
 
     /// Add paused/on-call seconds to the running total AND mirror it onto the
     /// plan so crash recovery can restore it.
-    private func addPausedTime(_ seconds: TimeInterval) {
+    func addPausedTime(_ seconds: TimeInterval) {
         totalPauseDuration += max(0, seconds)
         todayPlan?.pausedSeconds = totalPauseDuration
+    }
+
+    /// Persist when a pause / call began, so a kill while paused can still
+    /// exclude it (crash recovery folds `now - pausedAt` into the pause total).
+    /// Saved immediately: the app is often killed from the background right
+    /// after the user pauses, before any autosave would run.
+    private func markPauseStarted(at date: Date) {
+        guard let plan = todayPlan else {
+            return
+        }
+        plan.pausedAt = date
+        try? plan.modelContext?.save()
+    }
+
+    func clearPauseMarker() {
+        todayPlan?.pausedAt = nil
     }
 
     func pause() {
@@ -98,7 +114,9 @@ extension TrainingViewModel {
         stopRestTimer()
         stopWarmupMoveTimer()
         stopElapsedTimer()
-        sessionState = .paused(previousState: previousState, pauseStartTime: Date())
+        let now = Date()
+        sessionState = .paused(previousState: previousState, pauseStartTime: now)
+        markPauseStarted(at: now)
     }
 
     func resume() {
@@ -108,6 +126,7 @@ extension TrainingViewModel {
 
         // Track pause duration
         addPausedTime(Date().timeIntervalSince(pauseStart))
+        clearPauseMarker()
 
         restore(previousState)
     }
@@ -129,6 +148,7 @@ extension TrainingViewModel {
                 addPausedTime(Date().timeIntervalSince(start))
             }
             callStartedAt = nil
+            clearPauseMarker()
             restore(previousState)
             HapticManager.notification(.warning)
         } else {
@@ -141,8 +161,10 @@ extension TrainingViewModel {
             stopRestTimer()
             stopWarmupMoveTimer()
             stopElapsedTimer()
-            callStartedAt = Date()
+            let now = Date()
+            callStartedAt = now
             sessionState = .interruptedCall(previousState: previousState)
+            markPauseStarted(at: now)
         }
     }
 

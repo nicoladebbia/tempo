@@ -1,0 +1,10 @@
+{
+  "data" : {
+    "message" : "Chicken and rice closes the protein gap."
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

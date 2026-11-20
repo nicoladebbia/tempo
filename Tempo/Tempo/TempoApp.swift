@@ -101,6 +101,11 @@ struct TempoApp: App {
                 // PauseTravelPainUITestSeed's header); no-ops unless launched
                 // with one of its launch arguments.
                 PauseTravelPainUITestSeed.seedIfRequested(context: container.mainContext)
+                BenchedDayUITestSeed.seedIfRequested(context: container.mainContext)
+                PoundsUITestSeed.seedIfRequested(context: container.mainContext)
+                // `sim.sh qa --scenario <name>` starting states (see
+                // ScenarioSeed's header).
+                ScenarioSeed.seedIfRequested(context: container.mainContext)
                 // Nutrition QA — a full week's plan + pantry + grocery list
                 // (see NutritionPlanUITestSeed's header).
                 NutritionPlanUITestSeed.seedIfRequested(context: container.mainContext)
@@ -108,6 +113,11 @@ struct TempoApp: App {
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
+        #if DEBUG && targetEnvironment(simulator)
+            // `sim.sh qa --local`: sign in as this simulator's test account
+            // before AuthService restores the session.
+            TestServer.prepare()
+        #endif
         // ServiceContainer.live builds the APIClient itself so it can wire
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
         let serviceContainer = ServiceContainer.live()
@@ -171,6 +181,11 @@ struct TempoApp: App {
         WindowGroup {
             ContentView()
                 .environment(services)
+                .task {
+                    // Entitlement at launch + Transaction.updates listener.
+                    // Idempotent; a no-op for the mock container.
+                    await services.subscriptions.startObserving()
+                }
                 .task {
                     // Runs once, before any resume-workout UI could
                     // plausibly request a fresh Live Activity — clears any

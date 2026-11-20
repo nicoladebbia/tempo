@@ -203,6 +203,10 @@ enum MovementPattern: String, Codable, CaseIterable {
 
 enum PRType: String, Codable, CaseIterable {
     case oneRepMax = "1rm"
+    /// Heaviest weight ever lifted on this exercise (any reps). Raw value
+    /// kept from when it was a "rep max", so stored rows still decode.
     case repMax = "rep_max"
     case volume
+    /// Bodyweight-only sets: most reps in one set. `value` is the rep count.
+    case mostReps = "most_reps"
 }

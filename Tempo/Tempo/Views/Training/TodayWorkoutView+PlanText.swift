@@ -136,7 +136,6 @@ extension TodayWorkoutView {
 
     /// 22.5 stays "22.5" (Int() used to truncate it to "22"); whole numbers drop the decimal.
     static func weightText(_ value: Double) -> String {
-        let rounded = (value * 10).rounded() / 10
-        return rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded)
+        WeightFormat.number(value)
     }
 }

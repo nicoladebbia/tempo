@@ -29,6 +29,12 @@ import SwiftData
             guard ProcessInfo.processInfo.arguments.contains(launchArgument) else {
                 return
             }
+            seed(context: context)
+        }
+
+        /// Also used by `ScenarioSeed` (`sim.sh --scenario`).
+        @MainActor
+        static func seed(context: ModelContext) {
 
             let calendar = Calendar.current
             let weekStart = calendar.startOfDay(for: Date())

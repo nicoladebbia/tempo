@@ -9,16 +9,9 @@
 import Foundation
 
 extension Double {
-    /// Formats weight: "80.5 kg" or "177 lbs"
+    /// Formats a weight already in `unit`: "80.5 kg" or "177 lbs".
     func formattedWeight(unit: WeightUnit = .kg) -> String {
-        switch unit {
-        case .kg:
-            truncatingRemainder(dividingBy: 1) == 0
-                ? "\(Int(self)) kg"
-                : String(format: "%.1f kg", self)
-        case .lbs:
-            "\(Int(self)) lbs"
-        }
+        "\(WeightFormat.number(self)) \(unit.abbreviation)"
     }
 
     /// Formats as percentage: "78%"

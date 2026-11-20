@@ -109,4 +109,14 @@ final class WorkoutHistoryDeletionTests: XCTestCase {
 
         XCTAssertEqual(exercise.allTimePR, 140, "the previous best becomes current with no separate bookkeeping")
     }
+
+    func testDeleteConfirmationCountsLoggedSetsNotPlannedOnes() {
+        let plan = WorkoutPlan(date: .now, type: .upper, status: .completed)
+        let slot = PlannedExercise(order: 0, workoutPlan: plan)
+        slot.sets = (1 ... 4).map { n in
+            PlannedSet(setNumber: n, targetReps: 8, completed: n <= 2, plannedExercise: slot)
+        }
+        plan.exercises = [slot]
+        XCTAssertTrue(WorkoutHistoryView.deleteConfirmationMessage(plan).contains("its 2 logged sets"))
+    }
 }

@@ -264,8 +264,7 @@ struct ExerciseDetailView: View {
             $0.date > Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .now
         }
         let current1RM = exercise.currentEstimated1RM
-        let bestWeight = history.compactMap(\.bestSetWeight).max()
-        let bestReps = history.compactMap(\.bestSetReps).max()
+        let bestSet = ExerciseBestSet.pick(from: history, bodyweight: StrengthStandards.isBodyweightLoaded(exercise.equipment))
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
@@ -281,11 +280,11 @@ struct ExerciseDetailView: View {
                 statItem(
                     label: "Current 1RM",
                     value: current1RM
-                        .map { String(format: "%.1f %@", WeightUnit.kg.convert($0, to: weightUnit), weightUnit.abbreviation) } ?? "—"
+                        .map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—"
                 )
                 statItem(
                     label: "Best Set",
-                    value: bestSetText(weight: bestWeight, reps: bestReps)
+                    value: bestSetText(bestSet)
                 )
                 statItem(
                     label: "Volume (30d)",
@@ -305,7 +304,7 @@ struct ExerciseDetailView: View {
                         .foregroundStyle(Color.tempoPRGold) // prGold
 
                     Text(
-                        "All-Time 1RM PR: \(String(format: "%.1f", WeightUnit.kg.convert(allTimePR, to: weightUnit))) \(weightUnit.abbreviation)"
+                        "All-Time 1RM PR: \(WeightFormat.text(kg: allTimePR, unit: weightUnit))"
                     )
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextPrimary)
@@ -336,7 +335,10 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — e1RM line chart, 200pt, with 30D/90D/ALL picker
 
     private var progressChart: some View {
-        let chartHistory = filteredHistory(for: chartRange)
+        // One point per day; bodyweight sessions carry no e1RM — never plot a 0.
+        let chartDays = ProgressLabMath.dailyBestE1RM(
+            filteredHistory(for: chartRange).map { ($0.date, $0.estimated1RM) }
+        )
 
         return VStack(alignment: .leading, spacing: TempoSpacing.md) {
             HStack {
@@ -356,7 +358,7 @@ struct ExerciseDetailView: View {
                 .frame(width: 160)
             }
 
-            if chartHistory.isEmpty {
+            if chartDays.isEmpty {
                 VStack(spacing: TempoSpacing.sm) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .font(.system(size: 32))
@@ -373,17 +375,14 @@ struct ExerciseDetailView: View {
                     id: "e1RM",
                     label: "Estimated 1RM",
                     color: Color.tempoSignal,
-                    points: chartHistory.compactMap { entry in
-                        guard let e1rm = entry.estimated1RM else {
-                            return nil
-                        }
-                        return TempoLineChartData<String>.DataPoint(
-                            date: entry.date,
-                            value: e1rm
+                    points: chartDays.map { day in
+                        TempoLineChartData<String>.DataPoint(
+                            date: day.date,
+                            value: WeightUnit.kg.convert(day.e1RM, to: weightUnit)
                         )
                     }
                 )
-                TempoLineChart(data: [data], height: 200)
+                TempoLineChart(data: [data], height: 200, axisDesiredCount: 4)
             }
         }
         .padding(TempoSpacing.cardPadding)
@@ -524,20 +523,15 @@ struct ExerciseDetailView: View {
         return history.filter { $0.date > cutoff }
     }
 
-    private func bestSetText(weight: Double?, reps: Int?) -> String {
-        guard let w = weight, let r = reps else {
+    private func bestSetText(_ best: ExerciseBestSet?) -> String {
+        guard let best else {
             return "—"
         }
-        let converted = WeightUnit.kg.convert(w, to: weightUnit)
-        return "\(Int(converted))\(weightUnit.abbreviation) x \(r)"
+        return "\(WeightFormat.setLoad(kg: best.weightKg, addedKg: best.addedLoadKg, bodyweight: best.isBodyweight, unit: weightUnit)) × \(best.reps)"
     }
 
     private func formatVolume(_ volume: Double) -> String {
-        let converted = WeightUnit.kg.convert(volume, to: weightUnit)
-        if converted >= 1000 {
-            return String(format: "%.1fk %@", converted / 1000, weightUnit.abbreviation)
-        }
-        return "\(Int(converted)) \(weightUnit.abbreviation)"
+        WeightFormat.volumeText(kg: volume, unit: weightUnit)
     }
 
     private var equipmentLabel: String {

@@ -43,8 +43,7 @@ struct ExerciseLibraryView: View {
         guard let best, best > 0 else {
             return nil
         }
-        let value = WeightUnit.kg.convert(best, to: weightUnit)
-        return String(format: "%.0f %@", value, weightUnit.abbreviation)
+        return WeightFormat.text(kg: best, unit: weightUnit)
     }
 
     /// Per UX_COPY_BIBLE.md Section 4.8

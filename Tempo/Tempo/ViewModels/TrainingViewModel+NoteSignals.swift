@@ -156,17 +156,45 @@ extension TrainingViewModel {
         completedSets: [PlannedSet],
         enteredFeedback: [UUID: SetFeedback]
     ) -> (avgRPE: Double?, worstFormRaw: String?, count: Int, gassedFraction: Double?) {
-        let fb = completedSets.compactMap { enteredFeedback[$0.id] }
-        guard !fb.isEmpty else {
+        // Each field counts only where the athlete actually picked it — a
+        // breath-only tap must not average the row's default RPE 7 in.
+        // RPE falls back to the set's own RPE (entered on the watch or
+        // mirrored from the panel), which is only ever a real entry.
+        var rpes: [Int] = []
+        var forms: [FormQuality] = []
+        var breaths: [BreathDifficulty] = []
+        var count = 0
+        for set in completedSets {
+            let fb = enteredFeedback[set.id]
+            var hasSignal = false
+            if let fb, fb.hasEnteredRPE {
+                rpes.append(fb.rpe)
+                hasSignal = true
+            } else if let rpe = set.rpe {
+                rpes.append(rpe)
+                hasSignal = true
+            }
+            if let fb, fb.hasEnteredForm {
+                forms.append(fb.formQuality)
+                hasSignal = true
+            }
+            if let fb, fb.hasEnteredBreath {
+                breaths.append(fb.breathDifficulty)
+                hasSignal = true
+            }
+            if hasSignal { count += 1 }
+        }
+        guard count > 0 else {
             return (nil, nil, 0, nil)
         }
-        let avgRPE = Double(fb.map(\.rpe).reduce(0, +)) / Double(fb.count)
-        let worstForm = fb.map(\.formQuality).max { $0.severityRank < $1.severityRank }
-        // Conditioning-debt signal: fraction of entered rows the user tagged
+        let avgRPE = rpes.isEmpty ? nil : Double(rpes.reduce(0, +)) / Double(rpes.count)
+        let worstForm = forms.max { $0.severityRank < $1.severityRank }
+        // Conditioning-debt signal: fraction of breath entries the user tagged
         // `.gassed`. Read by TrainingEngine.restMultiplier.
-        let gassedCount = fb.filter(\.breathDifficulty.isNegativeSignal).count
-        let gassedFraction = Double(gassedCount) / Double(fb.count)
-        return (avgRPE, worstForm?.rawValue, fb.count, gassedFraction)
+        let gassedFraction = breaths.isEmpty
+            ? nil
+            : Double(breaths.filter(\.isNegativeSignal).count) / Double(breaths.count)
+        return (avgRPE, worstForm?.rawValue, count, gassedFraction)
     }
 
     // assignSupersetGroups / muscleGroups / selectExercises /

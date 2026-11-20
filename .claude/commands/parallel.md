@@ -17,11 +17,26 @@ Nicola runs several `claude` sessions at once, each in its own terminal, working
 **The helper script is `scripts/parallel.sh`** (run from the main repo):
 - `./scripts/parallel.sh new recovery arena training` — creates one worktree+branch per name, opens a Terminal tab in each.
 - `./scripts/parallel.sh list` — show active worktrees and their branch state.
-- `./scripts/parallel.sh merge` — merge every worktree branch back onto `main` one at a time, then remove the worktrees+branches.
+- `./scripts/parallel.sh merge` — merge every `parallel.sh` worktree branch back onto `main` one at a time, then remove each worktree, its simulator, its DerivedData and its branch. (`clean` does the same without merging.) Only worktrees created by `new` (`~/dev/tempo-<name>` on branch `<name>`) are touched — never Claude's `.claude/worktrees/agent-*` or other branches.
+- Anything left over (any kind of worktree, old simulators, build caches): `scripts/cleanup.py` (dry run) → `scripts/cleanup.py --yes`.
 
 **Scope rule — assign by MODULE.** The 5 modules (see CLAUDE.md) are the natural boundaries: one session per module. Two sessions editing the same existing `.swift` file is the only real merge-conflict source; module scoping prevents it. Adding NEW files is conflict-free — `project.yml` is glob-sourced (`path: Tempo`), so XcodeGen auto-discovers new files and no session touches the project file.
 
-**Build model: build-once-after-merge.** Parallel sessions EDIT and commit on their branch; they do not need to build. The single authoritative `/build` happens on `main` after all branches merge. Swift 6 strict-concurrency breakage surfaces there, not per-session — that's the accepted tradeoff.
+**Build model: each worktree builds and tests on its own simulator.** Every session builds, tests and runs the app through `scripts/sim.sh` (`test`, `build`, `qa`). The script gives each worktree its own simulator ("Tempo · <worktree>", created on first use) and its own `DerivedData/` inside the worktree, so sessions never queue on one simulator ("test runner hung"), never install over each other's app, and never fight over a build database ("database is locked"). Never use `-destination 'name=iPhone 17'` or the default DerivedData. Separate simulators don't make builds faster — sessions still share the CPU. After merging, run `scripts/sim.sh test` once on `main`: breakage *between* branches (e.g. Swift 6 strict concurrency) only surfaces there.
+
+**When a session DOES build or test — one simulator + one build folder per worktree.** Sessions that run `xcodebuild` must never share the stock "iPhone 17" simulator or the default DerivedData. Two sessions on one simulator queue behind each other (one test run at a time per device) and install the app over each other, so a test can pass or fail because of the OTHER session's app/data. Each worktree gets its own:
+```bash
+# once per worktree — name it after the worktree, reuse it all round
+UDID=$(xcrun simctl create "iPhone 17 · <worktree>" "iPhone 17")   # prints the new UDID
+# every build/test in that worktree: target it by ID (never by name) + own DerivedData
+xcodebuild build-for-testing -project Tempo/Tempo.xcodeproj -scheme Tempo \
+  -destination "id=$UDID" -derivedDataPath /tmp/dd-<worktree>
+xcodebuild test-without-building -project Tempo/Tempo.xcodeproj -scheme Tempo \
+  -destination "id=$UDID" -derivedDataPath /tmp/dd-<worktree> -only-testing:TempoTests
+# when the round is merged
+xcrun simctl shutdown "$UDID" && xcrun simctl delete "$UDID"
+```
+Find an existing one with `xcrun simctl list devices | grep "· <worktree>"`. Separate simulators stop the queueing and cross-contamination; they do NOT make builds faster — the sessions still share the CPU, so expect each build to be slower while another session is compiling.
 
 **Two traps the merge step must handle:**
 1. **Same-file conflict** = two sessions edited the same existing file. `parallel.sh merge` stops at it; resolve by hand (both intents matter), `git add`, `git commit`. A nasty conflict means the scope split was wrong — note it for next time.

@@ -269,7 +269,13 @@ actor NutritionClaudeProxyService {
         req.logger.info(
             "[nutrition_proxy \(caller)] ok model=\(body.model) in=\(raw.usage.inputTokens) out=\(raw.usage.outputTokens)"
         )
-        return textBlock.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = textBlock.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Blank reply = failure, never a blank result for the user.
+        guard !trimmed.isEmpty else {
+            req.logger.warning("[nutrition_proxy \(caller)] Claude returned empty text")
+            throw NutritionProxyError.malformedResponse
+        }
+        return trimmed
     }
 }
 

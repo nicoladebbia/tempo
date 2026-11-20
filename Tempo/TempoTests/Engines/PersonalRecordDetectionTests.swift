@@ -12,25 +12,52 @@
 //
 
 @testable import Tempo
+import SwiftData
 import XCTest
 
 @MainActor
 final class PersonalRecordDetectionTests: XCTestCase {
     private var engine: TrainingEngine!
+    private var container: ModelContainer!
+    private var context: ModelContext!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         engine = TrainingEngine()
+        container = try TempoModelContainer.create(inMemory: true)
+        context = container.mainContext
     }
 
-    private func exercise() -> Exercise {
-        Exercise(
+    private func bareExercise(_ equipment: Equipment = .barbell) -> Exercise {
+        let exercise = Exercise(
             name: "Bench Press",
             muscleGroup: .chest,
-            equipment: .barbell,
+            equipment: equipment,
             movementPattern: .horizontalPush,
             isCompound: true
         )
+        context.insert(exercise)
+        return exercise
+    }
+
+    /// A lift with one earlier session (60 × 5) — the first log of a lift is
+    /// only a baseline, so record tests need something before them.
+    private func exercise() -> Exercise {
+        let exercise = bareExercise()
+        addHistory(to: exercise, weight: 60, reps: 5)
+        return exercise
+    }
+
+    private func addHistory(to exercise: Exercise, weight: Double, reps: Int, planID: UUID? = UUID()) {
+        let row = ExerciseHistory(
+            date: Date().addingTimeInterval(-7 * 86400),
+            estimated1RM: weight > 0 ? StrengthStandards.epleyE1RM(weight: weight, reps: reps) : nil,
+            bestSetWeight: weight,
+            bestSetReps: reps,
+            workoutPlanID: planID,
+            exercise: exercise
+        )
+        context.insert(row)
     }
 
     func testUsesEpleyNotBrzyckiForE1RM() throws {
@@ -104,10 +131,7 @@ final class PersonalRecordDetectionTests: XCTestCase {
     }
 
     func testSamePerformanceAsLegacyPRIsNotANewPR() throws {
-        let container = try TempoModelContainer.create(inMemory: true)
-        let context = container.mainContext
-        let bench = exercise()
-        context.insert(bench)
+        let bench = bareExercise()
         // Stored before e1RM became RIR-aware: plain Epley of 100 x 5.
         let legacy = PersonalRecord(
             type: .oneRepMax, value: StrengthStandards.epleyE1RM(weight: 100, reps: 5), date: Date(),
@@ -121,5 +145,58 @@ final class PersonalRecordDetectionTests: XCTestCase {
 
         let better = engine.detectPersonalRecord(exercise: bench, weight: 102.5, reps: 5, rir: 2, workoutPlanID: nil)
         XCTAssertEqual(better?.type, .oneRepMax)
+    }
+
+    // MARK: - Round 1 PR rules
+
+    func testFirstEverLogIsABaselineNotAPR() {
+        XCTAssertNil(
+            engine.detectPersonalRecord(exercise: bareExercise(), weight: 100, reps: 5, workoutPlanID: UUID()),
+            "Nothing to beat yet — the first session sets the bar"
+        )
+    }
+
+    func testTodaysOwnRowsDoNotRaiseTheBar() throws {
+        let bench = exercise()
+        let today = UUID()
+        context.insert(PersonalRecord(
+            type: .oneRepMax, value: 200, date: Date(), workoutPlanID: today,
+            contextWeightKg: 180, contextReps: 3, exercise: bench
+        ))
+        // Compared with the earlier 60 × 5 session only — the VM upgrades
+        // today's row in place.
+        let pr = try XCTUnwrap(engine.detectPersonalRecord(exercise: bench, weight: 100, reps: 5, workoutPlanID: today))
+        XCTAssertEqual(pr.type, .oneRepMax)
+    }
+
+    func testHeaviestWeightOnlyWhenNotAnE1RMRecord() throws {
+        let bench = bareExercise()
+        addHistory(to: bench, weight: 100, reps: 8)
+        // Heavier single, but a lower e1RM than 100 × 8.
+        let pr = try XCTUnwrap(engine.detectPersonalRecord(exercise: bench, weight: 105, reps: 1, rir: 0, workoutPlanID: UUID()))
+        XCTAssertEqual(pr.type, .repMax)
+        XCTAssertEqual(pr.value, 105)
+        XCTAssertEqual(PRDisplay.subtitle(pr), "Heaviest weight · 1 rep")
+        // Same weight again is nothing.
+        XCTAssertNil(engine.detectPersonalRecord(exercise: bench, weight: 100, reps: 2, rir: 0, workoutPlanID: UUID()))
+    }
+
+    func testBodyweightMostReps() throws {
+        let pullUp = bareExercise(.bodyweight)
+        addHistory(to: pullUp, weight: 0, reps: 10)
+        XCTAssertNil(engine.detectPersonalRecord(exercise: pullUp, weight: 0, reps: 10, workoutPlanID: UUID()))
+        let pr = try XCTUnwrap(engine.detectPersonalRecord(exercise: pullUp, weight: 0, reps: 12, workoutPlanID: UUID()))
+        XCTAssertEqual(pr.type, .mostReps)
+        XCTAssertEqual(pr.value, 12)
+        XCTAssertEqual(PRDisplay.valueLabel(pr, unit: .kg), "12 reps")
+    }
+
+    func testRoundingNoiseIsNotARecord() {
+        let bench = bareExercise()
+        addHistory(to: bench, weight: 100, reps: 5)
+        XCTAssertNil(
+            engine.detectPersonalRecord(exercise: bench, weight: 100.01, reps: 5, rir: 0, workoutPlanID: UUID()),
+            "A kg↔lb round-trip echo of the same lift is not a PR"
+        )
     }
 }

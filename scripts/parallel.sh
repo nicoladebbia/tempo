@@ -39,6 +39,33 @@ fi
 cmd="${1:-}"; shift || true
 
 # ---------------------------------------------------------------------------
+# Branches created by `new`: worktree at $PARENT/<repo>-<branch>. Other worktrees
+# (Claude's .claude/worktrees/agent-*, hand-made ones) are never merged or
+# discarded by this script. Fills the global array `branches` (bash 3.2: no mapfile).
+collect_branches() {
+    branches=()
+    local wt="" line
+    while IFS= read -r line; do
+        case "$line" in
+            "worktree "*) wt="${line#worktree }" ;;
+            "branch refs/heads/"*)
+                local br="${line#branch refs/heads/}"
+                if [ "$br" != "$MAIN_BRANCH" ] && [ "$wt" = "$PARENT/${REPO_NAME}-${br}" ]; then
+                    branches+=("$br")
+                fi
+                ;;
+        esac
+    done < <(git -C "$MAIN_ROOT" worktree list --porcelain)
+}
+
+# Remove a worktree together with its simulator and DerivedData (scripts/sim.sh).
+remove_worktree() {
+    local wt="$1"
+    [ -d "$wt" ] && bash "$MAIN_ROOT/scripts/sim.sh" --dir "$wt" clean || true
+    git -C "$MAIN_ROOT" worktree remove "$wt" --force 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
 open_terminal() {
     # Open a new Terminal.app tab cd'd into $1, ready for the user to type `claude`.
     local dir="$1"
@@ -102,9 +129,7 @@ do_merge() {
     fi
     git -C "$MAIN_ROOT" checkout "$MAIN_BRANCH" >/dev/null 2>&1 || true
 
-    # Collect worktree branches (everything except main).
-    mapfile -t branches < <(git -C "$MAIN_ROOT" worktree list --porcelain \
-        | awk '/^branch / {gsub("refs/heads/","",$2); print $2}' | grep -v "^${MAIN_BRANCH}$")
+    collect_branches
 
     if [ "${#branches[@]}" -eq 0 ]; then
         echo "No worktree branches to merge."
@@ -117,11 +142,10 @@ do_merge() {
         echo "--- merging '$br' ---"
         if git -C "$MAIN_ROOT" merge --no-ff -m "merge($br): parallel session" "$br"; then
             echo "  [OK] $br merged"
-            # remove its worktree + branch now that it's landed
-            local wt="$PARENT/${REPO_NAME}-${br}"
-            git -C "$MAIN_ROOT" worktree remove "$wt" --force 2>/dev/null || true
+            # remove its worktree, simulator, DerivedData + branch now that it's landed
+            remove_worktree "$PARENT/${REPO_NAME}-${br}"
             git -C "$MAIN_ROOT" branch -D "$br" >/dev/null 2>&1 || true
-            echo "  [OK] cleaned up worktree + branch '$br'"
+            echo "  [OK] cleaned up worktree, simulator + branch '$br'"
         else
             echo ""
             echo "  [CONFLICT] '$br' collides with main — two sessions edited the same file."
@@ -137,8 +161,8 @@ do_merge() {
     done
 
     echo ""
-    echo "All branches merged. NOW run the single authoritative build + the shared-model check:"
-    echo "    /build        (Swift 6 strict-concurrency breakage surfaces here, not before)"
+    echo "All branches merged. NOW build + test main and run the shared-model check:"
+    echo "    scripts/sim.sh test   (Swift 6 strict-concurrency breakage between branches surfaces here)"
     echo "    then: for any @Observable service / SwiftData entity a session touched,"
     echo "          enumerate-the-readers (a clean merge can still desync two screens)."
 }
@@ -146,8 +170,7 @@ do_merge() {
 # ---------------------------------------------------------------------------
 do_clean() {
     # Abandon worktrees WITHOUT merging — use when the parallel work is being thrown away.
-    mapfile -t branches < <(git -C "$MAIN_ROOT" worktree list --porcelain \
-        | awk '/^branch / {gsub("refs/heads/","",$2); print $2}' | grep -v "^${MAIN_BRANCH}$")
+    collect_branches
     if [ "${#branches[@]}" -eq 0 ]; then
         echo "Nothing to clean."
         exit 0
@@ -157,9 +180,9 @@ do_clean() {
     read -r -p "Type 'yes' to confirm: " ans
     [ "$ans" = "yes" ] || { echo "aborted."; exit 0; }
     for br in "${branches[@]}"; do
-        git -C "$MAIN_ROOT" worktree remove "$PARENT/${REPO_NAME}-${br}" --force 2>/dev/null || true
+        remove_worktree "$PARENT/${REPO_NAME}-${br}"
         git -C "$MAIN_ROOT" branch -D "$br" >/dev/null 2>&1 || true
-        echo "  [OK] discarded '$br'"
+        echo "  [OK] discarded '$br' (worktree, simulator, branch)"
     done
 }
 

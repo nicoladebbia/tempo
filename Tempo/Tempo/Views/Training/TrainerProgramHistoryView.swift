@@ -68,32 +68,7 @@ struct TrainerProgramHistoryView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
             }
 
-            if stats.scheduled > 0 {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    HStack {
-                        Text("\(stats.done) / \(stats.scheduled) sessions done")
-                            .font(.tempoCaption1.weight(.semibold))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(Int((stats.fraction * 100).rounded()))%")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.tempoDivider)
-                            Capsule()
-                                .fill(Color.tempoSignal)
-                                .frame(width: geo.size.width * stats.fraction)
-                        }
-                    }
-                    .frame(height: 6)
-                }
-            } else {
-                Text("No sessions were ever generated for this program.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+            TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
         }
         .padding(TempoSpacing.cardPaddingCompact)
         .background(Color.tempoSurfaceCard)
@@ -103,5 +78,43 @@ struct TrainerProgramHistoryView: View {
     /// Cadence-aware dates — see `TrainerProgramDurationText`.
     private func dateRange(for program: TrainerProgram) -> String {
         TrainerProgramDurationText.historyText(for: program)
+    }
+}
+
+// MARK: - TrainerComplianceBar
+
+/// "X / Y sessions done  Z%" with a progress capsule — shared by the history
+/// rows and the active program card so both read the same.
+struct TrainerComplianceBar: View {
+    let stats: TrainerProgramHistoryStats.Stats
+    var emptyText = "No sessions scheduled yet."
+
+    var body: some View {
+        if stats.scheduled > 0 {
+            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                HStack {
+                    Text("\(stats.done) / \(stats.scheduled) sessions done")
+                        .font(.tempoCaption1.weight(.semibold))
+                        .foregroundStyle(Color.tempoTextPrimary)
+                    Spacer()
+                    Text("\(Int((stats.fraction * 100).rounded()))%")
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoTextSecondary)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.tempoDivider)
+                        Capsule()
+                            .fill(Color.tempoSignal)
+                            .frame(width: geo.size.width * stats.fraction)
+                    }
+                }
+                .frame(height: 6)
+            }
+        } else {
+            Text(emptyText)
+                .font(.tempoCaption2)
+                .foregroundStyle(Color.tempoTextTertiary)
+        }
     }
 }

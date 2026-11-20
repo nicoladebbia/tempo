@@ -1,0 +1,12 @@
+{
+  "data" : {
+    "slug" : "barbell-squat",
+    "status" : "ready",
+    "url" : "https://api.example.com/v1/exercise-images/barbell-squat"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

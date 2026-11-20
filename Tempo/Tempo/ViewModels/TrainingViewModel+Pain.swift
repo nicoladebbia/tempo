@@ -57,6 +57,7 @@ extension TrainingViewModel {
             severity: severity,
             exerciseID: plannedExercise?.exercise?.id,
             exerciseNameSnapshot: plannedExercise?.displayName,
+            workoutPlanID: plannedExercise?.workoutPlan?.id,
             actionTaken: action,
             note: note,
             createdAt: now
@@ -105,6 +106,7 @@ extension TrainingViewModel {
             warmup.targetWeight = WeightConverter.loadableKg(base * factor, equipment: exercise.equipment, unit: unit)
         }
         plannedExercise.loadAdjustmentNote = "Pain note — reduced 20%"
+        plannedExercise.painLoadReduced = true
     }
 
     // MARK: - Moderate: swap or skip
@@ -159,22 +161,72 @@ extension TrainingViewModel {
         return true
     }
 
-    /// Moderate or severe — skip the exercise outright for today (display-only
-    /// flag, see `PlannedExercise.painSkipped`).
+    /// Moderate or severe — skip the exercise outright for today (see
+    /// `PlannedExercise.painSkipped`). If the live session is sitting on it,
+    /// move on to the next real work right away; the watch drops it too.
     func skipExerciseDueToPain(_ report: PainReport, plannedExercise: PlannedExercise, modelContext: ModelContext) {
         plannedExercise.painSkipped = true
         report.actionTaken = .skipped
         _ = modelContext.saveOrAlert("skip exercise for pain")
+        if let plan = todayPlan,
+           let index = plan.orderedExercises.firstIndex(where: { $0 === plannedExercise }),
+           index == currentExerciseIndex
+        {
+            switch sessionState {
+            case .warmup, .exercise(.setActive):
+                advanceAfterSkip(in: plannedExercise, plan: plan, modelContext: modelContext)
+            default:
+                // Resting / between exercises: the rest end re-resolves the
+                // cursor and already walks past a skipped exercise.
+                break
+            }
+        }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
+        pushWorkoutToWatch()
+    }
+
+    /// Whether the pain sheet can offer "End the session": only while a
+    /// session is actually running (live, paused or on a call). From Today's
+    /// list there is nothing to end.
+    var canEndSessionForPain: Bool {
+        switch sessionState {
+        case .warmup, .exercise, .cooldown, .paused, .interruptedCall: true
+        default: false
+        }
     }
 
     /// Severe — the athlete confirmed ending the session from the pain sheet.
-    /// Non-destructive: whatever sets are already logged stay logged; nothing
-    /// past this point is required from today's plan. The actual "end
-    /// session" navigation is the caller's (ActiveWorkoutView's) job — this
-    /// just records the outcome.
-    func endSessionDueToPain(_ report: PainReport, modelContext: ModelContext) {
+    /// Really ends it (it used to only record the choice and close the screen,
+    /// leaving the session running in the background):
+    /// - sets logged → finish normally, so they're saved to history and the
+    ///   summary shows;
+    /// - nothing logged → close the session and resolve the day as a
+    ///   body-said-no skip (`.floorForced`), which doesn't count against
+    ///   adherence.
+    func endSessionDueToPain(
+        _ report: PainReport,
+        plannedExercise: PlannedExercise? = nil,
+        modelContext: ModelContext
+    ) {
+        // Mark the hurting exercise skipped WITHOUT advancing — ending is the
+        // next step, not moving on to the next lift.
+        plannedExercise?.painSkipped = true
         report.actionTaken = .endedSession
         _ = modelContext.saveOrAlert("end session for pain")
+        guard canEndSessionForPain else { return }
+        if hasAnyCompletedWorkingSet {
+            finishWorkout(modelContext: modelContext)
+            return
+        }
+        guard let plan = todayPlan else { return }
+        discardActiveWorkout(modelContext: modelContext)
+        // The discard's rollback hands every lift back for a redo — except the
+        // one that hurt: it stays flagged so "Train anyway" doesn't bring it
+        // back unmarked.
+        plannedExercise?.painSkipped = true
+        plan.status = .skipped
+        plan.skipReason = .floorForced
+        saveGuarded(modelContext, operation: "pain-ended workout")
+        NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 }

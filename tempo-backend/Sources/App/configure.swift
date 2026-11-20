@@ -71,14 +71,19 @@ func configure(
     // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — Redis for caching and queues
     // ─────────────────────────────────────────────────
     let redisURL = Environment.get("REDIS_URL") ?? "redis://localhost:6379"
-    app.redis.configuration = try RedisConfiguration(url: redisURL)
+    // RediStack gives up on a pooled connection after 10 ms by default, so a
+    // busy moment turned rate limiting and token checks into random 500s
+    // (timedOutWaitingForConnection). Wait up to a second instead.
+    let redisPool = RedisConfiguration.PoolOptions(connectionRetryTimeout: .seconds(1))
+    let redisConfig = try RedisConfiguration(url: redisURL, pool: redisPool)
+    app.redis.configuration = redisConfig
 
     // ─────────────────────────────────────────────────
     // 4. Background job queue (Redis-backed)
     // Per VAPOR_PROJECT_STRUCTURE.md Section 4 — Queues initialization
     // Job types registered in later phases
     // ─────────────────────────────────────────────────
-    try app.queues.use(.redis(url: redisURL))
+    app.queues.use(.redis(redisConfig))
 
     // ─────────────────────────────────────────────────
     // 4.5. JWT signers
@@ -185,6 +190,7 @@ func configure(
     app.migrations.add(CreateExerciseImages())
     app.migrations.add(CreateExerciseImageMonthlySpend())
     app.migrations.add(CreateFoodNutritionCache())
+    app.migrations.add(AddMicrosToFoodNutritionCache())
     app.migrations.add(CreateWeeklyPlanJobs())
     app.migrations.add(AddAPNsRoutingToDeviceTokens())
     app.migrations.add(CreateSharedGroceryLists())
@@ -229,6 +235,11 @@ func configure(
     app.queues.schedule(MorningBriefingJob())
         .every(minutes: 15)
 
+    // Recovery coach safety net: finds big WHOOP workouts that just ended and sends the "weigh in now" push.
+    // The WHOOP webhook does the same instantly; this sweep covers a missed or unregistered webhook.
+    app.queues.schedule(CoachWorkoutWatchJob())
+        .every(minutes: 10)
+
     // Per BUILD_PLAN step 15.2 — Weekly summary job.
     // Per AI_INTELLIGENCE_ENGINE.md Section 6.3 — Sunday 20:00 cache warming.
     app.queues.schedule(WeeklySummaryJob())
@@ -271,4 +282,10 @@ func configure(
         supplementLookupClient: supplementLookupClient,
         brandCatalogRefresher: brandCatalogRefresher
     )
+
+    // ─────────────────────────────────────────────────
+    // 10. Local test mode (TEMPO_TEST_MODE=1, never production)
+    // scripts/testenv.sh — see TestMode/TestMode.swift
+    // ─────────────────────────────────────────────────
+    try TestMode.configure(app)
 }

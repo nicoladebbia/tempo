@@ -121,6 +121,30 @@ struct TrainerProgramChangeLogEntry: Codable, Hashable, Identifiable {
     var date: Date
     var sourceText: String
     var editSummaries: [String]
+    /// Summaries of dated skips from this batch the athlete later put back
+    /// with Undo. nil (not []) so entries saved before this still decode.
+    var undoneSummaries: [String]?
+
+    /// How many edit lines of this summary are already marked undone.
+    func isUndone(_ summary: String) -> Bool {
+        undoneSummaries?.contains(summary) == true
+    }
+}
+
+// MARK: - TrainerProgramSkip
+
+/// A one-off, dated skip ("skip Thursday" from a trainer message): ONE
+/// occurrence of a session is dropped, the program itself is unchanged — so
+/// a repeating program is back to normal the following week. `date` is the
+/// start of the skipped day; `sessionKey` is the session's key (so a
+/// two-a-day's other session that day still runs). Reversible by removing
+/// the entry (`TrainerProgramSaver.undoSkip`).
+struct TrainerProgramSkip: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var date: Date
+    var sessionKey: String
+    /// "Thu Anaerobic Run: skipped — knee", for the undo list.
+    var summary: String
 }
 
 // MARK: - TrainerProgramScheduleMode
@@ -228,6 +252,13 @@ final class TrainerProgram {
     /// SwiftData migration.
     var queuedActivationDate: Date?
 
+    /// When this program stopped being the active one (paused by hand, or
+    /// replaced by another). Lets the history stats count the same days the
+    /// active card did right up to that moment. nil on programs archived
+    /// before this existed (stats fall back to the last plan date).
+    /// Optional → lightweight SwiftData migration.
+    var endedAt: Date?
+
     /// Weekly-upload feature — nil means `.block` (the pre-existing behavior,
     /// and the default for every program saved before this shipped —
     /// lightweight SwiftData migration). Editable on the review screen and on
@@ -243,6 +274,11 @@ final class TrainerProgram {
     /// Defaulted → lightweight SwiftData migration (empty on every program
     /// saved before this shipped).
     var changeLog: [TrainerProgramChangeLogEntry] = []
+
+    /// Dated one-off skips from "Trainer Sent Changes" (fixed mode only) —
+    /// `sessions(on:)` drops a skipped occurrence. Defaulted → lightweight
+    /// SwiftData migration (empty on every program saved before this).
+    var skippedSessions: [TrainerProgramSkip] = []
 
     init(
         id: UUID = UUID(),
@@ -315,8 +351,16 @@ final class TrainerProgram {
             return []
         }
         let weekday = Self.isoWeekday(of: date)
+        let cal = TrainingCalendar.iso8601
         return weeks[index].days.enumerated().compactMap { dayIndex, day in
-            day.weekday == weekday && !day.exercises.isEmpty ? (index, dayIndex, day) : nil
+            guard day.weekday == weekday, !day.exercises.isEmpty else {
+                return nil
+            }
+            let key = sessionKey(weekIndex: index, dayIndex: dayIndex)
+            if skippedSessions.contains(where: { $0.sessionKey == key && cal.isDate($0.date, inSameDayAs: date) }) {
+                return nil
+            }
+            return (index, dayIndex, day)
         }
     }
 

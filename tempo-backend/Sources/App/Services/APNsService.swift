@@ -32,6 +32,8 @@ enum APNsService {
         /// Per feat/weekly-plan-server — server finished building next
         /// week's meal plan (WeeklyPlanJob) and it's ready to review.
         case mealPlanReady = "meal_plan_ready"
+        /// Recovery coach: a big WHOOP workout just ended, weigh in before you drink or eat.
+        case postWorkoutWeighIn = "post_workout_weighin"
         case general
 
         /// APNs category identifier for actionable notifications.
@@ -44,6 +46,7 @@ enum APNsService {
             case .challengeInvite: return "CHALLENGE_INVITE"
             case .achievementUnlock: return "ACHIEVEMENT"
             case .mealPlanReady: return "MEAL_PLAN_READY"
+            case .postWorkoutWeighIn: return "POST_WORKOUT_WEIGHIN"
             default: return "GENERAL"
             }
         }
@@ -59,6 +62,7 @@ enum APNsService {
             case .streakWarning: return "time-sensitive"
             case .leaderboardChange, .challengeUpdate: return "passive"
             case .mealPlanReady: return "time-sensitive"
+            case .postWorkoutWeighIn: return "time-sensitive"
             default: return "active"
             }
         }
@@ -66,7 +70,9 @@ enum APNsService {
 
     // MARK: - Send Alert Notification
 
-    /// Send a visible push notification to all devices for a user.
+    /// Send a visible push notification to all devices for a user. Returns how many devices it reached
+    /// (a captured test push counts as 1), so a caller can tell "sent" from "every attempt failed".
+    @discardableResult
     static func sendAlert(
         to userID: String,
         title: String,
@@ -75,14 +81,26 @@ enum APNsService {
         type: NotificationType = .general,
         data: [String: String] = [:],
         on req: Request
-    ) async throws {
+    ) async throws -> Int {
+        var testPayload = data
+        testPayload["type"] = type.rawValue
+        testPayload["interruption_level"] = type.interruptionLevel
+        if await TestModePush.capture(
+            app: req.application,
+            userID: userID,
+            alert: .init(title: title, subtitle: subtitle, body: body, category: type.category, interruptionLevel: type.interruptionLevel),
+            data: testPayload
+        ) {
+            return 1
+        }
+
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()
 
         guard !devices.isEmpty else {
             req.logger.info("No device tokens for user \(userID), skipping push")
-            return
+            return 0
         }
 
         // Build custom payload
@@ -103,6 +121,7 @@ enum APNsService {
         default: .active
         }
 
+        var delivered = 0
         for device in devices {
             do {
                 let route = route(for: device)
@@ -118,6 +137,7 @@ enum APNsService {
                     ),
                     deviceToken: device.token
                 )
+                delivered += 1
             } catch {
                 req.logger.error("APNs send failed for device \(device.deviceID): \(error)")
                 if Self.isInvalidTokenError(error) {
@@ -126,6 +146,7 @@ enum APNsService {
                 }
             }
         }
+        return delivered
     }
 
     // MARK: - Send Silent Notification
@@ -137,6 +158,10 @@ enum APNsService {
         data: [String: String],
         on req: Request
     ) async throws {
+        if await TestModePush.capture(app: req.application, userID: userID, alert: nil, data: data) {
+            return
+        }
+
         let devices = try await DeviceToken.query(on: req.db)
             .filter(\.$userID == userID)
             .all()

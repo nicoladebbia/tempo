@@ -113,7 +113,9 @@ struct SupplementPicksAIRawResponse: Codable, Sendable {
         let form: String?
         let certifications: [String]?
         let why: String
-        let approxPricePerServingUSD: Double?
+        /// `Usd`, not `USD`: `.convertFromSnakeCase` turns `approx_price_per_serving_usd`
+        /// into `approxPricePerServingUsd`, which is the only spelling that matches.
+        let approxPricePerServingUsd: Double?
     }
 
     func toDTO(kind: String) -> SupplementPicksDTO {
@@ -124,8 +126,8 @@ struct SupplementPicksAIRawResponse: Codable, Sendable {
                 form: pick.form,
                 certifications: pick.certifications ?? [],
                 why: pick.why,
-                approxPricePerServingUSD: pick.approxPricePerServingUSD,
-                priceAsOf: pick.approxPricePerServingUSD == nil ? nil : SupplementCuratedCatalog.priceAsOf,
+                approxPricePerServingUSD: pick.approxPricePerServingUsd,
+                priceAsOf: pick.approxPricePerServingUsd == nil ? nil : SupplementCuratedCatalog.priceAsOf,
                 buyLinks: SupplementBuyLinks.make(brand: pick.brand, product: pick.product, brandURL: nil)
             )
         }

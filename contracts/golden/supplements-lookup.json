@@ -1,0 +1,20 @@
+{
+  "data" : {
+    "brand" : "Test Labs",
+    "certifications" : [
+      "NSF Certified for Sport"
+    ],
+    "dose_per_serving" : "1 scoop (5 g)",
+    "kind" : "creatine",
+    "name" : "Creatine Monohydrate Powder",
+    "protein_grams_per_serving" : 0,
+    "servings_per_container" : 100,
+    "source" : "dsld",
+    "upc" : "012345678905"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

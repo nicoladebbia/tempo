@@ -1,0 +1,21 @@
+{
+  "data" : {
+    "content" : [
+      {
+        "text" : "Done. 80 g oats logged.",
+        "type" : "text"
+      }
+    ],
+    "model" : "claude-haiku-4-5",
+    "stop_reason" : "end_turn",
+    "usage" : {
+      "input_tokens" : 1300,
+      "output_tokens" : 20
+    }
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

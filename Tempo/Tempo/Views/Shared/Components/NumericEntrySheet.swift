@@ -90,7 +90,7 @@ struct NumericEntrySheet: View {
     /// this applied to the live `text`/`range`/`snap`. nil for empty or
     /// unparsable input.
     static func parseAndSnap(_ text: String, range: ClosedRange<Double>, snap: (Double) -> Double) -> Double? {
-        guard let raw = Double(text) else {
+        guard let raw = WeightFormat.parseDecimal(text) else {
             return nil
         }
         let clamped = min(max(raw, range.lowerBound), range.upperBound)

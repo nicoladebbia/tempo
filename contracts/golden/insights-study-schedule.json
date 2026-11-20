@@ -1,0 +1,18 @@
+{
+  "data" : {
+    "exam_id" : "exam-1",
+    "rationale" : "Weakest topics first.",
+    "sessions" : [
+      {
+        "day_offset" : 1,
+        "minutes" : 50,
+        "topic" : "Graphs"
+      }
+    ]
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

@@ -265,37 +265,56 @@ extension WeekOverWeekProgress {
 // MARK: - Display formatting
 
 extension WeekOverWeekProgress.ExerciseDelta {
-    private static func formatKg(_ kg: Double) -> String {
-        kg == kg.rounded() ? "\(Int(kg))" : String(format: "%.1f", kg)
+    /// "60→65 kg (1RM +5)" in kg — the trainer report's format (the report
+    /// stays in kg by design).
+    var weightChangeText: String? {
+        weightChangeText(unit: .kg)
     }
 
-    /// "60→65 kg (1RM +5)" — best-set weight change plus the e1RM delta, when
-    /// both sessions have one. Falls back to just the current best when
-    /// there's no weight to diff (e.g. only reps changed).
-    var weightChangeText: String? {
+    /// "60→65 kg (1RM +5)" / "132→143 lbs (1RM +11)" — best-set weight change
+    /// plus the e1RM delta, when both sessions have one, in `unit`. Falls back
+    /// to just the current best when there's no weight to diff (e.g. only
+    /// reps changed).
+    func weightChangeText(unit: WeightUnit) -> String? {
         guard let currentWeight = currentBestWeightKg else {
             return nil
         }
+        // Bodyweight: "BW × 12" (reps are the progress), never "0 kg".
+        guard currentWeight > 0 else {
+            return currentBestReps.map { reps in
+                if let previous = previousBestReps, previous != reps, (previousBestWeightKg ?? 0) <= 0 {
+                    return "BW × \(previous)→\(reps)"
+                }
+                return "BW × \(reps)"
+            }
+        }
+        let current = WeightFormat.number(kg: currentWeight, unit: unit)
         var text = if let previousWeight = previousBestWeightKg, previousWeight != currentWeight {
-            "\(Self.formatKg(previousWeight))→\(Self.formatKg(currentWeight)) kg"
+            "\(WeightFormat.compactLoad(kg: previousWeight, unit: unit))→\(current) \(unit.abbreviation)"
         } else {
-            "\(Self.formatKg(currentWeight)) kg"
+            "\(current) \(unit.abbreviation)"
         }
         if let e1RMDelta, abs(e1RMDelta) >= 0.5 {
-            let sign = e1RMDelta > 0 ? "+" : ""
+            let delta = WeightUnit.kg.convert(e1RMDelta, to: unit)
+            let sign = delta > 0 ? "+" : ""
             // Labelled: a bare "(+6)" next to "60→65 kg" read as a weight
             // delta. "1RM" is the same word in Italian and English gyms.
-            text += " (1RM \(sign)\(Int(e1RMDelta.rounded())))"
+            text += " (1RM \(sign)\(Int(delta.rounded())))"
         }
         return text
     }
 
-    /// "RDL 60→65 kg (1RM +5)" — the wrap-up recap's bullet format.
-    var recapLine: String {
-        guard let change = weightChangeText else {
+    /// "RDL 60→65 kg (1RM +5)" — the wrap-up recap's bullet format, in `unit`.
+    func recapLine(unit: WeightUnit) -> String {
+        guard let change = weightChangeText(unit: unit) else {
             return name
         }
         return "\(name) \(change)"
+    }
+
+    /// The recap line in kg.
+    var recapLine: String {
+        recapLine(unit: .kg)
     }
 }
 

@@ -207,7 +207,14 @@ final class LiveActivityCoordinator {
     /// this — Live Activity work is fire-and-forget by design — but tests
     /// driving fake participants need a deterministic point to assert from.
     func waitUntilIdle() async {
-        await pendingTask?.value
+        // Loop: work enqueued while we waited (another view model, the test
+        // host app) extends the chain.
+        while let task = pendingTask {
+            await task.value
+            if pendingTask == task {
+                return
+            }
+        }
     }
 
     /// Clears all state so a test starts from a blank coordinator. There is

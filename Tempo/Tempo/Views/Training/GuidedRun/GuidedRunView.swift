@@ -75,6 +75,8 @@ struct GuidedRunView: View {
                 GuidedRunSummaryView(
                     plan: plan,
                     results: session.results,
+                    startedAt: session.startedAt,
+                    endedAt: session.endedAt,
                     workoutPlanID: workoutPlanID,
                     programSessionKey: programSessionKey,
                     viewModel: viewModel,
@@ -284,14 +286,8 @@ struct GuidedRunView: View {
         }
     }
 
-    /// The user's own unit settings say so (`UserSettings.weightUnit` is
-    /// the closest existing signal — kg/lb tracks metric/imperial) with a
-    /// locale fallback for a fresh install with no settings row yet.
     private var useMiles: Bool {
-        if let unit = userSettings.first?.weightUnit {
-            return unit == .lbs
-        }
-        return Locale.current.measurementSystem != .metric
+        GuidedRunFormatting.useMiles(weightUnit: userSettings.first?.weightUnit)
     }
 
     private func currentStepTitle(_ session: GuidedRunSession) -> String {

@@ -119,7 +119,7 @@ enum ProEntitlement {
         let isActive = try await UserSubscription.query(on: req.db)
             .filter(\.$user.$id == userID)
             .filter(\.$isActive == true)
-            .filter(\.$expirationDate > Date())
+            .filter(\.$expirationDate > req.now)
             .first() != nil
 
         try await req.redis.setex(

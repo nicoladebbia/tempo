@@ -235,6 +235,16 @@ final class AuthService: NSObject {
         return String(data: data, encoding: .utf8)
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+        /// Local test server only (see TestServer): store a session minted by
+        /// POST /v1/test/login so the next `restoreSession()` picks it up.
+        static func adoptTestSession(accessToken: String, refreshToken: String, userID: String) {
+            try? KeychainService.save(key: accessTokenKey, data: Data(accessToken.utf8))
+            try? KeychainService.save(key: refreshTokenKey, data: Data(refreshToken.utf8))
+            try? KeychainService.save(key: userIDKey, data: Data(userID.utf8))
+        }
+    #endif
+
     // MARK: - Private Helpers
 
     private func restoreSession() {

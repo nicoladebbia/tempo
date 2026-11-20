@@ -1,0 +1,20 @@
+{
+  "data" : {
+    "foods" : [
+      {
+        "carbs" : 0,
+        "data_type" : "Foundation",
+        "fat" : 3.6000000000000001,
+        "fdc_id" : 900007,
+        "kcal" : 165,
+        "name" : "Chicken Breast, test fixture",
+        "protein" : 31
+      }
+    ]
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

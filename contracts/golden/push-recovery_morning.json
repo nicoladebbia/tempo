@@ -1,0 +1,18 @@
+{
+  "aps" : {
+    "alert" : {
+      "body" : "Morning, Test contract-push. New day, new targets. Check your dashboard for today's plan.",
+      "subtitle" : "Morning Briefing",
+      "title" : "TEMPO"
+    },
+    "category" : "MORNING_BRIEFING",
+    "interruption-level" : "time-sensitive",
+    "sound" : "default"
+  },
+  "data" : {
+    "channel" : "morning_briefing",
+    "interruption_level" : "time-sensitive",
+    "recovery_zone" : "unknown",
+    "type" : "recovery_morning"
+  }
+}

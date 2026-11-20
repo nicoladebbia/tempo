@@ -24,7 +24,7 @@ extension TodayWorkoutView {
            plannedExercise.loadAdjustmentNote != nil || plannedExercise.trainerOverrideApplied
         {
             let unit = settings?.weightUnit ?? .kg
-            let trainerDisplay = Int(WeightUnit.kg.convert(trainerKg, to: unit).rounded())
+            let trainerDisplay = WeightFormat.number(kg: trainerKg, unit: unit)
             HStack(alignment: .top, spacing: TempoSpacing.xs) {
                 if plannedExercise.trainerOverrideApplied {
                     Label("Using trainer's \(trainerDisplay)\(unit.abbreviation)", systemImage: "checkmark.circle")
@@ -32,7 +32,7 @@ extension TodayWorkoutView {
                         .foregroundStyle(Color.tempoTextSecondary)
                 } else {
                     let todayKg = plannedExercise.orderedSets.first(where: { !$0.isWarmup })?.targetWeight ?? trainerKg
-                    let todayDisplay = Int(WeightUnit.kg.convert(todayKg, to: unit).rounded())
+                    let todayDisplay = WeightFormat.number(kg: todayKg, unit: unit)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Trainer \(trainerDisplay)\(unit.abbreviation) → today \(todayDisplay)\(unit.abbreviation)")
                             .font(.tempoCaption2)

@@ -57,10 +57,7 @@ enum TrainerTestResultMessage {
     }
 
     private static func formattedWeight(_ kg: Double, unit: WeightUnit) -> String {
-        let converted = WeightUnit.kg.convert(kg, to: unit)
-        let rounded = (converted * 10).rounded() / 10
-        let numberText = rounded == rounded.rounded() ? "\(Int(rounded))" : String(format: "%.1f", rounded)
-        return "\(numberText) \(unit.abbreviation)"
+        WeightFormat.text(kg: kg, unit: unit)
     }
 
     // MARK: - Run/time-trial test

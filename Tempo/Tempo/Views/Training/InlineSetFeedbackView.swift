@@ -25,12 +25,14 @@ struct InlineSetFeedbackView: View {
     @Environment(\.modelContext)
     private var modelContext
 
+    /// nil = not answered yet. Nothing is pre-selected: a highlighted "7"
+    /// looked like an answer the athlete never gave.
     @State
-    private var rpe: Int = 7
+    private var rpe: Int?
     @State
-    private var breath: BreathDifficulty = .moderate
+    private var breath: BreathDifficulty?
     @State
-    private var form: FormQuality = .clean
+    private var form: FormQuality?
     @State
     private var noteExpanded = false
     @State
@@ -59,11 +61,11 @@ struct InlineSetFeedbackView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
                 segmentedRow(
                     options: BreathDifficulty.allCases,
-                    selection: $breath,
+                    selection: breath,
                     label: { $0.displayName }
-                )
-                .onChange(of: breath) { _, newValue in
-                    viewModel.updateFeedback(breath: newValue, modelContext: modelContext)
+                ) { value in
+                    breath = value
+                    viewModel.updateFeedback(breath: value, modelContext: modelContext)
                 }
             }
 
@@ -74,11 +76,11 @@ struct InlineSetFeedbackView: View {
                     .foregroundStyle(Color.tempoTextSecondary)
                 segmentedRow(
                     options: FormQuality.allCases,
-                    selection: $form,
+                    selection: form,
                     label: { $0.displayName }
-                )
-                .onChange(of: form) { _, newValue in
-                    viewModel.updateFeedback(form: newValue, modelContext: modelContext)
+                ) { value in
+                    form = value
+                    viewModel.updateFeedback(form: value, modelContext: modelContext)
                 }
             }
 
@@ -164,9 +166,10 @@ struct InlineSetFeedbackView: View {
         guard let feedback = viewModel.currentFeedback else {
             return
         }
-        rpe = feedback.rpe
-        breath = feedback.breathDifficulty
-        form = feedback.formQuality
+        // Only fields the athlete already entered light up.
+        rpe = feedback.hasEnteredRPE ? feedback.rpe : nil
+        breath = feedback.hasEnteredBreath ? feedback.breathDifficulty : nil
+        form = feedback.hasEnteredForm ? feedback.formQuality : nil
         note = feedback.note ?? ""
         noteExpanded = !(feedback.note ?? "").isEmpty
     }
@@ -200,13 +203,14 @@ struct InlineSetFeedbackView: View {
 
     private func segmentedRow<Option: Hashable>(
         options: [Option],
-        selection: Binding<Option>,
-        label: @escaping (Option) -> String
+        selection: Option?,
+        label: @escaping (Option) -> String,
+        onSelect: @escaping (Option) -> Void
     ) -> some View {
         HStack(spacing: TempoSpacing.sm) {
             ForEach(options, id: \.self) { option in
                 Button {
-                    selection.wrappedValue = option
+                    onSelect(option)
                     HapticManager.selection()
                 } label: {
                     Text(label(option))
@@ -214,12 +218,12 @@ struct InlineSetFeedbackView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                         .background(
-                            selection.wrappedValue == option
+                            selection == option
                                 ? Color.tempoSignal
                                 : Color.tempoSurfaceCard
                         )
                         .foregroundStyle(
-                            selection.wrappedValue == option
+                            selection == option
                                 ? .white
                                 : Color.tempoTextPrimary
                         )

@@ -47,7 +47,7 @@ extension InsightController {
         let userId = try req.auth.requireUserID()
         // Template-first. Decoded from query params for the simple case;
         // for richer contexts the iOS client can POST to a future route.
-        let date = req.query[String.self, at: "date"] ?? ISO8601DateFormatter().string(from: Date()).prefix(10).description
+        let date = req.query[String.self, at: "date"] ?? ISO8601DateFormatter().string(from: req.now).prefix(10).description
         let input = try MorningBriefingService.shared.extractContext(from: req, userId: userId, date: date)
         let result = try await MorningBriefingService.shared.generate(input: input, on: req)
         // Morning briefing does not count against the 12-call/day AI limit

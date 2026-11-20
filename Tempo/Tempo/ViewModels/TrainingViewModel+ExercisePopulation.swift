@@ -677,13 +677,13 @@ extension TrainingViewModel {
             other.id != exercise.id
                 && other.movementPatternRaw == exercise.movementPatternRaw
                 && StrengthStandards.shareLoadBasis(exercise, other)
-                && (other.currentEstimated1RM ?? 0) > 0
+                && (other.latestEstimated1RM ?? 0) > 0
         }
         let freshest = candidates.max { a, b in
             (a.history?.map(\.date).max() ?? .distantPast)
                 < (b.history?.map(\.date).max() ?? .distantPast)
         }
-        guard let freshest, let siblingE1RM = freshest.currentEstimated1RM else {
+        guard let freshest, let siblingE1RM = freshest.latestEstimated1RM else {
             return nil
         }
         return StrengthStandards.siblingE1RM(
@@ -694,7 +694,7 @@ extension TrainingViewModel {
     /// User bodyweight (kg) for cold-start estimation. Explicit profile weight
     /// first, then the most recent HealthKit body-mass snapshot. nil when neither
     /// exists → `StrengthStandards` falls back to a conservative absolute seed.
-    private func currentBodyweightKg(modelContext: ModelContext) -> Double? {
+    func currentBodyweightKg(modelContext: ModelContext) -> Double? {
         if let profile = try? modelContext.fetch(FetchDescriptor<UserProfile>()).first,
            let w = profile.weightKg, w > 0
         {

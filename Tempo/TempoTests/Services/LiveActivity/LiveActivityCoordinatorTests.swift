@@ -38,10 +38,15 @@ final class LiveActivityCoordinatorTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         coordinator = LiveActivityCoordinator.shared
+        // Earlier test classes drive the shared coordinator through real view
+        // models (slow ActivityKit calls). Let that chain finish, or it keeps
+        // mutating activeKind mid-test after the reset.
+        await coordinator.waitUntilIdle()
         coordinator.resetForTesting()
     }
 
     override func tearDown() async throws {
+        await coordinator.waitUntilIdle()
         coordinator.resetForTesting()
         try await super.tearDown()
     }

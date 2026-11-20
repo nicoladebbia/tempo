@@ -36,7 +36,7 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         let content = response.notification.request.content
         let category = content.categoryIdentifier
         let action = response.actionIdentifier
-        let type = content.userInfo["type"] as? String
+        let type = Self.pushType(from: content.userInfo)
         let title = content.title
         let body = content.body
         logger.info("Notification action \(action, privacy: .public) in \(category, privacy: .public)")
@@ -89,6 +89,16 @@ final class TempoNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
                 await syncPlans()
             }
         }
+    }
+
+    /// Server pushes nest their custom keys under `"data"` (`{"aps":…,"data":{"type":…}}`);
+    /// locally scheduled notifications put them at the top level. Read `data.type` first,
+    /// fall back to top-level `type`.
+    static func pushType(from userInfo: [AnyHashable: Any]) -> String? {
+        if let data = userInfo["data"] as? [String: Any], let type = data["type"] as? String {
+            return type
+        }
+        return userInfo["type"] as? String
     }
 
     // MARK: - Actions

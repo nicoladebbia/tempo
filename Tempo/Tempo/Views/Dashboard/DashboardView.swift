@@ -6,6 +6,7 @@
 //
 //
 
+import Combine
 import SwiftData
 import SwiftUI
 
@@ -36,10 +37,30 @@ struct DashboardView: View {
         return Date().timeIntervalSince1970 - signInNudgeDismissedAt > 24 * 3600
     }
 
+    /// Forced Fuel re-pull + the follow-ups every refresh path runs.
+    @MainActor
+    private func refreshFuelAfterChange() async {
+        // Forced: a meal saved <2s after the last refresh used to be
+        // debounced away, leaving the Fuel card stale.
+        await viewModel?.refresh(force: true)
+        // Training status keeps the rest/training-day target + meal-timing
+        // suggestions, accountability auto-ticks the Meals non-negotiable from
+        // the new eaten count. Both also push the widget snapshot.
+        viewModel?.refreshTrainingStatus(modelContext: modelContext)
+        viewModel?.refreshAccountability(modelContext: modelContext)
+        // §22 — a meal eaten (Nutrition tab OR a watch .markMealEaten) changed
+        // the next-meal name/id the wrist shows.
+        viewModel?.pushWatchSnapshot()
+    }
+
     @State
     private var viewModel: DashboardViewModel?
     @State
     private var hasAppeared = false
+    /// A meal / plan / profile event arrived before the first load finished.
+    /// Replayed once it has, so the card never keeps a pre-event target.
+    @State
+    private var fuelRefreshPending = false
     @State
     private var showMealLogging = false
     @State
@@ -144,10 +165,17 @@ struct DashboardView: View {
                 // the wrist never shows the fake placeholder.
                 vm.pushWatchSnapshot()
 
+                // Open the gate BEFORE the weather fetch (network, can take
+                // many seconds): a plan applied or meal logged during it must
+                // refresh the Fuel card, not be dropped.
+                hasAppeared = true
+                if fuelRefreshPending {
+                    fuelRefreshPending = false
+                    await refreshFuelAfterChange()
+                }
+
                 // Fetch weather (non-blocking)
                 await vm.fetchWeather()
-
-                hasAppeared = true
 
                 // Check retention milestones
                 if let milestone = MilestoneService.checkMilestone(modelContext: modelContext) {
@@ -209,33 +237,30 @@ struct DashboardView: View {
                 viewModel?.dropNextMeal(mealID: id)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+        .onReceive(
+            Publishers.MergeMany(
+                // A server-built week landing, or a diet-profile edit, changes
+                // TODAY'S TARGET (plan allocation vs the TDEE estimate) without
+                // logging a meal. Without these the Fuel card kept the
+                // pre-plan estimate (3,156) while Nutrition Today showed the
+                // plan's 2,975 until the next cold launch.
+                DashboardViewModel.fuelRefreshTriggers.map { NotificationCenter.default.publisher(for: $0) }
+            )
+            // Regenerate posts a profile change then the plan; one refresh.
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+        ) { _ in
             // A meal was logged / marked eaten in the Nutrition tab (a
-            // separate VM). Re-pull the Fuel quadrant so the Dashboard's
-            // calories + eat-times match immediately instead of waiting
-            // for the next cold refresh.
+            // separate VM), or today's target changed. Re-pull the Fuel
+            // quadrant so the Dashboard's calories, targets + eat-times
+            // match immediately instead of waiting for the next cold refresh.
             guard hasAppeared else {
+                fuelRefreshPending = true
                 return
             }
             #if DEBUG
-                print("[Dashboard] .tempoNutritionLogged received → refresh(force:)")
+                print("[Dashboard] fuel trigger received → refresh(force:)")
             #endif
-            Task {
-                // Forced: a meal saved <2s after the last refresh used to be
-                // debounced away, leaving the Fuel card stale.
-                await viewModel?.refresh(force: true)
-                // Same follow-ups as every other refresh path: training
-                // status keeps the rest/training-day target + meal-timing
-                // suggestions, accountability auto-ticks the Meals
-                // non-negotiable from the new eaten count. Both also push
-                // the widget snapshot.
-                viewModel?.refreshTrainingStatus(modelContext: modelContext)
-                viewModel?.refreshAccountability(modelContext: modelContext)
-                // §22 — a meal eaten (Nutrition tab OR a watch
-                // .markMealEaten routed through WatchActionRouter) changed
-                // the next-meal name/id the wrist shows.
-                viewModel?.pushWatchSnapshot()
-            }
+            Task { await refreshFuelAfterChange() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
             // A workout was started / completed / discarded in the Training

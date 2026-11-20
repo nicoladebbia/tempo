@@ -14,6 +14,11 @@ struct JWTService {
     static let accessTokenTTL: TimeInterval = 900  // 15 minutes
     static let refreshTokenTTL: TimeInterval = 30 * 24 * 3600  // 30 days
 
+    /// The real TTL, unless local test mode shortened it (`testenv.sh auth ttl`).
+    static func accessTTL(_ req: Request) -> TimeInterval {
+        req.application.testMode?.accessTokenTTL ?? accessTokenTTL
+    }
+
     // MARK: - Issue Access Token
 
     static func issueAccessToken(
@@ -28,7 +33,7 @@ struct JWTService {
             issuer: .init(value: "tempo-api"),
             audience: .init(value: ["app.tempo.ios"]),
             issuedAt: .init(value: now),
-            expiration: .init(value: now.addingTimeInterval(accessTokenTTL)),
+            expiration: .init(value: now.addingTimeInterval(accessTTL(req))),
             jti: UUID().uuidString,
             deviceID: deviceID,
             scopes: scopes
@@ -82,7 +87,7 @@ struct JWTService {
         return AuthTokenResponse(
             accessToken: accessToken,
             refreshToken: rawRefresh,
-            expiresIn: Int(accessTokenTTL)
+            expiresIn: Int(accessTTL(req))
         )
     }
 
@@ -90,16 +95,20 @@ struct JWTService {
 
     static func verifyRefreshToken(
         rawToken: String,
+        includeRevoked: Bool = false,
         on req: Request
     ) async throws -> RefreshToken {
         let hash = SHA256.hash(data: Data(rawToken.utf8))
         let tokenHash = hash.compactMap { String(format: "%02x", $0) }.joined()
 
-        guard let token = try await RefreshToken.query(on: req.db)
-            .filter(\.$tokenHash == tokenHash)
-            .filter(\.$revokedAt == nil)
-            .first()
-        else {
+        // `includeRevoked` lets the refresh endpoint SEE an already-rotated
+        // token so it can run replay detection (revoke every session). Other
+        // callers (logout) keep treating a revoked token as unknown.
+        let query = RefreshToken.query(on: req.db).filter(\.$tokenHash == tokenHash)
+        if !includeRevoked {
+            query.filter(\.$revokedAt == nil)
+        }
+        guard let token = try await query.first() else {
             throw Abort(.unauthorized, reason: "Invalid refresh token.")
         }
 

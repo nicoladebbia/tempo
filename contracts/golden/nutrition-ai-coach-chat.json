@@ -1,0 +1,30 @@
+{
+  "data" : {
+    "content" : [
+      {
+        "text" : "Logging that.",
+        "type" : "text"
+      },
+      {
+        "id" : "toolu_01",
+        "input" : {
+          "food" : "oats",
+          "grams" : 80
+        },
+        "name" : "log_meal",
+        "type" : "tool_use"
+      }
+    ],
+    "model" : "claude-haiku-4-5",
+    "stop_reason" : "tool_use",
+    "usage" : {
+      "input_tokens" : 1200,
+      "output_tokens" : 85
+    }
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

@@ -136,7 +136,7 @@ This is the most solid integration alongside Calendar. Reads, background deliver
 - Body: `bodyMass`, `height`, `bodyFatPercentage`, `leanBodyMass`
 - Workouts: `workoutType()` + `HKSeriesType.workoutRoute()` (iOS 17+ GPS)
 
-`HealthKitConstants.writeTypes`: `workoutType()`, `dietaryEnergyConsumed`, `dietaryProtein`, `dietaryCarbohydrates`, `dietaryFatTotal` (and any additional dietary write types declared in the set).
+`HealthKitConstants.writeTypes`: `workoutType()`, `activeEnergyBurned`, `distanceWalkingRunning` (workout calories/run distance; users who granted workouts before these existed get one sheet for just the new types from `verifyPermissionsOnLaunch`, in-flight guarded), `dietaryEnergyConsumed`, `dietaryProtein`, `dietaryCarbohydrates`, `dietaryFatTotal` (and any additional dietary write types declared in the set).
 
 `checkWriteAuthorizationStatus` maps per-type status → `fullAccess` / `partialAccess` / `denied`. `verifyPermissionsOnLaunch` (write-status revocation detection + a read-probe query) runs on every foreground (called from `TempoApp`). `openHealthSettings` deep-links to `x-apple-health://`.
 
@@ -158,7 +158,7 @@ This is the most solid integration alongside Calendar. Reads, background deliver
 ### 2.3 Write Operations
 
 **As-built:**
-- **Workouts** (§2.3.1): `writeWorkout` uses `HKWorkoutBuilder` with a duplicate-start-time check (dedup). IMPLEMENTED.
+- **Workouts** (§2.3.1): `writeWorkout` uses `HKWorkoutBuilder`. Dedup: skipped when an existing workout (Watch, other app, or our own) overlaps by ≥ min(10 min, half the session) (`HealthWorkoutDedupe`). Gym sessions carry estimated active energy (MET 3.5 × bodyweight × hours); guided runs are `.running` with distance and the session's real start/end. Energy/distance samples are only added when their write type is authorized. IMPLEMENTED.
 - **Nutrition** (§2.3.2): `writeNutrition` writes an `HKCorrelation(.food)` with energy/protein/carbs/fat. Source-tag metadata is `"TempoSource": "Tempo"`.
 
 > **Divergence from original spec:** `writeNutrition` omits fiber/sugar/sodium, sets no `HKMetadataKeyFoodType` meal name, and performs **no dedup/delete-old-correlation on meal edit** (spec required edit-replace). The `"TempoSource"` tag is `"Tempo"` not `"NutriTrack"` — moot since NutriTrack is removed (§3).

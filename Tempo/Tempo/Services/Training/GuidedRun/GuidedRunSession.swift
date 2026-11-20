@@ -58,6 +58,11 @@ final class GuidedRunSession {
     private(set) var remainingInCurrentStep: TimeInterval?
 
     private var stepStartDate: Date?
+    /// Wall-clock moment the first step began (after the countdown) and the
+    /// moment the run finished or was ended — the real span written to
+    /// Apple Health. nil until reached.
+    private(set) var startedAt: Date?
+    private(set) var endedAt: Date?
     private var pausedAt: Date?
     private var accumulatedPause: TimeInterval = 0
     private var countdownStartDate: Date?
@@ -138,6 +143,7 @@ final class GuidedRunSession {
             return
         }
         phase = .endedEarly
+        endedAt = clock.now()
     }
 
     /// Live GPS distance update for the current continuous-distance step —
@@ -369,10 +375,14 @@ final class GuidedRunSession {
     private func enterStep(at index: Int) {
         guard steps.indices.contains(index) else {
             phase = .finished
+            endedAt = clock.now()
             cueHandler(.done)
             return
         }
         stepStartDate = clock.now()
+        if startedAt == nil {
+            startedAt = stepStartDate
+        }
         accumulatedPause = 0
         pausedAt = isPaused ? clock.now() : nil
         elapsedInCurrentStep = 0

@@ -16,8 +16,9 @@ import os
 import SwiftData
 
 extension Notification.Name {
-    /// Posted after a server-built plan was saved as the active plan, so the
-    /// Nutrition surfaces reload and run their post-plan passes.
+    /// Posted after a server-built plan was saved as the active plan (by any
+    /// path: `sync`, `buildNow`), so the Nutrition surfaces reload, the
+    /// Dashboard Fuel card re-pulls today's target, and reminders reschedule.
     static let tempoWeeklyPlanApplied = Notification.Name("tempo.nutrition.weeklyPlanApplied")
 }
 
@@ -230,7 +231,6 @@ final class WeeklyPlanService {
             defer { inFlightJobID = nil }
             do {
                 _ = try await apply(job, plan: plan, weekStart: weekStart, modelContext: modelContext, deps: deps)
-                NotificationCenter.default.post(name: .tempoWeeklyPlanApplied, object: nil)
             } catch {
                 logger.error("[WeeklyPlan] apply failed: \(error.localizedDescription, privacy: .public)")
             }
@@ -379,6 +379,11 @@ final class WeeklyPlanService {
         defaults.removeObject(forKey: Key.pendingJobID)
         phase = .idle
         logger.info("[WeeklyPlan] applied job \(job.id, privacy: .public) for \(job.weekStart, privacy: .public)")
+        // Posted here (not only from `sync`) so EVERY path that saves a plan —
+        // push/foreground sync, in-app Regenerate (`buildNow`), the QA scenario —
+        // tells the Dashboard Fuel card, the supplement scheduler and the Nutrition
+        // tab that today's target may have moved.
+        NotificationCenter.default.post(name: .tempoWeeklyPlanApplied, object: nil)
         return saved
     }
 

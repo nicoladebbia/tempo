@@ -69,13 +69,12 @@ final class TrainerFeedbackApplierTests: XCTestCase {
         XCTAssertEqual(resolved.count, 1)
         XCTAssertTrue(resolved[0].matched)
         XCTAssertEqual(resolved[0].summary, "RDL: 60 kg → 65 kg")
-        guard case let .replaceExercise(weekIndex, dayIndex, exerciseIndex, updated) = resolved[0].action else {
+        guard case let .replaceExercise(weekIndex, dayIndex, _, changes) = resolved[0].action else {
             return XCTFail("expected replaceExercise")
         }
         XCTAssertEqual(weekIndex, 0)
         XCTAssertEqual(dayIndex, 0)
-        XCTAssertEqual(exerciseIndex, 0)
-        XCTAssertEqual(updated.weightKg, 65)
+                XCTAssertEqual(changes.weightDeltaKg, 5)
     }
 
     func testWeekdayPlusExerciseNameNarrowsToOneDay() {
@@ -114,9 +113,9 @@ final class TrainerFeedbackApplierTests: XCTestCase {
             edits: [edit(type: .skipSession, weekday: 1, reason: "knee")],
             weeks: [fixtureWeek()], weekIndex: 0
         )
-        XCTAssertEqual(resolved[0].summary, "Mon Lower: skipped — knee")
-        guard case let .skipDay(_, dayIndex) = resolved[0].action else {
-            return XCTFail("expected skipDay")
+        XCTAssertEqual(resolved[0].summary, "Mon Lower: skipped this Mon — knee")
+        guard case let .skipDate(_, dayIndex, _) = resolved[0].action else {
+            return XCTFail("expected skipDate (fixed mode skips only that date)")
         }
         XCTAssertEqual(dayIndex, 0)
     }
@@ -135,7 +134,7 @@ final class TrainerFeedbackApplierTests: XCTestCase {
             weeks: [fixtureWeek()], weekIndex: 0
         )
         XCTAssertTrue(resolved[0].matched)
-        XCTAssertEqual(resolved[0].summary, "Thu Anaerobic Run: skipped — knee")
+        XCTAssertEqual(resolved[0].summary, "Thu Anaerobic Run: skipped this Thu — knee")
     }
 
     func testMoveDay() {
@@ -180,7 +179,7 @@ final class TrainerFeedbackApplierTests: XCTestCase {
         let week = fixtureWeek()
         let resolved = TrainerFeedbackApplier.resolve(
             edits: [edit(type: .skipSession, weekday: 1)],
-            weeks: [week], weekIndex: 0
+            weeks: [week], weekIndex: 0, scheduleMode: .sequence
         )
         let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
         let mondayDay = result[0].days[0]
@@ -193,5 +192,119 @@ final class TrainerFeedbackApplierTests: XCTestCase {
             weeks: result, sourceKind: "text"
         )
         XCTAssertTrue(program.sessions(on: program.startDate).isEmpty)
+    }
+
+    // MARK: - Same exercise twice / removals / refusals / dated skips
+
+    private func exerciseNames(_ weeks: [ProgramWeek], day: Int) -> [String] {
+        weeks[0].days[day].exercises.map(\.name)
+    }
+
+    func testTwoEditsToTheSameExerciseBothStick() {
+        let week = fixtureWeek()
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [
+                edit(type: .updateExercise, exerciseName: "RDL", sets: 4),
+                edit(type: .updateExercise, exerciseName: "RDL", weightDeltaKg: 5),
+            ],
+            weeks: [week], weekIndex: 0
+        )
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(result[0].days[0].exercises[0].sets, 4)
+        XCTAssertEqual(result[0].days[0].exercises[0].weightKg, 65)
+    }
+
+    func testTwoWeightDeltasOnTheSameExerciseAddUp() {
+        let week = fixtureWeek()
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [
+                edit(type: .updateExercise, exerciseName: "RDL", weightDeltaKg: 5),
+                edit(type: .updateExercise, exerciseName: "RDL", weightDeltaKg: 2.5),
+            ],
+            weeks: [week], weekIndex: 0
+        )
+        XCTAssertEqual(resolved[1].summary, "RDL: 65 kg → 67.5 kg")
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(result[0].days[0].exercises[0].weightKg, 67.5)
+    }
+
+    func testRemovingTwoExercisesOnOneDayRemovesTheRightOnes() {
+        let week = ProgramWeek(days: [ProgramDay(
+            weekday: 1, title: "Legs", focus: "legs",
+            exercises: [
+                ProgramExercise(name: "Squat", sets: 3, repsLow: 5),
+                ProgramExercise(name: "Leg Press", sets: 3, repsLow: 10),
+                ProgramExercise(name: "RDL", sets: 3, repsLow: 8),
+                ProgramExercise(name: "Calf Raise", sets: 3, repsLow: 12),
+            ],
+            notes: nil
+        )])
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .removeExercise, exerciseName: "Leg Press"), edit(type: .removeExercise, exerciseName: "Calf Raise")],
+            weeks: [week], weekIndex: 0
+        )
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(exerciseNames(result, day: 0), ["Squat", "RDL"])
+
+        // Rejecting the FIRST removal must not shift the second onto the wrong row.
+        let onlySecond = TrainerFeedbackApplier.apply(resolved, acceptedIDs: [resolved[1].id], to: [week])
+        XCTAssertEqual(exerciseNames(onlySecond, day: 0), ["Squat", "Leg Press", "RDL"])
+    }
+
+    func testPlusKgOnALiftWithNoFixedWeightIsRefused() {
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .updateExercise, exerciseName: "Squat", weightDeltaKg: 5)],
+            weeks: [fixtureWeek()], weekIndex: 0
+        )
+        XCTAssertFalse(resolved[0].matched)
+        XCTAssertTrue(resolved[0].matchFailureReason?.contains("no fixed weight") == true, resolved[0].matchFailureReason ?? "")
+        XCTAssertNil(resolved[0].action)
+    }
+
+    func testRefusedDeltaStillAppliesTheRestOfTheEdit() {
+        let week = fixtureWeek()
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .updateExercise, exerciseName: "Squat", sets: 5, weightDeltaKg: 5)],
+            weeks: [week], weekIndex: 0
+        )
+        XCTAssertEqual(resolved.count, 2)
+        XCTAssertTrue(resolved[0].matched)
+        XCTAssertEqual(resolved[0].summary, "Squat: 3 sets → 5 sets")
+        XCTAssertFalse(resolved[1].matched)
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(result[0].days[1].exercises[0].sets, 5)
+        XCTAssertNil(result[0].days[1].exercises[0].weightKg)
+    }
+
+    func testAbsoluteWeightOnALiftWithNoFixedWeightStillApplies() {
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .updateExercise, exerciseName: "Squat", weightKg: 100)],
+            weeks: [fixtureWeek()], weekIndex: 0
+        )
+        XCTAssertTrue(resolved[0].matched)
+    }
+
+    func testFixedModeSkipIsADatedSkipThatLeavesTheProgramAlone() throws {
+        let week = fixtureWeek()
+        // Wed 2026-09-23 is in the week of Mon 2026-09-21.
+        let reference = TrainingCalendar.iso8601.date(from: DateComponents(year: 2026, month: 9, day: 23))!
+        let monday = TrainingCalendar.mondayOfWeek(containing: reference)
+        let resolved = TrainerFeedbackApplier.resolve(
+            edits: [edit(type: .skipSession, weekday: 1, reason: "knee")],
+            weeks: [week], weekIndex: 0, scheduleMode: .fixed, referenceDate: reference
+        )
+        guard case let .skipDate(_, _, date)? = resolved[0].action else {
+            return XCTFail("expected skipDate")
+        }
+        XCTAssertEqual(date, monday)
+        let result = TrainerFeedbackApplier.apply(resolved, acceptedIDs: Set(resolved.map(\.id)), to: [week])
+        XCTAssertEqual(result[0].days[0].exercises.count, 1, "program weeks untouched")
+
+        let program = TrainerProgram(name: "T", startDate: monday, weeks: [week], sourceKind: "text")
+        program.skippedSessions = TrainerFeedbackApplier.skippedSessions(resolved, acceptedIDs: Set(resolved.map(\.id)), program: program)
+        XCTAssertEqual(program.skippedSessions.count, 1)
+        XCTAssertTrue(program.sessions(on: monday).isEmpty, "that Monday is skipped")
+        let nextMonday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 7, to: monday))
+        XCTAssertEqual(program.sessions(on: nextMonday).count, 1, "the repeating program is back next week")
     }
 }

@@ -60,12 +60,7 @@ extension TrainingViewModel {
 
     var formattedVolume: String {
         // totalVolume is kg-stored; show in the user's unit.
-        let vol = WeightUnit.kg.convert(totalVolume, to: weightUnit)
-        let unit = weightUnit.abbreviation
-        if vol >= 1000 {
-            return String(format: "%.1fk %@", vol / 1000, unit)
-        }
-        return "\(Int(vol)) \(unit)"
+        WeightFormat.volumeText(kg: totalVolume, unit: weightUnit)
     }
 
     /// Working-set count for the current exercise (excludes warmup) so the
@@ -229,7 +224,9 @@ extension TrainingViewModel {
         guard let plan = todayPlan else {
             return false
         }
-        return plan.type.isGymWorkout && plan.status != .completed
+        // A skipped day (recovery floor, pain) isn't startable from the
+        // button — `trainAnyway` reopens it first, on purpose.
+        return plan.type.isGymWorkout && plan.status != .completed && plan.status != .skipped
     }
 
     var recoveryAdjustmentText: String? {
@@ -256,6 +253,11 @@ extension TrainingViewModel {
         let sets = exercise.orderedSets
         guard currentSetIndex < sets.count else {
             return sets.last?.targetWeight
+        }
+        // A pain report cut the remaining targets: pre-fill the reduced
+        // number, never the heavier load logged before the report.
+        if exercise.painLoadReduced, let reduced = sets[currentSetIndex].targetWeight {
+            return reduced
         }
         // Carry from the most recent WORKING set (skip ramps and drop steps) so
         // the next working set pre-fills the working weight, not the 75% ramp

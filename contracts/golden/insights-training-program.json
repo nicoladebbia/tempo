@@ -1,0 +1,23 @@
+{
+  "data" : {
+    "days" : [
+      {
+        "day" : "monday",
+        "volume_adjustment" : 1,
+        "workout_type" : "push"
+      },
+      {
+        "day" : "tuesday",
+        "volume_adjustment" : 0.90000000000000002,
+        "workout_type" : "pull"
+      }
+    ],
+    "rationale" : "Recovery is green, push volume stays high.",
+    "week_start" : "2026-09-28"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

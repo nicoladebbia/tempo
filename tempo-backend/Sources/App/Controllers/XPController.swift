@@ -121,7 +121,7 @@ struct XPController: RouteCollection {
         let userID = try req.auth.requireUserID()
 
         let calendar = Calendar(identifier: .iso8601)
-        let startOfDay = calendar.startOfDay(for: Date())
+        let startOfDay = calendar.startOfDay(for: req.now)
 
         let events = try await XPEvent.query(on: req.db)
             .filter(\.$user.$id == userID)

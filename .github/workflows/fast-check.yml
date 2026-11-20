@@ -1,0 +1,71 @@
+name: Fast check
+
+# Runs on Nicola's Mac mini (self-hosted runner, label `tempo`), not on
+# GitHub's paid macOS machines: an incremental iOS simulator build plus the
+# backend build and tests, in parallel, in about 1–2 minutes. It shows on PRs
+# but is not a required check, so it never blocks a merge. The deep run
+# (all unit tests, scenarios, screenshots) is the nightly: scripts/nightly.sh.
+#
+# Push-only on purpose: the repo is public, and a `pull_request` trigger would
+# let a fork's PR run its own code on this Mac. Forks can't trigger `push`.
+on:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: fast-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: iOS build + backend tests
+    # Bots' pushes don't get to run code on the Mac.
+    if: ${{ !endsWith(github.actor, '[bot]') }}
+    runs-on: [self-hosted, macOS, ARM64, tempo]
+    timeout-minutes: 20
+    env:
+      PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+      # Outside the workspace so every run is incremental.
+      CI_CACHE: ${{ github.workspace }}/../../_tempo-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test
+        run: |
+          set -u
+          mkdir -p "$CI_CACHE"
+          cd Tempo && xcodegen generate --quiet && cd ..
+
+          ( xcodebuild build -project Tempo/Tempo.xcodeproj -scheme Tempo \
+              -destination 'generic/platform=iOS Simulator' \
+              -derivedDataPath "$CI_CACHE/DerivedData" -quiet \
+              CODE_SIGNING_ALLOWED=NO > ios.log 2>&1 ) &
+          ios=$!
+
+          ( scripts/testenv.sh db 2 \
+            && eval "$(scripts/testenv.sh test-env 2)" \
+            && cd tempo-backend \
+            && swift build --build-tests --build-path "$CI_CACHE/backend" \
+            && swift test --skip-build --build-path "$CI_CACHE/backend" ) > backend.log 2>&1 &
+          backend=$!
+
+          # The step shell runs with -e: a bare failing `wait` would end it
+          # before anything below prints.
+          ios_code=0; wait $ios || ios_code=$?
+          backend_code=0; wait $backend || backend_code=$?
+
+          if [ $ios_code -eq 0 ]; then echo "✅ iOS build"; else
+            echo "::group::iOS build failed"; grep -E "error:" ios.log | head -40 || tail -40 ios.log; echo "::endgroup::"
+            echo "::error title=iOS build failed::see the iOS build group above"; fi
+          if [ $backend_code -eq 0 ]; then echo "✅ Backend: $(grep -E 'Test run with|Executed [0-9]+ tests' backend.log | tail -2 | tr '\n' ' ')"; else
+            echo "::group::Backend failed"; grep -E "error:|✘|failed" backend.log | head -60 || tail -60 backend.log; echo "::endgroup::"
+            echo "::error title=Backend failed::see the Backend group above"; fi
+          {
+            echo "### Fast check"
+            echo "- iOS simulator build: $([ $ios_code -eq 0 ] && echo ✅ || echo ❌)"
+            echo "- Backend build + tests: $([ $backend_code -eq 0 ] && echo ✅ || echo ❌)"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ $ios_code -eq 0 ] && [ $backend_code -eq 0 ]

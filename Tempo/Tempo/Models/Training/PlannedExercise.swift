@@ -86,11 +86,17 @@ final class PlannedExercise {
     var travelSwapOriginalName: String?
 
     /// "This hurts" flow — true once the athlete (or the severe-pain flow)
-    /// skipped this exercise for today due to pain. Display-only: doesn't
-    /// touch `WorkoutPlan.totalSets`/`completedSets` (an unlogged set already
-    /// reads honestly as not-done). Optional/defaulted → lightweight
-    /// SwiftData migration.
+    /// skipped this exercise for today due to pain. The live session's cursor
+    /// (`firstUncompletedSetIndex`), crash-resume and the watch queue all
+    /// treat it as having no work left. Doesn't touch `WorkoutPlan.totalSets`
+    /// / `completedSets` (an unlogged set already reads honestly as not-done).
+    /// Optional/defaulted → lightweight SwiftData migration.
     var painSkipped: Bool = false
+
+    /// "This hurts" (mild) cut today's remaining targets. The weight field
+    /// then pre-fills the reduced target instead of carrying the heavier
+    /// load from the set before the report. Defaulted → lightweight migration.
+    var painLoadReduced: Bool = false
 
     // MARK: - Relationships
 
@@ -147,6 +153,20 @@ final class PlannedExercise {
         return workingSets.allSatisfy(\.completed)
     }
 
+    /// Pain marker copy: "Skipped — pain" when nothing was logged, otherwise it
+    /// was stopped part-way ("Stopped — pain after 2 sets"). Nil when not pain-ended.
+    @Transient
+    var painStatusLabel: String? {
+        guard painSkipped else {
+            return nil
+        }
+        let logged = (sets ?? []).filter { !$0.isWarmup && $0.completed }.count
+        guard logged > 0 else {
+            return "Skipped — pain"
+        }
+        return "Stopped — pain after \(logged) \(logged == 1 ? "set" : "sets")"
+    }
+
     @Transient
     var bestSet: PlannedSet? {
         // Working sets only — a warmup ramp set must never be reported as the
@@ -154,7 +174,7 @@ final class PlannedExercise {
         // a reduced-weight backoff, never the max-effort signal "best" means.
         (sets ?? [])
             .filter { !$0.isWarmup && !$0.isDropStep && $0.completed && $0.actualWeight != nil }
-            .max { ($0.actualWeight ?? 0) < ($1.actualWeight ?? 0) }
+            .max { ExerciseBestSet.ranksBelow(($0.actualWeight ?? 0, $0.actualReps ?? 0), ($1.actualWeight ?? 0, $1.actualReps ?? 0)) }
     }
 
     @Transient

@@ -211,7 +211,7 @@ struct WorkoutSummaryView: View {
 
                     Spacer()
 
-                    Text(formattedWeight(pr.value, decimals: 1))
+                    Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
                         .font(.tempoHeadline)
                         .foregroundStyle(Color.tempoTextPrimary)
                 }
@@ -371,7 +371,11 @@ struct WorkoutSummaryView: View {
                         actual: reps, left: best.actualRepsLeft, right: best.actualRepsRight,
                         perSide: plannedEx.perSide
                     )
-                    Text("Best: \(formattedWeight(weight)) x \(repsText)")
+                    let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
+                    let loadText = WeightFormat.setLoad(
+                        kg: weight, addedKg: best.addedLoadKg, bodyweight: isBodyweight, unit: viewModel.weightUnit
+                    )
+                    Text("Best: \(loadText) × \(repsText)")
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoTextSecondary)
                 }
@@ -382,7 +386,7 @@ struct WorkoutSummaryView: View {
             // Volume for this exercise
             let vol = plannedEx.totalVolume
             if vol > 0 {
-                Text(formattedWeight(vol))
+                Text(WeightFormat.volumeText(kg: vol, unit: viewModel.weightUnit))
                     .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
@@ -397,18 +401,6 @@ struct WorkoutSummaryView: View {
         .padding(TempoSpacing.md)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-    }
-
-    // MARK: - Weight Formatting
-
-    /// Format a kg-stored weight in the user's display unit. Keeps the summary
-    /// consistent with the timer-bar volume (which already converts) — fixes the
-    /// bug where per-set/per-exercise rows were hardcoded "kg" while the volume
-    /// header showed the user's actual unit.
-    private func formattedWeight(_ kg: Double, decimals: Int = 0) -> String {
-        let value = WeightUnit.kg.convert(kg, to: viewModel.weightUnit)
-        let unit = viewModel.weightUnit.abbreviation
-        return String(format: "%.\(decimals)f %@", value, unit)
     }
 
     // MARK: - Save Button

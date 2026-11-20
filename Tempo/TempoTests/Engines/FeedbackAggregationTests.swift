@@ -26,6 +26,9 @@ final class FeedbackAggregationTests: XCTestCase {
     ) -> SetFeedback {
         let fb = SetFeedback(plannedSet: set, rpe: rpe, formQuality: form)
         fb.userProvidedFeedback = entered
+        fb.perFieldFlagsRecorded = entered
+        fb.rpeProvided = entered
+        fb.formProvided = entered
         return fb
     }
 
@@ -92,5 +95,62 @@ final class FeedbackAggregationTests: XCTestCase {
         )
         XCTAssertEqual(agg.count, 1, "Lookup by set.id must find the row")
         XCTAssertEqual(agg.avgRPE, 9)
+    }
+
+    // MARK: - Per-field flags (a partial entry is not a full one)
+
+    func testBreathOnlyTapDoesNotInventAnRPE() {
+        let s = set()
+        let fb = SetFeedback(plannedSet: s, rpe: 7, breathDifficulty: .gassed)
+        fb.userProvidedFeedback = true
+        fb.perFieldFlagsRecorded = true
+        fb.breathProvided = true
+        let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
+        XCTAssertNil(agg.avgRPE, "The default 7 was never entered")
+        XCTAssertNil(agg.worstFormRaw, "Neither was the default 'Clean'")
+        XCTAssertEqual(agg.gassedFraction, 1)
+        XCTAssertEqual(agg.count, 1)
+    }
+
+    func testRPEOnlyEntryLeavesFormAndBreathUnknown() {
+        let s = set()
+        let fb = SetFeedback(plannedSet: s, rpe: 9)
+        fb.userProvidedFeedback = true
+        fb.perFieldFlagsRecorded = true
+        fb.rpeProvided = true
+        let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
+        XCTAssertEqual(agg.avgRPE, 9)
+        XCTAssertNil(agg.worstFormRaw)
+        XCTAssertNil(agg.gassedFraction, "No breath answer is not 'never gassed'")
+    }
+
+    func testSetRPEFromTheWatchCountsWithoutPanelInput() {
+        let s = set()
+        s.rpe = 8
+        let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: [:])
+        XCTAssertEqual(agg.avgRPE, 8)
+        XCTAssertEqual(agg.count, 1)
+    }
+
+    func testEnteredSummaryShowsOnlyEnteredFields() {
+        let fb = SetFeedback(plannedSet: set(), rpe: 7)
+        XCTAssertNil(fb.enteredSummary, "Untouched row shows nothing")
+        fb.breathProvided = true
+        fb.breathDifficulty = .gassed
+        XCTAssertEqual(fb.enteredSummary, "Gassed")
+        fb.rpeProvided = true
+        fb.rpe = 8
+        XCTAssertEqual(fb.enteredSummary, "RPE 8 · Gassed")
+    }
+
+    func testRowRatedBeforeFlagsExistedKeepsAllItsFields() {
+        let s = set()
+        let fb = SetFeedback(plannedSet: s, rpe: 9, breathDifficulty: .gassed, formQuality: .sloppy)
+        fb.userProvidedFeedback = true // rated by an older build: no per-field flags
+        let agg = TrainingViewModel.aggregateFeedback(completedSets: [s], enteredFeedback: enteredMap([fb]))
+        XCTAssertEqual(agg.avgRPE, 9)
+        XCTAssertEqual(agg.worstFormRaw, FormQuality.sloppy.rawValue)
+        XCTAssertEqual(agg.gassedFraction, 1)
+        XCTAssertNotNil(fb.enteredSummary)
     }
 }

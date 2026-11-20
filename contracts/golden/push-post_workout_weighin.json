@@ -1,0 +1,19 @@
+{
+  "aps" : {
+    "alert" : {
+      "body" : "80 min, strain 14.8. Step on the scale before you drink or eat, then tell me what you drank.",
+      "title" : "Session done. Weigh in now."
+    },
+    "category" : "POST_WORKOUT_WEIGHIN",
+    "interruption-level" : "time-sensitive",
+    "sound" : "default"
+  },
+  "data" : {
+    "deep_link" : "tempo://coach/recovery/00000000-0000-0000-0000-000000000001",
+    "interruption_level" : "time-sensitive",
+    "session_end" : "2026-01-01T00:00:00.000Z",
+    "session_id" : "00000000-0000-0000-0000-000000000001",
+    "session_start" : "2026-01-01T00:00:00.000Z",
+    "type" : "post_workout_weighin"
+  }
+}

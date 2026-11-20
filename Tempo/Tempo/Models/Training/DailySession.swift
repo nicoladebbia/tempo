@@ -83,6 +83,13 @@ final class DailySession {
     @Relationship(deleteRule: .nullify)
     var workoutPlan: WorkoutPlan?
 
+    /// Stable id of `workoutPlan`, stamped at creation. Deleting a workout
+    /// matches its session by this id — never by traversing `workoutPlan`
+    /// (one-way link, can dangle) and, when it's set, never by day (which
+    /// also deleted the OTHER plan's session on a two-plan day). Optional →
+    /// lightweight migration; legacy rows read nil and fall back to the day.
+    var workoutPlanID: UUID?
+
     init(
         date: Date,
         modality: String,
@@ -113,6 +120,7 @@ final class DailySession {
         self.wasDowngraded = wasDowngraded
         sourceRaw = source.rawValue
         self.workoutPlan = workoutPlan
+        workoutPlanID = workoutPlan?.id
         self.createdAt = createdAt
     }
 

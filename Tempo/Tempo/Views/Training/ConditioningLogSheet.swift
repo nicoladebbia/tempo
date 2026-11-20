@@ -345,8 +345,8 @@ struct ConditioningLogSheet: View {
             let parsed = repTimeText.compactMap(Self.parseSeconds)
             return parsed.isEmpty ? nil : parsed
         }()
-        let durationSeconds = Double(durationText).map { $0 * 60 }
-        let distanceMeters = Double(distanceText)
+        let durationSeconds = WeightFormat.parseDecimal(durationText).map { $0 * 60 }
+        let distanceMeters = WeightFormat.parseDecimal(distanceText)
         let rounds = Int(roundsText)
 
         viewModel.logConditioningBlock(
@@ -380,13 +380,13 @@ struct ConditioningLogSheet: View {
             let parts = trimmed.split(separator: ":")
             guard parts.count == 2,
                   let minutes = Double(parts[0]),
-                  let seconds = Double(parts[1])
+                  let seconds = WeightFormat.parseDecimal(String(parts[1]))
             else {
                 return nil
             }
             return minutes * 60 + seconds
         }
-        return Double(trimmed)
+        return WeightFormat.parseDecimal(trimmed.replacingOccurrences(of: "\"", with: ""))
     }
 
     private func formatSeconds(_ seconds: Double) -> String {

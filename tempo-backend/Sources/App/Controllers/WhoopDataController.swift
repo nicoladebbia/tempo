@@ -27,7 +27,7 @@ struct WhoopDataController: RouteCollection {
     func getRecovery(_ req: Request) async throws -> Envelope<[WhoopRecoveryDTO]> {
         let userID = try req.auth.requireUserID()
         let query = try req.query.decode(WhoopDateQuery.self)
-        let (startDate, endDate) = resolveDateRange(query)
+        let (startDate, endDate) = resolveDateRange(query, now: req.now)
 
         // Check Redis cache
         let cacheKey = RedisKey("whoop:\(userID):recovery:\(startDate):\(endDate)")
@@ -63,7 +63,7 @@ struct WhoopDataController: RouteCollection {
     func getSleep(_ req: Request) async throws -> Envelope<[WhoopSleepDTO]> {
         let userID = try req.auth.requireUserID()
         let query = try req.query.decode(WhoopDateQuery.self)
-        let (startDate, endDate) = resolveDateRange(query)
+        let (startDate, endDate) = resolveDateRange(query, now: req.now)
 
         let cacheKey = RedisKey("whoop:\(userID):sleep:\(startDate):\(endDate)")
         if let cached = try await req.redis.get(cacheKey, as: String.self).get(),
@@ -95,7 +95,7 @@ struct WhoopDataController: RouteCollection {
     func getWorkouts(_ req: Request) async throws -> Envelope<[WhoopWorkoutDTO]> {
         let userID = try req.auth.requireUserID()
         let query = try req.query.decode(WhoopDateQuery.self)
-        let (startDate, endDate) = resolveDateRange(query)
+        let (startDate, endDate) = resolveDateRange(query, now: req.now)
 
         let cacheKey = RedisKey("whoop:\(userID):workouts:\(startDate):\(endDate)")
         if let cached = try await req.redis.get(cacheKey, as: String.self).get(),
@@ -127,7 +127,7 @@ struct WhoopDataController: RouteCollection {
     func getCycles(_ req: Request) async throws -> Envelope<[WhoopCycleDTO]> {
         let userID = try req.auth.requireUserID()
         let query = try req.query.decode(WhoopDateQuery.self)
-        let (startDate, endDate) = resolveDateRange(query)
+        let (startDate, endDate) = resolveDateRange(query, now: req.now)
 
         let cacheKey = RedisKey("whoop:\(userID):cycles:\(startDate):\(endDate)")
         if let cached = try await req.redis.get(cacheKey, as: String.self).get(),
@@ -156,10 +156,10 @@ struct WhoopDataController: RouteCollection {
     // MARK: - Helpers
 
     /// Resolve date range from query params. Defaults to today if no dates provided.
-    private func resolveDateRange(_ query: WhoopDateQuery) -> (String, String) {
+    private func resolveDateRange(_ query: WhoopDateQuery, now: Date) -> (String, String) {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
+        let today = formatter.string(from: now)
 
         if let date = query.date {
             return (date, date)

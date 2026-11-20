@@ -1,0 +1,43 @@
+{
+  "data" : {
+    "confidence" : 0.91000000000000003,
+    "coupon_total" : 2,
+    "currency" : "USD",
+    "line_items" : [
+      {
+        "canonical_food_name" : "chicken breast",
+        "category_hint" : "MEAT",
+        "confidence" : 0.93000000000000005,
+        "display_name" : "Chicken Breast",
+        "is_fee" : false,
+        "is_non_food" : false,
+        "line_discount" : 1.5,
+        "on_sale" : true,
+        "price_per_kg" : 7.9900000000000002,
+        "quantity" : 1.2,
+        "quantity_grams" : 1200,
+        "raw_text" : "PBX CHKN BRST",
+        "sale_note" : "BOGO",
+        "tax_flag" : "F",
+        "total_price" : 9.5899999999999999,
+        "unit" : "kg",
+        "unit_price" : 7.9900000000000002
+      }
+    ],
+    "notes" : "Faint print at the bottom.",
+    "payment_method" : "VISA",
+    "provider" : "haiku_vision",
+    "purchase_date" : "2026-01-01T00:00:00Z",
+    "savings_amount" : 6.5,
+    "store" : "Publix",
+    "store_chain" : "publix",
+    "subtotal_amount" : 40.149999999999999,
+    "tax_amount" : 1.1200000000000001,
+    "total_amount" : 41.270000000000003
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

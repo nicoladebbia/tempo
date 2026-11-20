@@ -388,6 +388,46 @@ struct GroceryShareControllerTests {
         }
     }
 
+    /// Regression: SecurityHeadersMiddleware sent `default-src 'none'` on every
+    /// response, so the page's inline <style>/<script> were blocked — unstyled,
+    /// stuck on "Loading…", ticks never synced.
+    @Test func publicPageCarriesANonceCSPMatchingItsInlineTags() async throws {
+        try await withApp { app in
+            let (_, authToken) = try await makeUser(app: app)
+            var shareToken = ""
+            try await app.test(.PUT, "v1/grocery/shared", beforeRequest: { req in
+                req.headers.bearerAuthorization = .init(token: authToken)
+                req.headers.contentType = .json
+                req.body = upsertBody(items: [item(name: "Milk")])
+            }, afterResponse: { res async throws in
+                shareToken = try res.content.decode(RawEnvelope<ShareWire>.self).data.token
+                // JSON API responses keep the strict default.
+                #expect(res.headers.first(name: "Content-Security-Policy") == "default-src 'none'")
+            })
+
+            try await app.test(.GET, "g/\(shareToken)", afterResponse: { res async throws in
+                let csp = try #require(res.headers.first(name: "Content-Security-Policy"))
+                #expect(csp.contains("script-src 'nonce-"))
+                #expect(csp.contains("style-src 'nonce-"))
+                #expect(csp.contains("connect-src 'self'"))
+                let nonce = try #require(csp.components(separatedBy: "script-src 'nonce-").last?.components(separatedBy: "'").first)
+                #expect(!nonce.isEmpty)
+                let html = res.body.string
+                #expect(html.contains("<script nonce=\"\(nonce)\">"))
+                #expect(html.contains("<style nonce=\"\(nonce)\">"))
+            })
+
+            // Two responses never share a nonce.
+            var first = ""
+            try await app.test(.GET, "g/\(shareToken)", afterResponse: { res async in
+                first = res.headers.first(name: "Content-Security-Policy") ?? ""
+            })
+            try await app.test(.GET, "g/\(shareToken)", afterResponse: { res async in
+                #expect(res.headers.first(name: "Content-Security-Policy") != first)
+            })
+        }
+    }
+
     // MARK: - Validation
 
     @Test func emptyTitleIsBadRequest() async throws {
