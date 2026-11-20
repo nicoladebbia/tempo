@@ -82,7 +82,9 @@ struct TestModeClient: Client {
         case "api.openai.com":
             return Self.json(TestFixtures.openAIImage)
         case "api.prod.whoop.com":
-            return Self.json(TestFixtures.whoop(path: path))
+            return Self.json(TestFixtures.whoop(path: path, now: Date().addingTimeInterval(state.clockOffset)))
+        case "api.open-meteo.com":
+            return Self.json(TestFixtures.openMeteo(now: Date().addingTimeInterval(state.clockOffset)))
         default:
             if host.contains("instacart") {
                 return Self.json(#"{"products_link_url":"https://www.instacart.com/store/recipes/test-mode-list"}"#)

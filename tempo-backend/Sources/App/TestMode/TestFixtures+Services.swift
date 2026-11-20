@@ -82,13 +82,51 @@ extension TestFixtures {
     /// A tiny orange JPEG.
     static let openAIImage = #"{"created":1700000000,"data":[{"b64_json":"/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAACKADAAQAAAABAAAACAAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgACAAIAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMAAgICAgICAwICAwUDAwMFBgUFBQUGCAYGBgYGCAoICAgICAgKCgoKCgoKCgwMDAwMDA4ODg4ODw8PDw8PDw8PD//bAEMBAgICBAQEBwQEBxALCQsQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEP/dAAQAAf/aAAwDAQACEQMRAD8A6yiiiv8AMc/1MP/Z"}]}"#
 
-    static func whoop(path: String) -> String {
+    /// Open-Meteo hourly weather for the 3 days before `now` and the day after: a warm, humid afternoon.
+    static func openMeteo(now: Date) -> String {
+        let start = Date(timeIntervalSince1970: ((now.timeIntervalSince1970 - 3 * 86400) / 3600).rounded(.down) * 3600)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        let hours = (0 ..< 96).map { start.addingTimeInterval(Double($0) * 3600) }
+        let times = hours.map { "\"\(formatter.string(from: $0))\"" }.joined(separator: ",")
+        let temps = hours.map { _ in "27.5" }.joined(separator: ",")
+        let humidity = hours.map { _ in "72" }.joined(separator: ",")
+        return #"{"hourly":{"time":[\#(times)],"temperature_2m":[\#(temps)],"relative_humidity_2m":[\#(humidity)]}}"#
+    }
+
+    /// Two scored workouts relative to `now`: an 80-minute match that ended 10 minutes ago and a short walk.
+    static func whoopWorkouts(now: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let matchEnd = now.addingTimeInterval(-10 * 60), matchStart = matchEnd.addingTimeInterval(-80 * 60)
+        let walkEnd = now.addingTimeInterval(-5 * 3600), walkStart = walkEnd.addingTimeInterval(-15 * 60)
+        func record(_ id: Int, _ s: Date, _ e: Date, sport: Int, strain: Double, kj: Double) -> String {
+            #"{"id":\#(id),"user_id":10001,"created_at":"\#(formatter.string(from: e))","updated_at":"\#(formatter.string(from: e))","start":"\#(formatter.string(from: s))","end":"\#(formatter.string(from: e))","timezone_offset":"-05:00","sport_id":\#(sport),"score_state":"SCORED","score":{"strain":\#(strain),"average_heart_rate":150,"max_heart_rate":186,"kilojoule":\#(kj),"percent_recorded":100,"distance_meter":null,"altitude_gain_meter":null,"altitude_change_meter":null,"zone_duration":{"zone_zero_milli":0,"zone_one_milli":300000,"zone_two_milli":900000,"zone_three_milli":1800000,"zone_four_milli":1500000,"zone_five_milli":300000}}}"#
+        }
+        let records = [record(910001, matchStart, matchEnd, sport: 63, strain: 14.8, kj: 3500), record(910002, walkStart, walkEnd, sport: 63, strain: 3.1, kj: 180)]
+        return #"{"records":[\#(records.joined(separator: ","))],"next_token":null}"#
+    }
+
+    /// WHOOP v2 shape (UUID id, v1_id, sport_name, zone_durations): one 80-minute match that ended 10 minutes ago.
+    static func whoopWorkoutsV2(now: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let end = now.addingTimeInterval(-10 * 60), start = end.addingTimeInterval(-80 * 60)
+        let record = #"{"id":"ecfc6a15-4661-442f-a9a4-f160dd7afae8","v1_id":910001,"user_id":10001,"created_at":"\#(formatter.string(from: end))","updated_at":"\#(formatter.string(from: end))","start":"\#(formatter.string(from: start))","end":"\#(formatter.string(from: end))","timezone_offset":"-05:00","sport_name":"soccer","score_state":"SCORED","score":{"strain":14.8,"average_heart_rate":150,"max_heart_rate":186,"kilojoule":3500,"percent_recorded":100,"distance_meter":null,"altitude_gain_meter":null,"altitude_change_meter":null,"zone_durations":{"zone_zero_milli":0,"zone_one_milli":300000,"zone_two_milli":900000,"zone_three_milli":1800000,"zone_four_milli":1500000,"zone_five_milli":300000}}}"#
+        return #"{"records":[\#(record)],"next_token":null}"#
+    }
+
+    static func whoop(path: String, now: Date = Date()) -> String {
         if path.contains("oauth") {
             return #"{"access_token":"test-whoop-access","refresh_token":"test-whoop-refresh","expires_in":3600,"scope":"offline read:recovery read:sleep read:workout read:cycles","token_type":"bearer"}"#
         }
         if path.contains("user/profile") {
             return #"{"user_id":10001,"email":"athlete@test.local","first_name":"Test","last_name":"Athlete"}"#
         }
+        if path.contains("/v2/"), path.contains("activity/workout") { return whoopWorkoutsV2(now: now) }
+        if path.contains("activity/workout") { return whoopWorkouts(now: now) }
         return #"{"records":[],"next_token":null}"#
     }
 }

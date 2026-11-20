@@ -18,6 +18,10 @@ struct ResolvedNutrition: Sendable, Equatable, Codable {
     let fat: Double
     let fiber: Double?
     let sugars: Double?
+    /// Per-100g vitamins, minerals and fats keyed by `Nutrient.rawValue`.
+    /// nil = this value was cached before micronutrients were captured
+    /// (the cache refreshes such rows once); [:] = USDA reported none.
+    var micros: [String: Double]?
     /// 0...1. Lowered when the match is marginal or the food's reported
     /// energy doesn't roughly Atwater-reconcile with its macros.
     let confidence: Double
@@ -66,17 +70,35 @@ struct FoodNutritionResolver: Sendable {
         let normalized = Self.normalizeQuery(name)
         guard !normalized.isEmpty else { return nil }
 
+        var legacy: ResolvedNutrition?
         switch try await cacheLookup(normalized: normalized, on: req.db) {
         case let .hit(value):
             return value
         case .miss:
             return nil
+        case let .legacy(value):
+            legacy = value
         case .notCached:
             break
         }
 
-        let raw = try await usdaClient.search(query: name, dataTypes: ["Foundation", "SR Legacy"], pageSize: 10, on: req)
-        let resolved = Self.bestMatch(for: name, in: raw.foods, threshold: matchThreshold)
+        let raw: USDASearchRawResponse
+        do {
+            raw = try await usdaClient.search(query: name, dataTypes: ["Foundation", "SR Legacy"], pageSize: 10, on: req)
+        } catch {
+            // A refresh of an old row must never lose the good macros we already have:
+            // serve them now, try the refresh again next time.
+            if let legacy { return legacy }
+            throw error
+        }
+        var resolved = Self.bestMatch(for: name, in: raw.foods, threshold: matchThreshold)
+        if let legacy, resolved == nil {
+            // USDA no longer matches this name confidently. Keep the proven macros and stamp
+            // an empty micros map so we stop refreshing this row on every lookup.
+            var kept = legacy
+            kept.micros = [:]
+            resolved = kept
+        }
 
         // Only a genuine "no confident match" result gets cached as a miss —
         // an error above throws out of this function before we get here.
@@ -120,6 +142,7 @@ struct FoodNutritionResolver: Sendable {
 
     private enum CacheLookup {
         case hit(ResolvedNutrition)
+        case legacy(ResolvedNutrition)
         case miss
         case notCached
     }
@@ -134,6 +157,9 @@ struct FoodNutritionResolver: Sendable {
             return .notCached
         }
         if let value = row.toResolvedNutrition() {
+            // Cached before micronutrients existed: refresh once so the row gains them,
+            // but keep the old hit as the fallback (see `resolve`).
+            if value.micros == nil { return .legacy(value) }
             return .hit(value)
         }
         return .miss
@@ -158,11 +184,11 @@ struct FoodNutritionResolver: Sendable {
         }
         try await sql.raw("""
         INSERT INTO food_nutrition_cache
-            (id, normalized_query, is_hit, fdc_id, description, kcal, protein, carbs, fat, fiber, sugars, confidence, expires_at, created_at, updated_at)
+            (id, normalized_query, is_hit, fdc_id, description, kcal, protein, carbs, fat, fiber, sugars, micros, confidence, expires_at, created_at, updated_at)
         VALUES (
             \(bind: UUID()), \(bind: normalized), \(bind: resolved != nil), \(bind: resolved?.fdcId), \(bind: resolved?.description),
             \(bind: resolved?.kcal), \(bind: resolved?.protein), \(bind: resolved?.carbs), \(bind: resolved?.fat),
-            \(bind: resolved?.fiber), \(bind: resolved?.sugars), \(bind: resolved?.confidence), \(bind: expiresAt), \(bind: now), \(bind: now)
+            \(bind: resolved?.fiber), \(bind: resolved?.sugars), \(bind: resolved?.micros), \(bind: resolved?.confidence), \(bind: expiresAt), \(bind: now), \(bind: now)
         )
         ON CONFLICT (normalized_query) DO UPDATE SET
             is_hit = EXCLUDED.is_hit,
@@ -174,6 +200,7 @@ struct FoodNutritionResolver: Sendable {
             fat = EXCLUDED.fat,
             fiber = EXCLUDED.fiber,
             sugars = EXCLUDED.sugars,
+            micros = EXCLUDED.micros,
             confidence = EXCLUDED.confidence,
             expires_at = EXCLUDED.expires_at,
             updated_at = EXCLUDED.updated_at
@@ -222,14 +249,14 @@ struct FoodNutritionResolver: Sendable {
         let queryTokens = Set(tokenize(query))
         guard !queryTokens.isEmpty else { return nil }
 
-        var best: (dto: FoodDTO, score: Double)?
+        var best: (dto: FoodDTO, food: USDASearchRawResponse.Food, score: Double)?
         for food in foods {
             guard let dto = FoodDTO(usda: food) else { continue }
             let candidateTokens = Set(tokenize(food.description))
             let score = matchScore(queryTokens: queryTokens, candidateTokens: candidateTokens, dataType: food.dataType)
             guard score >= threshold else { continue }
             if best == nil || score > best!.score {
-                best = (dto, score)
+                best = (dto, food, score)
             }
         }
         guard let match = best else { return nil }
@@ -249,6 +276,7 @@ struct FoodNutritionResolver: Sendable {
             fat: match.dto.fat,
             fiber: match.dto.fiber,
             sugars: match.dto.sugars,
+            micros: MicronutrientExtractor.extract(from: match.food),
             confidence: confidence
         )
     }

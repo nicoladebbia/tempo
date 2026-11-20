@@ -350,6 +350,36 @@ struct ContractGoldenTests {
         }
     }
 
+    // MARK: - Recovery coach (driven)
+
+    @Test func coachRoutesAndPush() async throws {
+        try await withApp { app in
+            let session = try await login(app, name: "contract-coach")
+            let now = app.now
+            let end = now.addingTimeInterval(-600)
+            let start = end.addingTimeInterval(-80 * 60)
+            let id = "ecfc6a15-4661-442f-a9a4-f160dd7afae8"
+            _ = try await app.redis.delete(RedisKey("coach:notified:\(session.userID):\(id)")).get()
+            let match = CoachSession(id: id, start: start, end: end, sportName: "soccer", strain: 14.8, kilojoules: 3500, averageHeartRate: 150, percentRecorded: 100)
+            app.coachWorkoutSource = FakeCoachSource(all: [match])
+            app.weatherProvider = FakeWeather(result: WeatherConditions(temperatureC: 27.5, relativeHumidityPercent: 72))
+
+            try golden("coach-sessions-recent", await call(app, .GET, "v1/coach/sessions/recent", token: session.accessToken))
+
+            let iso = { (d: Date) in CoachSessionRules.whoopTimestamp(d) }
+            let body = #"{"session_id":"\#(id)","session_start":"\#(iso(start))","weigh_ins":[{"time":"\#(iso(start.addingTimeInterval(-600)))","kg":78.0,"source":"withings"},{"time":"\#(iso(end.addingTimeInterval(300)))","kg":76.8,"source":"withings"}],"drank_liters":0.5,"urine_liters":0,"hours_until_next_hard_session":24,"latitude":25.8,"longitude":-80.2}"#
+            try golden("coach-recovery", await call(app, .POST, "v1/coach/recovery", token: session.accessToken, body: body))
+
+            let needs = #"{"session_id":"\#(id)","session_start":"\#(iso(start))","weigh_ins":[],"body_mass_kg":78}"#
+            try golden("coach-recovery-needs-weigh-in", await call(app, .POST, "v1/coach/recovery", token: session.accessToken, body: needs))
+
+            let state = try #require(app.testMode)
+            state.clearPushes(for: session.userID)
+            _ = try await CoachWorkoutWatch().check(userID: session.userID, app: app, now: now, requireDevice: false)
+            try golden("push-post_workout_weighin", Data(#require(state.pushes(for: session.userID).last).payload.utf8))
+        }
+    }
+
     @Test func programImportQuota() async throws {
         try await withApp { app in
             let session = try await login(app, name: "contract-quota", pro: false)

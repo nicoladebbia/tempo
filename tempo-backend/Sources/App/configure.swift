@@ -191,6 +191,7 @@ func configure(
     app.migrations.add(CreateExerciseImages())
     app.migrations.add(CreateExerciseImageMonthlySpend())
     app.migrations.add(CreateFoodNutritionCache())
+    app.migrations.add(AddMicrosToFoodNutritionCache())
     app.migrations.add(CreateWeeklyPlanJobs())
     app.migrations.add(AddAPNsRoutingToDeviceTokens())
     app.migrations.add(CreateSharedGroceryLists())
@@ -236,6 +237,11 @@ func configure(
     // Runs every 15 minutes, checks which users need their morning briefing.
     app.queues.schedule(MorningBriefingJob())
         .every(minutes: 15)
+
+    // Recovery coach safety net: finds big WHOOP workouts that just ended and sends the "weigh in now" push.
+    // The WHOOP webhook does the same instantly; this sweep covers a missed or unregistered webhook.
+    app.queues.schedule(CoachWorkoutWatchJob())
+        .every(minutes: 10)
 
     // Per BUILD_PLAN step 15.2 — Weekly summary job.
     // Per AI_INTELLIGENCE_ENGINE.md Section 6.3 — Sunday 20:00 cache warming.
