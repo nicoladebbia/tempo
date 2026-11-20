@@ -7,6 +7,7 @@
 // the fix card for a build that can never succeed as-is (needs Pro / AI off).
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - PlanUpdateBanner

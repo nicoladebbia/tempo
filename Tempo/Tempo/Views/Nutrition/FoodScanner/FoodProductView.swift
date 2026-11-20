@@ -290,7 +290,7 @@ struct FoodProductView: View {
                 .overlay {
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fill)
+                        .scaledToFill()
                         .blur(radius: 24)
                 }
                 .overlay(Color.black.opacity(TempoOpacity.o40))
