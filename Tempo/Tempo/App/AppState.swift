@@ -47,6 +47,11 @@ struct MealRequest: Equatable, Identifiable {
     let action: Action
 }
 
+/// A Recovery Coach session a notification wants on screen (WHOOP v2 workout id).
+struct CoachRequest: Equatable, Identifiable {
+    let id: String
+}
+
 /// A Nutrition section (and Kitchen sub-section) a notification wants shown.
 struct NutritionRoute: Equatable {
     var section: NutritionSection
@@ -69,6 +74,8 @@ final class AppState {
     /// Set by a meal notification (tap, "Log meal", "View meal"):
     /// ContentView presents that meal.
     var requestedMeal: MealRequest?
+    /// Set by the "Session done. Weigh in now." push tap: ContentView presents the Recovery Coach.
+    var requestedCoach: CoachRequest?
     /// Set by a notification that wants a specific Nutrition section (Plan for
     /// "week is ready", Kitchen › Supplements …); ContentView applies and clears it.
     var requestedNutrition: NutritionRoute?

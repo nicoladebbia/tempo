@@ -19,6 +19,8 @@ struct NotificationDestination: Equatable {
     /// Kitchen sub-section (implies the Kitchen section).
     var kitchenSection: KitchenSection?
     var meal: MealRequest?
+    /// Open the Recovery Coach for this WHOOP session (id is a UUID string).
+    var coachSessionID: String?
     /// Open the weekly check-in sheet.
     var weeklyCheckIn = false
     /// Pull the server-built plan (the "week is ready" push).
@@ -40,10 +42,10 @@ enum NotificationRouter {
     static let dismissActionID = UNNotificationDismissActionIdentifier
 
     /// Buttons that act without opening anything.
-    private static let quietActions: Set<String> = [
+    private static let quietActions: Set<String> = Set([
         dismissActionID, "DONE", "DELAY_15MIN", "DELAY_30MIN", "SKIP_TODAY", "IM_ON_IT",
         "SUPPLEMENT_TAKEN", "SUPPLEMENT_SNOOZE_15",
-    ]
+    ]).union(CoachQuickAnswerAction.allCases.map(\.rawValue))
 
     /// `userInfo` is the notification's raw payload: server pushes nest custom
     /// keys under `"data"`, local ones put them at the top level.
@@ -64,6 +66,10 @@ enum NotificationRouter {
         case "MEAL_REMINDER", "OVERDUE_MEAL_REMINDER", "DEFROST_REMINDER", "PREP_START_REMINDER":
             let request = TempoNotificationDelegate.mealRequest(category: category, action: action, mealID: mealID)
             return request.map { .nutrition(.today, meal: $0) } ?? .nutrition(.today)
+        case CoachNotifications.postCategoryID:
+            return coach(userInfo: userInfo)
+        case CoachNotifications.preCategoryID:
+            return .nutrition(.today)
         case "SUPPLEMENT_REMINDER":
             return .nutrition(kitchen: .supplements)
         case "SUPPLEMENT_REORDER":
@@ -82,8 +88,15 @@ enum NotificationRouter {
              "ACCOUNTABILITY_URGENT", "ACCOUNTABILITY_FINAL", "ACCOUNTABILITY_CLEAR":
             return .tab(.lockdown)
         default:
-            return destination(forPushType: type, mealID: mealID)
+            return destination(forPushType: type, mealID: mealID, userInfo: userInfo)
         }
+    }
+
+    /// "Session done. Weigh in now.": the Nutrition tab, with the coach screen for that session.
+    static func coach(userInfo: [AnyHashable: Any]) -> NotificationDestination {
+        var destination = NotificationDestination.nutrition(.today)
+        destination.coachSessionID = CoachNotifications.sessionID(from: userInfo)
+        return destination
     }
 
     /// "Your week is ready": the Plan section with the new week.
@@ -94,13 +107,15 @@ enum NotificationRouter {
     }
 
     /// Server pushes whose category isn't registered on the device still route by type.
-    private static func destination(forPushType type: String?, mealID: String?) -> NotificationDestination? {
+    private static func destination(forPushType type: String?, mealID: String?, userInfo: [AnyHashable: Any]) -> NotificationDestination? {
         switch type {
         case "meal_plan_ready":
             return planReady()
         case "meal_reminder":
             let request = TempoNotificationDelegate.mealRequest(category: "MEAL_REMINDER", action: defaultActionID, mealID: mealID)
             return request.map { .nutrition(.today, meal: $0) } ?? .nutrition(.today)
+        case CoachNotifications.pushType:
+            return coach(userInfo: userInfo)
         case "training_reminder":
             return .tab(.training)
         case "recovery_morning":

@@ -50,6 +50,12 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
 
         // Buttons that do work in the background; everything else navigates.
         switch (category, action) {
+        case (CoachNotifications.postCategoryID, _) where CoachNotifications.quickAnswer(forAction: action) != nil:
+            // Stored on the phone only: works in the background with no network.
+            if let answer = CoachNotifications.handleQuickAnswer(action: action, userInfo: userInfo) {
+                await CoachNotifications.postConfirmation(answer, bottleMl: RecoveryCoachStore.shared.read().bottleMl)
+            }
+            return
         case (WeeklyPlanReminder.categoryID, WeeklyPlanReminder.buildActionID):
             await buildNextWeek()
             return
@@ -155,6 +161,9 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         }
         if let meal = destination.meal {
             appState.requestedMeal = meal
+        }
+        if let coachID = destination.coachSessionID {
+            appState.requestedCoach = CoachRequest(id: coachID)
         }
     }
 

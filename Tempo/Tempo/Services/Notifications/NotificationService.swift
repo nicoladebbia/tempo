@@ -209,7 +209,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             ),
         ]
 
-        center.setNotificationCategories(categories)
+        center.setNotificationCategories(categories.union(CoachNotifications.categories()))
         logger.info("Registered \(categories.count) notification categories")
     }
 
