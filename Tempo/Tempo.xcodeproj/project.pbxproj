@@ -1312,6 +1312,7 @@
 		FF1536CFE89CCAFE9E0A60A4 /* NotificationRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185E93DF5848D6A6F0DD96EC /* NotificationRecorder.swift */; };
 		FF1B9DB85E3FE438CD334E2C /* TodayDisplayStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6546B04E128CC045005884EB /* TodayDisplayStateTests.swift */; };
 		FF80C3382430B9362040DD06 /* TrainingSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E368192371339FC19E3FAEE /* TrainingSetupView.swift */; };
+		FFBCAB55B31BF0CD6032AD40 /* TrainingViewModel+DailyCoachOverrides.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92E47AD38B333EACE7F01C58 /* TrainingViewModel+DailyCoachOverrides.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -2116,6 +2117,7 @@
 		927698CA62276B950C4D8166 /* cue_ex_kettlebell_swing.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_kettlebell_swing.mp3; sourceTree = "<group>"; };
 		92D1D8E18ECB82729A3F6ABC /* CoachChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachChatView.swift; sourceTree = "<group>"; };
 		92D3A8599DF88C6309EA3F37 /* CoachTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachTools.swift; sourceTree = "<group>"; };
+		92E47AD38B333EACE7F01C58 /* TrainingViewModel+DailyCoachOverrides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+DailyCoachOverrides.swift"; sourceTree = "<group>"; };
 		9312A3DF30B2051038869E06 /* CoachConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachConversation.swift; sourceTree = "<group>"; };
 		931F764CBA37FAB20D930007 /* MacroCarryover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroCarryover.swift; sourceTree = "<group>"; };
 		9354789CD22E8064188D8E5B /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
@@ -4024,6 +4026,7 @@
 				86E70856BD5D38154690BB16 /* TrainingViewModel.swift */,
 				75C37878C77D9359465AC7DE /* TrainingViewModel+Computed.swift */,
 				8988EFA7C093991CD0F98398 /* TrainingViewModel+ConditioningLogging.swift */,
+				92E47AD38B333EACE7F01C58 /* TrainingViewModel+DailyCoachOverrides.swift */,
 				CDFE224EB0E5E706D8CF6A5F /* TrainingViewModel+ExercisePopulation.swift */,
 				C8D18D66B4AAEC8AD2DDF12E /* TrainingViewModel+Groups.swift */,
 				D66D6B62D70CE3B29A449402 /* TrainingViewModel+LiveActivityCoordination.swift */,
@@ -6528,6 +6531,7 @@
 				92D211B47535A258CBC8302F /* TrainingTabView.swift in Sources */,
 				331BBFAC55A48EF711897404 /* TrainingViewModel+Computed.swift in Sources */,
 				BA67277CFB46AFADD2EA8800 /* TrainingViewModel+ConditioningLogging.swift in Sources */,
+				FFBCAB55B31BF0CD6032AD40 /* TrainingViewModel+DailyCoachOverrides.swift in Sources */,
 				7FA2D1077D6A211D95AD36D7 /* TrainingViewModel+ExercisePopulation.swift in Sources */,
 				0F1279930519E9F407C05EDB /* TrainingViewModel+Groups.swift in Sources */,
 				B6938104189AC30745A65CBD /* TrainingViewModel+LiveActivityCoordination.swift in Sources */,
