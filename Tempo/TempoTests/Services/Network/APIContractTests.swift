@@ -40,6 +40,7 @@ final class APIContractTests: XCTestCase {
         "nutrition-weekly-plans-latest", "nutrition-weekly-plans-latest-none",
         "foods-search",
         "push-meal_plan_ready", "push-recovery_morning", "push-general",
+        "coach-sessions-recent", "coach-recovery", "coach-recovery-needs-weigh-in", "push-post_workout_weighin",
     ]
 
     private func goldenData(_ slug: String, file: StaticString = #filePath, line: UInt = #line) throws -> Data {
@@ -257,6 +258,98 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(pick.form, "powder")
         XCTAssertEqual(pick.buyLinks.first?.label, "Amazon")
         XCTAssertNotNil(r.lookFor)
+    }
+
+    // MARK: - Recovery Coach
+
+    func testCoachSessionsRecent() throws {
+        let r: [CoachSession] = try decode("coach-sessions-recent")
+        let s = try XCTUnwrap(r.first)
+        XCTAssertEqual(s.id, "00000000-0000-0000-0000-000000000001")
+        XCTAssertEqual(s.sportName, "soccer")
+        XCTAssertEqual(s.strain, 14.8)
+        XCTAssertEqual(s.kilojoules, 3500)
+        XCTAssertEqual(s.averageHeartRate, 150)
+        XCTAssertEqual(s.percentRecorded, 100)
+        XCTAssertEqual(s.start, try date())
+    }
+
+    func testCoachRecoveryReady() throws {
+        let r: CoachRecoveryResponse = try decode("coach-recovery")
+        XCTAssertEqual(r.status, .ready)
+        XCTAssertEqual(r.missing, [])
+        XCTAssertEqual(r.preWeighIn?.kg, 78)
+        XCTAssertEqual(r.postWeighIn?.kg, 76.8)
+        XCTAssertEqual(r.preWeighIn?.source, "withings")
+        XCTAssertEqual(r.session?.id, "00000000-0000-0000-0000-000000000001")
+        let sweat = try XCTUnwrap(r.sweat)
+        XCTAssertEqual(try XCTUnwrap(sweat.massLostKg), 1.2, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(sweat.sweatLitersLow), 1.503, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(sweat.sweatLitersMid), 1.567, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(sweat.sweatLitersHigh), 1.617, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(sweat.sweatLitersRaw), 1.7, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(sweat.marginOfErrorPercent), 10.71, accuracy: 0.01)
+        XCTAssertEqual(sweat.protocolQuality, "tight")
+        XCTAssertFalse(sweat.isLowerBound)
+        XCTAssertFalse(sweat.meetsFivePercentTarget)
+        XCTAssertEqual(sweat.assumptions.count, 3)
+        XCTAssertEqual(sweat.percentBodyMassLost, 1.538, accuracy: 0.001)
+        let plan = try XCTUnwrap(r.plan)
+        XCTAssertEqual(try XCTUnwrap(plan.drinkLiters), 1.2, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(plan.sodiumMgLow), 345.56, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(plan.sodiumMgHigh), 2602.55, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(plan.sodiumMgPlan), 1255.37, accuracy: 0.01)
+        XCTAssertEqual(plan.carbsGrams, 124.8, accuracy: 0.001)
+        XCTAssertEqual(plan.carbWindowHours, 2)
+        XCTAssertEqual(plan.proteinGrams, 20)
+        XCTAssertEqual(plan.leucineMgLow, 700)
+        XCTAssertEqual(plan.leucineMgHigh, 3000)
+        XCTAssertEqual(plan.reasons.count, 5)
+        XCTAssertEqual(plan.evidence.count, 6)
+        XCTAssertEqual(r.notes.count, 4)
+    }
+
+    func testCoachRecoveryNeedsWeighIn() throws {
+        let r: CoachRecoveryResponse = try decode("coach-recovery-needs-weigh-in")
+        XCTAssertEqual(r.status, .needsWeighIn)
+        XCTAssertTrue(r.missingPre)
+        XCTAssertTrue(r.missingPost)
+        XCTAssertNil(r.sweat)
+        XCTAssertNil(r.preWeighIn)
+        let plan = try XCTUnwrap(r.plan)
+        XCTAssertNil(plan.drinkLiters)
+        XCTAssertNil(plan.sodiumMgPlan)
+        XCTAssertEqual(plan.carbsGrams, 124.8, accuracy: 0.001)
+        XCTAssertEqual(plan.proteinGrams, 20)
+        XCTAssertEqual(plan.reasons.count, 3)
+        XCTAssertEqual(r.notes.count, 2)
+    }
+
+    func testCoachRequestEncodesSnakeCase() throws {
+        let req = CoachRecoveryRequest(
+            sessionId: "abc-7", sessionStart: try date(),
+            weighIns: [CoachWeighIn(time: try date(), kg: 78, source: "withings")], drankLiters: 0.5, latitude: 25.8, longitude: -80.2
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: encoder.encode(req)) as? [String: Any])
+        XCTAssertEqual(json["session_id"] as? String, "abc-7")
+        XCTAssertEqual(json["session_start"] as? String, "2026-01-01T00:00:00Z")
+        XCTAssertEqual(json["drank_liters"] as? Double, 0.5)
+        XCTAssertNil(json["urine_liters"])
+        XCTAssertEqual((json["weigh_ins"] as? [[String: Any]])?.first?["source"] as? String, "withings")
+    }
+
+    func testCoachPushPayload() throws {
+        let data = try goldenData("push-post_workout_weighin")
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let aps = try XCTUnwrap(root["aps"] as? [String: Any])
+        XCTAssertEqual(aps["category"] as? String, "POST_WORKOUT_WEIGHIN")
+        let payload = try XCTUnwrap(CoachPushPayload(userInfo: root))
+        XCTAssertEqual(payload.sessionId, "00000000-0000-0000-0000-000000000001")
+        XCTAssertEqual(payload.sessionStart, try date())
+        XCTAssertEqual(payload.sessionEnd, try date())
+        XCTAssertEqual((root["data"] as? [String: Any])?["deep_link"] as? String, "tempo://coach/recovery/00000000-0000-0000-0000-000000000001")
     }
 
     // MARK: - Grocery + exercise images
