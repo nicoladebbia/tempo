@@ -69,6 +69,16 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .idle)
     }
 
+    func testBodyMassFallsBackToHealthWhenNoWeighInInWindow() async throws {
+        let api = FakeCoachAPI()
+        api.sessions = .success([session()])
+        api.recovery = .success(try response(needs))
+        let (model, _) = make(api: api)
+        await model.refresh()
+        XCTAssertTrue(try XCTUnwrap(api.requests.first).weighIns.isEmpty)
+        XCTAssertEqual(api.requests.first?.bodyMassKg, 75.2) // MockHealthKitService.fetchBodyComposition
+    }
+
     func testQuickAnswerAndWaterLogsAreSummed() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])

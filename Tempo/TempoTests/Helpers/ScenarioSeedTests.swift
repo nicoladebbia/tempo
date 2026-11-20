@@ -62,6 +62,19 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(chicken.quantity, 1200 - 180)
     }
 
+    func testCoachScenarioHasAMatchInThreeHoursAndAFreshCoachStore() throws {
+        RecoveryCoachStore.shared.recordQuickAnswer(sessionID: "stale", bottles: 1)
+        let now = Date()
+        ScenarioSeed.seed("coach", context: context, now: now)
+
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: onboardingKey))
+        let match = try XCTUnwrap(context.fetch(FetchDescriptor<Match>()).first)
+        XCTAssertEqual(match.kickoff.timeIntervalSince(now), 3 * 3600, accuracy: 1)
+        XCTAssertTrue(RecoveryCoachStore.shared.read().quickAnswers.isEmpty)
+        let reminders = PreMatchWeighInPlan.reminders(kickoffs: [match.kickoff], now: now, lastWeighIn: nil)
+        XCTAssertEqual(reminders.first?.fireDate.timeIntervalSince(now) ?? 0, 2 * 3600, accuracy: 1)
+    }
+
     func testGroceriesAndTrainingReuseTheirUITestSeeds() {
         ScenarioSeed.seed("groceries", context: context)
         XCTAssertGreaterThan(count(GroceryListItem.self), 0)

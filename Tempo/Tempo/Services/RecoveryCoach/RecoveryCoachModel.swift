@@ -200,10 +200,21 @@ final class RecoveryCoachModel {
         }
         guard mine == generation else { return }
 
+        // Body mass sizes the food targets when there is no weigh-in yet: the newest weight in Health.
+        var bodyMass = sent.last?.kg
+        if bodyMass == nil, let healthKit {
+            do {
+                bodyMass = try await healthKit.fetchBodyComposition().weightKg
+            } catch {
+                logger.error("body composition read failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        guard mine == generation else { return }
+
         phase = .loading(.coach)
         let request = CoachRecoveryRequest(
             sessionId: session.id, sessionStart: session.start, weighIns: sent, drankLiters: fluids.liters,
-            latitude: lat, longitude: lon, bodyMassKg: sent.last?.kg
+            latitude: lat, longitude: lon, bodyMassKg: bodyMass
         )
         do {
             let response = try await api.recovery(request)

@@ -16,7 +16,8 @@ struct ManualWeighInSheet: View {
     }
 
     let session: CoachSession
-    let missingPre: Bool
+    /// The weigh-in the screen asked for first: after the session when that one is missing.
+    let startsWithAfter: Bool
     let onSave: (_ kg: Double, _ time: Date) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -27,11 +28,11 @@ struct ManualWeighInSheet: View {
     @State private var error: String?
     @FocusState private var focused: Bool
 
-    init(session: CoachSession, missingPre: Bool, onSave: @escaping (Double, Date) -> Void) {
+    init(session: CoachSession, startsWithAfter: Bool, onSave: @escaping (Double, Date) -> Void) {
         self.session = session
-        self.missingPre = missingPre
+        self.startsWithAfter = startsWithAfter
         self.onSave = onSave
-        let startWhen: When = missingPre ? .before : .after
+        let startWhen: When = startsWithAfter ? .after : .before
         _when = State(initialValue: startWhen)
         _time = State(initialValue: Self.defaultTime(for: startWhen, session: session))
         _useLb = State(initialValue: Locale.current.measurementSystem == .us)

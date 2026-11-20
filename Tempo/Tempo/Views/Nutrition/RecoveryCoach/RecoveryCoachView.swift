@@ -37,7 +37,7 @@ struct RecoveryCoachView: View {
         .background(Color.tempoBgPrimary.ignoresSafeArea())
         .sheet(isPresented: $showWeighIn) {
             if let session = model.session {
-                ManualWeighInSheet(session: session, missingPre: model.result?.missingPre ?? false) { kg, time in
+                ManualWeighInSheet(session: session, startsWithAfter: model.result?.missingPost ?? true) { kg, time in
                     Task { await model.addManualWeighIn(kg: kg, at: time) }
                 }
                 .presentationDetents([.large])
@@ -252,7 +252,7 @@ struct RecoveryCoachView: View {
                 .font(.tempoModuleTag)
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
-            Text("About \(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h and \(Int(plan.proteinGrams.rounded())) g protein in one go. The fluid and salt numbers need your weight.")
+            Text("About \(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h and \(Int(plan.proteinGrams.rounded())) g protein in one go. The fluid and salt numbers appear once both weigh-ins are in.")
                 .font(.tempoSubheadline)
                 .foregroundStyle(Color.tempoTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -383,7 +383,7 @@ struct RecoveryCoachView: View {
                         .multilineTextAlignment(.leading)
                 }
                 Spacer()
-                Text(model.fluids.liters.map { RecoveryCoachFormat.liters($0) } ?? "Unknown")
+                Text(model.fluids.liters.map { "\(Int(($0 * 1000).rounded())) mL" } ?? "Unknown")
                     .font(.tempoDataSmall)
                     .foregroundStyle(Color.tempoElectric)
                 Image(systemName: "chevron.right")
