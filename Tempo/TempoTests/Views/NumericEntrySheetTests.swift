@@ -8,6 +8,7 @@
 @testable import Tempo
 import XCTest
 
+@MainActor
 final class NumericEntrySheetTests: XCTestCase {
     // MARK: - sanitize
 
