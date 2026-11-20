@@ -17,6 +17,8 @@ actor WhoopAPIService {
     // MARK: - Whoop API v2 Endpoints
 
     private static let baseURL = "https://api.prod.whoop.com/developer/v1"
+    /// WHOOP v2: UUID ids, `sport_name`, `zone_durations`. v1 webhooks have been removed by WHOOP.
+    static let baseURLV2 = "https://api.prod.whoop.com/developer/v2"
 
     // MARK: - Public API
 
@@ -45,13 +47,13 @@ actor WhoopAPIService {
                 guard retryResponse.status == .ok else {
                     throw Abort(.badGateway, reason: "Whoop recovery fetch failed: \(retryResponse.status)")
                 }
-                return try retryResponse.content.decode(WhoopAPIRecoveryResponse.self)
+                return try WhoopJSON.decode(WhoopAPIRecoveryResponse.self, from: retryResponse)
             }
             throw Abort(.badGateway, reason: "Whoop recovery fetch failed: \(response.status)")
         }
 
         req.logger.info("Whoop API: fetched recovery for user \(userID)")
-        return try response.content.decode(WhoopAPIRecoveryResponse.self)
+        return try WhoopJSON.decode(WhoopAPIRecoveryResponse.self, from: response)
     }
 
     /// Fetch sleep data for a date range.
@@ -78,13 +80,13 @@ actor WhoopAPIService {
                 guard retryResponse.status == .ok else {
                     throw Abort(.badGateway, reason: "Whoop sleep fetch failed: \(retryResponse.status)")
                 }
-                return try retryResponse.content.decode(WhoopAPISleepResponse.self)
+                return try WhoopJSON.decode(WhoopAPISleepResponse.self, from: retryResponse)
             }
             throw Abort(.badGateway, reason: "Whoop sleep fetch failed: \(response.status)")
         }
 
         req.logger.info("Whoop API: fetched sleep for user \(userID)")
-        return try response.content.decode(WhoopAPISleepResponse.self)
+        return try WhoopJSON.decode(WhoopAPISleepResponse.self, from: response)
     }
 
     /// Fetch workouts for a date range.
@@ -111,13 +113,13 @@ actor WhoopAPIService {
                 guard retryResponse.status == .ok else {
                     throw Abort(.badGateway, reason: "Whoop workout fetch failed: \(retryResponse.status)")
                 }
-                return try retryResponse.content.decode(WhoopAPIWorkoutResponse.self)
+                return try WhoopJSON.decode(WhoopAPIWorkoutResponse.self, from: retryResponse)
             }
             throw Abort(.badGateway, reason: "Whoop workout fetch failed: \(response.status)")
         }
 
         req.logger.info("Whoop API: fetched workouts for user \(userID)")
-        return try response.content.decode(WhoopAPIWorkoutResponse.self)
+        return try WhoopJSON.decode(WhoopAPIWorkoutResponse.self, from: response)
     }
 
     /// Fetch cycle/strain data for a date range.
@@ -144,13 +146,13 @@ actor WhoopAPIService {
                 guard retryResponse.status == .ok else {
                     throw Abort(.badGateway, reason: "Whoop cycle fetch failed: \(retryResponse.status)")
                 }
-                return try retryResponse.content.decode(WhoopAPICycleResponse.self)
+                return try WhoopJSON.decode(WhoopAPICycleResponse.self, from: retryResponse)
             }
             throw Abort(.badGateway, reason: "Whoop cycle fetch failed: \(response.status)")
         }
 
         req.logger.info("Whoop API: fetched cycles for user \(userID)")
-        return try response.content.decode(WhoopAPICycleResponse.self)
+        return try WhoopJSON.decode(WhoopAPICycleResponse.self, from: response)
     }
 
     // MARK: - Token Management
@@ -158,7 +160,7 @@ actor WhoopAPIService {
 
     /// Returns a valid access token, refreshing if needed.
     /// If a refresh is already in-flight for this user, awaits that task.
-    private func validAccessToken(for userID: String, on req: Request) async throws -> String {
+    func validAccessToken(for userID: String, on req: Request) async throws -> String {
         // If a refresh is already in-flight, await it
         if let existingTask = refreshTasks[userID] {
             return try await existingTask.value
@@ -187,7 +189,7 @@ actor WhoopAPIService {
     }
 
     /// Force a token refresh (used when API returns 401).
-    private func forceRefreshToken(for userID: String, on req: Request) async throws -> String {
+    func forceRefreshToken(for userID: String, on req: Request) async throws -> String {
         if let existingTask = refreshTasks[userID] {
             return try await existingTask.value
         }

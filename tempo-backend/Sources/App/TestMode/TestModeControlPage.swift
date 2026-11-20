@@ -95,7 +95,7 @@ code{font-size:12px;color:var(--muted)}
 <script>
 const MODES=["fake","broken","empty","slow","error","real","replay"];
 const KINDS=["error","slow","logout","garbage","empty","timeout"];
-const JOBS=["morning-briefing","weekly-summary","drill-sergeant","leaderboard-refresh","notifications-cleanup"];
+const JOBS=["morning-briefing","weekly-summary","drill-sergeant","leaderboard-refresh","notifications-cleanup","coach-workout-watch"];
 const SUBS=["free","trial","active","cancelled","grace","billing-retry","expired","refunded"];
 const PERSONAS=["athlete","picky-vegan","exam-week","injured","lapsed-pro"];
 const $=id=>document.getElementById(id);
