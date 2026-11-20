@@ -61,10 +61,10 @@ targets:
           - "Configuration/*.xcconfig"
       # Shared with the TempoWatch target — the quick-action wire types are
       # decoded by the phone's PhoneWatchConnectivityService (§21 sync).
-      - path: TempoWatch/Models/WatchQuickAction.swift
+      - path: Shared/WatchWire/WatchQuickAction.swift
       # Shared with the TempoWatch target — WatchSnapshotBuilder (§22)
       # builds one directly and pushes it via PhoneWatchConnectivityService.
-      - path: TempoWatch/Models/WatchSnapshot.swift
+      - path: Shared/WatchWire/WatchSnapshot.swift
     dependencies:
       - target: TempoWidget
       - package: PostHog
@@ -298,6 +298,7 @@ targets:
       - path: TempoWatch
         excludes:
           - "**/*.entitlements"
+      - path: Shared/WatchWire
       # Shared with the Tempo app target — the workout payload the phone
       # pushes and the watch consumes (§21 sync).
       - path: Tempo/Services/Integrations/WatchWorkoutPayload.swift
