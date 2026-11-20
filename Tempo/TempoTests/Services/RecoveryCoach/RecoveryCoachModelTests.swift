@@ -69,6 +69,18 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .idle)
     }
 
+    /// The server answers 404 while it has no WHOOP access yet (the phone shares it after its WHOOP check).
+    /// That is "nothing to weigh", not an error screen.
+    func testServerWithoutWhoopAccessIsQuietNotAnError() async throws {
+        let api = FakeCoachAPI()
+        api.sessions = .failure(APIError.notFound)
+        let (model, _) = make(api: api)
+        await model.refresh()
+        XCTAssertEqual(model.phase, .idle)
+        XCTAssertFalse(model.hasSession)
+        XCTAssertTrue(api.requests.isEmpty)
+    }
+
     func testBodyMassFallsBackToHealthWhenNoWeighInInWindow() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
