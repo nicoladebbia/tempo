@@ -217,6 +217,7 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(r.ingredients?.first, "Whey protein isolate 25 g")
     }
 
+    @MainActor
     func testSupplementLookupDisputed() throws {
         let r: SupplementLookupDTO = try decode("supplements-lookup-disputed")
         XCTAssertEqual(r.source, "tempo")

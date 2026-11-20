@@ -573,22 +573,18 @@ final class MealOutcomeServiceTests: XCTestCase {
     func testSkipUndoAndDeleteRequestAReplan() throws {
         let p = plan()
         let lunch = slot("Lunch", number: 2, in: p)
-        var count = 0
-        let token = NotificationCenter.default.addObserver(
-            forName: .tempoDayPlanReplanRequested, object: nil, queue: nil
-        ) { _ in count += 1 }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let replans = NotificationRecorder(.tempoDayPlanReplanRequested)
 
         try MealOutcomeService.skip(lunch, env: env)
-        XCTAssertEqual(count, 1)
+        XCTAssertEqual(replans.count, 1)
         _ = try MealOutcomeService.undo(lunch, env: env)
-        XCTAssertEqual(count, 2)
+        XCTAssertEqual(replans.count, 2)
         let log = try EatenMealRecorder.record(
             [food("Toast", kcal: 200)], type: .snack, eatenAt: Date(), source: .manual, modelContext: context
         ).meal
-        let before = count
+        let before = replans.count
         _ = try MealOutcomeService.deleteLog(log, env: env)
-        XCTAssertGreaterThan(count, before)
+        XCTAssertGreaterThan(replans.count, before)
     }
 
     func testEatingCancelsThePreMealFuelUpReminder() throws {

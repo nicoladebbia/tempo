@@ -11,11 +11,12 @@ import XCTest
 // A user who finished onboarding without signing in can still sign in from
 // Settings → Account (otherwise every AI call fails as "session expired").
 
+@MainActor
 final class SettingsSignInFlowTests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }

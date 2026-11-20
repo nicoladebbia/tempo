@@ -12,6 +12,7 @@ import XCTest
 
 // Per TESTING_STRATEGY.md Section 5 — Page Object Model for UI tests.
 
+@MainActor
 class BasePage {
     let app: XCUIApplication
 

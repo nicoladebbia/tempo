@@ -17,18 +17,18 @@ import XCTest
 final class ExerciseImageServiceTests: XCTestCase {
     private var tempDir: URL!
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
+    override func setUp() async throws {
+        try await super.setUp()
         MockURLProtocol.reset()
         tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         MockURLProtocol.reset()
         if let tempDir {
             try? FileManager.default.removeItem(at: tempDir)
         }
-        try super.tearDownWithError()
+        try await super.tearDown()
     }
 
     private func makeService(isSignedIn: Bool = true) -> ExerciseImageService {
@@ -167,7 +167,6 @@ final class ExerciseImageServiceTests: XCTestCase {
         let getCallCount = LockedCounter()
 
         MockURLProtocol.setHandler { request in
-            let path = request.url?.path ?? ""
             if request.httpMethod == "POST" {
                 postCallCount.increment()
                 // Simulate the real ~10-30s generation latency with a short
