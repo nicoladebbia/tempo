@@ -50,6 +50,7 @@
 - [ADR-028: Apple Watch as companion app, not independent](#adr-028-apple-watch-as-companion-app-not-independent)
 - [ADR-029: iPad support deferred to post-1.0](#adr-029-ipad-support-deferred-to-post-10)
 - [ADR-030: Android not planned; no cross-platform rewrite](#adr-030-android-not-planned-no-cross-platform-rewrite)
+- [ADR-031: WHOOP login lives on the phone; the server gets access tokens only](#adr-031-whoop-login-lives-on-the-phone-the-server-gets-access-tokens-only)
 
 ---
 
@@ -1336,3 +1337,26 @@ No Android version planned. No cross-platform rewrite. Tempo is iOS-only and the
 - Do not add abstraction layers for "future Android portability." They add complexity now for uncertain future benefit.
 - The REST API between iOS and Vapor backend IS the platform abstraction. An Android client would consume the same API.
 - Keep business logic in the iOS service layer (TrainingEngine, RecoveryEngine, ScoringEngine) clean and well-tested. If KMP extraction is needed later, well-tested algorithms are easier to port than tangled view model code.
+
+---
+
+## ADR-031: WHOOP login lives on the phone; the server gets access tokens only
+
+**Status:** Accepted (amends ADR-010 "backend proxy as primary" and ADR-017's server-side refresh)
+**Date:** 2026-11-20
+**Deciders:** Nicola (solo developer)
+
+### Context
+
+As built, the app runs WHOOP OAuth on the device and calls WHOOP directly (`WhoopService`); the backend OAuth routes were never used by the client. The recovery coach runs on the server (`/v1/coach/sessions/recent`, workout sweep, webhook push) and so had no WHOOP access at all: every call answered 404 "Whoop not connected". WHOOP refresh tokens are single-use, so the phone and the server can't both refresh the same login.
+
+### Decision
+
+The phone keeps the WHOOP login and the refresh token. After every refresh, launch and foreground it shares the current ACCESS token (about 1 h) with `PUT /v1/integrations/whoop/token` (`WhoopTokenSharer`). The server stores it encrypted with an empty refresh token ("phone-managed") and NEVER refreshes it: when it runs out it answers 3008 and the sweep skips that user until the phone shares again. A working server-owned OAuth link is left untouched; a revoked or unreadable one is replaced. Disconnecting on the phone calls `DELETE /v1/integrations/whoop`.
+
+### Consequences
+
+- Server-side WHOOP work (sweep, webhook push) only works while the phone's last token is alive, i.e. up to about an hour after the app last ran. Background launches (HealthKit delivery) extend that.
+- No second WHOOP login for the user.
+- The WHOOP client secret is still compiled into the app (pre-existing); rotating it and moving the token exchange behind the backend is the way to a full server-owned link later.
+

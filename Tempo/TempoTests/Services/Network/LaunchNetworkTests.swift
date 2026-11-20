@@ -149,6 +149,25 @@ final class APIClientLaunchTests: XCTestCase {
         XCTAssertEqual(MockURLProtocol.recordedRequests.count, 2)
     }
 
+    func testAGetStartedAfterAWriteNeverJoinsAnOlderGet() async throws {
+        MockURLProtocol.setHandler { req in
+            if req.httpMethod == "GET" { Thread.sleep(forTimeInterval: 0.5) }
+            return .init(statusCode: 200, data: Data(#"{"ok":true,"data":{"ok":true}}"#.utf8))
+        }
+        let client = APIClient(baseURL: URL(string: "https://example.test")!, session: MockURLProtocol.makeSession())
+        let read = APIEndpoint<Ping>(path: "/v1/meals", method: .get, requiresAuth: false)
+        let write = APIEndpoint<Ping>(path: "/v1/meals", method: .post, requiresAuth: false)
+
+        let before = Task { try await client.request(read) }
+        try await Task.sleep(for: .milliseconds(150)) // the first GET is on the wire
+        _ = try await client.request(write)
+        _ = try await client.request(read) // must see the write: its own request
+        _ = try await before.value
+
+        let gets = MockURLProtocol.recordedRequests.filter { $0.httpMethod == "GET" }
+        XCTAssertEqual(gets.count, 2)
+    }
+
     func testPostsAreNeverShared() async throws {
         MockURLProtocol.setHandler { _ in
             Thread.sleep(forTimeInterval: 0.2)
@@ -242,6 +261,29 @@ final class WhoopTokenSharerTests: XCTestCase {
         await sharer.unlink()
         let again = await sharer.share(accessToken: "t1", expiresAt: now.addingTimeInterval(3600))
         XCTAssertEqual(rec.unlinks, 1)
+        XCTAssertTrue(again)
+    }
+
+    func testAShareThatRacesAnUnlinkDoesNotCountAsCurrent() async {
+        let rec = Recorder()
+        let n = now
+        let sharer = WhoopTokenSharer(
+            send: { req in
+                try await Task.sleep(for: .milliseconds(200))
+                return try rec.record(req)
+            },
+            unlink: { rec.unlink() },
+            now: { n }
+        )
+        let expiry = n.addingTimeInterval(3600)
+        async let shared = sharer.share(accessToken: "t1", expiresAt: expiry)
+        try? await Task.sleep(for: .milliseconds(50))
+        await sharer.unlink() // waits for the in-flight PUT, then DELETEs
+        let result = await shared
+        XCTAssertFalse(result, "a share overtaken by an unlink is not current")
+        XCTAssertEqual(rec.unlinks, 1)
+        // After the unlink the same token can be shared again on reconnect.
+        let again = await sharer.share(accessToken: "t1", expiresAt: now.addingTimeInterval(3600))
         XCTAssertTrue(again)
     }
 

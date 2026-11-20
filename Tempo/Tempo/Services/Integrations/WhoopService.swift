@@ -26,8 +26,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     private let logger = Logger(subsystem: "app.tempo", category: "WhoopService")
     /// Shares each new WHOOP access token with the server's recovery coach (see WhoopTokenSharer).
-    /// nil in previews/tests. Set once at startup, before any token work.
-    var tokenSharer: WhoopTokenSharer?
+    /// nil in previews/tests. Fixed at init so it is never mutated across threads.
+    private let tokenSharer: WhoopTokenSharer?
     private let mockService = MockWhoopService()
     private let session = URLSession.shared
     private var authSession: ASWebAuthenticationSession?
@@ -157,7 +157,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     // MARK: - Init
 
-    override init() {
+    init(tokenSharer: WhoopTokenSharer? = nil) {
+        self.tokenSharer = tokenSharer
         super.init()
         // Restore connection state from Keychain.
         // Phase 3: distinguish (fresh access) / (expired access + refresh exists) / (no tokens).

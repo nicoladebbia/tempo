@@ -99,6 +99,37 @@ struct WhoopTokenShareTests {
         }
     }
 
+    @Test func aRevokedServerLinkIsReplacedByThePhoneToken() async throws {
+        try await withApp { app in
+            let me = try await login(app, "whoop-revoked")
+            let dead = WhoopIntegration(
+                userID: me.userID,
+                encryptedAccessToken: try EncryptionService.encrypt("old"),
+                encryptedRefreshToken: try EncryptionService.encrypt("spent-refresh"),
+                tokenExpiresAt: Date().addingTimeInterval(-3600)
+            )
+            dead.lastSyncStatus = "token_revoked"
+            try await dead.save(on: app.db)
+
+            let (status, body) = try await share(app, me, token: "phone-access", expiresAt: Date().addingTimeInterval(3600))
+            #expect(status == .ok)
+            #expect(body.contains(#""managed_by":"phone""#))
+            let link = try #require(try await rows(app, me.userID).first)
+            #expect(link.isPhoneManaged)
+            #expect(link.lastSyncStatus == nil)
+        }
+    }
+
+    @Test func aPhoneTokenIsUsedUntilJustBeforeItRunsOut() async throws {
+        try await withApp { app in
+            let me = try await login(app, "whoop-late")
+            _ = try await share(app, me, token: "phone-access", expiresAt: Date().addingTimeInterval(120))
+            let req = Request(application: app, on: app.eventLoopGroup.next())
+            // 2 minutes left: a server link would refresh here (5-minute window); a phone link just uses it.
+            #expect(try await WhoopAPIService.shared.validAccessToken(for: me.userID, on: req) == "phone-access")
+        }
+    }
+
     @Test func rejectsEmptyOrExpiredTokens() async throws {
         try await withApp { app in
             let me = try await login(app, "whoop-bad")

@@ -165,15 +165,11 @@ struct WhoopIntegrationController: RouteCollection {
         }
 
         if let existing = try await WhoopIntegration.query(on: req.db).filter(\.$user.$id == userID).first() {
-            guard existing.isPhoneManaged else {
+            // A working server link wins; a dead one (revoked / unreadable) is replaced by the phone's token.
+            if !existing.isPhoneManaged, !existing.isDeadServerLink {
                 return WhoopTokenShareResponse(linked: true, managedBy: "server", expiresAt: existing.tokenExpiresAt)
             }
-            try existing.adoptPhoneToken(accessToken: token, expiresAt: body.expiresAt)
-            if existing.whoopUserID == nil {
-                existing.whoopUserID = try? await WhoopOAuthService.fetchUserProfile(accessToken: token, on: req)
-            }
-            try await existing.save(on: req.db)
-            return WhoopTokenShareResponse(linked: true, managedBy: "phone", expiresAt: existing.tokenExpiresAt)
+            return try await adopt(token, expiresAt: body.expiresAt, into: existing, on: req)
         }
 
         let integration = WhoopIntegration(
@@ -185,8 +181,27 @@ struct WhoopIntegrationController: RouteCollection {
             whoopUserID: try? await WhoopOAuthService.fetchUserProfile(accessToken: token, on: req),
             scopes: WhoopOAuthService.scopes
         )
-        try await integration.save(on: req.db)
+        do {
+            try await integration.save(on: req.db)
+        } catch {
+            // Two first shares raced (one row per user): the other one inserted, so update that row instead.
+            guard let raced = try await WhoopIntegration.query(on: req.db).filter(\.$user.$id == userID).first() else {
+                throw error
+            }
+            return try await adopt(token, expiresAt: body.expiresAt, into: raced, on: req)
+        }
         return WhoopTokenShareResponse(linked: true, managedBy: "phone", expiresAt: body.expiresAt)
+    }
+
+    private func adopt(
+        _ token: String, expiresAt: Date, into link: WhoopIntegration, on req: Request
+    ) async throws -> WhoopTokenShareResponse {
+        try link.adoptPhoneToken(accessToken: token, expiresAt: expiresAt)
+        if link.whoopUserID == nil {
+            link.whoopUserID = try? await WhoopOAuthService.fetchUserProfile(accessToken: token, on: req)
+        }
+        try await link.save(on: req.db)
+        return WhoopTokenShareResponse(linked: true, managedBy: "phone", expiresAt: link.tokenExpiresAt)
     }
 
     // MARK: - Helpers

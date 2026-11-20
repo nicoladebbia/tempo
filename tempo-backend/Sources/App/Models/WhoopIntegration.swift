@@ -89,9 +89,17 @@ final class WhoopIntegration: Model, Content, @unchecked Sendable {
         (try? refreshToken()) == ""
     }
 
-    /// A phone-managed access token that has run out: nothing the server can do until the phone shares a new one.
+    /// How long before its expiry a phone-shared token stops being used (it must not run out mid-request).
+    static let phoneTokenMargin: TimeInterval = 30
+
+    /// A phone-managed access token that has (nearly) run out: nothing the server can do until the phone shares a new one.
     var isExpiredPhoneLink: Bool {
-        isPhoneManaged && tokenExpiresAt <= Date()
+        isPhoneManaged && tokenExpiresAt <= Date().addingTimeInterval(Self.phoneTokenMargin)
+    }
+
+    /// A server-owned link that can no longer work (revoked, or its refresh token can't be read).
+    var isDeadServerLink: Bool {
+        !isPhoneManaged && (lastSyncStatus == "token_revoked" || (try? refreshToken()) == nil)
     }
 
     /// Store an access token the phone shared (no refresh token on the server).

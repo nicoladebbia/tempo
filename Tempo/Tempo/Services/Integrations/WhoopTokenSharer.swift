@@ -77,6 +77,8 @@ actor WhoopTokenSharer {
     /// The last token the server accepted; the same token is never sent twice.
     private var lastShared: String?
     private var inFlight: (token: String, task: Task<Bool, Never>)?
+    /// Bumped by `unlink()`: a share that started before an unlink must not count as current.
+    private var generation = 0
 
     init(send: @escaping Send, unlink: @escaping Unlink, now: @escaping @Sendable () -> Date = { Date() }) {
         self.send = send
@@ -115,9 +117,13 @@ actor WhoopTokenSharer {
             }
         }
         inFlight = (accessToken, task)
+        let startedIn = generation
         let ok = await task.value
         if inFlight?.token == accessToken {
             inFlight = nil
+        }
+        guard startedIn == generation else {
+            return false
         }
         if ok {
             lastShared = accessToken
@@ -127,7 +133,12 @@ actor WhoopTokenSharer {
 
     /// WHOOP was disconnected on the phone: drop the server's copy too (best effort).
     func unlink() async {
+        generation += 1
         lastShared = nil
+        // Let a share already on the wire land first, so the DELETE below is the last word.
+        if let pending = inFlight?.task {
+            _ = await pending.value
+        }
         do {
             try await unlinkCall()
         } catch APIError.notFound {

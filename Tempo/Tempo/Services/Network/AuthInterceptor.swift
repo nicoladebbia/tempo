@@ -21,9 +21,16 @@ actor AuthInterceptor {
     private let tokenProvider: AuthTokenProvider
     private var isRefreshing = false
     private var refreshContinuations: [CheckedContinuation<String, Error>] = []
+    private var lastRefresh: (token: String, at: Date)?
+    private static let reuseWindow: TimeInterval = 5
 
     init(tokenProvider: AuthTokenProvider) {
         self.tokenProvider = tokenProvider
+    }
+
+    /// The stored access token even if expired (fallback when a refresh can't run).
+    func storedToken() async -> String? {
+        await tokenProvider.accessToken()
     }
 
     /// The stored access token, or nil when there is none or it has (nearly) run out. nil makes the
@@ -46,9 +53,16 @@ actor AuthInterceptor {
             }
         }
 
+        // A caller that read the old token just before another caller's refresh finished: reuse that fresh
+        // token instead of refreshing (and rotating the session) a second time.
+        if let recent = lastRefresh, Date().timeIntervalSince(recent.at) < Self.reuseWindow {
+            return recent.token
+        }
+
         isRefreshing = true
         do {
             let newToken = try await tokenProvider.refreshToken()
+            lastRefresh = (newToken, Date())
             let waiting = refreshContinuations
             refreshContinuations = []
             isRefreshing = false

@@ -174,6 +174,12 @@ actor WhoopAPIService {
 
         let accessToken = try integration.accessToken()
 
+        // A phone-shared token is used until just before it runs out; the server can never refresh it.
+        if integration.isPhoneManaged {
+            guard !integration.isExpiredPhoneLink else { throw TempoError.whoopPhoneLinkExpired }
+            return accessToken
+        }
+
         // If token expires in more than 5 minutes, it's still valid
         if !integration.needsRefresh {
             return accessToken

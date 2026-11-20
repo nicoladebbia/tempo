@@ -103,12 +103,16 @@ actor APIClient {
     /// Everything else goes straight out.
     private func sendCoalescingGets<T: Decodable & Sendable>(_ urlRequest: URLRequest, endpoint: APIEndpoint<T>) async throws -> T {
         guard endpoint.method == .get, urlRequest.httpBody == nil, let url = urlRequest.url else {
+            // A write may change what any GET returns: GETs started after it must not join older ones.
+            inFlightGets.removeAll()
             return try await executeWithRetry(urlRequest, endpoint: endpoint)
         }
         let key = "\(T.self)|\(url.absoluteString)"
         if let shared = inFlightGets[key], let value = try await shared.value as? T {
             return value
         }
+        // Unstructured on purpose so joiners can share it: a cancelled caller still waits for the shared
+        // result instead of cancelling the request for everyone else.
         let task = Task<any Sendable, Error> { try await self.executeWithRetry(urlRequest, endpoint: endpoint) }
         inFlightGets[key] = task
         defer {
@@ -161,6 +165,11 @@ actor APIClient {
             var token = try await interceptor.validToken()
             if token == nil {
                 token = try? await interceptor.refreshAndGetToken()
+            }
+            if token == nil {
+                // Refresh failed (offline, server down) but an expired token exists: send it anyway, so being
+                // offline surfaces as a network error, and a real sign-out still comes back 401.
+                token = await interceptor.storedToken()
             }
             guard let token else {
                 throw APIError.unauthorized

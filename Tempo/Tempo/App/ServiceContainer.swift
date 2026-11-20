@@ -176,8 +176,7 @@ final class ServiceContainer {
         let interceptor = AuthInterceptor(tokenProvider: tokenProvider)
         let apiClient = APIClient(authInterceptor: interceptor)
         let healthKit = HealthKitService()
-        let whoop = WhoopService()
-        whoop.tokenSharer = WhoopTokenSharer(apiClient: apiClient)
+        let whoop = WhoopService(tokenSharer: WhoopTokenSharer(apiClient: apiClient))
         return ServiceContainer(
             apiClient: apiClient,
             authService: auth,
