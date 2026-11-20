@@ -36,6 +36,9 @@ protocol HealthKitServiceProtocol: Sendable {
     @discardableResult
     func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool
     func enableBackgroundDelivery() async throws
+    /// Every body-mass sample in `[start, end]`, oldest first (Recovery Coach weigh-ins).
+    /// Throws when Health is unavailable or the read fails; an empty array means "no readings".
+    func fetchBodyMassSamples(from start: Date, to end: Date) async throws -> [HealthWeightSample]
 }
 
 // MARK: - HealthProfileCharacteristics
@@ -51,6 +54,10 @@ struct HealthProfileCharacteristics: Equatable, Sendable {
 }
 
 extension HealthKitServiceProtocol {
+    func fetchBodyMassSamples(from _: Date, to _: Date) async throws -> [HealthWeightSample] {
+        []
+    }
+
     /// Services without Health profile access (mocks) share nothing.
     func fetchProfileCharacteristics() async -> HealthProfileCharacteristics {
         HealthProfileCharacteristics()

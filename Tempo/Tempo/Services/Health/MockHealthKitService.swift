@@ -15,6 +15,7 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
     private var _deletedSyncIdentifiers: [String] = []
     private var _writtenWater: [(ml: Double, syncIdentifier: String)] = []
     private var _nutritionWritesSucceed = true
+    private var _bodyMassSamples: [HealthWeightSample] = []
 
     /// Every workout handed to `writeWorkout`, in order (tests assert on this).
     var writtenWorkouts: [WorkoutSample] {
@@ -68,6 +69,16 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
             bedtime: bedtime,
             wakeTime: wakeTime
         )
+    }
+
+    /// Tests and scenarios set this; the mock returns the ones inside the asked range.
+    var bodyMassSamples: [HealthWeightSample] {
+        get { lock.withLock { _bodyMassSamples } }
+        set { lock.withLock { _bodyMassSamples = newValue } }
+    }
+
+    func fetchBodyMassSamples(from start: Date, to end: Date) async throws -> [HealthWeightSample] {
+        bodyMassSamples.filter { $0.time >= start && $0.time <= end }.sorted { $0.time < $1.time }
     }
 
     func fetchBodyComposition() async throws -> BodyCompositionData {

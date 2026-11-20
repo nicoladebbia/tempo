@@ -539,6 +539,32 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
         return result
     }
 
+    func fetchBodyMassSamples(from start: Date, to end: Date) async throws -> [HealthWeightSample] {
+        guard HKHealthStore.isHealthDataAvailable() else { return [] }
+        let type = HKQuantityType(.bodyMass)
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: type, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [sort]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                let mapped = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    HealthWeightSample(
+                        time: sample.startDate,
+                        kg: sample.quantity.doubleValue(for: .gramUnit(with: .kilo)),
+                        sourceName: sample.sourceRevision.source.name
+                    )
+                }
+                continuation.resume(returning: mapped)
+            }
+            healthStore.execute(query)
+        }
+    }
+
     func fetchProfileCharacteristics() async -> HealthProfileCharacteristics {
         guard HKHealthStore.isHealthDataAvailable() else {
             return HealthProfileCharacteristics()
