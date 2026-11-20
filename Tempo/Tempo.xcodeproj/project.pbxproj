@@ -1309,6 +1309,7 @@
 		FE23AA5BB530DD8212F81922 /* CoachAdaptersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EFB4726746BC215DFE6123A /* CoachAdaptersTests.swift */; };
 		FE48F1B9F9C6D4821A36C4E7 /* cue_ex_rear_delt_fly.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FDD2C1CB5B7AAD28A3A35EC6 /* cue_ex_rear_delt_fly.mp3 */; };
 		FEF766B0C2B7918E91D7839B /* GroceryWeeklySpendView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB30E4C0683F5C1E6A3E8D0 /* GroceryWeeklySpendView.swift */; };
+		FF1536CFE89CCAFE9E0A60A4 /* NotificationRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 185E93DF5848D6A6F0DD96EC /* NotificationRecorder.swift */; };
 		FF1B9DB85E3FE438CD334E2C /* TodayDisplayStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6546B04E128CC045005884EB /* TodayDisplayStateTests.swift */; };
 		FF80C3382430B9362040DD06 /* TrainingSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E368192371339FC19E3FAEE /* TrainingSetupView.swift */; };
 /* End PBXBuildFile section */
@@ -1490,6 +1491,7 @@
 		16DBCCFEA1B7011742C6D6CE /* cue_ex_skull_crusher.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_skull_crusher.mp3; sourceTree = "<group>"; };
 		16F041AC392335CDD2EB0B84 /* ProgramOfficeConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgramOfficeConverter.swift; sourceTree = "<group>"; };
 		178896C18F6C4B34F01F608C /* GuidedRunUITestSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunUITestSeed.swift; sourceTree = "<group>"; };
+		185E93DF5848D6A6F0DD96EC /* NotificationRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationRecorder.swift; sourceTree = "<group>"; };
 		189341AEF7AE02F366D44502 /* TravelSwapEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelSwapEngine.swift; sourceTree = "<group>"; };
 		18AEB5FCE2B2E0638199194E /* ReceiptServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptServiceProtocol.swift; sourceTree = "<group>"; };
 		18C0C29951ED3C38D9E610DE /* WeeklyHabitsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyHabitsSettingsView.swift; sourceTree = "<group>"; };
@@ -3732,6 +3734,7 @@
 			children = (
 				9D48DD7160B7A6B14420A77F /* .gitkeep */,
 				92238680B4C7FEF89A06DFE8 /* MockURLProtocol.swift */,
+				185E93DF5848D6A6F0DD96EC /* NotificationRecorder.swift */,
 			);
 			path = Mocks;
 			sourceTree = "<group>";
@@ -5638,6 +5641,7 @@
 				78C464554008D9378D864615 /* MorningCheckInTests.swift in Sources */,
 				A2424DAD2C5417FC0B73B8D6 /* MuscleHeatEngineTests.swift in Sources */,
 				BF02D5E87B7F3A8C8F5350E9 /* NoteSignalTests.swift in Sources */,
+				FF1536CFE89CCAFE9E0A60A4 /* NotificationRecorder.swift in Sources */,
 				AC8A41BEB950A26D757C094D /* NotificationRouterTests.swift in Sources */,
 				0EC742AF892499628BBEB914 /* NumericEntrySheetTests.swift in Sources */,
 				798C842480AEC88286672648 /* NutritionCoachInsightsTests.swift in Sources */,
