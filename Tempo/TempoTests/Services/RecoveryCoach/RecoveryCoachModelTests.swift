@@ -135,6 +135,18 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertEqual(api.requests.last?.weighIns.first?.source, "manual")
     }
 
+    func testRemovingAManualWeighInSendsTheRestAgain() async throws {
+        let api = FakeCoachAPI()
+        let s = session()
+        api.sessions = .success([s])
+        api.recovery = .success(try response(needs))
+        let (model, _) = make(api: api)
+        await model.refresh()
+        await model.addManualWeighIn(kg: 99, at: s.end.addingTimeInterval(300))
+        await model.removeManualWeighIn(at: s.end.addingTimeInterval(300))
+        XCTAssertTrue(try XCTUnwrap(api.requests.last).weighIns.isEmpty)
+    }
+
     func testRequestedSessionWinsOverLatest() async throws {
         let api = FakeCoachAPI()
         let a = session()

@@ -63,3 +63,92 @@ final class PreMatchWeighInPlanTests: XCTestCase {
         XCTAssertEqual(out[1], day.addingTimeInterval(19 * 3600))
     }
 }
+
+// MARK: - Scheduler (real notification center, in-memory data)
+
+import SwiftData
+import UserNotifications
+
+@MainActor
+final class PreMatchWeighInSchedulerTests: XCTestCase {
+    private func pendingIDs() async -> [String] {
+        await UNUserNotificationCenter.current().pendingNotificationRequests().map(\.identifier)
+            .filter { $0.hasPrefix(PreMatchWeighInPlan.idPrefix) }
+    }
+
+    private func store(on: Bool = true) -> RecoveryCoachStore {
+        let s = RecoveryCoachStore(defaults: UserDefaults(suiteName: "prematch-\(UUID().uuidString)")!, key: "k")
+        s.update { $0.preMatchReminderOn = on }
+        return s
+    }
+
+    override func tearDown() async throws {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: await pendingIDs())
+        try await super.tearDown()
+    }
+
+    func testSchedulesOnceForAMatchAndNeverDuplicates() async throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let now = Date()
+        container.mainContext.insert(Match(kickoff: now.addingTimeInterval(3 * 3600)))
+        try container.mainContext.save()
+        let s = store()
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        let ids = await pendingIDs()
+        XCTAssertEqual(ids.count, 1, "rebuilding twice must not duplicate")
+        let request = await UNUserNotificationCenter.current().pendingNotificationRequests().first { $0.identifier == ids.first }
+        XCTAssertEqual(request?.content.categoryIdentifier, "PRE_MATCH_WEIGHIN")
+    }
+
+    func testToggleOffRemovesThem() async throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let now = Date()
+        container.mainContext.insert(Match(kickoff: now.addingTimeInterval(3 * 3600)))
+        try container.mainContext.save()
+        let s = store()
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        let afterFirst = await pendingIDs()
+        XCTAssertEqual(afterFirst.count, 1)
+        s.update { $0.preMatchReminderOn = false }
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        let afterOff = await pendingIDs()
+        XCTAssertTrue(afterOff.isEmpty)
+    }
+
+    func testRecentManualWeighInSuppressesTheReminder() async throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let now = Date()
+        container.mainContext.insert(Match(kickoff: now.addingTimeInterval(3 * 3600)))
+        try container.mainContext.save()
+        let s = store()
+        s.addManualWeighIn(CoachWeighIn(time: now.addingTimeInterval(-10 * 60), kg: 78, source: "manual"), now: now)
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        // Weighed 10 min ago; the reminder fires in 2 h, 2 h 10 min after the weigh-in: still wanted.
+        let first = await pendingIDs()
+        XCTAssertEqual(first.count, 1)
+        // A kickoff in 1 h 30 min fires in 30 min, 40 min after the weigh-in: skipped.
+        container.mainContext.insert(Match(kickoff: now.addingTimeInterval(90 * 60)))
+        try container.mainContext.save()
+        await PreMatchWeighInScheduler.rebuild(modelContext: container.mainContext, healthKit: nil, store: s, now: now)
+        let found = await pendingIDs()
+        XCTAssertEqual(found.count, 1)
+    }
+
+    func testFootballBlockInTheDayPlanIsUsed() async throws {
+        let container = try TempoModelContainer.create(inMemory: true)
+        let ctx = container.mainContext
+        let cal = Calendar.current
+        let now = cal.date(bySettingHour: 8, minute: 0, second: 0, of: Date()) ?? Date()
+        let tomorrow = cal.startOfDay(for: now.addingTimeInterval(24 * 3600))
+        let plan = DayPlan(date: tomorrow, blocks: [])
+        let block = TimeBlock(kind: .football, startMinuteOfDay: 19 * 60, endMinuteOfDay: 20 * 60 + 30, title: "Football")
+        plan.blocks.append(block)
+        ctx.insert(plan)
+        try ctx.save()
+        await PreMatchWeighInScheduler.rebuild(modelContext: ctx, healthKit: nil, store: store(), now: now)
+        let found = await pendingIDs()
+        XCTAssertEqual(found.count, 1)
+    }
+}

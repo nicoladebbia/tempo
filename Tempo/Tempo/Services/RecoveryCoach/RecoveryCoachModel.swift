@@ -258,6 +258,11 @@ final class RecoveryCoachModel {
         await recompute()
     }
 
+    func removeManualWeighIn(at time: Date) async {
+        store.removeManualWeighIn(at: time)
+        await recompute()
+    }
+
     func answerFluid(_ action: CoachQuickAnswerAction) async {
         guard let session else { return }
         store.recordQuickAnswer(sessionID: session.id, bottles: action.bottles, now: now())

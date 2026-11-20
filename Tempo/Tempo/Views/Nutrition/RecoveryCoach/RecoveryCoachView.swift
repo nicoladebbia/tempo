@@ -57,6 +57,7 @@ struct RecoveryCoachView: View {
         HStack(alignment: .top, spacing: TempoSpacing.md) {
             Image(systemName: "drop.fill")
                 .font(.tempoHeadline)
+                .dynamicTypeSize(...DynamicTypeSize.large)
                 .foregroundStyle(Color.tempoElectric)
                 .frame(width: 36, height: 36)
                 .background(Color.tempoElectric.opacity(0.14))
@@ -108,7 +109,15 @@ struct RecoveryCoachView: View {
             if model.session == nil {
                 emptyCard
             } else if let result = model.result {
-                resultContent(result)
+                if case let .loading(step) = model.phase {
+                    // Old numbers stay visible but dimmed, with the real steps and a clock above them.
+                    LoadingSteps(current: step, startedAt: model.loadStartedAt ?? Date(), title: "UPDATING YOUR NUMBERS")
+                    resultContent(result)
+                        .opacity(0.4)
+                        .allowsHitTesting(false)
+                } else {
+                    resultContent(result)
+                }
             } else {
                 LoadingSteps(current: .coach, startedAt: model.loadStartedAt ?? Date())
             }
@@ -174,6 +183,7 @@ struct RecoveryCoachView: View {
             sweatCard(sweat)
             planCard(plan, sweat: sweat)
             fluidRow
+            healthReadings
             whyDisclosure(result: result, sweat: sweat, plan: plan)
         } else {
             errorCard("The coach returned no numbers. Pull down to try again.")
@@ -216,7 +226,7 @@ struct RecoveryCoachView: View {
     /// What Apple Health returned for this session's window, so "why isn't it using my scale?" has an answer.
     private var healthReadings: some View {
         card {
-            Text("WEIGHTS I FOUND")
+            Text("WEIGHTS USED")
                 .font(.tempoModuleTag)
                 .tracking(TempoTracking.drillLabel)
                 .foregroundStyle(Color.tempoTextSecondary)
@@ -230,18 +240,30 @@ struct RecoveryCoachView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 ForEach(Array(model.weighIns.enumerated()), id: \.offset) { _, w in
-                    HStack {
+                    HStack(spacing: TempoSpacing.sm) {
                         Text(String(format: "%.1f kg", w.kg)).font(.tempoDataSmall)
                         Spacer()
                         Text("\(w.source == CoachWeighIn.sourceWithings ? "Withings" : "By hand"), \(w.time.formatted(date: .omitted, time: .shortened))")
                             .font(.tempoCaption1)
                             .foregroundStyle(Color.tempoTextSecondary)
+                        if w.source == CoachWeighIn.sourceManual {
+                            Button("Remove") { Task { await model.removeManualWeighIn(at: w.time) } }
+                                .font(.tempoCaption1.weight(.semibold))
+                                .foregroundStyle(Color.tempoSignal)
+                                .frame(minHeight: 44)
+                                .accessibilityIdentifier("coach.removeWeight")
+                        }
                     }
                 }
             }
-            Button("Check Health again") { Task { await model.recompute() } }
-                .buttonStyle(.tempoGhost)
-                .accessibilityIdentifier("coach.recheck")
+            HStack {
+                Button("Check Health again") { Task { await model.recompute() } }
+                    .buttonStyle(.tempoGhost)
+                    .accessibilityIdentifier("coach.recheck")
+                Button("Enter a weight") { showWeighIn = true }
+                    .buttonStyle(.tempoGhost)
+                    .accessibilityIdentifier("coach.enterAnother")
+            }
         }
         .accessibilityIdentifier("coach.healthReadings")
     }
@@ -384,7 +406,7 @@ struct RecoveryCoachView: View {
                         .multilineTextAlignment(.leading)
                 }
                 Spacer()
-                Text(model.fluids.liters.map { "\(Int(($0 * 1000).rounded())) mL" } ?? "Unknown")
+                Text(model.fluids.liters.map { RecoveryCoachFormat.fluid($0) } ?? "Unknown")
                     .font(.tempoDataSmall)
                     .foregroundStyle(Color.tempoElectric)
                 Image(systemName: "chevron.right")
@@ -401,10 +423,10 @@ struct RecoveryCoachView: View {
 
     private var fluidSummary: String {
         let f = model.fluids
-        if let edited = f.editedLiters { return "You entered \(RecoveryCoachFormat.liters(edited))." }
+        if let edited = f.editedLiters { return "You entered \(RecoveryCoachFormat.fluid(edited))." }
         var parts: [String] = []
-        if f.loggedMl > 0 { parts.append("\(f.loggedMl) mL logged in Tempo") }
-        if let a = f.quickAnswerLiters { parts.append("\(Int((a * 1000).rounded())) mL you answered") }
+        if f.loggedMl > 0 { parts.append("\(RecoveryCoachFormat.fluid(Double(f.loggedMl) / 1000)) logged in Tempo") }
+        if let a = f.quickAnswerLiters { parts.append("\(RecoveryCoachFormat.fluid(a)) you answered") }
         return parts.isEmpty ? "Not known yet. Tap to tell me." : parts.joined(separator: " + ")
     }
 
@@ -490,11 +512,12 @@ extension Notification.Name {
 private struct LoadingSteps: View {
     let current: RecoveryCoachModel.Step
     let startedAt: Date
+    var title = "WORKING ON IT"
 
     var body: some View {
         VStack(alignment: .leading, spacing: TempoSpacing.md) {
             HStack {
-                Text("WORKING ON IT")
+                Text(title)
                     .font(.tempoModuleTag)
                     .tracking(TempoTracking.drillLabel)
                     .foregroundStyle(Color.tempoTextSecondary)

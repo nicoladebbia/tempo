@@ -72,6 +72,11 @@ final class RecoveryCoachMathTests: XCTestCase {
         XCTAssertEqual(RecoveryCoachFormat.coarse(25.7743), 25.8)
         XCTAssertEqual(RecoveryCoachFormat.coarse(-80.1912), -80.2)
         XCTAssertEqual(RecoveryCoachFormat.clock(75), "1:15")
+        XCTAssertEqual(RecoveryCoachFormat.fluid(0.375), "375 mL")
+        XCTAssertEqual(RecoveryCoachFormat.fluid(1.5), "1.5 L")
+        XCTAssertEqual(RecoveryCoachFormat.fluid(1.25), "1.25 L")
+        XCTAssertEqual(RecoveryCoachFormat.fluid(2), "2 L")
+        XCTAssertEqual(RecoveryCoachFormat.fluid(0), "0 mL")
     }
 
     func testStoreQuickAnswerUsesBottleSizeAndPrunes() {

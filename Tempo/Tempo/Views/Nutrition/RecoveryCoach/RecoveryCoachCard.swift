@@ -17,14 +17,16 @@ struct RecoveryCoachCard: View {
         VStack(spacing: 0) {
             if let model, let session = model.session {
                 Button {
-                    services.appState.requestedCoach = CoachRequest(id: session.id)
+                    open(session)
                 } label: {
                     HStack(spacing: TempoSpacing.md) {
                         Image(systemName: "drop.fill")
+                            .font(.tempoSubheadline)
                             .foregroundStyle(Color.tempoElectric)
                             .frame(width: 32, height: 32)
                             .background(Color.tempoElectric.opacity(0.14))
                             .clipShape(Circle())
+                            .dynamicTypeSize(...DynamicTypeSize.large)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
                             Text(title(model, session))
@@ -46,8 +48,24 @@ struct RecoveryCoachCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .tempoDisplayCapped()
                 .accessibilityIdentifier("coach.card")
             }
+        }
+    }
+
+    /// Re-asking for the same session must still present it (the state can outlive a sheet the system closed).
+    private func open(_ session: CoachSession) {
+        let appState = services.appState
+        let request = CoachRequest(id: session.id)
+        guard appState.requestedCoach == request else {
+            appState.requestedCoach = request
+            return
+        }
+        appState.requestedCoach = nil
+        Task { @MainActor in
+            await Task.yield()
+            appState.requestedCoach = request
         }
     }
 

@@ -77,6 +77,15 @@ enum RecoveryCoachFormat {
         String(format: "%.1f L", value)
     }
 
+    /// Under a litre in mL, otherwise litres with up to 2 decimals: "375 mL", "1.5 L", "1.25 L".
+    static func fluid(_ liters: Double) -> String {
+        if liters < 1 { return "\(Int((liters * 1000).rounded())) mL" }
+        var text = String(format: "%.2f", liters)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return "\(text) L"
+    }
+
     /// "1.5 to 1.6 L" (or "1.5 L" when both round the same).
     static func litersRange(low: Double, high: Double) -> String {
         let a = String(format: "%.1f", low), b = String(format: "%.1f", high)
