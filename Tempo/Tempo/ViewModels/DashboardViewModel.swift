@@ -142,9 +142,20 @@ final class DashboardViewModel {
 
     private(set) var weather: WeatherInfo?
 
+    /// Set once WeatherKit refuses this app's token (WeatherKit not enabled for the App ID). Retrying can't
+    /// fix that until a new build, so the dashboard stops asking for the rest of this run.
+    private static var weatherAuthRejected = false
+
+    /// WeatherKit's "could not generate an authentication token" error (App ID / provisioning issue).
+    nonisolated static func isWeatherAuthError(_ error: Error) -> Bool {
+        let domain = (error as NSError).domain
+        return domain.contains("WDSJWTAuthenticator") || domain.contains("AuthenticatorService")
+    }
+
     /// Fetch current weather using WeatherKit.
     func fetchWeather() async {
         #if canImport(WeatherKit)
+            guard !Self.weatherAuthRejected else { return }
             do {
                 let weatherService = WeatherService.shared
                 // Use a default location (or CLLocationManager if authorized)
@@ -202,8 +213,15 @@ final class DashboardViewModel {
                     recommendation: recommendation
                 )
             } catch {
+                if Self.isWeatherAuthError(error) {
+                    Self.weatherAuthRejected = true
+                    #if DEBUG
+                        print("[Dashboard] Weather off for this run: WeatherKit is not enabled for this app ID")
+                    #endif
+                    return
+                }
                 #if DEBUG
-                    print("[Dashboard] Weather fetch failed: \(error)")
+                    print("[Dashboard] Weather fetch failed: \(error.localizedDescription)")
                 #endif
             }
         #endif

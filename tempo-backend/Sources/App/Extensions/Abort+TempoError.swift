@@ -29,6 +29,7 @@ enum TempoError {
     // Integration (3xxx)
     static let whoopAlreadyConnected = Abort(.conflict, reason: "Whoop already connected.", identifier: "3001")
     static let whoopNotConnected = Abort(.notFound, reason: "Whoop not connected.", identifier: "3005")
+    static let whoopPhoneLinkExpired = Abort(.notFound, reason: "WHOOP access ran out. Open Tempo to share it again.", identifier: "3008")
     static let syncInProgress = Abort(.conflict, reason: "Sync already in progress.", identifier: "3006")
     static let invalidWebhookSignature = Abort(.unauthorized, reason: "Invalid webhook signature.", identifier: "3010")
 

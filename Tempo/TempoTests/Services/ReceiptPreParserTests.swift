@@ -282,6 +282,95 @@ final class ReceiptPreParserTests: XCTestCase {
         XCTAssertNil(result.duplicateKey)
     }
 
+    // MARK: - Rows that are never items
+
+    func test_footerMarker_dropsEveryRowBelowIt() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "MILK|2.99",
+            "BREAD|2.19",
+            "Thank you for shopping at Publix",
+            "GRAPES|3.99",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 2)
+        XCTAssertFalse(result.candidateItems.contains { $0.rawText.contains("GRAPES") })
+    }
+
+    func test_changeDueLine_isNotAnItem_andCashIsPayment() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "MILK|2.99",
+            "Total|3.20",
+            "Cash|10.00",
+            "Change|6.80",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+        XCTAssertEqual(result.totalAmount, 3.20)
+        XCTAssertEqual(result.paymentAmount, 10.00)
+    }
+
+    func test_bareNumberRow_isNotAnItem() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "MILK|2.99",
+            "5.15",
+            "BREAD|2.19",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 2)
+    }
+
+    func test_storeHeaderBlock_beforeFirstItem_isSkipped() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "Store Manager: Jane Doe",
+            "(305) 535-2212",
+            "MILK|2.99",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+        XCTAssertTrue(result.candidateItems[0].rawText.contains("MILK"))
+    }
+
+    func test_weightContinuation_insideVoidedSection_pairsToVoidedItem() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "MILK|2.99",
+            "Voided Items",
+            "BANANAS",
+            "$0.59/lb x 2.36 lb|1.39",
+            "Subtotal|2.99",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 1)
+        XCTAssertEqual(result.voidedItems.count, 1)
+        XCTAssertEqual(result.voidedItems[0].totalPrice, 1.39)
+        XCTAssertNotNil(result.voidedItems[0].saleNote)
+        XCTAssertEqual(result.subtotalAmount, 2.99)
+    }
+
+    func test_promotionLine_insideVoidedSection_isVoidedAndNotCountedAsSavings() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "MILK|2.99",
+            "Voided Items",
+            "EGGS|3.49",
+            "Promotion|-1.00",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.voidedItems.count, 2)
+        XCTAssertTrue(result.voidedItems[1].isDiscountLine)
+        XCTAssertNil(result.savingsAmount)
+    }
+
+    func test_perItemYouSavedNotes_areSummedIntoSavings() {
+        let result = ReceiptPreParser.parse(rows: rows([
+            "GREEK YOGURT|4.99",
+            "You saved: $1.50",
+            "BANANAS|0.69",
+            "You saved: $0.25",
+        ]), storeHint: nil)
+
+        XCTAssertEqual(result.candidateItems.count, 2)
+        XCTAssertEqual(result.savingsAmount, 1.75)
+    }
+
     // MARK: - Hints block
 
     func test_hintsBlock_nonEmpty_whenTotalsDetected() {

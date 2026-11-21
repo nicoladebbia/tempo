@@ -33,6 +33,7 @@ private struct KeyboardDismissModifier: ViewModifier {
     }
 }
 
+@MainActor
 enum KeyboardDismisser {
     static func dismiss() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -71,6 +72,7 @@ private struct TapOutsideKeyboardDismisser: UIViewRepresentable {
         coordinator.uninstall()
     }
 
+    @MainActor
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         weak var anchor: UIView?
         private weak var window: UIWindow?

@@ -13,12 +13,13 @@ import XCTest
 // Per BUILD_PLAN Step 19.4, TESTING_STRATEGY.md Section 5.
 // Tests the full onboarding flow using Page Object Model.
 
+@MainActor
 final class OnboardingFlowTests: XCTestCase {
     private var app: XCUIApplication!
     private var onboarding: OnboardingPage!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         onboarding = OnboardingPage(app: app)

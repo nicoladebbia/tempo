@@ -128,6 +128,7 @@ final class WorkoutSampleOverlapTests: XCTestCase {
         ))
     }
 
+    @MainActor
     func testMoveHistoryLabelHidesZeroVolume() {
         XCTAssertEqual(MoveQuadrantDetailView.volumeHistoryLabel(durationMinutes: 32, volumeKg: 0, unit: .kg), "32m")
         XCTAssertEqual(

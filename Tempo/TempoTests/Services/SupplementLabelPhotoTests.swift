@@ -53,6 +53,7 @@ private func solidImage(width: CGFloat, height: CGFloat) -> UIImage {
 
 // MARK: - DTO + ids
 
+@MainActor
 final class SupplementWireTests: XCTestCase {
     func testDecodesNewFields() throws {
         let json = #"{"upc":"1","name":"x","kind":"other","certifications":[],"source":"tempo","community_confirmations":3}"#

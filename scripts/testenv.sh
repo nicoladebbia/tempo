@@ -261,7 +261,7 @@ start_server() {
             DB_HOST=127.0.0.1 DB_PORT="$PG_PORT" DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME="$DB_NAME" \
             REDIS_URL="redis://127.0.0.1:$REDIS_PORT/$REDIS_DB" JWT_SECRET=tempo-test-mode-secret \
             ANTHROPIC_API_KEY="$key" OPENAI_API_KEY=test-mode INSTACART_API_KEY=test-mode USDA_API_KEY=test-mode \
-            WHOOP_CLIENT_ID=test-mode WHOOP_CLIENT_SECRET=test-mode PUBLIC_BASE_URL="$URL" \
+            WHOOP_CLIENT_ID=test-mode WHOOP_CLIENT_SECRET=test-mode WHOOP_TOKEN_ENCRYPTION_KEY=tempo-test-mode-whoop-key PUBLIC_BASE_URL="$URL" \
             nohup ./App serve --env development --hostname 127.0.0.1 --port "$PORT" >>"$LOG" 2>&1 &
         echo $! >"$PIDFILE"
     )

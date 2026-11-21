@@ -27,7 +27,6 @@ struct SupplementDetailView: View {
     @State private var confirmDelete = false
 
     var body: some View {
-        let _ = refreshToken
         let dose = todayDose()
         let logs = recentLogs()
         let history = SupplementHistory.summary(logs: logs, supplementID: supplement.id, supplementName: supplement.name)
@@ -250,6 +249,9 @@ struct SupplementDetailView: View {
     }
 
     private func recentLogs() -> [SupplementIntakeLog] {
+        // Read here (body calls this) so bumping the token re-runs `body`:
+        // the SwiftData fetch below is not observed.
+        _ = refreshToken
         let start = Calendar.current.date(byAdding: .day, value: -30, to: Calendar.current.startOfDay(for: Date())) ?? Date()
         let descriptor = FetchDescriptor<SupplementIntakeLog>(predicate: #Predicate<SupplementIntakeLog> { $0.day >= start })
         return (try? modelContext.fetch(descriptor)) ?? []

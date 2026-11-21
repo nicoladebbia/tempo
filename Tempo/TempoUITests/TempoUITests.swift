@@ -12,11 +12,12 @@ import XCTest
 
 // Per BUILD_PLAN Step 19.4 — Basic app launch and tab navigation tests.
 
+@MainActor
 final class AppLaunchTests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }

@@ -380,6 +380,17 @@ struct ContractGoldenTests {
         }
     }
 
+    @Test func whoopTokenShare() async throws {
+        setenv("WHOOP_TOKEN_ENCRYPTION_KEY", "contract-only-whoop-token-key", 1)
+        defer { unsetenv("WHOOP_TOKEN_ENCRYPTION_KEY") }
+        try await withApp { app in
+            let session = try await login(app, name: "contract-whoop-share", pro: true)
+            let expires = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+            let body = #"{"access_token":"phone-access-token","expires_at":"\#(expires)"}"#
+            try golden("integrations-whoop-token-put", await call(app, .PUT, "v1/integrations/whoop/token", token: session.accessToken, body: body))
+        }
+    }
+
     @Test func programImportQuota() async throws {
         try await withApp { app in
             let session = try await login(app, name: "contract-quota", pro: false)

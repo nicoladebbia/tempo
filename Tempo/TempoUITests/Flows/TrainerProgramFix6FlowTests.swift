@@ -10,11 +10,12 @@
 
 import XCTest
 
+@MainActor
 final class TrainerProgramFix6FlowTests: XCTestCase {
     private var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
     }

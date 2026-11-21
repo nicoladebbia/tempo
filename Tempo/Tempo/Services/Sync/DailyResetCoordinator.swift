@@ -106,10 +106,12 @@ enum DailyResetCoordinator {
         let allDays = (try? context.fetch(descriptor)) ?? []
         let priorDays = allDays.filter { $0.date < today }
 
+        var finalizedDays = 0
         for accountability in priorDays where accountability.accountabilityScore == 0 {
             accountability.accountabilityScore = engine.calculateDailyScore(
                 accountability: accountability
             )
+            finalizedDays += 1
         }
 
         // Update overall streak using yesterday's outcome.
@@ -177,7 +179,8 @@ enum DailyResetCoordinator {
 
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
-        logger.info("Daily reset complete for \(priorDays.count) prior day(s)")
+        // Days still at 0 after scoring are re-checked next run; this counts days scored now, not all history.
+        logger.info("Daily reset complete: \(finalizedDays) unscored prior day(s) checked")
     }
 
     @MainActor

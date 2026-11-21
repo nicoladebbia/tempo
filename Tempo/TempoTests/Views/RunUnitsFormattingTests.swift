@@ -9,6 +9,7 @@
 @testable import Tempo
 import XCTest
 
+@MainActor
 final class RunUnitsFormattingTests: XCTestCase {
     func testUseMilesFollowsWeightUnitThenLocale() {
         XCTAssertTrue(GuidedRunFormatting.useMiles(weightUnit: .lbs))

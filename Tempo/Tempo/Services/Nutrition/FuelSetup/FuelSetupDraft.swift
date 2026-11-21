@@ -365,7 +365,7 @@ extension FuelSetupDraft {
     /// they stay in the draft until it can.
     @discardableResult
     @MainActor
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    // swiftlint:disable:next cyclomatic_complexity
     func save(sections requested: Set<FuelSetupSection>, to context: ModelContext, now: Date = Date()) -> Set<FuelSetupSection> {
         var sections = requested
         func has(_ section: FuelSetupSection) -> Bool {

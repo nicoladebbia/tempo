@@ -13,12 +13,13 @@ import XCTest
 // Per BUILD_PLAN Step 19.4, TESTING_STRATEGY.md Section 5.
 // Tests dashboard navigation and basic interactions.
 
+@MainActor
 final class DashboardFlowTests: XCTestCase {
     private var app: XCUIApplication!
     private var dashboard: DashboardPage!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
         dashboard = DashboardPage(app: app)

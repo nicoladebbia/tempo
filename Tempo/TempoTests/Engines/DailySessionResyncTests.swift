@@ -159,18 +159,14 @@ final class DailySessionResyncTests: XCTestCase {
         let session = insertSession(context, modality: "rest", plan: plan)
         vm.dailySession = session
 
-        var posted = false
-        let observer = NotificationCenter.default.addObserver(
-            forName: .tempoWorkoutChanged, object: nil, queue: nil
-        ) { _ in posted = true }
-        defer { NotificationCenter.default.removeObserver(observer) }
+        let changes = NotificationRecorder(.tempoWorkoutChanged)
 
         vm.keepPlannedWorkout(modelContext: context)
 
         XCTAssertEqual(plan.type, .pool, "Plan restored to the user's declared choice")
         XCTAssertNil(plan.plannedTypeRaw)
         XCTAssertTrue(session.userOverrode, "Session marked overridden so the coach never reshapes this day again")
-        XCTAssertTrue(posted, "Watch + Dashboard must be told the plan changed")
+        XCTAssertTrue(changes.didPost, "Watch + Dashboard must be told the plan changed")
 
         // The session's modality ("rest") now mismatches the restored plan
         // type (.pool) again — the exact shape that used to read as stale.

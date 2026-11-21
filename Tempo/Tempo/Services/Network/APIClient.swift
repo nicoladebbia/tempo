@@ -17,6 +17,9 @@ actor APIClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private var etagCache: [String: String] = [:]
+    /// Identical GETs already on the wire. Launch asks for the same thing from several places at once
+    /// (dashboard, nutrition, coach); they now share one request instead of each sending their own.
+    private var inFlightGets: [String: Task<any Sendable, Error>] = [:]
 
     private let logger = Logger(subsystem: "app.tempo", category: "APIClient")
 
@@ -85,7 +88,7 @@ actor APIClient {
         queryItems: [URLQueryItem]? = nil
     ) async throws -> T {
         let urlRequest = try await buildRequest(endpoint, body: body, queryItems: queryItems)
-        return try await executeWithRetry(urlRequest, endpoint: endpoint)
+        return try await sendCoalescingGets(urlRequest, endpoint: endpoint)
     }
 
     func request<T: Decodable & Sendable>(
@@ -93,7 +96,32 @@ actor APIClient {
         queryItems: [URLQueryItem]? = nil
     ) async throws -> T {
         let urlRequest = try await buildRequest(endpoint, body: nil as String?, queryItems: queryItems)
-        return try await executeWithRetry(urlRequest, endpoint: endpoint)
+        return try await sendCoalescingGets(urlRequest, endpoint: endpoint)
+    }
+
+    /// GETs with the same URL and response type that overlap in time share one network call.
+    /// Everything else goes straight out.
+    private func sendCoalescingGets<T: Decodable & Sendable>(_ urlRequest: URLRequest, endpoint: APIEndpoint<T>) async throws -> T {
+        guard endpoint.method == .get, urlRequest.httpBody == nil, let url = urlRequest.url else {
+            // A write may change what any GET returns: GETs started after it must not join older ones.
+            inFlightGets.removeAll()
+            return try await executeWithRetry(urlRequest, endpoint: endpoint)
+        }
+        let key = "\(T.self)|\(url.absoluteString)"
+        if let shared = inFlightGets[key], let value = try await shared.value as? T {
+            return value
+        }
+        // Unstructured on purpose so joiners can share it: a cancelled caller still waits for the shared
+        // result instead of cancelling the request for everyone else.
+        let task = Task<any Sendable, Error> { try await self.executeWithRetry(urlRequest, endpoint: endpoint) }
+        inFlightGets[key] = task
+        defer {
+            if inFlightGets[key] == task { inFlightGets[key] = nil }
+        }
+        guard let value = try await task.value as? T else {
+            throw APIError.decodingFailed("Shared request returned an unexpected type")
+        }
+        return value
     }
 
     // MARK: - Request Building
@@ -137,6 +165,11 @@ actor APIClient {
             var token = try await interceptor.validToken()
             if token == nil {
                 token = try? await interceptor.refreshAndGetToken()
+            }
+            if token == nil {
+                // Refresh failed (offline, server down) but an expired token exists: send it anyway, so being
+                // offline surfaces as a network error, and a real sign-out still comes back 401.
+                token = await interceptor.storedToken()
             }
             guard let token else {
                 throw APIError.unauthorized

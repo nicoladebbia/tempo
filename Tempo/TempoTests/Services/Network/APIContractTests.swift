@@ -41,6 +41,7 @@ final class APIContractTests: XCTestCase {
         "foods-search",
         "push-meal_plan_ready", "push-recovery_morning", "push-general",
         "coach-sessions-recent", "coach-recovery", "coach-recovery-needs-weigh-in", "push-post_workout_weighin",
+        "integrations-whoop-token-put",
     ]
 
     private func goldenData(_ slug: String, file: StaticString = #filePath, line: UInt = #line) throws -> Data {
@@ -217,6 +218,7 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(r.ingredients?.first, "Whey protein isolate 25 g")
     }
 
+    @MainActor
     func testSupplementLookupDisputed() throws {
         let r: SupplementLookupDTO = try decode("supplements-lookup-disputed")
         XCTAssertEqual(r.source, "tempo")
@@ -258,6 +260,15 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(pick.form, "powder")
         XCTAssertEqual(pick.buyLinks.first?.label, "Amazon")
         XCTAssertNotNil(r.lookFor)
+    }
+
+    // MARK: - WHOOP token share
+
+    func testWhoopTokenShare() throws {
+        let r: WhoopTokenShareResponse = try decode("integrations-whoop-token-put", envelope: false)
+        XCTAssertTrue(r.linked)
+        XCTAssertEqual(r.managedBy, "phone")
+        XCTAssertGreaterThan(r.expiresAt.timeIntervalSince1970, 0)
     }
 
     // MARK: - Recovery Coach

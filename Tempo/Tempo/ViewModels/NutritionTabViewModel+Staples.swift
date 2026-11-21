@@ -108,7 +108,7 @@ extension NutritionTabViewModel {
             let newStatus = try service.cycleStatus(staple)
             if newStatus.needsRestock, let context = pantryModelContext {
                 let restock = PantryGroceryBridge.restockDefault(canonicalName: staple.canonicalName)
-                try? PantryGroceryBridge.addToCurrentGroceryList(
+                _ = try? PantryGroceryBridge.addToCurrentGroceryList(
                     canonicalName: staple.canonicalName,
                     displayName: staple.displayName,
                     quantity: restock.quantity,
