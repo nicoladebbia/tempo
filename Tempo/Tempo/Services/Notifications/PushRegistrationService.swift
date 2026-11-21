@@ -127,7 +127,7 @@ final class PushRegistrationService: @unchecked Sendable {
 
 extension APIEndpoint where Response == DeviceTokenRegisterResponseDTO {
     static func registerDeviceToken() -> Self {
-        APIEndpoint(path: "/v1/devices/register", method: .post)
+        APIEndpoint(path: "/v1/devices/register", method: .post, changesReads: false)
     }
 }
 

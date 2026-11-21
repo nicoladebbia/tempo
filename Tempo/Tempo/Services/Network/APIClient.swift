@@ -104,7 +104,12 @@ actor APIClient {
     private func sendCoalescingGets<T: Decodable & Sendable>(_ urlRequest: URLRequest, endpoint: APIEndpoint<T>) async throws -> T {
         guard endpoint.method == .get, urlRequest.httpBody == nil, let url = urlRequest.url else {
             // A write may change what any GET returns: GETs started after it must not join older ones.
+            guard endpoint.changesReads else {
+                return try await executeWithRetry(urlRequest, endpoint: endpoint)
+            }
+            // Clear again when the write ends: a GET started while it was out may predate it on the server.
             inFlightGets.removeAll()
+            defer { inFlightGets.removeAll() }
             return try await executeWithRetry(urlRequest, endpoint: endpoint)
         }
         let key = "\(T.self)|\(url.absoluteString)"

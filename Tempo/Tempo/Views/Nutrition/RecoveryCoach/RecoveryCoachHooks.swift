@@ -38,6 +38,11 @@ private struct RecoveryCoachHooks: ViewModifier {
                 guard let request, let model else { return }
                 Task { await model.refresh(requestedID: request.id) }
             }
+            // The phone just shared WHOOP access: a fetch that found none can now succeed.
+            .onReceive(NotificationCenter.default.publisher(for: .tempoWhoopAccessShared).receive(on: DispatchQueue.main)) { _ in
+                guard let model else { return }
+                Task { await model.whoopAccessShared() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .tempoCoachAnswerStored)) { _ in
                 guard let model, model.hasSession else { return }
                 Task { await model.recompute() }

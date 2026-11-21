@@ -168,6 +168,35 @@ final class APIClientLaunchTests: XCTestCase {
         XCTAssertEqual(gets.count, 2)
     }
 
+    func testABookkeepingWriteDoesNotSplitOverlappingGets() async throws {
+        MockURLProtocol.setHandler { req in
+            if req.httpMethod == "GET" { Thread.sleep(forTimeInterval: 0.5) }
+            return .init(statusCode: 200, data: Data(#"{"ok":true,"data":{"ok":true}}"#.utf8))
+        }
+        let client = try APIClient(baseURL: XCTUnwrap(URL(string: "https://example.test")), session: MockURLProtocol.makeSession())
+        let read = APIEndpoint<Ping>(path: "/v1/plans/latest", method: .get, requiresAuth: false)
+        let register = APIEndpoint<Ping>(path: "/v1/devices/register", method: .post, requiresAuth: false, changesReads: false)
+
+        let before = Task { try await client.request(read) }
+        try await Task.sleep(for: .milliseconds(150)) // the first GET is on the wire
+        // The mock serves one request at a time, so the POST stays pending while the GET sleeps:
+        // start it, let it pass the client, then read while both are still open.
+        let write = Task { try await client.request(register) }
+        try await Task.sleep(for: .milliseconds(50))
+        _ = try await client.request(read) // nothing it reads changed: joins the first GET
+        _ = try await before.value
+        _ = try await write.value
+
+        let gets = MockURLProtocol.recordedRequests.filter { $0.httpMethod == "GET" }
+        XCTAssertEqual(gets.count, 1)
+    }
+
+    func testPushTokenRegisterIsABookkeepingWrite() {
+        XCTAssertFalse(APIEndpoint<DeviceTokenRegisterResponseDTO>.registerDeviceToken().changesReads)
+        XCTAssertTrue(APIEndpoint<WhoopTokenShareResponse>.whoopShareToken().changesReads,
+                      "a WHOOP share turns the coach's 404 into data")
+    }
+
     func testPostsAreNeverShared() async throws {
         MockURLProtocol.setHandler { _ in
             Thread.sleep(forTimeInterval: 0.2)
@@ -254,6 +283,20 @@ final class WhoopTokenSharerTests: XCTestCase {
         XCTAssertEqual(rec.sent.count, 2)
     }
 
+    func testEachSuccessfulShareAnnouncesWhoopAccess() async {
+        let rec = Recorder()
+        let sharer = make(rec)
+        let counter = NotificationCounter(.tempoWhoopAccessShared)
+        rec.fail = true
+        _ = await sharer.share(accessToken: "t0", expiresAt: now.addingTimeInterval(3600))
+        XCTAssertEqual(counter.count, 0, "a failed share announces nothing")
+        rec.fail = false
+        _ = await sharer.share(accessToken: "t1", expiresAt: now.addingTimeInterval(3600))
+        _ = await sharer.share(accessToken: "t1", expiresAt: now.addingTimeInterval(3600))
+        _ = await sharer.share(accessToken: "t2", expiresAt: now.addingTimeInterval(3600))
+        XCTAssertEqual(counter.count, 2, "one per token the server accepted; a skipped repeat announces nothing")
+    }
+
     func testUnlinkForgetsTheLastTokenSoAReconnectSharesAgain() async {
         let rec = Recorder()
         let sharer = make(rec)
@@ -293,5 +336,43 @@ final class WhoopTokenSharerTests: XCTestCase {
         let data = try encoder.encode(WhoopTokenShareRequest(accessToken: "a", expiresAt: now))
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(Set(json.keys), ["access_token", "expires_at"])
+    }
+}
+
+// MARK: - NotificationCounter
+
+/// Counts posts of one notification (posted synchronously, so no waiting needed).
+private final class NotificationCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _count = 0
+    private var token: NSObjectProtocol?
+    var count: Int { lock.withLock { _count } }
+
+    init(_ name: Notification.Name) {
+        token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+            guard let self else { return }
+            lock.withLock { _count += 1 }
+        }
+    }
+
+    deinit {
+        if let token { NotificationCenter.default.removeObserver(token) }
+    }
+}
+
+// MARK: - ColdLaunchActivationTests
+
+final class ColdLaunchActivationTests: XCTestCase {
+    private let launch = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testOnlyTheLaunchActivationIsSkipped() {
+        var cold = ColdLaunchActivation(launchedAt: launch)
+        XCTAssertTrue(cold.isColdLaunch(now: launch.addingTimeInterval(0.5)))
+        XCTAssertFalse(cold.isColdLaunch(now: launch.addingTimeInterval(1)), "a second activation is a real return")
+    }
+
+    func testAFirstActivationLongAfterLaunchIsARealReturn() {
+        var cold = ColdLaunchActivation(launchedAt: launch)
+        XCTAssertFalse(cold.isColdLaunch(now: launch.addingTimeInterval(120)))
     }
 }

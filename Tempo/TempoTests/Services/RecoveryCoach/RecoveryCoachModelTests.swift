@@ -14,7 +14,17 @@ private final class FakeCoachAPI: RecoveryCoachAPI, @unchecked Sendable {
 
     var requests: [CoachRecoveryRequest] { lock.withLock { _requests } }
 
-    func recentSessions() async throws -> [CoachSession] { try sessions.get() }
+    private var _fetches = 0
+    var fetches: Int { lock.withLock { _fetches } }
+    /// Runs inside the first fetch, before it answers (e.g. a WHOOP share landing mid-flight).
+    var duringFirstFetch: (@MainActor () async -> Void)?
+
+    func recentSessions() async throws -> [CoachSession] {
+        let n = lock.withLock { _fetches += 1; return _fetches }
+        let answer = sessions // the server answers as of when the request reached it
+        if n == 1, let duringFirstFetch { await duringFirstFetch() }
+        return try answer.get()
+    }
 
     func recovery(_ request: CoachRecoveryRequest) async throws -> CoachRecoveryResponse {
         lock.withLock { _requests.append(request) }
@@ -79,6 +89,39 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .idle)
         XCTAssertFalse(model.hasSession)
         XCTAssertTrue(api.requests.isEmpty)
+        XCTAssertTrue(model.awaitingWhoopAccess, "the app refreshes again once WHOOP access is shared")
+
+        api.sessions = .success([])
+        await model.refresh()
+        XCTAssertFalse(model.awaitingWhoopAccess)
+    }
+
+    func testA404ThatArrivesAfterTheWhoopShareAsksAgain() async {
+        let api = FakeCoachAPI()
+        api.sessions = .failure(APIError.notFound)
+        let (model, _) = make(api: api)
+        api.duringFirstFetch = { [weak model] in
+            // The share lands while the launch fetch is still out; its 404 predates the share.
+            api.sessions = .success([])
+            await model?.whoopAccessShared()
+        }
+        await model.refresh()
+        XCTAssertEqual(api.fetches, 2)
+        XCTAssertFalse(model.awaitingWhoopAccess)
+    }
+
+    func testAShareAfterA404ReloadsAndAnIdleShareDoesNothing() async {
+        let api = FakeCoachAPI()
+        let (model, _) = make(api: api)
+        await model.whoopAccessShared()
+        XCTAssertEqual(api.fetches, 0, "not waiting: an hourly renewal fetches nothing")
+
+        api.sessions = .failure(APIError.notFound)
+        await model.refresh()
+        api.sessions = .success([])
+        await model.whoopAccessShared()
+        XCTAssertEqual(api.fetches, 2)
+        XCTAssertFalse(model.awaitingWhoopAccess)
     }
 
     func testBodyMassFallsBackToHealthWhenNoWeighInInWindow() async throws {

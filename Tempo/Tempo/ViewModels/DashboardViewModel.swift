@@ -162,6 +162,9 @@ final class DashboardViewModel {
                 // For now, attempt to get weather at a reasonable default
                 // This will be enhanced when CoreLocation is authorized
                 guard let location = await getCurrentLocation() else {
+                    #if DEBUG
+                        print("[Dashboard] Weather hidden: no location (Location access for Tempo is off or not asked yet)")
+                    #endif
                     return
                 }
 
@@ -206,6 +209,9 @@ final class DashboardViewModel {
                     recommendation = "Layer up for outdoor activity"
                 }
 
+                #if DEBUG
+                    print("[Dashboard] Weather: \(Int(tempC.rounded()))°C \(conditionSymbol)")
+                #endif
                 weather = WeatherInfo(
                     temperatureCelsius: tempC,
                     conditionSymbol: conditionSymbol,

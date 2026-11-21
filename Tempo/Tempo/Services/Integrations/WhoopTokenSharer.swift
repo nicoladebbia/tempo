@@ -54,6 +54,7 @@ struct WhoopUnlinkResponse: Decodable, Sendable, Equatable {
 
 extension APIEndpoint where Response == WhoopTokenShareResponse {
     static func whoopShareToken() -> Self {
+        // Keeps the default changesReads: a share turns the coach's "no WHOOP access" 404 into data.
         APIEndpoint(path: "/v1/integrations/whoop/token", method: .put, expectsEnvelope: false)
     }
 }
@@ -62,6 +63,13 @@ extension APIEndpoint where Response == WhoopUnlinkResponse {
     static func whoopUnlink() -> Self {
         APIEndpoint(path: "/v1/integrations/whoop", method: .delete, expectsEnvelope: false)
     }
+}
+
+// MARK: - Notification
+
+extension Notification.Name {
+    /// Posted after each successful share of this phone's WHOOP access token with the server.
+    static let tempoWhoopAccessShared = Notification.Name("tempo.whoop.accessShared")
 }
 
 // MARK: - WhoopTokenSharer
@@ -127,6 +135,9 @@ actor WhoopTokenSharer {
         }
         if ok {
             lastShared = accessToken
+            // The server may have just (re)gained WHOOP access: anything that got "no WHOOP access"
+            // can ask again. Listeners only act if they are actually waiting, so this is cheap.
+            NotificationCenter.default.post(name: .tempoWhoopAccessShared, object: nil)
         }
         return ok
     }

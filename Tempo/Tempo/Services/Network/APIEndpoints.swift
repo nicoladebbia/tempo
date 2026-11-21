@@ -32,12 +32,17 @@ struct APIEndpoint<Response: Decodable & Sendable> {
     /// True for expensive or non-idempotent POSTs (AI calls) that must fail fast:
     /// a 429/5xx surfaces immediately instead of sleeping and re-sending.
     let disablesRetry: Bool
+    /// False for bookkeeping writes (the push-token register) that
+    /// change no data any GET returns. Such a write lets later GETs keep joining
+    /// identical in-flight GETs instead of sending duplicates.
+    let changesReads: Bool
 
     init(
         path: String, method: HTTPMethod = .get, requiresAuth: Bool = true, expectsEnvelope: Bool = true,
-        disablesRetry: Bool = false
+        disablesRetry: Bool = false, changesReads: Bool = true
     ) {
         self.disablesRetry = disablesRetry
+        self.changesReads = changesReads
         self.path = path
         self.method = method
         self.requiresAuth = requiresAuth

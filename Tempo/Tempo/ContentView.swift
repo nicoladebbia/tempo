@@ -42,6 +42,10 @@ struct ContentView: View {
     /// The scanner-resume record is only acted on once per process (cold launch).
     @State
     private var hasCheckedScanResume = false
+    /// The cold-launch activation skips the reminder rebuilds below: the launch `.task`
+    /// already does them, and two rebuilds at once can cancel each other's reminders.
+    @State
+    private var coldLaunch = ColdLaunchActivation()
 
     private var accentColor: Color {
         switch accentColorChoice {
@@ -211,6 +215,7 @@ struct ContentView: View {
         // Sunday loop: pick up a server-built plan whenever the app comes back.
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
+                guard !coldLaunch.isColdLaunch() else { return }
                 Task { await syncWeeklyPlan() }
                 // Foreground is one of the required reschedule triggers per
                 // the supplement timing engine — doses drift with the clock
