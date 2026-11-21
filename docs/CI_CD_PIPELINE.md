@@ -1319,7 +1319,9 @@ jobs:
 
 ### 5.1 Option A: Railway
 
-**`tempo-backend/railway.toml`:**
+> **Current setup (Nov 2026):** Railway's Config as Code (`railway.toml`) ended on 2026-12-01. The live settings are in `tempo-backend/.railway/railway.ts` (Infrastructure as Code); preview with `railway config plan`, apply with `railway config apply`. Every service variable must be listed there with `preserve()`, or the next apply deletes it. The `railway.toml` below is the original plan, kept for history.
+
+**`tempo-backend/railway.toml` (historical):**
 
 ```toml
 [build]
