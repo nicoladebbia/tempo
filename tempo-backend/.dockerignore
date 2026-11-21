@@ -8,3 +8,4 @@ keys/
 .gitignore
 *.md
 docker-compose*.yml
+node_modules/

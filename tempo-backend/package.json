@@ -1,0 +1,10 @@
+{
+  "name": "tempo-backend-infra",
+  "version": "1.0.0",
+  "description": "Railway Infrastructure as Code for the Tempo backend",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "railway": "^3.17.0"
+  }
+}
