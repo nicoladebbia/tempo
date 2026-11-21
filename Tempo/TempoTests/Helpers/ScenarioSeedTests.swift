@@ -159,7 +159,8 @@ final class ScenarioSeedTests: XCTestCase {
         let workouts = fetchAll(WorkoutPlan.self).filter { $0.status == .completed }
         let oldest = try XCTUnwrap(workouts.map(\.date).min())
         XCTAssertGreaterThanOrEqual(daysAgo(oldest), 8 * 7, "history must span 8 weeks")
-        XCTAssertTrue((28 ... 34).contains(workouts.count), "4 sessions a week for 8 weeks, got \(workouts.count)")
+        // 8 full weeks (Mon/Tue/Thu/Fri) = 32, plus this week's sessions before today (0-4, by weekday).
+        XCTAssertTrue((32 ... 36).contains(workouts.count), "4 sessions a week for 8 weeks, got \(workouts.count)")
         XCTAssertTrue(workouts.allSatisfy { $0.date < today() }, "today's session is left for the app to plan")
 
         // Every session wrote the same history row the app writes on finish.

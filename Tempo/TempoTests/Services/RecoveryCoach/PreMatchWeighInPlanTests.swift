@@ -97,6 +97,17 @@ final class PreMatchWeighInSchedulerTests: XCTestCase {
         return s
     }
 
+    /// These schedule REAL notifications, which iOS refuses for an app that isn't allowed to notify
+    /// (a fresh simulator). Skip there with the reason instead of failing on the environment.
+    override func setUp() async throws {
+        try await super.setUp()
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        try XCTSkipUnless(
+            status == .authorized || status == .provisional || status == .ephemeral,
+            "Notifications not allowed on this simulator (status \(status.rawValue)); run `scripts/sim.sh qa --local` once and tap Allow"
+        )
+    }
+
     override func tearDown() async throws {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: await pendingIDs())
