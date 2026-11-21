@@ -20,6 +20,8 @@ struct PantryView: View {
     private var modelContext
 
     @State
+    private var showHomeSetting = false
+    @State
     private var showCaptureSheet = false
     @State
     private var showManualAddSheet = false
@@ -32,7 +34,9 @@ struct PantryView: View {
     @State
     private var showBarcodeSheet = false
     @State
-    private var showStapleOnboarding = false
+    private var showStaples = false
+    @State
+    private var staplesDetent: PresentationDetent = .large
     @State
     private var barcodeStaged: [StagedPantryItem] = []
     @State
@@ -42,8 +46,9 @@ struct PantryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: TempoSpacing.lg) {
                 headerCard
-                supplementsLink
-                receiptsHistoryLink
+                if !showsStaplesPeek {
+                    staplesChip
+                }
                 if !viewModel.pantryState.expiringSoon.isEmpty {
                     expiringSoonSection
                 }
@@ -59,17 +64,44 @@ struct PantryView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .background(Color.tempoBgPrimary)
-        .navigationTitle("Pantry")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showManualAddSheet = true
-                } label: {
-                    Image(systemName: "plus")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsStaplesPeek, !showStaples {
+                StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
+                    staplesDetent = .large
+                    showStaples = true
                 }
+                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.bottom, TempoSpacing.sm)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
+        .toolbar {
+            // Visible home control (it used to hide in the ⋯ menu only).
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    showHomeSetting = true
+                } label: {
+                    Image(systemName: HomeLocationStore().home == nil ? "house" : "house.fill")
+                }
+                .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
+                .accessibilityIdentifier("pantryHomeButton")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Button("Add item", systemImage: "plus") {
+                        showManualAddSheet = true
+                    }
+                    .accessibilityIdentifier("pantryAddItem")
+                    Button("Staples", systemImage: "leaf") {
+                        viewModel.applyStapleEvent(.reopen)
+                        staplesDetent = .large
+                        showStaples = true
+                    }
+                    Button("Set home", systemImage: "house") {
+                        showHomeSetting = true
+                    }
+                    .accessibilityIdentifier("pantrySetHome")
                     Button("Empty pantry", systemImage: "trash", role: .destructive) {
                         confirmEmpty = true
                     }
@@ -79,6 +111,9 @@ struct PantryView: View {
                 }
                 .accessibilityIdentifier("pantryMoreMenu")
             }
+        }
+        .sheet(isPresented: $showHomeSetting) {
+            HomeLocationSettingView()
         }
         .confirmationDialog(
             "Empty the whole pantry?",
@@ -96,11 +131,11 @@ struct PantryView: View {
             if let receiptService = viewModel.receiptService,
                let pantryService = viewModel.pantryService
             {
-                ReceiptCaptureView(
+                UniversalScanView(context: .pantryReceipt(
                     receiptService: receiptService,
                     pantryService: pantryService,
                     onIngested: { viewModel.reapplyPantryToGrocery() }
-                )
+                ))
             } else {
                 Text("Scan unavailable — open the Pantry tab first.")
                     .padding()
@@ -128,19 +163,20 @@ struct PantryView: View {
             PantryVoiceEditView(viewModel: viewModel)
         }
         .fullScreenCover(isPresented: $showBarcodeSheet) {
-            PantryBarcodeScanView { scannedItems in
+            UniversalScanView(context: .pantryBarcode { scannedItems in
                 barcodeStaged = scannedItems
                 showBarcodeSheet = false
                 showManualAddSheet = true
-            }
+            })
         }
         .sheet(item: $editingItem) { item in
             PantryItemEditSheet(item: item, viewModel: viewModel)
         }
-        .sheet(isPresented: $showStapleOnboarding) {
-            PantryStapleOnboardingSheet { picks in
-                viewModel.seedSelectedStaples(picks)
-            }
+        .sheet(isPresented: $showStaples) {
+            StaplesSheet(viewModel: viewModel, detent: $staplesDetent)
+                .presentationDetents([.height(StaplesSheet.peekHeight), .large], selection: $staplesDetent)
+                .presentationDragIndicator(.visible)
+                .presentationBackgroundInteraction(.enabled(upThrough: .height(StaplesSheet.peekHeight)))
         }
         .refreshable {
             viewModel.reloadPantry()
@@ -148,11 +184,32 @@ struct PantryView: View {
         .task {
             viewModel.attachPhase7Services(modelContext: modelContext, services: services)
         }
-        .onChange(of: viewModel.stapleState.shouldOfferOnboarding) { _, shouldOffer in
-            if shouldOffer {
-                showStapleOnboarding = true
-            }
+        .onAppear {
+            viewModel.loadStaplePromptState()
         }
+    }
+
+    private var showsStaplesPeek: Bool {
+        viewModel.stapleState.prompt.showsPeekCard
+    }
+
+    /// Always-findable entry once the peek card is gone (skipped / done).
+    private var staplesChip: some View {
+        Button {
+            viewModel.applyStapleEvent(.reopen)
+            staplesDetent = .large
+            showStaples = true
+        } label: {
+            Label("Staples · \(viewModel.stapleState.staples.count)", systemImage: "leaf")
+                .font(.tempoCaption1.weight(.semibold))
+                .foregroundStyle(Color.tempoSignal)
+                .padding(.horizontal, TempoSpacing.md)
+                .padding(.vertical, 6)
+                .background(Color.tempoSignal.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("staplesChip")
     }
 
     // MARK: - Header
@@ -199,63 +256,6 @@ struct PantryView: View {
         .padding(TempoSpacing.cardPadding)
         .background(Color.tempoSurfaceCard)
         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    /// Link to the supplement shelf — the sibling "what I own" inventory. The
-    /// meal-plan AI reads it to decide daily take/skip.
-    private var supplementsLink: some View {
-        NavigationLink {
-            SupplementsView()
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "pills.fill")
-                    .foregroundStyle(Color.tempoSignal)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Supplements")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Your shelf — the plan decides daily take/skip")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Link to receipt history — status, retry, delete for every scanned receipt.
-    private var receiptsHistoryLink: some View {
-        NavigationLink {
-            ReceiptsHistoryView(viewModel: viewModel)
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "receipt")
-                    .foregroundStyle(Color.tempoSignal)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Receipts")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("\(viewModel.receiptState.receipts.count) scanned — status, retry, delete")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Staples

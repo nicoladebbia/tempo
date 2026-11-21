@@ -35,6 +35,8 @@ struct VoiceMealLogView: View {
         case clarifying
         case confirming
         case failed(String)
+        /// Pro / AI-off: the card offers the fix.
+        case blocked(AIBlocker)
     }
 
     @State private var phase: Phase = .idle
@@ -57,6 +59,8 @@ struct VoiceMealLogView: View {
                     confirmationSection
                 case let .failed(message):
                     failureSection(message)
+                case let .blocked(blocker):
+                    blockedSection(blocker) { Task { await runExtraction() } }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -177,7 +181,7 @@ struct VoiceMealLogView: View {
                 phase = .clarifying
             }
         } catch {
-            phase = .failed(error.localizedDescription)
+            phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
         }
     }
 
@@ -242,7 +246,7 @@ struct VoiceMealLogView: View {
                 ? .failed("No food items found.")
                 : .confirming
         } catch {
-            phase = .failed(error.localizedDescription)
+            phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
         }
     }
 
@@ -334,6 +338,14 @@ struct VoiceMealLogView: View {
     }
 
     // MARK: - Failure
+
+    private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
+        VStack(spacing: TempoSpacing.lg) {
+            Spacer()
+            AIBlockerCard(blocker: blocker, onConsentGranted: retry)
+            Spacer()
+        }
+    }
 
     private func failureSection(_ message: String) -> some View {
         VStack(spacing: TempoSpacing.lg) {

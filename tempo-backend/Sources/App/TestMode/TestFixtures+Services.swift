@@ -64,6 +64,17 @@ extension TestFixtures {
 
     static let dsldSearch = #"{"hits":[{"_id":"999001"}]}"#
 
+    /// DSLD name search (no quoted barcode phrase): one Test Labs creatine tub, with its display fields.
+    static let dsldNameSearch = #"{"hits":[{"_id":"999001","_source":{"brandName":"Test Labs","fullName":"Creatine Monohydrate Powder","offMarket":0}}]}"#
+
+    /// Open Food Facts Search-a-licious (primary search): same two products, `brands` as an array.
+    static let openFoodFactsSearchALicious = #"{"hits":[{"code":"5060000000019","product_name":"Test Cereal Bar","brands":["Test Foods"],"quantity":"40 g","categories_tags":["en:snacks"]},{"code":"5060000000026","product_name":"Whey Protein (test)","brands":["Test Labs"],"quantity":"900 g","categories_tags":["en:dietary-supplements","en:protein-powders"]},{"code":"5060000000033","brands":["No Name"]}],"count":3}"#
+
+    /// Open Food Facts legacy text search (`cgi/search.pl`, fallback): a supplement and a non-supplement,
+    /// so the "supplements first" ranking is visible in test mode. Both barcodes open
+    /// through `openFoodFactsProduct` (they don't end in 0).
+    static let openFoodFactsSearch = #"{"count":2,"products":[{"code":"5060000000019","product_name":"Test Cereal Bar","brands":"Test Foods","quantity":"40 g","categories_tags":["en:snacks"]},{"code":"5060000000026","product_name":"Whey Protein (test)","brands":"Test Labs","quantity":"900 g","categories_tags":["en:dietary-supplements","en:protein-powders"]}]}"#
+
     static let dsldLabel = #"""
     {"brandName":"Test Labs","fullName":"Creatine Monohydrate Powder","productType":{"langualCodeDescription":"Non-Nutrient/Non-Botanical"},    "servingsPerContainer":100,"servingSizes":[{"minQuantity":5,"unit":"Gram(s)","notes":"1 scoop (5 g)"}],    "ingredientRows":[{"name":"Creatine Monohydrate","category":"non-nutrient/non-botanical","quantity":[{"quantity":5,"unit":"Gram(s)"}]}],    "statements":[{"type":"Seals/Symbols","notes":"NSF Certified for Sport"}]}
     """#

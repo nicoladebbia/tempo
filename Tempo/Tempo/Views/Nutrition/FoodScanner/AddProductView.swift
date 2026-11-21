@@ -16,6 +16,9 @@ import SwiftUI
 struct AddProductView: View {
     let barcode: String?
     let catalog: FoodCatalog
+    /// An existing product whose label is being (re)photographed: its fields
+    /// start filled in, and saving replaces it.
+    var prefill: FoodProduct?
     let onSaved: (FoodProduct) -> Void
 
     @Environment(\.modelContext)
@@ -60,8 +63,13 @@ struct AddProductView: View {
     private var isRenderingPhoto = false
     @State
     private var isReadingLabel = false
+    /// The label photo, cropped to the label, shown as a card after capture.
+    @State
+    private var labelImage: UIImage?
     @State
     private var labelMessage: String?
+    @State
+    private var labelBlocker: AIBlocker?
     @State
     private var picker: PickerTarget?
 
@@ -89,6 +97,19 @@ struct AddProductView: View {
 
             Section {
                 labelRow
+                if let labelBlocker {
+                    AIBlockerCard(
+                        blocker: labelBlocker,
+                        message: labelBlocker == .proRequired
+                            ? "Reading labels with AI is a Tempo Pro feature. You can still type the values below."
+                            : "AI features are off. Turn them on to read labels, or type the values below."
+                    ) {
+                        self.labelBlocker = nil
+                        labelMessage = nil
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
             } header: {
                 Text("Nutrition label")
             } footer: {
@@ -137,7 +158,8 @@ struct AddProductView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Color.tempoBgPrimary)
-        .navigationTitle("Add product")
+        .onAppear(perform: applyPrefill)
+        .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -166,6 +188,27 @@ struct AddProductView: View {
                 .ignoresSafeArea()
             }
         }
+    }
+
+    private func applyPrefill() {
+        guard let product = prefill, name.isEmpty, kcal.isEmpty else {
+            return
+        }
+        name = product.name
+        brand = product.brand ?? ""
+        servingText = Self.text(product.servingGrams)
+        isBeverage = product.isBeverage
+        let n = product.per100g
+        kcal = Self.text(n.kcal)
+        protein = Self.text(n.protein)
+        carbs = Self.text(n.carbs)
+        sugars = Self.text(n.sugars)
+        fat = Self.text(n.fat)
+        saturatedFat = Self.text(n.saturatedFat)
+        fiber = Self.text(n.fiber)
+        salt = Self.text(n.salt)
+        ingredients = product.ingredientsText ?? ""
+        allergens = product.allergens
     }
 
     // MARK: - Photo
@@ -217,19 +260,56 @@ struct AddProductView: View {
 
     // MARK: - Label
 
+    @ViewBuilder
     private var labelRow: some View {
-        HStack(spacing: TempoSpacing.md) {
-            if isReadingLabel {
+        if let labelImage {
+            // Captured: the capture buttons are gone; the label is a card and
+            // the only control left is a small Retake.
+            VStack(spacing: TempoSpacing.sm) {
+                Image(uiImage: labelImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .overlay {
+                        if isReadingLabel {
+                            ZStack {
+                                Color.black.opacity(0.45)
+                                VStack(spacing: TempoSpacing.sm) {
+                                    ProgressView().tint(Color.tempoBone)
+                                    Text("Reading the label…")
+                                        .font(.tempoCaption1)
+                                        .foregroundStyle(Color.tempoBone)
+                                }
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        }
+                    }
+                    .accessibilityLabel("Photo of the nutrition label")
+                    .accessibilityIdentifier("addProductLabelCard")
+                if !isReadingLabel {
+                    Button("Retake") { picker = .label(.camera) }
+                        .font(.tempoCaption1)
+                        .foregroundStyle(Color.tempoSignal)
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("addProductLabelRetake")
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, TempoSpacing.xs)
+        } else if isReadingLabel {
+            HStack(spacing: TempoSpacing.md) {
                 ProgressView()
                 Text("Reading the label…")
                     .font(.tempoBody)
                     .foregroundStyle(Color.tempoTextSecondary)
                 Spacer()
-            } else {
-                captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
             }
+            .padding(.vertical, TempoSpacing.xs)
+        } else {
+            captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
+                .padding(.vertical, TempoSpacing.xs)
         }
-        .padding(.vertical, TempoSpacing.xs)
     }
 
     private func readLabel(_ image: UIImage) {
@@ -238,16 +318,19 @@ struct AddProductView: View {
         }
         isReadingLabel = true
         labelMessage = nil
+        labelBlocker = nil
         Task {
+            labelImage = await LabelCrop.cropped(image)
             do {
                 let reading = try await NutritionLabelReader.read(imageJPEG: data, apiClient: services.apiClient)
                 apply(reading)
                 HapticManager.success()
             } catch let error as APIError {
+                labelBlocker = AIBlocker(error)
                 labelMessage = switch error {
                 case .unauthorized: "Sign in to read labels with AI — or type the values below."
-                case .subscriptionRequired: "Reading labels with AI is a Tempo Pro feature — type the values below."
-                case .aiConsentRequired: "Turn on AI features in Settings to read labels — or type the values below."
+                case .subscriptionRequired,
+                     .aiConsentRequired: nil
                 default: error.userMessage
                 }
             } catch {
@@ -299,20 +382,16 @@ struct AddProductView: View {
         let serving = Self.number(servingText).flatMap { $0 > 0 ? $0 : nil }
         let unit = isBeverage ? "ml" : "g"
         let trimmedIngredients = ingredients.trimmingCharacters(in: .whitespacesAndNewlines)
-        return FoodProduct(
-            id: barcode ?? "user:\(trimmedName.lowercased())",
+        return FoodProduct.userEdited(
+            from: prefill,
             barcode: barcode,
             name: trimmedName,
-            brand: brand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : brand
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-            source: .userAdded,
-            servingLabel: serving.map { "\(Self.text($0)) \(unit)" },
+            brand: brand,
             servingGrams: serving,
             isBeverage: isBeverage,
             per100g: nutrients,
-            additives: NutritionLabelReader.additiveCodes(in: trimmedIngredients),
             allergens: allergens,
-            ingredientsText: trimmedIngredients.isEmpty ? nil : trimmedIngredients
+            ingredients: trimmedIngredients
         )
     }
 

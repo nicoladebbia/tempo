@@ -175,6 +175,8 @@ struct DashboardSettingsView: View {
                     .buttonStyle(.plain)
                 }
 
+                AIFeaturesSettingsCard()
+
                 SettingsGroupCard(title: "Appearance") {
                     NavigationLink {
                         AppearanceSettingsDetailView()

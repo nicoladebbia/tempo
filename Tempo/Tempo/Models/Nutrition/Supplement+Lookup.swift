@@ -25,9 +25,15 @@ extension Supplement {
             proteinGramsPerServing: dto.proteinGramsPerServing ?? 0,
             servingsRemaining: dto.servingsPerContainer ?? 0
         )
+        caloriesPerServing = dto.caloriesPerServing
+        carbsGramsPerServing = dto.carbsGramsPerServing
+        fatGramsPerServing = dto.fatGramsPerServing
         brand = dto.brand
         upc = dto.upc
         servingsPerContainer = dto.servingsPerContainer
+        if let lines = dto.ingredients, !lines.isEmpty {
+            ingredientsSummary = lines.joined(separator: "\n")
+        }
     }
 
     /// Finds the shelf item a new scan should be treated as a restock of:
@@ -38,7 +44,12 @@ extension Supplement {
     /// a shelf item the user already retired.
     static func duplicate(forUPC upc: String, name: String, in shelf: [Supplement]) -> Supplement? {
         let active = shelf.filter { !$0.isArchived }
-        if let byUPC = active.first(where: { $0.upc == upc }) {
+        // Same product however the scanner spelled it (UPC-A vs EAN-13).
+        var spellings: Set<String> = [upc]
+        if case let .success(barcode) = SupplementBarcode.normalize(upc) {
+            spellings = barcode.variants
+        }
+        if let byUPC = active.first(where: { $0.upc.map { spellings.contains($0) } == true }) {
             return byUPC
         }
         return active.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
@@ -50,5 +61,20 @@ extension Supplement {
         servingsRemaining += max(0, containerSize)
         lastRestockedAt = Date()
         updatedAt = Date()
+    }
+}
+
+extension SupplementLookupDTO {
+    /// The same product tied to the barcode the user actually scanned.
+    func withUPC(_ upc: String) -> SupplementLookupDTO {
+        SupplementLookupDTO(
+            upc: upc, brand: brand, name: name, kind: kind,
+            dosePerServing: dosePerServing, servingsPerContainer: servingsPerContainer,
+            proteinGramsPerServing: proteinGramsPerServing,
+            caloriesPerServing: caloriesPerServing, carbsGramsPerServing: carbsGramsPerServing,
+            fatGramsPerServing: fatGramsPerServing,
+            certifications: certifications, source: source, ingredients: ingredients,
+            communityConfirmations: communityConfirmations, disputed: disputed, catalogID: catalogID
+        )
     }
 }

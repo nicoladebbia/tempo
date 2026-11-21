@@ -111,11 +111,9 @@ final class DayPlannerService {
 
     // MARK: - Input gathering
 
-    private func fetchMeals(on day: Date) -> [PlannedBlock] {
-        let descriptor = FetchDescriptor<PlannedMeal>(
-            predicate: #Predicate { $0.dayDate == day }
-        )
-        let rows = (try? modelContext.fetch(descriptor)) ?? []
+    func fetchMeals(on day: Date) -> [PlannedBlock] {
+        // Same meals the Fuel screens show: active plan or manual logs only.
+        let rows = CanonicalMeals.meals(on: day, in: modelContext)
         return rows.compactMap { meal -> PlannedBlock? in
             guard let (start, end) = Self.minutesOfDay(timeString: meal.scheduledTime, durationMinutes: meal.eatDurationMinutes) else {
                 return nil

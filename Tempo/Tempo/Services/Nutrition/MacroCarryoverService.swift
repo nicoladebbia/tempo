@@ -120,7 +120,8 @@ enum MacroCarryoverService {
         // tracking" day, not a real deficit. Pulling 2000 kcal forward
         // from a Sunday the user simply didn't track would corrupt
         // the next day's target. (Preserved from the original guard.)
-        guard !eaten.isEmpty else {
+        // A supplement tick alone isn't a tracked day.
+        guard eaten.contains(where: { !EatenMealRecorder.isSupplementDose($0) }) else {
             tickActiveCarryovers(in: context)
             return
         }

@@ -64,6 +64,8 @@ struct MealFoodItemInput: Codable {
     let source: FoodDataSource
     /// Packaged products from the scanner / food search keep their barcode.
     var barcode: String? = nil
+    /// Where THIS food came from in a mixed log; nil = follows the meal.
+    var origin: MealOrigin? = nil
 
     /// Scaled values based on serving count.
     var totalCalories: Double {
@@ -208,6 +210,10 @@ struct PhotoAnalysisResult {
         /// the photo analysis. Empty when the model returned no
         /// alternatives or for legacy responses pre-top-N.
         let alternatives: [FoodCandidate]
+        /// Macros were cross-checked against USDA.
+        var isVerified = false
+        /// Clarifying question the model asked about a low-confidence item.
+        var question: String?
     }
 
     /// One alternative identification from the vision model. Includes its
@@ -511,6 +517,8 @@ struct ClaudeFoodAnalysis: Codable {
         /// Up to 3 ranked alternative identifications. Optional so existing
         /// pre-top-N response shapes (and the mock service) decode cleanly.
         let alternatives: [ClaudeFoodAlternative]?
+        /// Short question for the user when the model is unsure (confidence < 0.6).
+        let question: String?
     }
 
     struct ClaudeFoodAlternative: Codable {

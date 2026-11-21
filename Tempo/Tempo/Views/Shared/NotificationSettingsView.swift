@@ -32,6 +32,8 @@ struct NotificationSettingsView: View {
 
     // MARK: - Authorization State
 
+    @Environment(\.scenePhase)
+    private var scenePhase
     @State
     private var authorizationStatus: UNAuthorizationStatus = .notDetermined
     @State
@@ -112,6 +114,12 @@ struct NotificationSettingsView: View {
         .onAppear {
             loadFromSettings()
             checkAuthorizationStatus()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Back from iOS Settings: pick up the new permission.
+            if phase == .active {
+                checkAuthorizationStatus()
+            }
         }
     }
 
@@ -364,7 +372,11 @@ struct NotificationSettingsView: View {
                     icon: "fork.knife",
                     onToggle: { enabled in
                         persistToggle(\.mealRemindersEnabled, value: enabled)
-                        if !enabled {
+                        if enabled {
+                            MealReminderPlanner.reschedule(
+                                modelContext: modelContext, notifications: services.notifications
+                            )
+                        } else {
                             services.notifications.cancelCategory("MEAL_REMINDER")
                         }
                     }

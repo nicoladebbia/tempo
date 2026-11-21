@@ -166,6 +166,26 @@ final class DashboardFuelDayTypeTests: XCTestCase {
         XCTAssertEqual(vm.fuel.caloriesConsumed, 500)
     }
 
+    /// A ticked supplement's entry adds its calories but is not a meal, and
+    /// doesn't reset "last meal".
+    func testSupplementDoseCountsCaloriesNotAMeal() throws {
+        let mealTime = Date().addingTimeInterval(-3 * 3600)
+        context.insert(PlannedMeal(dayDate: Date(), totalCalories: 500, status: .eaten, actualEatenAt: mealTime))
+        EatenMealRecorder.recordSupplementDose(
+            name: "Whey Protein",
+            macros: MealMacros(calories: 120, protein: 24, carbs: 3, fat: 1.5),
+            in: context
+        )
+        try context.save()
+
+        let vm = DashboardViewModel(services: .mock())
+        vm.setFuelContext(context)
+        let totals = vm.fetchNutritionTotalsForToday()
+        XCTAssertEqual(totals.calories, 620)
+        XCTAssertEqual(totals.mealsLogged, 1)
+        XCTAssertEqual(totals.lastEatenAt, mealTime)
+    }
+
     // MARK: - Widget snapshot
 
     func testWidgetSnapshotMirrorsDashboard() {

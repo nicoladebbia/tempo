@@ -6,6 +6,7 @@
 //
 //
 
+import SwiftData
 import SwiftUI
 
 // MARK: - TemporaryExclusionsStepView
@@ -15,6 +16,13 @@ struct TemporaryExclusionsStepView: View {
     var coordinator: WizardCoordinator
     @State
     private var draftInput: String = ""
+    @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
+    private var profiles: [DietaryProfile]
+
+    /// The permanent "won't eat" list (Edit setup) — always excluded.
+    private var permanentExclusions: [String] {
+        profiles.first?.dislikedFoods ?? []
+    }
 
     var body: some View {
         WizardStepScaffold(
@@ -52,8 +60,38 @@ struct TemporaryExclusionsStepView: View {
                 if !coordinator.intake.temporaryExclusions.isEmpty {
                     chipGrid
                 }
+
+                if !permanentExclusions.isEmpty {
+                    permanentSection
+                }
             }
         }
+    }
+
+    private var permanentSection: some View {
+        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            Text("Always off — edit in setup")
+                .font(.tempoCaption1)
+                .foregroundStyle(Color.tempoTextSecondary)
+            FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
+                ForEach(permanentExclusions, id: \.self) { food in
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(food)
+                            .font(.tempoCaption1)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
+                    .padding(.horizontal, TempoSpacing.sm)
+                    .padding(.vertical, 6)
+                    .overlay(Capsule().strokeBorder(Color.tempoTextTertiary.opacity(0.4)))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(food), always off")
+                }
+            }
+        }
+        .accessibilityIdentifier("wizardPermanentExclusions")
     }
 
     private var chipGrid: some View {
@@ -85,7 +123,8 @@ struct TemporaryExclusionsStepView: View {
         guard !trimmed.isEmpty else {
             return
         }
-        if !coordinator.intake.temporaryExclusions.contains(trimmed) {
+        let alreadyPermanent = permanentExclusions.contains { $0.lowercased() == trimmed }
+        if !alreadyPermanent, !coordinator.intake.temporaryExclusions.contains(trimmed) {
             coordinator.intake.temporaryExclusions.append(trimmed)
             HapticManager.selection()
         }

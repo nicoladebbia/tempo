@@ -300,15 +300,6 @@ final class LocalPantryService: PantryServiceProtocol {
         }
     }
 
-    func adjustQuantity(of item: PantryItem, by delta: Double) throws {
-        if delta >= 0 {
-            item.increment(by: delta)
-        } else {
-            item.decrement(by: -delta)
-        }
-        try modelContext.save()
-    }
-
     @discardableResult
     func updateItem(
         _ item: PantryItem,

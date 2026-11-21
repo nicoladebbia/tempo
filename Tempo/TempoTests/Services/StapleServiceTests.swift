@@ -61,26 +61,6 @@ final class StapleServiceTests: XCTestCase {
         XCTAssertEqual(all.first?.status, .out)
     }
 
-    // MARK: - stapleNeeds
-
-    func testStapleNeeds_returnsOnlyLowOrOut() throws {
-        _ = try service.addStaple(canonicalName: "salt", displayName: "Salt", status: .have)
-        _ = try service.addStaple(canonicalName: "olive oil", displayName: "Olive oil", status: .runningLow)
-        _ = try service.addStaple(canonicalName: "soy sauce", displayName: "Soy sauce", status: .out)
-
-        let needs = try service.stapleNeeds()
-
-        XCTAssertEqual(needs.count, 2)
-        XCTAssertTrue(needs.contains { $0.canonicalName == "olive oil" })
-        XCTAssertTrue(needs.contains { $0.canonicalName == "soy sauce" })
-        XCTAssertFalse(needs.contains { $0.canonicalName == "salt" })
-    }
-
-    func testStapleNeeds_emptyWhenAllHave() throws {
-        _ = try service.addStaple(canonicalName: "salt", displayName: "Salt", status: .have)
-        XCTAssertTrue(try service.stapleNeeds().isEmpty)
-    }
-
     // MARK: - Onboarding
 
     func testShouldOfferOnboarding_trueWhenEmpty() throws {

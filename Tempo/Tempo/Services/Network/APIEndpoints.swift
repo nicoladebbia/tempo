@@ -29,8 +29,15 @@ struct APIEndpoint<Response: Decodable & Sendable> {
     /// auth routes that return their payload directly. Per
     /// INTELLIGENCE_REMEDIATION_PLAN.md §3 (envelope unwrap fix).
     let expectsEnvelope: Bool
+    /// True for expensive or non-idempotent POSTs (AI calls) that must fail fast:
+    /// a 429/5xx surfaces immediately instead of sleeping and re-sending.
+    let disablesRetry: Bool
 
-    init(path: String, method: HTTPMethod = .get, requiresAuth: Bool = true, expectsEnvelope: Bool = true) {
+    init(
+        path: String, method: HTTPMethod = .get, requiresAuth: Bool = true, expectsEnvelope: Bool = true,
+        disablesRetry: Bool = false
+    ) {
+        self.disablesRetry = disablesRetry
         self.path = path
         self.method = method
         self.requiresAuth = requiresAuth

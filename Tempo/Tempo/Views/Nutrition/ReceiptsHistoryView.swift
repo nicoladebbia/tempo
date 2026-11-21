@@ -19,13 +19,7 @@ struct ReceiptsHistoryView: View {
 
     var body: some View {
         List {
-            if viewModel.receiptState.receipts.isEmpty {
-                ContentUnavailableView(
-                    "No receipts yet",
-                    systemImage: "receipt",
-                    description: Text("Scan a grocery receipt from the Pantry tab to see it here.")
-                )
-            } else {
+            if !viewModel.receiptState.receipts.isEmpty {
                 ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
                     // A scanned receipt opens its review screen — "Needs review"
                     // used to be a label with nowhere to go.
@@ -40,6 +34,7 @@ struct ReceiptsHistoryView: View {
                                 pantryService: pantryService,
                                 onIngested: {
                                     viewModel.reloadReceipts()
+                                    viewModel.reloadPantry()
                                     // Same as from Pantry: new stock shrinks the list.
                                     viewModel.reapplyPantryToGrocery()
                                 }
@@ -53,8 +48,20 @@ struct ReceiptsHistoryView: View {
                 }
             }
         }
-        .navigationTitle("Receipts")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        // Insets rows to the same 20pt gutter as every other Fuel screen.
+        .contentMargins(.horizontal, TempoSpacing.screenEdge, for: .scrollContent)
+        .background(Color.tempoBgPrimary)
+        .overlay {
+            // Outside the List so the empty state isn't wrapped in a list row.
+            if viewModel.receiptState.receipts.isEmpty {
+                EmptyStateView(
+                    icon: "receipt",
+                    title: "No receipts yet",
+                    message: "Scan a grocery receipt from the Pantry tab to see it here."
+                )
+            }
+        }
         .alert("Couldn't retry", isPresented: .init(
             get: { errorMessage != nil },
             set: {

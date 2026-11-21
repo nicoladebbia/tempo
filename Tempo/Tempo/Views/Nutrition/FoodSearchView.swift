@@ -121,12 +121,12 @@ struct FoodSearchView: View {
                 }
             }
             .sheet(isPresented: $showScanner) {
-                BarcodeScannerView(onFoodScanned: onFoodSelected.map { handler in
+                UniversalScanView(context: .foodSearch(onFood: onFoodSelected.map { handler in
                     { item in
                         handler(item)
                         dismiss()
                     }
-                })
+                }))
             }
             .task(id: searchText) {
                 await runSearch()

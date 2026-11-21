@@ -246,7 +246,7 @@ actor APIClient {
             }
         } catch let error as APIError {
             // Retry logic per ERROR_RECOVERY_FLOWS.md Section 8
-            if error.isRetryable, attempt < maxRetries {
+            if error.isRetryable, !endpoint.disablesRetry, attempt < maxRetries {
                 let delay = retryDelay(for: error, attempt: attempt)
                 try await Task.sleep(for: .seconds(delay))
                 return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)
@@ -261,7 +261,7 @@ actor APIClient {
             }
 
             let apiError = APIError.networkError(error.localizedDescription)
-            if apiError.isRetryable, attempt < maxRetries {
+            if apiError.isRetryable, !endpoint.disablesRetry, attempt < maxRetries {
                 let delay = baseDelay * pow(2.0, Double(attempt))
                 try await Task.sleep(for: .seconds(delay))
                 return try await executeWithRetry(request, endpoint: endpoint, attempt: attempt + 1)

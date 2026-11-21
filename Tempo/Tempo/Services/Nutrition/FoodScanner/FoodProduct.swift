@@ -176,3 +176,50 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
         }
     }
 }
+
+// MARK: - User edits
+
+extension FoodProduct {
+    /// The product after the user filled in / corrected its label. A re-save of
+    /// an existing product (`base`) UPDATES it: id, barcode, source, images and
+    /// tags survive and a rename never changes the id (that made a duplicate).
+    /// A brand-new product gets its barcode as id, else "user:<name>".
+    static func userEdited(
+        from base: FoodProduct?,
+        barcode: String?,
+        name: String,
+        brand: String,
+        servingGrams: Double?,
+        isBeverage: Bool,
+        per100g: Nutrients,
+        allergens: [String],
+        ingredients: String
+    ) -> FoodProduct {
+        let trimmedBrand = brand.trimmingCharacters(in: .whitespacesAndNewlines)
+        let unit = isBeverage ? "ml" : "g"
+        func servingText(_ value: Double) -> String {
+            value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        }
+        var product = base ?? FoodProduct(
+            id: barcode ?? "user:\(name.lowercased())",
+            barcode: barcode,
+            name: name,
+            source: .userAdded,
+            per100g: per100g
+        )
+        product.name = name
+        product.brand = trimmedBrand.isEmpty ? nil : trimmedBrand
+        if base == nil {
+            product.source = .userAdded
+        }
+        product.barcode = base?.barcode ?? barcode
+        product.servingGrams = servingGrams
+        product.servingLabel = servingGrams.map { "\(servingText($0)) \(unit)" }
+        product.isBeverage = isBeverage
+        product.per100g = per100g
+        product.additives = NutritionLabelReader.additiveCodes(in: ingredients)
+        product.allergens = allergens
+        product.ingredientsText = ingredients.isEmpty ? nil : ingredients
+        return product
+    }
+}

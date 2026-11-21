@@ -42,6 +42,9 @@ enum FuelSetupExtractor {
       "goalWeightKg":<n|null>,"weeklyRateKg":<n|null>,
       "restrictions":["lactoseFree|glutenFree|vegetarian|vegan|halal|nutFree|shellfishAllergy|noAddedSugars|noCoffee"],
       "allergies":[".."],"dislikedFoods":[".."],"favoriteFoods":[".."],
+      "favoriteCuisines":["Italian"],"spiceLevel":"mild|medium|hot|null",
+      "breakfastStyle":"sweet|savoury|quick|null","snacksPerDay":<int 0-2|null>,
+      "appetite":"light|normal|big|null",
       "mealsPerDay":<int|null>,"breakfastSkipped":<bool|null>,
       "eatingWindowStart":"HH:mm|null","eatingWindowEnd":"HH:mm|null",
       "cookingSkill":"beginner|intermediate|advanced|null",
@@ -161,6 +164,11 @@ enum FuelSetupExtractor {
             var allergies: [String]?
             var dislikedFoods: [String]?
             var favoriteFoods: [String]?
+            var favoriteCuisines: [String]?
+            var spiceLevel: String?
+            var breakfastStyle: String?
+            var snacksPerDay: Flex<Int>?
+            var appetite: String?
             var mealsPerDay: Flex<Int>?
             var breakfastSkipped: Bool?
             var eatingWindowStart: String?
@@ -261,6 +269,11 @@ extension FuelSetupExtractor.Wire.Profile {
         allergies = draft.allergies
         dislikedFoods = draft.dislikedFoods
         favoriteFoods = draft.favoriteFoods
+        favoriteCuisines = draft.favoriteCuisines
+        spiceLevel = draft.spiceLevel?.rawValue
+        breakfastStyle = draft.breakfastStyle?.rawValue
+        snacksPerDay = draft.snacksPerDay.map(Flex.init)
+        appetite = draft.appetite?.rawValue
         mealsPerDay = draft.mealsPerDay.map(Flex.init)
         breakfastSkipped = draft.breakfastSkipped
         eatingWindowStart = RoutineTime.string(draft.eatingWindowStartMinutes)
@@ -323,6 +336,11 @@ extension FuelSetupExtractor.Wire.Profile {
         draft.allergies = Self.clean(allergies)
         draft.dislikedFoods = Self.clean(dislikedFoods)
         draft.favoriteFoods = Self.clean(favoriteFoods)
+        draft.favoriteCuisines = Self.clean(favoriteCuisines)
+        draft.spiceLevel = spiceLevel.flatMap { SpiceLevel(rawValue: $0.lowercased()) }
+        draft.breakfastStyle = breakfastStyle.flatMap { BreakfastStyle(rawValue: $0.lowercased()) }
+        draft.snacksPerDay = snacksPerDay?.value.clamped(to: SnackHabit.range)
+        draft.appetite = appetite.flatMap { AppetiteSize(rawValue: $0.lowercased()) }
         draft.mealsPerDay = mealsPerDay?.value.clamped(to: 1 ... 8)
         draft.breakfastSkipped = breakfastSkipped
         draft.eatingWindowStartMinutes = RoutineTime.minutes(from: eatingWindowStart)

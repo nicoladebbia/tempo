@@ -369,9 +369,8 @@ final class FuelSetupExtractorTests: XCTestCase {
         draft.age = 30
         draft.sex = .female
         draft.goal = .maintain
-        draft.routine[1].wakeMinutes = 420
         draft.mealsPerDay = 3
-        XCTAssertTrue(draft.isComplete)
+        XCTAssertTrue(draft.isComplete, "no wake time needed: the week is optional")
     }
 
     func testFriendlyErrorForNonPro() {
@@ -411,7 +410,7 @@ final class FuelSetupPersistenceTests: XCTestCase {
         XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
     }
 
-    func testSavingTheSameCookableDaysStillClearsTheWizardsOverride() throws {
+    func testSavingUnchangedCookableDaysKeepsThisWeeksOverride() throws {
         // The one settings row from setUp (a second row would make which
         // one `save` updates depend on fetch order).
         let settings = try XCTUnwrap(MealPlanGeneratorService.fetchUserSettings(modelContext: context))
@@ -424,7 +423,12 @@ final class FuelSetupPersistenceTests: XCTestCase {
         draft.cookableDaysPerWeek = 5
         draft.save(to: context)
 
-        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 5)
+        // Only a CHANGED permanent value supersedes this week's answer.
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 3)
+
+        draft.cookableDaysPerWeek = 6
+        draft.save(to: context)
+        XCTAssertEqual(MealPlanIntake.loadPersisted(from: settings).cookableDaysThisWeek, 6)
     }
 
     func testSaveWritesEveryStoreAndLoadsBack() throws {

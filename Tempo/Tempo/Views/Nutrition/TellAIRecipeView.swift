@@ -24,6 +24,7 @@ struct TellAIRecipeView: View {
     @State private var service: RecipeParserService?
     @State private var isParsing: Bool = false
     @State private var errorText: String?
+    @State private var blocker: AIBlocker?
 
     /// Parsed recipe awaiting user confirmation. Non-nil → preview sheet
     /// is presented. The user must accept (or edit) before persistence,
@@ -68,7 +69,13 @@ struct TellAIRecipeView: View {
                 )
                 .padding(.horizontal, TempoSpacing.screenEdge)
 
-                if let errorText {
+                if let blocker {
+                    AIBlockerCard(blocker: blocker) {
+                        self.blocker = nil
+                        Task { await parseAndPreview() }
+                    }
+                    .padding(.horizontal, TempoSpacing.screenEdge)
+                } else if let errorText {
                     Text(errorText)
                         .font(.tempoCaption1)
                         .foregroundStyle(Color.tempoError)
@@ -137,6 +144,7 @@ struct TellAIRecipeView: View {
         textFocused = false
         isParsing = true
         errorText = nil
+        blocker = nil
         defer { isParsing = false }
 
         let svc = service ?? RecipeParserService(apiClient: apiClient)
@@ -156,8 +164,8 @@ struct TellAIRecipeView: View {
             }
             pendingRecipe = recipe
         } catch {
-            errorText = (error as? RecipeParseError)?.errorDescription
-                ?? error.localizedDescription
+            blocker = AIBlocker(error)
+            errorText = AIBlocker.message(for: error)
             HapticManager.notification(.error)
         }
     }

@@ -41,6 +41,8 @@
 #                                                    time don't share a test DB or Redis db
 #
 # --rebuild: build the backend from THIS worktree and restart on it.
+# TEMPO_TEST_REAL_SUPPLEMENT_LOOKUP=1 scripts/testenv.sh up: supplement barcode lookups hit the real
+#            free NIH DSLD / Open Facts databases (everything else stays faked).
 # --real-ai: real Claude calls (costs money). Key from $ANTHROPIC_API_KEY,
 #            tempo-backend/.env, or ~/.tempo-testenv/anthropic.key.
 # --record:  with --real-ai, save every real reply per feature
@@ -255,6 +257,7 @@ start_server() {
         env -i HOME="$HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
             TEMPO_TEST_MODE=1 TEMPO_TEST_AI="$ai" TEMPO_TEST_AI_RECORD="$record" \
             TEMPO_TEST_AI_RECORDINGS="$STATE/ai-recordings" LOG_LEVEL=info \
+            TEMPO_TEST_REAL_SUPPLEMENT_LOOKUP="${TEMPO_TEST_REAL_SUPPLEMENT_LOOKUP:-}" \
             DB_HOST=127.0.0.1 DB_PORT="$PG_PORT" DB_USER=tempo DB_PASSWORD=tempo_dev DB_NAME="$DB_NAME" \
             REDIS_URL="redis://127.0.0.1:$REDIS_PORT/$REDIS_DB" JWT_SECRET=tempo-test-mode-secret \
             ANTHROPIC_API_KEY="$key" OPENAI_API_KEY=test-mode INSTACART_API_KEY=test-mode USDA_API_KEY=test-mode \

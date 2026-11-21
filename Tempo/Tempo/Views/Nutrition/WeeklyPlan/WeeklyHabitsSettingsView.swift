@@ -12,6 +12,8 @@ import SwiftUI
 import UserNotifications
 
 struct WeeklyHabitsSettingsView: View {
+    @Environment(\.scenePhase)
+    private var scenePhase
     @Environment(ServiceContainer.self)
     private var services
     @Environment(\.modelContext)
@@ -47,6 +49,10 @@ struct WeeklyHabitsSettingsView: View {
                 }
                 Button("Plan next week now") {
                     services.appState.weeklyCheckInRequested = true
+                }
+                if notificationsDenied {
+                    Button("Open Settings") { CameraPermission.openSettings() }
+                        .accessibilityIdentifier("weeklyOpenSettings")
                 }
             } header: {
                 Text("Sunday planning")
@@ -108,6 +114,16 @@ struct WeeklyHabitsSettingsView: View {
             load()
             let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
             notificationsDenied = status == .denied
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Back from iOS Settings: re-read the notification permission.
+            guard phase == .active else {
+                return
+            }
+            Task {
+                let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+                notificationsDenied = status == .denied
+            }
         }
         .onChange(of: promptEnabled) { _, enabled in
             save()

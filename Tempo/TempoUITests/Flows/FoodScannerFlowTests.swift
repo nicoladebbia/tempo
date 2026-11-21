@@ -116,10 +116,9 @@ final class FoodScannerFlowTests: XCTestCase {
 
     func testOfflineScannerExplainsItself() {
         openScanner(extraArguments: ["--uitesting-simulate-offline"])
-        let notice = app.alerts["You're offline"]
-        XCTAssertTrue(notice.waitForExistence(timeout: 10), "Offline pop-up on opening the scanner")
+        let notice = app.descendants(matching: .any)["scanOfflineBanner"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 10), "Inline offline banner on opening the scanner")
         attach("07-offline-notice")
-        notice.buttons["OK"].tap()
         XCTAssertTrue(app.buttons["Type the barcode"].waitForExistence(timeout: 5), "Scanner still usable after dismissing")
     }
 }

@@ -84,6 +84,31 @@ final class FoodCatalog {
         }
     }
 
+    /// A product this phone has seen or the user added, straight from the local
+    /// history. No network, so a re-scan opens instantly (and offline).
+    func cachedProduct(barcode: String, in context: ModelContext) -> FoodProduct? {
+        let code = barcode.filter(\.isNumber)
+        guard !code.isEmpty else {
+            return nil
+        }
+        return record(for: code, in: context)?.product
+    }
+
+    /// Quietly refreshes the saved copy of a packaged product from Open Food
+    /// Facts. Never touches what's on screen; offline/failed = keep the old copy.
+    /// The user's own products are never overwritten.
+    func refreshCached(barcode: String, in context: ModelContext) async {
+        let code = barcode.filter(\.isNumber)
+        guard let saved = record(for: code, in: context), !saved.isUserAdded else {
+            return
+        }
+        guard let fresh = try? await products.product(barcode: code) else {
+            return
+        }
+        saved.update(with: fresh)
+        save(context)
+    }
+
     // MARK: - Search
 
     /// Local results only — instant, shown while the network sources load.

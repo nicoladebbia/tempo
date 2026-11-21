@@ -36,18 +36,10 @@ struct MealPlanIntakeWizardView: View {
             switch coordinator.currentStep {
             case .cookingCapacity:
                 CookingCapacityStepView(coordinator: coordinator)
-            case .leftoverTolerance:
-                LeftoverToleranceStepView(coordinator: coordinator)
-            case .eatingWindow:
-                EatingWindowStepView(coordinator: coordinator)
-            case .pantryGap:
-                PantryGapStepView(coordinator: coordinator)
-            case .groceryIntent:
-                GroceryIntentStepView(coordinator: coordinator)
-            case .recoveryOverride:
-                RecoveryOverrideStepView(coordinator: coordinator)
             case .temporaryExclusions:
                 TemporaryExclusionsStepView(coordinator: coordinator)
+            case .recoveryOverride:
+                RecoveryOverrideStepView(coordinator: coordinator)
             case .review:
                 ReviewStepView(coordinator: coordinator)
             }
@@ -56,11 +48,10 @@ struct MealPlanIntakeWizardView: View {
         .onAppear(perform: seedIntakeIfNeeded)
     }
 
-    /// Pre-fill from the user's saved answers instead of bare defaults:
-    /// persisted wizard prefs, and — when the wizard has never saved an eating
-    /// window — the one from onboarding (UserDailyPlanProfile). The call site
-    /// only hands us a snapshot, so the seed happens here, once, before the
-    /// user touches anything.
+    /// Pre-fill from the user's saved answers instead of bare defaults (the
+    /// saved cooking days / recovery pref, or this week's answers if the
+    /// wizard already ran). The call site only hands us a snapshot, so the
+    /// seed happens here, once, before the user touches anything.
     private func seedIntakeIfNeeded() {
         guard !didSeed else { return }
         didSeed = true

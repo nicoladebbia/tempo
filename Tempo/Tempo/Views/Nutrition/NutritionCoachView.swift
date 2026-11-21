@@ -70,7 +70,7 @@ struct NutritionCoachView: View {
     }
 
     private var eatenMeals: [PlannedMeal] {
-        viewModel.todayMeals.filter { $0.status == .eaten }
+        viewModel.todayMeals.filter { $0.status == .eaten && !EatenMealRecorder.isSupplementDose($0) }
     }
 
     private var coachProvider: NutritionCoachService {

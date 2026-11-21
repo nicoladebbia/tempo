@@ -11,7 +11,7 @@ import OSLog
 
 /// Schedule arithmetic for `PlannedMeal`. Converts the meal's `scheduledTime`
 /// ("HH:mm") + `dayDate` into a real `Date` and computes prep-start / eat-finish
-/// windows used by `NextMealCardView` and `MealDetailView`.
+/// windows used by `MealDetailView`.
 enum MealScheduleHelpers {
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
