@@ -64,6 +64,10 @@ struct TempoApp: App {
     private var services: ServiceContainer
     @Environment(\.scenePhase)
     private var scenePhase
+    /// The cold-launch activation is skipped for reminder rebuilds: ContentView's launch
+    /// `.task` already does them, and two rebuilds at once can cancel each other's reminders.
+    @State
+    private var coldLaunch = ColdLaunchActivation()
 
     init() {
         do {
@@ -220,6 +224,8 @@ struct TempoApp: App {
                 // reminder window on every foreground return (matches, a
                 // recovery swing, or a program edit made while backgrounded
                 // can all change which of the next 7 days actually fire).
+                // Not on the cold launch: ContentView's launch task does it.
+                if !coldLaunch.isColdLaunch() {
                 TrainerSessionReminderScheduler.reschedule(
                     notifications: services.notifications,
                     trainingEngine: services.trainingEngine,
@@ -235,6 +241,7 @@ struct TempoApp: App {
                     healthKit: services.healthKit,
                     modelContext: container.mainContext
                 )
+                }
             }
         }
     }

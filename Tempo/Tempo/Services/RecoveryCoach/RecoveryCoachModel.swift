@@ -101,6 +101,20 @@ final class RecoveryCoachModel {
     /// A session needs attention or has a result worth showing.
     var hasSession: Bool { session != nil }
 
+    /// The last fetch got "the server has no WHOOP access yet". Cleared by a successful fetch;
+    /// the app refreshes again as soon as the phone shares its WHOOP access.
+    private(set) var awaitingWhoopAccess = false
+    /// Bumped by `whoopAccessShared()`. A fetch that 404s after a share landed mid-flight
+    /// (the 404 and the share can arrive in either order) asks once more.
+    private var whoopShares = 0
+
+    /// The phone just shared WHOOP access with the server.
+    func whoopAccessShared() async {
+        whoopShares += 1
+        guard awaitingWhoopAccess else { return }
+        await refresh()
+    }
+
     var isLoading: Bool {
         if case .loading = phase { return true }
         return false
@@ -110,7 +124,12 @@ final class RecoveryCoachModel {
 
     /// Foreground, push tap, pull-to-refresh. `requestedID` = the session a push named.
     func refresh(requestedID: String? = nil) async {
+        await refresh(requestedID: requestedID, retryAfterShare: true)
+    }
+
+    private func refresh(requestedID: String?, retryAfterShare: Bool) async {
         generation += 1
+        let sharesAtStart = whoopShares
         let mine = generation
         loadStartedAt = now()
         adoptStoredState(requestedID: requestedID)
@@ -118,12 +137,19 @@ final class RecoveryCoachModel {
         do {
             let fetched = try await api.recentSessions()
             guard mine == generation else { return }
+            awaitingWhoopAccess = false
             store.update { $0.sessions = fetched; $0.sessionsFetchedAt = Date() }
             adoptStoredState(requestedID: requestedID)
         } catch APIError.notFound {
             // The server has no WHOOP access yet (the phone shares it after its WHOOP check) or it ran out.
             // Not an error for the user: there is simply nothing new to weigh until the next share.
             guard mine == generation else { return }
+            if retryAfterShare, whoopShares != sharesAtStart {
+                // A share landed while this fetch was out: the 404 may predate it.
+                await refresh(requestedID: requestedID, retryAfterShare: false)
+                return
+            }
+            awaitingWhoopAccess = true
             logger.info("recent sessions: server has no WHOOP access yet")
             if session == nil {
                 phase = .idle
