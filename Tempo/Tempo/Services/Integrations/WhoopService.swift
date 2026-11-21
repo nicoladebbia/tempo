@@ -25,6 +25,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
     private(set) var profileLastName: String?
 
     private let logger = Logger(subsystem: "app.tempo", category: "WhoopService")
+    /// Shares each new WHOOP access token with the server's recovery coach (see WhoopTokenSharer).
+    /// nil in previews/tests. Fixed at init so it is never mutated across threads.
+    private let tokenSharer: WhoopTokenSharer?
     private let mockService = MockWhoopService()
     private let session = URLSession.shared
     private var authSession: ASWebAuthenticationSession?
@@ -154,7 +157,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     // MARK: - Init
 
-    override init() {
+    init(tokenSharer: WhoopTokenSharer? = nil) {
+        self.tokenSharer = tokenSharer
         super.init()
         // Restore connection state from Keychain.
         // Phase 3: distinguish (fresh access) / (expired access + refresh exists) / (no tokens).
@@ -252,6 +256,19 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         let bundle = TokenBundle(accessToken: access, refreshToken: refresh, expiresAt: expiresAt)
         let data = try JSONEncoder().encode(bundle)
         try KeychainService.save(key: Keys.tokenBundle, data: data)
+        shareAccessToken(access, expiresAt: Date(timeIntervalSince1970: expiresAt))
+    }
+
+    /// Hand the server the current access token (never the refresh token). Fire and forget.
+    private func shareAccessToken(_ token: String, expiresAt: Date) {
+        guard !isDemoMode, let sharer = tokenSharer else { return }
+        Task { await sharer.share(accessToken: token, expiresAt: expiresAt) }
+    }
+
+    /// Re-share the stored token (launch / foreground), so the server has one even when no refresh happened.
+    private func shareStoredAccessToken() {
+        guard let bundle = loadTokenBundle() else { return }
+        shareAccessToken(bundle.accessToken, expiresAt: Date(timeIntervalSince1970: bundle.expiresAt))
     }
 
     private func clearTokens() throws {
@@ -417,7 +434,8 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             return // not connected, nothing to do
         }
         if bundle.expiresAt > Date().timeIntervalSince1970 + 60 {
-            return // still fresh
+            shareStoredAccessToken() // still fresh: make sure the server coach has it
+            return
         }
         _ = try await forceTokenRefresh()
     }
@@ -511,6 +529,9 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
     func disconnect() async throws {
         try? clearTokens()
+        if !isDemoMode, let sharer = tokenSharer {
+            Task { await sharer.unlink() }
+        }
         await responseCache.invalidateAll()
         connectionState = .disconnected
         isDemoMode = false
@@ -903,6 +924,7 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
             profileLastName = profile.lastName
             connectionState = .connected
             logger.info("Whoop launch check: connected (profile OK) — \(profile.firstName ?? "?") \(profile.lastName ?? "?")")
+            shareStoredAccessToken()
         } catch {
             // Token might be expired but refreshable — try refresh
             if storedRefreshToken != nil {

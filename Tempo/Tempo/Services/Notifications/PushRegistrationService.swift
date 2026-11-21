@@ -165,11 +165,12 @@ struct DeviceTokenRegisterBody: Codable {
     /// The profile is a CMS envelope around a plain XML plist; slice the
     /// plist out rather than decoding the signature.
     static func apnsEnvironment(inProvisioningProfile data: Data) -> String {
-        let text = String(decoding: data, as: UTF8.self)
-        guard let start = text.range(of: "<?xml"),
-              let end = text.range(of: "</plist>", range: start.lowerBound ..< text.endIndex),
+        // Search the raw bytes: the CMS envelope is not valid UTF-8, so a
+        // failable String conversion would reject every real profile.
+        guard let start = data.range(of: Data("<?xml".utf8)),
+              let end = data.range(of: Data("</plist>".utf8), in: start.lowerBound ..< data.endIndex),
               let plist = try? PropertyListSerialization.propertyList(
-                  from: Data(text[start.lowerBound ..< end.upperBound].utf8),
+                  from: data[start.lowerBound ..< end.upperBound],
                   format: nil
               ) as? [String: Any],
               let entitlements = plist["Entitlements"] as? [String: Any]

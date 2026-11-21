@@ -120,6 +120,15 @@ final class RecoveryCoachModel {
             guard mine == generation else { return }
             store.update { $0.sessions = fetched; $0.sessionsFetchedAt = Date() }
             adoptStoredState(requestedID: requestedID)
+        } catch APIError.notFound {
+            // The server has no WHOOP access yet (the phone shares it after its WHOOP check) or it ran out.
+            // Not an error for the user: there is simply nothing new to weigh until the next share.
+            guard mine == generation else { return }
+            logger.info("recent sessions: server has no WHOOP access yet")
+            if session == nil {
+                phase = .idle
+                return
+            }
         } catch {
             guard mine == generation else { return }
             if Task.isCancelled {

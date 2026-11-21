@@ -206,6 +206,7 @@ final class WeeklyPlanServiceTests: XCTestCase {
         XCTAssertEqual(trigger.dateComponents.minute, 30)
     }
 
+    @MainActor
     func testHabitsSummaryListsTheWeek() {
         var routine = WeeklyRoutine.empty
         var monday = DayRoutine(weekday: 1)

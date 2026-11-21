@@ -390,18 +390,11 @@ final class PlanRebuildFromTodayTests: XCTestCase {
         let doomedID = doomed.id
         try context.save()
 
-        var removed: [UUID] = []
-        let token = NotificationCenter.default.addObserver(
-            forName: .tempoMealWillBeRemoved, object: nil, queue: nil
-        ) { note in
-            if let id = note.userInfo?["id"] as? UUID {
-                removed.append(id)
-            }
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let removals = NotificationRecorder(.tempoMealWillBeRemoved)
 
         _ = try await rebuild()
 
+        let removed = removals.notifications.compactMap { $0.userInfo?["id"] as? UUID }
         XCTAssertTrue(removed.contains(doomedID))
     }
 

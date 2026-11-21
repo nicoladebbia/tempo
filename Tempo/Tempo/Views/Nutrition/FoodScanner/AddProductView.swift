@@ -380,7 +380,6 @@ struct AddProductView: View {
             return nil
         }
         let serving = Self.number(servingText).flatMap { $0 > 0 ? $0 : nil }
-        let unit = isBeverage ? "ml" : "g"
         let trimmedIngredients = ingredients.trimmingCharacters(in: .whitespacesAndNewlines)
         return FoodProduct.userEdited(
             from: prefill,

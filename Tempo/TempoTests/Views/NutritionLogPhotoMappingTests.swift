@@ -13,6 +13,7 @@
 @testable import Tempo
 import XCTest
 
+@MainActor
 final class NutritionLogPhotoMappingTests: XCTestCase {
 
     func testGramsFromServingSize_plainGrams() {
