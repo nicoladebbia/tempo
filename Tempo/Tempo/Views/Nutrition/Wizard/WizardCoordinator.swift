@@ -13,12 +13,8 @@ import SwiftUI
 
 enum WizardStep: Int, CaseIterable, Identifiable, Sendable {
     case cookingCapacity
-    case leftoverTolerance
-    case eatingWindow
-    case pantryGap
-    case groceryIntent
-    case recoveryOverride
     case temporaryExclusions
+    case recoveryOverride
     case review
 
     var id: Int {
@@ -28,10 +24,6 @@ enum WizardStep: Int, CaseIterable, Identifiable, Sendable {
     var titleKey: String {
         switch self {
         case .cookingCapacity: "nutrition.wizard.cookingCapacity.title"
-        case .leftoverTolerance: "nutrition.wizard.leftoverTolerance.title"
-        case .eatingWindow: "nutrition.wizard.eatingWindow.title"
-        case .pantryGap: "nutrition.wizard.pantryGap.title"
-        case .groceryIntent: "nutrition.wizard.groceryIntent.title"
         case .recoveryOverride: "nutrition.wizard.recoveryOverride.title"
         case .temporaryExclusions: "nutrition.wizard.temporaryExclusions.title"
         case .review: "nutrition.wizard.review.title"
@@ -77,26 +69,16 @@ final class WizardCoordinator {
         snapshot: WizardLaunchSnapshot,
         intake: MealPlanIntake
     ) -> [WizardStep] {
-        var steps: [WizardStep] = [.cookingCapacity, .leftoverTolerance, .eatingWindow]
-
-        if snapshot.pantryNeedsAttention {
-            steps.append(.pantryGap)
-            // groceryIntent only fires when user said they need a run
-            if intake.groceryIntent?.willShopThisWeek == true {
-                steps.append(.groceryIntent)
-            }
-        }
-
+        // Only THIS WEEK's questions. Everything permanent lives in Fuel setup.
+        var steps: [WizardStep] = [.cookingCapacity, .temporaryExclusions]
         if snapshot.hasWhoop {
             steps.append(.recoveryOverride)
         }
-
-        steps.append(.temporaryExclusions)
         steps.append(.review)
         return steps
     }
 
-    /// Recompute visibleSteps after intake changes (e.g. user toggled pantryGap → showing groceryIntent).
+    /// Recompute visibleSteps after intake changes.
     private func refreshVisibility() {
         let updated = Self.computeVisibleSteps(snapshot: snapshot, intake: intake)
         visibleSteps = updated

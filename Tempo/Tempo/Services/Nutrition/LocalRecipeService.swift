@@ -35,17 +35,6 @@ final class LocalRecipeService: RecipeServiceProtocol {
         return try modelContext.fetch(descriptor)
     }
 
-    func fetchFavorites() throws -> [Recipe] {
-        var descriptor = FetchDescriptor<Recipe>(
-            predicate: #Predicate<Recipe> { recipe in
-                recipe.isArchived == false && recipe.isFavorite == true
-            },
-            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = 100
-        return try modelContext.fetch(descriptor)
-    }
-
     func fetch(byID id: UUID) throws -> Recipe? {
         var descriptor = FetchDescriptor<Recipe>(
             predicate: #Predicate<Recipe> { $0.id == id }
@@ -100,10 +89,6 @@ final class MockRecipeService: RecipeServiceProtocol {
 
     func fetchAll() throws -> [Recipe] {
         recipes.filter { !$0.isArchived }
-    }
-
-    func fetchFavorites() throws -> [Recipe] {
-        recipes.filter { !$0.isArchived && $0.isFavorite }
     }
 
     func fetch(byID id: UUID) throws -> Recipe? {

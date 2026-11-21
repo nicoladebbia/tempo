@@ -4,12 +4,12 @@
     "certifications" : [
       "NSF Certified for Sport"
     ],
-    "dose_per_serving" : "1 scoop (5 g)",
+    "dose_per_serving" : "5 g",
     "kind" : "creatine",
-    "name" : "Creatine Monohydrate Powder",
+    "name" : "Creatine Monohydrate (test)",
     "protein_grams_per_serving" : 0,
     "servings_per_container" : 100,
-    "source" : "dsld",
+    "source" : "openfoodfacts",
     "upc" : "012345678905"
   },
   "meta" : {

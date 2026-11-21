@@ -15,6 +15,9 @@ import SwiftUI
 
 struct PlannedMealCardView: View {
     let meal: PlannedMeal
+    /// Opens the full meal page (the caller owns the navigation, so the card
+    /// can sit inside a swipe List without a second disclosure chevron).
+    var onOpen: (() -> Void)?
     var onMarkEaten: (() -> Void)?
     var onMarkSkipped: (() -> Void)?
     /// Takes an eaten/skipped meal back: a plan slot returns to planned (its
@@ -38,16 +41,14 @@ struct PlannedMealCardView: View {
             // cooking steps, schedule, macros) — the same MealDetailView the
             // Dashboard Fuel card uses. Replaces the old inline ingredient
             // expansion: the user wants the whole recipe, not a flat list.
-            NavigationLink {
-                MealDetailView(meal: meal)
+            Button {
+                HapticManager.selection()
+                onOpen?()
             } label: {
                 headerRow
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .simultaneousGesture(TapGesture().onEnded {
-                HapticManager.selection()
-            })
 
             // Macro summary pills — always visible
             macroSummaryRow
@@ -55,10 +56,8 @@ struct PlannedMealCardView: View {
         }
         .tempoCard()
         // Review-pending dot — tap to leave feedback. Only on eaten meals
-        // without a MealFeedback row yet. Kept OUTSIDE the NavigationLink
-        // label as a top-trailing overlay: a Button nested inside a
-        // NavigationLink label mis-routes (the link swallows the tap), so the
-        // dot must be a sibling to receive its own tap reliably.
+        // without a MealFeedback row yet. Kept OUTSIDE the header button as a
+        // top-trailing overlay so it receives its own tap.
         .overlay(alignment: .topTrailing) {
             if needsReview {
                 Button {

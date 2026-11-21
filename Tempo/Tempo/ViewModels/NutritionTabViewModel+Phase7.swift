@@ -112,9 +112,6 @@ extension NutritionTabViewModel {
             groceryService = LocalGroceryListService(modelContext: modelContext)
             services.groceryList = groceryService
         }
-        if intelligence == nil {
-            intelligence = services.nutritionIntelligence
-        }
         if groceryPriceAIService == nil, let api = phase7APIClient(from: services) {
             groceryPriceAIService = GroceryPriceAIService(apiClient: api)
         }
@@ -530,30 +527,6 @@ extension NutritionTabViewModel {
         } catch {
             groceryState.lastError = error.localizedDescription
         }
-    }
-
-    // MARK: - Intelligence shortcut
-
-    /// Drill-sergeant explanation of today's macro adjustment, surfaced on the
-    /// Today/Coach tabs. Returns nil when there's no adjustment to explain.
-    func explainTodayAdjustment(adjustment: AdjustedNutritionTargets) async -> String? {
-        guard let intelligence else {
-            return nil
-        }
-        let zone: RecoveryZone? = recoveryZone.flatMap {
-            switch $0 {
-            case "green": .green
-            case "yellow": .yellow
-            case "red": .red
-            default: nil
-            }
-        }
-        let isTrainingDay = !todayMeals.isEmpty
-        return await intelligence.explainAdjustment(
-            for: adjustment,
-            recoveryZone: zone,
-            isTrainingDay: isTrainingDay
-        )
     }
 
     // MARK: - APIClient helper

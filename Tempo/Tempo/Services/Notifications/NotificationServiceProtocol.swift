@@ -33,6 +33,15 @@ struct ScheduledNotification {
     let title: String
     let body: String
     let triggerDate: Date
+    /// Set on pre-meal reminders so tests (and cancel) can tell meals apart.
+    var mealID: UUID?
+}
+
+/// One pre-meal reminder: fires at `fireDate` (15 min before the meal).
+struct MealReminderRequest: Equatable, Sendable {
+    let mealID: UUID
+    let mealName: String
+    let fireDate: Date
 }
 
 // MARK: - NotificationServiceProtocol
@@ -45,6 +54,16 @@ protocol NotificationServiceProtocol: Sendable {
     /// Cancels the "Fuel Up" reminder `scheduleMealReminder` set for this meal
     /// name on `day` (it is keyed by name + day, not by meal id).
     func cancelMealReminder(mealName: String, on day: Date)
+    /// Pre-meal reminder for one planned meal, keyed by meal id so it can be
+    /// cancelled when the meal is eaten / skipped and carries the id so a tap
+    /// opens that meal.
+    func scheduleMealReminder(mealID: UUID, mealName: String, fireDate: Date)
+    func cancelMealReminder(mealID: UUID)
+    /// Makes `reminders` exactly the set of pending pre-meal reminders: the
+    /// soonest ones that fit under iOS's 64-pending limit are kept, every
+    /// other pre-meal reminder (stale or legacy) is removed. An empty list
+    /// clears them all.
+    func replaceMealReminders(_ reminders: [MealReminderRequest])
     func scheduleBedtimeReminder(time: Date)
 
     /// Time Sensitive APNs reminder to move a frozen ingredient out of the freezer
@@ -146,4 +165,7 @@ protocol NotificationServiceProtocol: Sendable {
 
 extension NotificationServiceProtocol {
     func cancelMealReminder(mealName _: String, on _: Date) {}
+    func scheduleMealReminder(mealID _: UUID, mealName _: String, fireDate _: Date) {}
+    func cancelMealReminder(mealID _: UUID) {}
+    func replaceMealReminders(_: [MealReminderRequest]) {}
 }

@@ -18,6 +18,8 @@ import SwiftUI
 /// disappears. Persisting them is left to a future iteration.
 struct MealDetailView: View {
     let meal: PlannedMeal
+    /// A "Log meal" notification button opens straight into Mark eaten.
+    var opensMarkEaten = false
 
     @Environment(\.dismiss)
     private var dismiss
@@ -56,10 +58,12 @@ struct MealDetailView: View {
     @State
     private var presentEatTimeEditor: Bool = false
 
-    /// Drives the "Undo — not eaten" confirmation dialog in the `.eaten`
+    /// Drives the "Undo — not eaten" confirmation sheet in the `.eaten`
     /// status branch.
     @State
     private var presentUndoConfirm: Bool = false
+    @State
+    private var undoConfirmed: Bool = false
     @State
     private var eatTimeEdit: Date = .now
     /// When true, the Mark-Eaten sheet opens straight into the "Ate something
@@ -83,6 +87,9 @@ struct MealDetailView: View {
     /// status) so the user loses nothing and can retry.
     @State
     private var substituteError: String?
+    /// Pro / AI-off while reading "what you ate": asks for the fix.
+    @State
+    private var substituteBlocker: AIBlocker?
     /// What really happened after a skip ("Coach: ..."), shown under "Skipped".
     /// nil until a redistribution was actually applied.
     @State
@@ -173,6 +180,11 @@ struct MealDetailView: View {
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
+        .onAppear {
+            if opensMarkEaten, meal.status == .planned || meal.status == .modified {
+                resolveAsEaten()
+            }
+        }
         // This meal is about to be deleted elsewhere (plan rebuild, Log tab):
         // leave before the model goes away so nothing renders a dead row.
         .onReceive(NotificationCenter.default.publisher(for: .tempoMealWillBeRemoved)) { note in
@@ -192,21 +204,25 @@ struct MealDetailView: View {
             eatTimeEditorSheet
                 .presentationDetents([.height(280)])
         }
-        .confirmationDialog(
-            isUnplannedLog ? "Delete this log?" : "Undo this meal?",
-            isPresented: $presentUndoConfirm,
-            titleVisibility: .visible
-        ) {
-            Button(isUnplannedLog ? "Delete log" : "Mark as not eaten", role: .destructive) {
+        .sheet(isPresented: $presentUndoConfirm, onDismiss: {
+            // Undo runs once the sheet is gone: it may pop this screen.
+            if undoConfirmed {
+                undoConfirmed = false
                 undoEaten()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            if isUnplannedLog {
-                Text("This removes \(meal.mealName) from today's totals. Any pantry stock it used is added back.")
-            } else {
-                Text("This puts \(meal.mealName) back to planned (with the original dish) and removes it from today's totals. Any pantry stock it used is added back.")
-            }
+        }) {
+            UndoMealSheet(
+                mealName: meal.mealName,
+                kcal: Int(meal.totalCalories.rounded()),
+                isLog: isUnplannedLog,
+                onConfirm: {
+                    undoConfirmed = true
+                    presentUndoConfirm = false
+                },
+                onCancel: { presentUndoConfirm = false }
+            )
+            .presentationDetents([.height(440), .large])
+            .presentationDragIndicator(.visible)
         }
         .alert("Save as preset", isPresented: $presentPresetAlert) {
             TextField("Preset name", text: $presetNameDraft)
@@ -243,6 +259,7 @@ struct MealDetailView: View {
         } message: {
             Text(substituteError ?? "Try describing what you ate a bit differently.")
         }
+        .aiBlockerAlert($substituteBlocker)
     }
 
     /// Blocking spinner shown while the substitute note is parsed. The sheet
@@ -775,7 +792,11 @@ struct MealDetailView: View {
             )
             HapticManager.notification(.success)
         } catch {
-            substituteError = "Couldn't read that: \(error.localizedDescription). Your note is kept — try again."
+            if let blocker = AIBlocker(error) {
+                substituteBlocker = blocker
+                return
+            }
+            substituteError = "Couldn't read that: \(AIBlocker.message(for: error)). Your note is kept — try again."
         }
     }
 

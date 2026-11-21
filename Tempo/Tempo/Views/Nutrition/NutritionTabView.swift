@@ -11,7 +11,7 @@ import SwiftUI
 
 // MARK: - Nutrition Tab View
 
-// Full nutrition tab with segmented sections: Today, Plan, Log, Coach.
+// Full nutrition tab with segmented sections: Today, Plan, Log, Kitchen, Coach.
 // Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
 
 struct NutritionTabView: View {
@@ -23,10 +23,20 @@ struct NutritionTabView: View {
     /// tab share one instance (one generation in flight, one spinner).
     @Bindable
     var viewModel: NutritionTabViewModel
+    /// Today's Scan button: the universal scanner with all four modes.
     @State
-    private var showDietaryProfileSetup = false
+    private var showScan = false
+    /// Set while the scanner is the one reopened after a trip to iOS Settings.
+    @State
+    private var resumedScan: ScanResumeRecord?
     @State
     private var showMealLogging = false
+    /// Today's Quick Log sheet (type, Confirm Meal opens on top of it).
+    @State
+    private var showQuickLog = false
+    /// "Breakfast logged. 420 kcal." after a meal was confirmed anywhere in Nutrition.
+    @State
+    private var mealLogToast: ToastData?
 
     /// Surfaces a plan-generation failure as a toast at the Nutrition root
     /// regardless of which sub-tab the user is on. Previously the only
@@ -35,12 +45,13 @@ struct NutritionTabView: View {
     /// the user was on Today / Coach / Log / Pantry at the time.
     @State
     private var planErrorToast: ToastData?
-
-    /// Presents the grocery list as a sheet. Driven by the "Open Grocery List"
-    /// button in the pantry-gap alert, which previously only switched to the
-    /// Plan tab and dead-ended (the list is a pushed view, not the tab itself).
+    /// Pro / AI-off blocker for a plan build started outside the Plan tab
+    /// (the Plan tab shows its own card).
     @State
-    private var showGroceryListSheet = false
+    private var planBlockerAlert: AIBlocker?
+    /// Same, for Coach meal ideas.
+    @State
+    private var mealIdeasBlocker: AIBlocker?
 
     var body: some View {
         NavigationStack {
@@ -101,30 +112,41 @@ struct NutritionTabView: View {
                 guard let newError, !newError.isEmpty else {
                     return
                 }
+                if let blocker = viewModel.planGenerationBlocker {
+                    if viewModel.selectedTab != .plan {
+                        planBlockerAlert = blocker.aiBlocker
+                    }
+                    return
+                }
                 planErrorToast = ToastData(
-                    message: viewModel.planGenerationBlocker != nil
-                        ? newError
-                        : "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
+                    message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
                     style: .error
                 )
             }
             .tempoToast($planErrorToast)
-            .sheet(isPresented: $showDietaryProfileSetup) {
-                FuelSetupView(onSaveAndGenerate: { _ in
-                    // Switch to Plan tab and auto-generate
-                    viewModel.loadToday(modelContext: modelContext)
-                    viewModel.selectedTab = .plan
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.generatePlan(
-                            modelContext: modelContext,
-                            whoop: services.whoop,
-                            apiClient: services.apiClient,
-                            notifications: services.notifications,
-                            trainingEngine: services.trainingEngine,
-                            healthKit: services.healthKit
-                        )
-                    }
-                })
+            .tempoToast($mealLogToast)
+            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
+                guard let message = note.userInfo?["message"] as? String else {
+                    return
+                }
+                let isError = note.userInfo?["error"] as? Bool ?? false
+                mealLogToast = ToastData(message: message, style: isError ? .error : .success)
+            }
+            .sheet(isPresented: $showQuickLog) {
+                QuickLogSheet()
+            }
+            .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
+                if let blocker {
+                    mealIdeasBlocker = blocker
+                }
+            }
+            .aiBlockerAlert($mealIdeasBlocker) {
+                viewModel.getMealSuggestions(apiClient: services.apiClient)
+            }
+            .aiBlockerAlert($planBlockerAlert) {
+                viewModel.planGenerationBlocker = nil
+                viewModel.planGenerationError = nil
+                viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
             }
             .sheet(isPresented: $showMealLogging) {
                 MealLoggingView()
@@ -132,17 +154,29 @@ struct NutritionTabView: View {
                         viewModel.loadToday(modelContext: modelContext)
                     }
             }
-            .sheet(isPresented: $showGroceryListSheet) {
-                // Own NavigationStack so GroceryListView's title + toolbar
-                // (Add Item / Sync with Pantry) render inside the sheet.
-                NavigationStack {
-                    GroceryListView(viewModel: viewModel)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Done") { showGroceryListSheet = false }
-                            }
-                        }
+            .fullScreenCover(isPresented: $showScan, onDismiss: {
+                // A meal-photo log from Scan lands in today's meals.
+                viewModel.loadToday(modelContext: modelContext)
+            }) {
+                Group {
+                    if resumedScan?.contextKind == .foodCheck {
+                        UniversalScanView(context: .foodCheck, initialMode: resumedScan?.scanMode)
+                    } else {
+                        // A meal photo is confirmed in the Confirm Meal sheet
+                        // right on top of the scanner: no tab switch.
+                        UniversalScanView(context: .today(), initialMode: resumedScan?.scanMode)
+                    }
                 }
+                .environment(\.scanResumeSection, viewModel.selectedTab)
+            }
+            .onChange(of: viewModel.scanResume, initial: true) { _, record in
+                guard let record else {
+                    return
+                }
+                viewModel.scanResume = nil
+                resumedScan = record
+                viewModel.attachPhase7Services(modelContext: modelContext, services: services)
+                showScan = true
             }
             // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
@@ -159,15 +193,11 @@ struct NutritionTabView: View {
                 presenting: viewModel.pantryGapAlert
             ) { _ in
                 // Missing ingredients are things to BUY → the grocery list,
-                // which lives on the Plan tab. (Was incorrectly routing to the
+                // which lives in Kitchen. (Was incorrectly routing to the
                 // Pantry, where you'd only add things you already have.)
                 Button("Open Grocery List") {
                     viewModel.pantryGapAlert = nil
-                    // Actually open the grocery list (a sheet), not just switch
-                    // tabs. The list lives behind a NavigationLink on the Plan
-                    // tab, so switching tabs alone left the user staring at the
-                    // plan with nothing opened.
-                    showGroceryListSheet = true
+                    viewModel.openKitchen(.groceries)
                 }
                 Button("Dismiss", role: .cancel) {
                     viewModel.pantryGapAlert = nil
@@ -198,7 +228,12 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel)
+            NutritionTodayView(viewModel: viewModel, onQuickLog: { showQuickLog = true }, onScan: {
+                // Receipt mode needs the Kitchen services; attaching is idempotent.
+                viewModel.attachPhase7Services(modelContext: modelContext, services: services)
+                resumedScan = nil
+                showScan = true
+            })
         case .plan:
             VStack(spacing: 0) {
                 planQuickLinks
@@ -208,13 +243,13 @@ struct NutritionTabView: View {
             NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
         case .coach:
             NutritionCoachView(viewModel: viewModel)
-        case .pantry:
-            PantryView(viewModel: viewModel)
+        case .kitchen:
+            KitchenView(viewModel: viewModel)
         }
     }
 
     /// Quick-link strip shown above the meal-plan tab — entry points to
-    /// recipe suggestions and the grocery list. These are short workflows
+    /// recipe suggestions and the weekly review. These are short workflows
     /// that don't need their own segmented-control slots.
     private var planQuickLinks: some View {
         HStack(spacing: TempoSpacing.sm) {
@@ -222,16 +257,6 @@ struct NutritionTabView: View {
                 RecipeSuggestionsView(viewModel: viewModel)
             } label: {
                 Label("Recipes", systemImage: "fork.knife.circle.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            NavigationLink {
-                GroceryListView(viewModel: viewModel)
-            } label: {
-                Label("Grocery", systemImage: "cart.fill")
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
                     .background(Color.tempoSurfaceCard)

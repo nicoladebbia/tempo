@@ -71,7 +71,6 @@ struct GroceryListView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .background(Color.tempoBgPrimary)
-        .navigationTitle("Grocery List")
         .toolbar {
             // Only surface Add/Sync when a list actually exists — there's
             // nothing to add to or sync against until generation runs.
@@ -335,9 +334,12 @@ struct GroceryListView: View {
                                 .font(.tempoBody)
                                 .foregroundStyle(Color.tempoTextPrimary)
                                 .strikethrough(item.isChecked)
-                            Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                            // "4 breasts chicken" already carries its amount.
+                            if !item.displayNameEmbedsQuantity {
+                                Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                                    .font(.tempoCaption1)
+                                    .foregroundStyle(Color.tempoTextSecondary)
+                            }
                         }
                         Spacer()
                         if let price = item.estimatedPriceUSD {

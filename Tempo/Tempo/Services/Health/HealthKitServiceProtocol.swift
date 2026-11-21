@@ -20,9 +20,48 @@ protocol HealthKitServiceProtocol: Sendable {
     func fetchSleepAnalysis(for date: Date) async throws -> SleepData
     func fetchWorkouts(for date: Date) async throws -> [WorkoutSample]
     func fetchBodyComposition() async throws -> BodyCompositionData
+    /// Age (from date of birth) and biological sex as set in the Health app.
+    /// Empty when Health is unavailable or the user didn't share them.
+    func fetchProfileCharacteristics() async -> HealthProfileCharacteristics
     func writeWorkout(_ workout: WorkoutSample) async throws
-    func writeNutrition(_ nutrition: NutritionSample) async throws
+    /// Writes one Health food entry (correlation + samples). Returns true when
+    /// something was saved, false when Health is unavailable or no nutrition
+    /// type is authorised (so callers can retry after the user grants access).
+    @discardableResult
+    func writeNutrition(_ nutrition: NutritionSample) async throws -> Bool
+    /// Deletes every Tempo-written object (food correlation, nutrition and
+    /// water samples) carrying this HKMetadataKeySyncIdentifier.
+    func deleteNutrition(syncIdentifier: String) async throws
+    /// Writes one dietaryWater sample. Same Bool contract as `writeNutrition`.
+    @discardableResult
+    func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool
     func enableBackgroundDelivery() async throws
+    /// Every body-mass sample in `[start, end]`, oldest first (Recovery Coach weigh-ins).
+    /// Throws when Health is unavailable or the read fails; an empty array means "no readings".
+    func fetchBodyMassSamples(from start: Date, to end: Date) async throws -> [HealthWeightSample]
+}
+
+// MARK: - HealthProfileCharacteristics
+
+struct HealthProfileCharacteristics: Equatable, Sendable {
+    var ageYears: Int?
+    var sex: BiologicalSex?
+
+    init(ageYears: Int? = nil, sex: BiologicalSex? = nil) {
+        self.ageYears = ageYears
+        self.sex = sex
+    }
+}
+
+extension HealthKitServiceProtocol {
+    func fetchBodyMassSamples(from _: Date, to _: Date) async throws -> [HealthWeightSample] {
+        []
+    }
+
+    /// Services without Health profile access (mocks) share nothing.
+    func fetchProfileCharacteristics() async -> HealthProfileCharacteristics {
+        HealthProfileCharacteristics()
+    }
 }
 
 // MARK: - HeartRateSample
@@ -113,4 +152,10 @@ struct NutritionSample {
     let proteinGrams: Double
     let carbsGrams: Double
     let fatGrams: Double
+    /// Meal name shown in Health (HKMetadataKeyFoodType).
+    var name: String?
+    /// "tempo-meal-<id>"; lets Tempo update or delete this entry later.
+    var syncIdentifier: String?
+    /// Increases on every edit so Health treats the write as the newer version.
+    var syncVersion: Int = 1
 }

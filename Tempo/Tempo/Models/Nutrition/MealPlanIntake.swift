@@ -110,7 +110,9 @@ struct MealPlanIntake: Sendable, Equatable {
 
         var cookableDays = settings.mealIntakeCookableDays ?? MealPlanIntake.default.cookableDaysThisWeek
         var recovery = settings.mealIntakeRecoveryAdjusted
-        var exclusions = list(settings.mealIntakeExclusionsRaw)
+        // Permanent "won't eat" foods live on DietaryProfile.dislikedFoods (the
+        // generator unions them in). This list is ONLY this week's skips.
+        var exclusions: [String] = []
         // This week's wizard answers win while they're still this week's.
         if let tempWeek = settings.mealIntakeTempWeekStart,
            Calendar.current.isDate(tempWeek, inSameDayAs: WeeklyPlanService.currentWeekStart(for: now))
@@ -131,23 +133,57 @@ struct MealPlanIntake: Sendable, Equatable {
         )
     }
 
-    /// Write this intake back to `UserSettings` so the next regenerate reuses
-    /// it. Called by the wizard's onComplete.
-    ///  - Durable answers (leftover style, eating window) become the saved prefs.
-    ///  - "This week" answers (cookable days, temporary exclusions, recovery
-    ///    skew) are stored against this week's Monday and expire with it —
-    ///    they never overwrite the prefs the AI Meals settings page manages.
-    /// The eating window is written through to onboarding's profile too, so
-    /// the Fuel setup editor and the planner never disagree.
-    /// Grocery + training are persisted/derived elsewhere.
-    func persist(to settings: UserSettings, dailyPlan: UserDailyPlanProfile? = nil, now: Date = Date()) {
-        settings.mealIntakeLeftoverToleranceRaw = leftoverTolerance.rawValue
-        Self.saveEatingWindow(eatingWindow, settings: settings, dailyPlan: dailyPlan)
+    /// Write the wizard's answers back to `UserSettings` so a rebuild this
+    /// week reuses them. The wizard only asks THIS WEEK's questions (cookable
+    /// days, foods to skip, recovery skew), so they are stored against this
+    /// week's Monday and expire with it. Nothing permanent is written here:
+    /// leftover style, eating window, budget and the like belong to Fuel setup.
+    func persist(to settings: UserSettings, now: Date = Date()) {
         settings.mealIntakeTempWeekStart = WeeklyPlanService.currentWeekStart(for: now)
         settings.mealIntakeTempCookableDays = cookableDaysThisWeek
         settings.mealIntakeTempRecoveryAdjusted = recoveryAdjusted
         settings.mealIntakeTempExclusionsRaw = temporaryExclusions.joined(separator: ", ")
         settings.updatedAt = now
+    }
+
+    /// The retired AI Meals "won't eat" list, parsed.
+    static func legacyExclusions(settings: UserSettings) -> [String] {
+        settings.mealIntakeExclusionsRaw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Fold the legacy permanent exclusions list (AI Meals settings, now
+    /// retired) into `DietaryProfile.dislikedFoods` — the one list the planner
+    /// and recipe prompts read — then clear it. Case-insensitive de-dupe, the
+    /// profile's own order first. Returns true when anything was moved.
+    @discardableResult
+    static func migrateLegacyExclusions(settings: UserSettings, profile: DietaryProfile?) -> Bool {
+        let legacy = legacyExclusions(settings: settings)
+        guard !legacy.isEmpty else {
+            return false
+        }
+        if let profile {
+            profile.dislikedFoods = mergedFoods(profile.dislikedFoods, legacy)
+        }
+        // No profile yet: keep the raw list so nothing is lost; Fuel setup's
+        // first load migrates it.
+        guard profile != nil else {
+            return false
+        }
+        settings.mealIntakeExclusionsRaw = ""
+        return true
+    }
+
+    /// `base` then any of `extra` not already in it (case-insensitive).
+    static func mergedFoods(_ base: [String], _ extra: [String]) -> [String] {
+        var seen = Set(base.map { $0.lowercased() })
+        var out = base
+        for item in extra where seen.insert(item.lowercased()).inserted {
+            out.append(item)
+        }
+        return out
     }
 
     /// THE write path for the eating window. `UserSettings` hours are what the

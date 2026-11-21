@@ -134,7 +134,7 @@ enum CoachContextAssembler {
                 meal.dayDate >= windowStart && meal.dayDate < dayStart
             }
         )
-        let meals = (try? context.fetch(mealDescriptor)) ?? []
+        let meals = CanonicalMeals.historical((try? context.fetch(mealDescriptor)) ?? [])
         let recoveryDescriptor = FetchDescriptor<DailyRecovery>(
             predicate: #Predicate<DailyRecovery> { row in
                 row.date >= windowStart && row.date < dayStart
@@ -169,7 +169,9 @@ enum CoachContextAssembler {
                 date: cursor,
                 dayType: dayWorkout?.type,
                 plannedMealCount: dayMeals.count(where: { !$0.isUnplannedLog }),
-                eatenMealCount: dayMeals.filter { $0.status == .eaten || $0.status == .modified }.count,
+                eatenMealCount: dayMeals.filter {
+                    ($0.status == .eaten || $0.status == .modified) && !EatenMealRecorder.isSupplementDose($0)
+                }.count,
                 skippedMealCount: skipped,
                 plannedKcal: plannedKcal,
                 eatenKcal: eatenKcal,

@@ -39,7 +39,6 @@ final class ServiceContainer {
     var receipts: (any ReceiptServiceProtocol)?
     var recipes: (any RecipeServiceProtocol)?
     var groceryList: (any GroceryListServiceProtocol)?
-    let nutritionIntelligence: NutritionIntelligenceService
     /// Long-lived owner of the recovery AI insight generation. MUST be a single
     /// shared instance (not per-view) so its per-day single-flight dedup
     /// survives view remounts — otherwise rapid `.task` re-fires each spawn a
@@ -101,7 +100,6 @@ final class ServiceContainer {
         self.pushRegistration = pushRegistration
         self.subscriptions = subscriptions
         self.nutrition = nutrition
-        self.nutritionIntelligence = NutritionIntelligenceService()
         self.recoveryInsight = RecoveryAIInsightService(apiClient: apiClient)
         self.exerciseImages = ExerciseImageService(
             apiClient: apiClient,
@@ -132,7 +130,17 @@ final class ServiceContainer {
     /// exists, so `watchActionRouter` can act on real SwiftData rows.
     func configure(modelContext: ModelContext) {
         watchActionRouter.configure(modelContext: modelContext)
+        // Eaten meals -> Apple Health food log. Live Health only: previews and
+        // mock containers don't need (or want) the observer.
+        if healthKit is HealthKitService, healthNutritionSync == nil {
+            let sync = HealthNutritionSync(healthKit: healthKit, context: modelContext)
+            healthNutritionSync = sync
+            sync.start()
+        }
     }
+
+    /// Owns the eaten-meal -> Apple Health reconcile loop (started in `configure`).
+    private(set) var healthNutritionSync: HealthNutritionSync?
 
     static func mock() -> ServiceContainer {
         let auth = AuthService()
@@ -185,7 +193,7 @@ final class ServiceContainer {
             networkMonitor: NetworkMonitor(),
             pushRegistration: PushRegistrationService(apiClient: apiClient),
             subscriptions: SubscriptionService(),
-            nutrition: NutritionService.live(healthKit: healthKit, apiClient: apiClient)
+            nutrition: NutritionService.live(apiClient: apiClient)
         )
     }
 }

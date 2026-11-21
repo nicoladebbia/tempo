@@ -78,6 +78,20 @@ enum SupplementIntakeStore {
         return ids
     }
 
+    /// When each shelf item was ticked on `day` (same ownership rules as
+    /// `takenIDs`; the earliest tick wins if a row was somehow duplicated).
+    static func takenTimes(on day: Date, in modelContext: ModelContext) -> [UUID: Date] {
+        var times: [UUID: Date] = [:]
+        for row in logs(on: day, in: modelContext) {
+            let id = row.supplementID ?? shelfItems(named: row.supplementName, in: modelContext).first?.id
+            guard let id else {
+                continue
+            }
+            times[id] = min(times[id] ?? row.takenAt, row.takenAt)
+        }
+        return times
+    }
+
     /// One-off upgrade of legacy name-only rows to IDs where the name maps to
     /// exactly one shelf item — keeps history attached through a later rename.
     static func backfillIDs(in modelContext: ModelContext) {
@@ -121,6 +135,7 @@ enum SupplementIntakeStore {
             modelContext.insert(log)
             if let shelfItem {
                 log.stockDecrement = SupplementReorderService.applyTaken(to: shelfItem)
+                countMacros(of: shelfItem, on: log, day: today, in: modelContext)
             }
             nowTaken = true
         } else {
@@ -131,11 +146,15 @@ enum SupplementIntakeStore {
                 if let shelfItem, !ambiguous {
                     SupplementReorderService.applyUndo(to: shelfItem, amount: row.stockDecrement)
                 }
+                if let mealID = row.mealID {
+                    EatenMealRecorder.removeSupplementDose(mealID: mealID, in: modelContext)
+                }
                 modelContext.delete(row)
             }
             nowTaken = false
         }
         try? modelContext.save()
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return nowTaken
     }
 
@@ -159,7 +178,27 @@ enum SupplementIntakeStore {
         modelContext.insert(log)
         if let shelfItem {
             log.stockDecrement = SupplementReorderService.applyTaken(to: shelfItem)
+            countMacros(of: shelfItem, on: log, day: today, in: modelContext)
+            try? modelContext.save()
+            NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         }
         return true
+    }
+
+    /// A tick of a supplement with macros (protein powder, gainer, collagen)
+    /// counts them in `day`'s totals as ONE "Supplements" entry remembered on
+    /// the log row, so the untick removes exactly it. Zero-macro supplements
+    /// (creatine, vitamins) create nothing.
+    private static func countMacros(of shelfItem: Supplement, on log: SupplementIntakeLog, day: Date, in modelContext: ModelContext) {
+        guard shelfItem.hasMacros else {
+            return
+        }
+        log.mealID = EatenMealRecorder.recordSupplementDose(
+            name: shelfItem.name,
+            macros: shelfItem.macrosPerServing,
+            takenAt: log.takenAt,
+            day: day,
+            in: modelContext
+        )
     }
 }

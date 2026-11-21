@@ -29,14 +29,8 @@ protocol StapleServiceProtocol: AnyObject {
     @discardableResult
     func cycleStatus(_ staple: PantryStaple) throws -> StapleStatus
 
-    func setStatus(_ staple: PantryStaple, to status: StapleStatus) throws
-
     func delete(_ staple: PantryStaple) throws
 
-    /// Staples that are `.runningLow` or `.out` — the pantry-side API the
-    /// grocery list hooks into (via `PantryGroceryBridge`) so a depleted
-    /// staple actually shows up to buy.
-    func stapleNeeds() throws -> [(canonicalName: String, displayName: String)]
 }
 
 // MARK: - LocalStapleService
@@ -91,22 +85,11 @@ final class LocalStapleService: StapleServiceProtocol {
         return next
     }
 
-    func setStatus(_ staple: PantryStaple, to status: StapleStatus) throws {
-        staple.status = status
-        staple.updatedAt = Date()
-        try modelContext.save()
-    }
-
     func delete(_ staple: PantryStaple) throws {
         modelContext.delete(staple)
         try modelContext.save()
     }
 
-    func stapleNeeds() throws -> [(canonicalName: String, displayName: String)] {
-        try fetchAll()
-            .filter(\.status.needsRestock)
-            .map { ($0.canonicalName, $0.displayName) }
-    }
 }
 
 // MARK: - MockStapleService
@@ -153,15 +136,8 @@ final class MockStapleService: StapleServiceProtocol {
         return next
     }
 
-    func setStatus(_ staple: PantryStaple, to status: StapleStatus) throws {
-        staple.status = status
-    }
-
     func delete(_ staple: PantryStaple) throws {
         staples.removeAll { $0.id == staple.id }
     }
 
-    func stapleNeeds() throws -> [(canonicalName: String, displayName: String)] {
-        staples.filter(\.status.needsRestock).map { ($0.canonicalName, $0.displayName) }
-    }
 }

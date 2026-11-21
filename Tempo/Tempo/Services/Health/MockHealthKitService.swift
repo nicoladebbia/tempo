@@ -11,6 +11,11 @@ import Foundation
 final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var _writtenWorkouts: [WorkoutSample] = []
+    private var _writtenNutrition: [NutritionSample] = []
+    private var _deletedSyncIdentifiers: [String] = []
+    private var _writtenWater: [(ml: Double, syncIdentifier: String)] = []
+    private var _nutritionWritesSucceed = true
+    private var _bodyMassSamples: [HealthWeightSample] = []
 
     /// Every workout handed to `writeWorkout`, in order (tests assert on this).
     var writtenWorkouts: [WorkoutSample] {
@@ -66,6 +71,16 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
         )
     }
 
+    /// Tests and scenarios set this; the mock returns the ones inside the asked range.
+    var bodyMassSamples: [HealthWeightSample] {
+        get { lock.withLock { _bodyMassSamples } }
+        set { lock.withLock { _bodyMassSamples = newValue } }
+    }
+
+    func fetchBodyMassSamples(from start: Date, to end: Date) async throws -> [HealthWeightSample] {
+        bodyMassSamples.filter { $0.time >= start && $0.time <= end }.sorted { $0.time < $1.time }
+    }
+
     func fetchBodyComposition() async throws -> BodyCompositionData {
         BodyCompositionData(
             weightKg: 75.2,
@@ -99,8 +114,49 @@ final class MockHealthKitService: HealthKitServiceProtocol, @unchecked Sendable 
         record(workout)
     }
 
-    func writeNutrition(_ nutrition: NutritionSample) async throws {
-        // No-op in mock
+    /// Every nutrition sample handed to `writeNutrition`, in order.
+    var writtenNutrition: [NutritionSample] {
+        lock.withLock { _writtenNutrition }
+    }
+
+    /// Every sync identifier handed to `deleteNutrition`, in order.
+    var deletedSyncIdentifiers: [String] {
+        lock.withLock { _deletedSyncIdentifiers }
+    }
+
+    /// Every water write as (ml, syncIdentifier), in order.
+    var writtenWater: [(ml: Double, syncIdentifier: String)] {
+        lock.withLock { _writtenWater }
+    }
+
+    /// Set false to simulate "Health not authorised" (writes return false).
+    var nutritionWritesSucceed: Bool {
+        get { lock.withLock { _nutritionWritesSucceed } }
+        set { lock.withLock { _nutritionWritesSucceed = newValue } }
+    }
+
+    @discardableResult
+    func writeNutrition(_ nutrition: NutritionSample) async throws -> Bool {
+        lock.withLock {
+            if _nutritionWritesSucceed {
+                _writtenNutrition.append(nutrition)
+            }
+            return _nutritionWritesSucceed
+        }
+    }
+
+    func deleteNutrition(syncIdentifier: String) async throws {
+        lock.withLock { _deletedSyncIdentifiers.append(syncIdentifier) }
+    }
+
+    @discardableResult
+    func writeWater(ml: Double, date: Date, syncIdentifier: String) async throws -> Bool {
+        lock.withLock {
+            if _nutritionWritesSucceed {
+                _writtenWater.append((ml, syncIdentifier))
+            }
+            return _nutritionWritesSucceed
+        }
     }
 
     func enableBackgroundDelivery() async throws {

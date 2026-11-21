@@ -96,6 +96,7 @@ enum TempoSchemaV1: VersionedSchema {
             LearnedOutcome.self,
             CoachConversation.self,
             PendingOutcome.self,
+            WaterIntakeLog.self,
         ]
     }
 }

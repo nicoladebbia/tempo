@@ -117,6 +117,13 @@ final class Supplement {
     /// zero for non-protein supplements.
     var proteinGramsPerServing: Double
 
+    /// Calories / carbs / fat per serving (added Oct 2026, lightweight
+    /// migration). nil = unknown/none. With `proteinGramsPerServing` these are
+    /// what a ticked dose adds to today's totals (`SupplementIntakeStore`).
+    var caloriesPerServing: Double?
+    var carbsGramsPerServing: Double?
+    var fatGramsPerServing: Double?
+
     /// Servings left in the tub/bottle. The AI must not schedule more than this
     /// and should flag "running low". Optional tracking — 0 means unknown/empty.
     var servingsRemaining: Double
@@ -154,6 +161,10 @@ final class Supplement {
     /// `servingsRemaining` to, and the base for the reorder warning.
     var servingsPerContainer: Double?
 
+    /// Active ingredients with amounts, one per line ("Vitamin D3 25 mcg"),
+    /// from the label database (added Oct 2026, lightweight migration).
+    var ingredientsSummary: String?
+
     /// When `servingsRemaining` was last reset by a restock.
     var lastRestockedAt: Date?
 
@@ -182,6 +193,24 @@ final class Supplement {
     var kind: SupplementKind {
         get { SupplementKind(rawValue: kindRaw) ?? .other }
         set { kindRaw = newValue.rawValue }
+    }
+
+    /// Macros one ticked dose adds to the day.
+    @Transient
+    var macrosPerServing: MealMacros {
+        MealMacros(
+            calories: max(0, caloriesPerServing ?? 0),
+            protein: max(0, proteinGramsPerServing),
+            carbs: max(0, carbsGramsPerServing ?? 0),
+            fat: max(0, fatGramsPerServing ?? 0)
+        )
+    }
+
+    /// False for creatine, vitamins and the like — a dose then logs nothing.
+    @Transient
+    var hasMacros: Bool {
+        let m = macrosPerServing
+        return m.calories > 0 || m.protein > 0 || m.carbs > 0 || m.fat > 0
     }
 
     @Transient

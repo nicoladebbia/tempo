@@ -180,12 +180,6 @@ final class MealPlanEatingPatternTests: XCTestCase {
         XCTAssertEqual(coordinator.intake.cookableDaysThisWeek, MealPlanIntake.default.cookableDaysThisWeek)
     }
 
-    func testEatingWindowPickerRange_includesSeededValue() {
-        XCTAssertEqual(EatingWindowStepView.range(4 ... 14, including: 16), 4 ... 16)
-        XCTAssertEqual(EatingWindowStepView.range(16 ... 23, including: 15), 15 ... 23)
-        XCTAssertEqual(EatingWindowStepView.range(4 ... 14, including: 9), 4 ... 14)
-    }
-
     // MARK: - Planner prompt
 
     func testPrompt_breakfastSkippedAndPostWorkout() {

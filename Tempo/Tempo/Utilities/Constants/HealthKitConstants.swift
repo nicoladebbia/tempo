@@ -45,6 +45,9 @@ enum HealthKitConstants {
             HKQuantityType(.height),
             HKQuantityType(.bodyFatPercentage),
             HKQuantityType(.leanBodyMass),
+            // Profile characteristics (Fuel setup shows age and sex from Health read-only)
+            HKCharacteristicType(.dateOfBirth),
+            HKCharacteristicType(.biologicalSex),
 
             // Workouts
             HKWorkoutType.workoutType(),
@@ -74,6 +77,8 @@ enum HealthKitConstants {
         HKQuantityType(.dietaryFiber),
         HKQuantityType(.dietarySugar),
         HKQuantityType(.dietarySodium),
+        // Water taps from Nutrition Today (write only — Tempo never reads other apps' water)
+        HKQuantityType(.dietaryWater),
     ]
 
     // MARK: - Background Task Identifiers

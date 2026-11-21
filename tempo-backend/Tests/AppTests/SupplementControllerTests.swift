@@ -53,7 +53,9 @@ struct SupplementControllerTests {
         // 32-bit C int, silently truncating (and sometimes negating) a
         // 64-bit Int this large. Plain string construction avoids that trap
         // entirely and is still always exactly 12 digits.
-        String((0 ..< 12).map { _ in "0123456789".randomElement()! })
+        let body = (0 ..< 11).map { _ in Int.random(in: 0 ... 9) }
+        // Lookups validate the GTIN check digit, so a random code must carry a valid one.
+        return (body + [SupplementUPC.checkDigit(forBody: body)]).map(String.init).joined()
     }
 
     @discardableResult
@@ -156,6 +158,29 @@ struct SupplementControllerTests {
                 req.headers.bearerAuthorization = .init(token: token)
             }, afterResponse: { res async throws in
                 #expect(res.status == .notFound)
+            })
+        }
+    }
+
+    @Test func lookupRejectsBadCheckDigit() async throws {
+        try await withApp(lookupClient: FakeSupplementLookupClient(response: .notFound)) { app in
+            let (_, token) = try await makeUser(app: app)
+            try await app.test(.GET, "v1/supplements/lookup/748927028660", beforeRequest: { req in
+                req.headers.bearerAuthorization = .init(token: token)
+            }, afterResponse: { res async throws in
+                #expect(res.status == .badRequest)
+            })
+        }
+    }
+
+    @Test func lookupUpstreamFailureIs502NotNotFound() async throws {
+        let upc = freshUPC()
+        try await withApp(lookupClient: FakeSupplementLookupClient(response: .failure(SupplementLookupError.upstreamUnavailable))) { app in
+            let (_, token) = try await makeUser(app: app)
+            try await app.test(.GET, "v1/supplements/lookup/\(upc)", beforeRequest: { req in
+                req.headers.bearerAuthorization = .init(token: token)
+            }, afterResponse: { res async throws in
+                #expect(res.status == .badGateway)
             })
         }
     }

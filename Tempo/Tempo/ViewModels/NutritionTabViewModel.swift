@@ -17,8 +17,22 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     case today = "Today"
     case plan = "Plan"
     case log = "Log"
+    case kitchen = "Kitchen"
     case coach = "Coach"
+
+    var id: String {
+        rawValue
+    }
+}
+
+// MARK: - KitchenSection
+
+/// Sub-sections inside the Kitchen tab. Pantry is the default.
+enum KitchenSection: String, CaseIterable, Identifiable {
     case pantry = "Pantry"
+    case groceries = "Groceries"
+    case receipts = "Receipts"
+    case supplements = "Supplements"
 
     var id: String {
         rawValue
@@ -75,7 +89,6 @@ final class NutritionTabViewModel {
     var receiptService: (any ReceiptServiceProtocol)?
     var recipeService: (any RecipeServiceProtocol)?
     var groceryService: (any GroceryListServiceProtocol)?
-    var intelligence: NutritionIntelligenceService?
     /// AI batch price estimator for grocery items with no purchase history —
     /// see NutritionTabViewModel+GroceryAdvanced.swift.
     var groceryPriceAIService: GroceryPriceAIService?
@@ -128,6 +141,45 @@ final class NutritionTabViewModel {
 
     private(set) var loadState: NutritionLoadState = .loading
     var selectedTab: NutritionSection = .today
+    /// Which part of Kitchen is showing (Pantry unless something routed elsewhere).
+    var selectedKitchen: KitchenSection = .pantry
+    /// Set by the Today "Quick Log" button; the Log tab focuses its field and clears it.
+    var focusQuickLogRequested = false
+
+    /// Deep link into a Kitchen sub-section (e.g. the pantry-gap alert → Groceries).
+    func openKitchen(_ section: KitchenSection) {
+        selectedKitchen = section
+        selectedTab = .kitchen
+    }
+
+    /// Set by `openSupplement`; Kitchen > Supplements opens that supplement's
+    /// detail page and clears it.
+    var supplementToOpen: UUID?
+
+    /// Deep link to one supplement's detail page (Today's supplements card).
+    func openSupplement(_ id: UUID) {
+        supplementToOpen = id
+        openKitchen(.supplements)
+    }
+
+    /// Applies a notification's requested section (see `NotificationRouter`).
+    func apply(_ route: NutritionRoute) {
+        if let kitchen = route.kitchen {
+            openKitchen(kitchen)
+        } else {
+            selectedTab = route.section
+        }
+    }
+
+    /// Set by ContentView when a scanner left for iOS Settings should reopen
+    /// (see ScanResume); the Nutrition tab opens the scanner and clears it.
+    var scanResume: ScanResumeRecord?
+
+    /// Jumps to the Log tab with the Quick Log field focused.
+    func openQuickLog() {
+        focusQuickLogRequested = true
+        selectedTab = .log
+    }
 
     // MARK: - Data
 
@@ -198,6 +250,9 @@ final class NutritionTabViewModel {
     var isLoadingMealSuggestions: Bool = false
     var mealSuggestions: [MealSuggestion] = []
     var mealSuggestionError: String?
+    /// Set when meal ideas are blocked by Pro / AI-off; the Nutrition root
+    /// shows the shared alert with the fix.
+    var mealSuggestionBlocker: AIBlocker?
 
     // MARK: - Recovery (Whoop)
 
@@ -300,17 +355,6 @@ final class NutritionTabViewModel {
         }
         let context = SupplementDayContext.build(date: Date(), modelContext: modelContext)
         return SupplementScheduleEngine.schedule(supplements: supplements, context: context)
-    }
-
-    /// Names of supplements the user marked TAKEN today (start-of-day keyed).
-    /// Drives the checkmark state on the Today supplement card.
-    func takenSupplementsToday(modelContext: ModelContext) -> Set<String> {
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<SupplementIntakeLog>(
-            predicate: #Predicate<SupplementIntakeLog> { $0.day == today }
-        )
-        let rows = (try? modelContext.fetch(descriptor)) ?? []
-        return Set(rows.map(\.supplementName))
     }
 
     /// IDs of shelf supplements marked TAKEN today. The Today card keys its
@@ -710,16 +754,6 @@ final class NutritionTabViewModel {
 
     // MARK: - Presets
 
-    func savePreset(name: String, items: [PlannedFood], mealType: MealType, modelContext: ModelContext) {
-        guard let preset = try? MealOutcomeService.savePreset(
-            name: name, foods: items, mealType: mealType, modelContext: modelContext
-        ) else {
-            return
-        }
-        presets.append(preset)
-        HapticManager.notification(.success)
-    }
-
     /// "Save as preset" on a logged meal. False when it has no foods or the
     /// save failed.
     @discardableResult
@@ -999,24 +1033,6 @@ final class NutritionTabViewModel {
         )
     }
 
-    /// Records the user's AI-features consent with the backend, clears the
-    /// blocker and rebuilds. Returns false when the consent call failed.
-    func grantAIConsentAndRebuild(modelContext: ModelContext, services: ServiceContainer) async -> Bool {
-        do {
-            let _: AIConsentResponseDTO = try await services.apiClient.request(
-                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
-                body: AIConsentRequestDTO(consented: true)
-            )
-        } catch {
-            Logger.nutrition.error("[Diag.Plan] AI consent failed: \(error.localizedDescription, privacy: .public)")
-            return false
-        }
-        planGenerationBlocker = nil
-        planGenerationError = nil
-        rebuildRestOfWeek(modelContext: modelContext, services: services)
-        return true
-    }
-
     // MARK: - Server-built plan
 
     /// A plan the Sunday job saved while this screen wasn't generating it:
@@ -1074,6 +1090,16 @@ final class NutritionTabViewModel {
         // instead of bare .default, so a quick regen respects their real
         // cooking days / leftover style / eating window / exclusions.
         let settingsForIntake = Self.loadUserSettings(modelContext: modelContext)
+        // One permanent "won't eat" list (DietaryProfile.dislikedFoods): fold
+        // in the retired AI Meals exclusions before the plan reads them.
+        if let settingsForIntake {
+            let activeProfile = (try? modelContext.fetch(
+                FetchDescriptor<DietaryProfile>(predicate: #Predicate { $0.isActive == true })
+            ))?.first
+            if MealPlanIntake.migrateLegacyExclusions(settings: settingsForIntake, profile: activeProfile) {
+                try? modelContext.save()
+            }
+        }
         let intakeSource: String
         var enrichedIntake: MealPlanIntake
         if let intake {
@@ -1290,6 +1316,7 @@ final class NutritionTabViewModel {
                 )
             }
         }
+        scheduleMealReminders(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Wizard Snapshot Builder
@@ -1329,6 +1356,7 @@ final class NutritionTabViewModel {
     func getMealSuggestions(apiClient: APIClient) {
         isLoadingMealSuggestions = true
         mealSuggestionError = nil
+        mealSuggestionBlocker = nil
         HapticManager.lightImpact()
 
         if coachService == nil {
@@ -1383,42 +1411,20 @@ final class NutritionTabViewModel {
                 HapticManager.notification(.success)
             } catch {
                 isLoadingMealSuggestions = false
-                mealSuggestionError = error.localizedDescription
+                mealSuggestionError = AIBlocker.message(for: error)
+                mealSuggestionBlocker = AIBlocker(error)
                 HapticManager.notification(.error)
             }
         }
     }
 
-    // MARK: - Meal Reminders (Phase 4)
+    // MARK: - Meal Reminders
 
-    // Schedule a local notification 5min before each planned meal's
-    // scheduled time. Skips meals already eaten/skipped/delayed.
-
-    func scheduleMealReminders(notifications: any NotificationServiceProtocol, calendar: Calendar = .current) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        let today = calendar.startOfDay(for: Date())
-        for meal in todayMeals where meal.status == .planned {
-            guard let time = formatter.date(from: meal.scheduledTime) else {
-                continue
-            }
-            let comps = calendar.dateComponents([.hour, .minute], from: time)
-            guard let scheduled = calendar.date(
-                bySettingHour: comps.hour ?? 0,
-                minute: comps.minute ?? 0,
-                second: 0,
-                of: today
-            )
-            else {
-                continue
-            }
-            let fire = scheduled.addingTimeInterval(-5 * 60)
-            // Avoid scheduling already-past reminders.
-            guard fire > Date() else {
-                continue
-            }
-            notifications.scheduleMealReminder(mealName: meal.mealName, time: fire)
-        }
+    /// Pre-meal reminders (15 min before every planned meal, only while the
+    /// Meal Reminders switch is on) follow the plan: called after every plan
+    /// build / adoption. See `MealReminderPlanner`.
+    func scheduleMealReminders(modelContext: ModelContext, notifications: any NotificationServiceProtocol) {
+        MealReminderPlanner.reschedule(modelContext: modelContext, notifications: notifications)
     }
 
     // MARK: - Recovery Data

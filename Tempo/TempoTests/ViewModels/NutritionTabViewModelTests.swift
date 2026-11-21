@@ -168,56 +168,6 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertEqual(NutritionTabViewModel.chronological(meals).map(\.mealNumber), [4, 1, 2, 3])
     }
 
-    // MARK: - Meal Reminder Scheduling
-
-    func testScheduleMealReminders_skipsAlreadyEaten() throws {
-        try skipNearMidnight()
-        let mock = MockNotificationService()
-        viewModel._testSetTodayMeals([
-            makePlanned(
-                meal: 1,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .eaten,
-                scheduled: nextTimeString(addingMinutes: 30)
-            ),
-            makePlanned(
-                meal: 2,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .planned,
-                scheduled: nextTimeString(addingMinutes: 60)
-            ),
-        ])
-        viewModel.scheduleMealReminders(notifications: mock)
-        let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }
-        XCTAssertEqual(reminders.count, 1, "Only the planned meal should be scheduled")
-    }
-
-    func testScheduleMealReminders_skipsPastTimes() throws {
-        try skipNearMidnight()
-        let mock = MockNotificationService()
-        viewModel._testSetTodayMeals([
-            // Scheduled 30 minutes ago — skipped because the 5-min-prior fire time is in the past.
-            makePlanned(
-                meal: 1,
-                p: 30,
-                c: 40,
-                f: 10,
-                kcal: 370,
-                status: .planned,
-                scheduled: nextTimeString(addingMinutes: -30)
-            ),
-        ])
-        viewModel.scheduleMealReminders(notifications: mock)
-        let reminders = mock.scheduledNotifications.filter { $0.category == "meal_reminder" }
-        XCTAssertTrue(reminders.isEmpty)
-    }
-
     // MARK: - Helpers
 
     private func makePlanned(
@@ -390,17 +340,22 @@ final class NutritionTabViewModelTests: XCTestCase {
 
     // MARK: - Supplement "taken" toggle (idempotent)
 
+    private func takenSupplementNames(_ ctx: ModelContext) -> Set<String> {
+        let rows = (try? ctx.fetch(FetchDescriptor<SupplementIntakeLog>())) ?? []
+        return Set(rows.map(\.supplementName))
+    }
+
     func testToggleSupplementTaken_insertsThenDeletes() {
         let ctx = container.mainContext
-        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertFalse(takenSupplementNames(ctx).contains("Creatine"))
 
         // First tap → taken.
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        XCTAssertTrue(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertTrue(takenSupplementNames(ctx).contains("Creatine"))
 
         // Second tap → undone (idempotent, no orphan rows).
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        XCTAssertFalse(viewModel.takenSupplementsToday(modelContext: ctx).contains("Creatine"))
+        XCTAssertFalse(takenSupplementNames(ctx).contains("Creatine"))
 
         let rows = (try? ctx.fetch(FetchDescriptor<SupplementIntakeLog>())) ?? []
         XCTAssertTrue(rows.isEmpty, "Toggle off must leave NO rows")
@@ -410,12 +365,12 @@ final class NutritionTabViewModelTests: XCTestCase {
         let ctx = container.mainContext
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
         viewModel.toggleSupplementTaken(name: "Whey", modelContext: ctx)
-        let taken = viewModel.takenSupplementsToday(modelContext: ctx)
+        let taken = takenSupplementNames(ctx)
         XCTAssertTrue(taken.contains("Creatine"))
         XCTAssertTrue(taken.contains("Whey"))
 
         viewModel.toggleSupplementTaken(name: "Creatine", modelContext: ctx)
-        let after = viewModel.takenSupplementsToday(modelContext: ctx)
+        let after = takenSupplementNames(ctx)
         XCTAssertFalse(after.contains("Creatine"))
         XCTAssertTrue(after.contains("Whey"), "Toggling one must not affect the other")
     }

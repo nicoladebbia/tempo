@@ -165,9 +165,12 @@ struct GroceryStoreModeView: View {
                         .font(.tempoTitle3)
                         .foregroundStyle(Color.tempoTextPrimary)
                         .strikethrough(item.isChecked)
-                    Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    // "4 breasts chicken" already carries its amount.
+                    if !item.displayNameEmbedsQuantity {
+                        Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                            .font(.tempoBody)
+                            .foregroundStyle(Color.tempoTextSecondary)
+                    }
                 }
                 Spacer()
             }

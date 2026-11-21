@@ -1,0 +1,28 @@
+{
+  "data" : {
+    "brand" : "Contract Labs",
+    "calories_per_serving" : 120,
+    "carbs_grams_per_serving" : 2,
+    "catalog_id" : "00000000-0000-0000-0000-000000000001",
+    "certifications" : [
+
+    ],
+    "community_confirmations" : 1,
+    "dose_per_serving" : "1 scoop (31 g)",
+    "fat_grams_per_serving" : 1,
+    "ingredients" : [
+      "Whey protein isolate 25 g"
+    ],
+    "kind" : "protein",
+    "name" : "Contract Whey",
+    "protein_grams_per_serving" : 25,
+    "servings_per_container" : 30,
+    "source" : "tempo",
+    "upc" : ""
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

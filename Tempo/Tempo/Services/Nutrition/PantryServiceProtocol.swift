@@ -57,10 +57,6 @@ protocol PantryServiceProtocol: Sendable {
         brand: String
     ) throws -> PantryItem
 
-    /// Update a tracked item's quantity. Pass a negative delta to decrement.
-    /// Floors quantity at zero.
-    func adjustQuantity(of item: PantryItem, by delta: Double) throws
-
     /// Tap-edit / voice-edit surface: update any subset of an item's
     /// editable fields. `nil` for a parameter means "leave unchanged" —
     /// EXCEPT `storageLocation`: when it changes and `useBy` is left `nil`,

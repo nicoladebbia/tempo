@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum APIError: Error {
+enum APIError: Error, LocalizedError {
     case invalidURL
     case noResponse
     case unauthorized
@@ -80,6 +80,11 @@ enum APIError: Error {
         case let .programImportQuotaExceeded(limit, _, _):
             "You've used your \(limit) free trainer-program imports this month."
         }
+    }
+
+    /// Without this, `localizedDescription` reads "(Tempo.APIError error 3.)".
+    var errorDescription: String? {
+        userMessage
     }
 
     /// Decodable wire shape for backend error responses produced by

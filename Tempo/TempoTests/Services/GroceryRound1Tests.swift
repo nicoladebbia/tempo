@@ -301,6 +301,19 @@ final class GroceryRound1Tests: XCTestCase {
 
     // MARK: - 6. labels / categories
 
+    func testGeneratedNameWithAmountEmbedsQuantity() throws {
+        let list = GroceryList(weekStartDate: Date(), sourceMealPlanID: nil)
+        context.insert(list)
+        let chicken = GroceryListItem(
+            list: list, canonicalFoodName: "chicken breast", displayName: "4 breasts chicken breast",
+            quantity: 4, unit: .pieces, category: "meat"
+        )
+        context.insert(chicken)
+        // The list rows hide their separate "4pcs" line for these.
+        XCTAssertTrue(chicken.displayNameEmbedsQuantity)
+        XCTAssertEqual(chicken.fullLabel, "4 breasts chicken breast")
+    }
+
     func testUserTypedNamesStartingWithANumberKeepTheirQuantity() throws {
         let list = GroceryList(weekStartDate: Date(), sourceMealPlanID: nil)
         context.insert(list)

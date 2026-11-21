@@ -60,6 +60,10 @@ import SwiftData
             case "training": // onboarded + trainer program with a guided run today
                 onboarded(context)
                 GuidedRunUITestSeed.seed(context: context)
+            case "coach": // onboarded + a match kickoff in 3 h (pre-match weigh-in reminder due in 2 h) for the Recovery Coach loop
+                onboarded(context)
+                RecoveryCoachStore.shared.update { $0 = RecoveryCoachState() }
+                context.insert(Match(kickoff: now.addingTimeInterval(3 * 3600), opponent: "Scenario FC"))
             case "edge": // long names, emoji, zero and huge numbers everywhere
                 fuelReady(context)
                 edge(context)

@@ -153,6 +153,13 @@ struct SupplementQuickAddSheet: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
+                if let macros = item.macroSummary {
+                    Text(macros)
+                        .font(.tempoCaption2)
+                        .foregroundStyle(isSelected ? Color.tempoTextInverse.opacity(0.8) : Color.tempoTextSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
             }
             .frame(maxWidth: .infinity, minHeight: 88)
             .padding(TempoSpacing.sm)
@@ -225,6 +232,9 @@ struct SupplementQuickAddSheet: View {
             )
             let brand = (brandTexts[item.id] ?? "").trimmingCharacters(in: .whitespaces)
             supp.brand = brand.isEmpty ? nil : brand
+            supp.caloriesPerServing = item.calories > 0 ? item.calories : nil
+            supp.carbsGramsPerServing = item.carbsGrams > 0 ? item.carbsGrams : nil
+            supp.fatGramsPerServing = item.fatGrams > 0 ? item.fatGrams : nil
             if servings > 0 {
                 supp.servingsPerContainer = servings
             }

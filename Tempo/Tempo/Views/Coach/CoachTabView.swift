@@ -130,9 +130,7 @@ struct CoachTabView: View {
     /// it into this host belongs in a follow-up commit (Phase 8b sticks
     /// to memory UI).
     private func liveSnapshot() -> TodayLiveSnapshot {
-        let todayMeals = ((
-            try? modelContext.fetch(FetchDescriptor<PlannedMeal>())
-        ) ?? []).filter { Calendar.current.isDateInToday($0.dayDate) }
+        let todayMeals = CanonicalMeals.meals(on: Date(), in: modelContext)
         // Phase 6: per-meal planned vs actual timing rows, sorted by
         // mealNumber so Coach reads breakfast → lunch → dinner.
         let timings = todayMeals

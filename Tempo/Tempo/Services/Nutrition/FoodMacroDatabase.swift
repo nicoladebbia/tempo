@@ -902,26 +902,7 @@ enum FoodMacroDatabase {
 
     // MARK: - Calculate Macros
 
-    /// Calculate macros for a given food and quantity in grams.
-    /// Quantity is assumed to be raw/uncooked weight unless the food has no cooking factor.
-    static func calculateMacros(food: String, quantityGrams: Double) -> FoodMacros? {
-        guard let baseMacros = lookup(food) else {
-            return nil
-        }
-        return baseMacros.scaled(to: quantityGrams)
-    }
-
     // MARK: - Raw Weight from Cooked
-
-    /// Convert cooked weight to raw weight using cooking factors.
-    /// Returns the cooked weight unchanged if no cooking factor is available.
-    static func rawWeight(fromCookedGrams cooked: Double, food: String) -> Double {
-        let normalized = food.lowercased().trimmingCharacters(in: .whitespaces)
-        guard let factor = cookingFactors[normalized], factor > 0 else {
-            return cooked
-        }
-        return cooked / factor
-    }
 
     // MARK: - Format Portion
 

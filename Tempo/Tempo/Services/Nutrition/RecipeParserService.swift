@@ -125,7 +125,11 @@ final class RecipeParserService: @unchecked Sendable {
                 break
             }
         }
-        throw RecipeParseError.networkFailed(lastError?.localizedDescription ?? "unknown")
+        // Pro / AI-off pass through untouched so the UI can offer the fix.
+        if let lastError, AIBlocker(lastError) != nil {
+            throw lastError
+        }
+        throw RecipeParseError.networkFailed(lastError.map(AIBlocker.readableDescription) ?? "unknown")
     }
 
     // MARK: - JSON parsing
@@ -227,7 +231,7 @@ enum RecipeParseError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .networkFailed(detail): "Recipe parse failed: \(detail)"
+        case let .networkFailed(detail): "Couldn't read that recipe: \(detail)"
         case .invalidResponse: "Couldn't read the AI response. Try simplifying the recipe."
         }
     }
