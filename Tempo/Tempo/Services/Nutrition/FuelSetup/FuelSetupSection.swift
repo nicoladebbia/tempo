@@ -290,107 +290,134 @@ extension FuelSetupDraft {
         if !section.isRequired, isUnset(section) {
             return Self.defaultsSummary
         }
-        func weight(_ kg: Double) -> String {
-            "\(Int(WeightUnit.kg.convert(kg, to: unit).rounded())) \(unit.abbreviation)"
-        }
-        func clock(_ minutes: Int) -> String {
-            RoutineTime.string(minutes) ?? ""
-        }
         let parts: [String]
         switch section {
         case .you:
-            parts = [
-                weightKg.map(weight),
-                heightCm.map { "\(Int($0.rounded())) cm" },
-                age.map { "\($0) yrs" },
-                sex?.displayName,
-            ].compactMap { $0 }
+            parts = youSummaryParts(unit: unit)
         case .goal:
-            var items: [String?] = [goal?.displayName]
-            if let goal, goal != .maintain, let target = goalWeightKg {
-                items.append("to \(weight(target))")
-            }
-            if let days = trainingDaysPerWeek {
-                items.append("\(days) training day\(days == 1 ? "" : "s")")
-            }
-            parts = items.compactMap { $0 }
+            parts = goalSummaryParts(unit: unit)
         case .meals:
-            var items: [String] = []
-            if let mealsPerDay {
-                items.append("\(mealsPerDay) meals")
-            }
-            if breakfastSkipped == true {
-                items.append("no breakfast")
-            }
-            if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
-                items.append("\(clock(start))–\(clock(end))")
-            }
-            parts = items
+            parts = mealsSummaryParts()
         case .week:
-            let set = routine.days.filter { $0.wakeMinutes != nil }.count
-            if set == 0 {
-                parts = []
-            } else {
-                var items = ["\(set) of 7 days set"]
-                let training = routine.trainingDaysPerWeek
-                if training > 0 {
-                    items.append("\(training) training")
-                }
-                parts = items
-            }
+            parts = weekSummaryParts()
         case .food:
-            var items = restrictions.sorted { $0.rawValue < $1.rawValue }.map(\.label)
-            if !allergies.isEmpty {
-                items.append("\(allergies.count) allerg\(allergies.count == 1 ? "y" : "ies")")
-            }
-            if !dislikedFoods.isEmpty {
-                items.append("\(dislikedFoods.count) won't eat")
-            }
-            if !favoriteFoods.isEmpty {
-                items.append("\(favoriteFoods.count) favourite\(favoriteFoods.count == 1 ? "" : "s")")
-            }
-            if !favoriteCuisines.isEmpty {
-                items.append(favoriteCuisines.prefix(2).joined(separator: ", ") + (favoriteCuisines.count > 2 ? " +\(favoriteCuisines.count - 2)" : ""))
-            }
-            if let spiceLevel {
-                items.append("\(spiceLevel.displayName.lowercased()) spice")
-            }
-            if let breakfastStyle {
-                items.append("\(breakfastStyle.displayName.lowercased()) breakfasts")
-            }
-            if let snacksPerDay {
-                items.append(SnackHabit.label(snacksPerDay))
-            }
-            if let appetite, appetite != .normal {
-                items.append(appetite.displayName.lowercased())
-            }
-            parts = items.isEmpty ? ["Eats everything"] : items
+            parts = foodSummaryParts()
         case .cooking:
-            var items: [String?] = [cookingSkill?.displayName]
-            if let days = cookableDaysPerWeek {
-                items.append("cooks \(days) day\(days == 1 ? "" : "s")")
-            }
-            if let minutes = cookMinutesWeekday {
-                items.append("\(minutes) min weekdays")
-            }
-            let owned = equipment.values.filter { $0 }.count
-            if !equipment.isEmpty {
-                items.append("\(owned) appliance\(owned == 1 ? "" : "s")")
-            }
-            parts = items.compactMap { $0 }
+            parts = cookingSummaryParts()
         case .shopping:
-            var items: [String] = []
-            if let budget = weeklyBudgetUSD {
-                items.append("$\(budget)/week")
-            }
-            if !stores.isEmpty {
-                items.append(stores.prefix(2).joined(separator: ", "))
-            }
-            parts = items
+            parts = shoppingSummaryParts()
         case .recovery:
             parts = [recoveryAdjusted ? "Meals follow your recovery" : "Same meals every day"]
         }
         return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
+    }
+
+    private static func weightLabel(_ kg: Double, unit: WeightUnit) -> String {
+        "\(Int(WeightUnit.kg.convert(kg, to: unit).rounded())) \(unit.abbreviation)"
+    }
+
+    private func youSummaryParts(unit: WeightUnit) -> [String] {
+        [
+            weightKg.map { Self.weightLabel($0, unit: unit) },
+            heightCm.map { "\(Int($0.rounded())) cm" },
+            age.map { "\($0) yrs" },
+            sex?.displayName,
+        ].compactMap { $0 }
+    }
+
+    private func goalSummaryParts(unit: WeightUnit) -> [String] {
+        var items: [String?] = [goal?.displayName]
+        if let goal, goal != .maintain, let target = goalWeightKg {
+            items.append("to \(Self.weightLabel(target, unit: unit))")
+        }
+        if let days = trainingDaysPerWeek {
+            items.append("\(days) training day\(days == 1 ? "" : "s")")
+        }
+        return items.compactMap { $0 }
+    }
+
+    private func mealsSummaryParts() -> [String] {
+        var items: [String] = []
+        if let mealsPerDay {
+            items.append("\(mealsPerDay) meals")
+        }
+        if breakfastSkipped == true {
+            items.append("no breakfast")
+        }
+        if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
+            let startLabel = RoutineTime.string(start) ?? ""
+            let endLabel = RoutineTime.string(end) ?? ""
+            items.append("\(startLabel)–\(endLabel)")
+        }
+        return items
+    }
+
+    private func weekSummaryParts() -> [String] {
+        let set = routine.days.filter { $0.wakeMinutes != nil }.count
+        if set == 0 {
+            return []
+        }
+        var items = ["\(set) of 7 days set"]
+        let training = routine.trainingDaysPerWeek
+        if training > 0 {
+            items.append("\(training) training")
+        }
+        return items
+    }
+
+    private func foodSummaryParts() -> [String] {
+        var items = restrictions.sorted { $0.rawValue < $1.rawValue }.map(\.label)
+        if !allergies.isEmpty {
+            items.append("\(allergies.count) allerg\(allergies.count == 1 ? "y" : "ies")")
+        }
+        if !dislikedFoods.isEmpty {
+            items.append("\(dislikedFoods.count) won't eat")
+        }
+        if !favoriteFoods.isEmpty {
+            items.append("\(favoriteFoods.count) favourite\(favoriteFoods.count == 1 ? "" : "s")")
+        }
+        if !favoriteCuisines.isEmpty {
+            items.append(favoriteCuisines.prefix(2).joined(separator: ", ") + (favoriteCuisines.count > 2 ? " +\(favoriteCuisines.count - 2)" : ""))
+        }
+        if let spiceLevel {
+            items.append("\(spiceLevel.displayName.lowercased()) spice")
+        }
+        if let breakfastStyle {
+            items.append("\(breakfastStyle.displayName.lowercased()) breakfasts")
+        }
+        if let snacksPerDay {
+            items.append(SnackHabit.label(snacksPerDay))
+        }
+        if let appetite, appetite != .normal {
+            items.append(appetite.displayName.lowercased())
+        }
+        return items.isEmpty ? ["Eats everything"] : items
+    }
+
+    private func cookingSummaryParts() -> [String] {
+        var items: [String?] = [cookingSkill?.displayName]
+        if let days = cookableDaysPerWeek {
+            items.append("cooks \(days) day\(days == 1 ? "" : "s")")
+        }
+        if let minutes = cookMinutesWeekday {
+            items.append("\(minutes) min weekdays")
+        }
+        let owned = equipment.values.filter { $0 }.count
+        if !equipment.isEmpty {
+            items.append("\(owned) appliance\(owned == 1 ? "" : "s")")
+        }
+        return items.compactMap { $0 }
+    }
+
+    private func shoppingSummaryParts() -> [String] {
+        var items: [String] = []
+        if let budget = weeklyBudgetUSD {
+            items.append("$\(budget)/week")
+        }
+        if !stores.isEmpty {
+            items.append(stores.prefix(2).joined(separator: ", "))
+        }
+        return items
     }
 }
 

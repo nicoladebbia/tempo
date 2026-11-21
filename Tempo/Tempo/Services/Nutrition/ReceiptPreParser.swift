@@ -183,193 +183,277 @@ enum ReceiptPreParser {
             return footerStopMarkers.contains { lower.contains($0) }
         }
 
-        var pendingDepartment: String?
-        var items: [ReceiptPreParseItemRow] = []
-        var voided: [ReceiptPreParseItemRow] = []
-        var i = 0
-        while i < rows.count {
-            let row = rows[i]
-            let lower = row.text.lowercased()
-            let inVoidedSection = voidedStartIndex.map { i > $0 } ?? false
-            let pastFooter = footerStartIndex.map { i >= $0 } ?? false
-
-            // Totals block — parse regardless of section, these are single facts.
-            if let value = matchedAmount(in: row.text, keywords: subtotalKeywords) {
-                result.subtotalAmount = value
-                i += 1; continue
-            }
-            if let value = matchedAmount(in: row.text, keywords: taxKeywords) {
-                result.taxAmount = value
-                i += 1; continue
-            }
-            if let value = matchedAmount(in: row.text, keywords: totalKeywords), !lower.contains("subtotal") {
-                result.totalAmount = value
-                i += 1; continue
-            }
-            if let value = matchedAmount(in: row.text, keywords: paymentKeywords) {
-                result.paymentAmount = value
-                result.paymentMethod = result.paymentMethod ?? bestPaymentMethodGuess(lower)
-                i += 1; continue
-            }
-            if let value = matchedAmount(in: row.text, keywords: savingsKeywords) {
-                result.savingsAmount = max(result.savingsAmount ?? 0, value)
-                i += 1; continue
-            }
-            if lower.contains(voidedSectionMarkers[0]) {
-                i += 1; continue // the "Voided Items" header row itself
-            }
-            // "Change    6.68" — the summary block's change-due line, not a
-            // product. "cash"/"credit"/"debit" above already catch the rest
-            // of that block; this one slipped through as a false item since
-            // "change" isn't in paymentKeywords (deliberately, to keep
-            // paymentAmount meaning "what was tendered", not the change).
-            if lower.hasPrefix("change") {
-                i += 1; continue
-            }
-            if pastFooter {
-                i += 1; continue
-            }
-            // Store header block (address/phone/manager line) — only
-            // before the first real item has been found, since these
-            // phrases never legitimately recur mid-receipt. Confirmed as a
-            // real false-item source on all 3 real receipts (street
-            // address, city/state/zip, phone number, and "Store Manager:"
-            // lines all had no price and no other exclusion rule).
-            if items.isEmpty, isLikelyStoreHeaderLine(row.text) {
-                i += 1; continue
-            }
-            // Row 0 only — see isLikelyBareStoreNameLine's doc comment.
-            if i == 0, items.isEmpty,
-               isLikelyBareStoreNameLine(row.text, nextRowText: rows.indices.contains(i + 1) ? rows[i + 1].text : nil)
-            {
-                i += 1; continue
-            }
-
-            // "You saved: $X" — attach to the previous item. Also accumulate
-            // into the running total-savings figure (summed, not maxed) —
-            // voided items don't count since they were never purchased.
-            // Matched on "saved" alone (not the full "you saved" phrase):
-            // OCR regularly misreads the leading "You" as "fou", "Vou", or
-            // drops it to "ou" (confirmed on 2 real receipts), and a
-            // standalone "saved: $X.XX" line is never anything else on a
-            // Publix receipt.
-            if lower.hasPrefix(youSavedPrefix) || lower.contains("you saved") || lower.contains("saved") {
-                if let value = firstAmount(in: row.text) {
-                    if inVoidedSection {
-                        if !voided.isEmpty {
-                            voided[voided.count - 1].youSaved = value
-                        }
-                    } else if !items.isEmpty {
-                        items[items.count - 1].youSaved = value
-                        result.savingsAmount = (result.savingsAmount ?? 0) + value
-                    }
-                }
-                i += 1; continue
-            }
-
-            // "Promotion  -5.35" — a standalone discount line. Attaches its
-            // adjustment to the item immediately above (for display) AND is
-            // itself appended as its own `isDiscountLine`-flagged row — the
-            // truth data for receipt r3 confirms a printed "Promotion" line
-            // is a real row the store itself prints as one of its N listed
-            // lines (subtotal reconciles only when it's included), so
-            // dropping it entirely mis-modeled the receipt rather than
-            // fixing an over-count. Also rolls into the running
-            // total-savings figure, same as "You saved".
-            if lower.hasPrefix(promotionKeyword) {
-                if let value = firstAmount(in: row.text) {
-                    let magnitude = abs(value)
-                    if !items.isEmpty {
-                        items[items.count - 1].promotionAdjustment = magnitude
-                        if !inVoidedSection {
-                            result.savingsAmount = (result.savingsAmount ?? 0) + magnitude
-                        }
-                    }
-                    var discountRow = ReceiptPreParseItemRow(rawText: row.text, totalPrice: -magnitude)
-                    discountRow.isDiscountLine = true
-                    discountRow.confidence = row.confidence
-                    if inVoidedSection {
-                        voided.append(discountRow)
-                    } else {
-                        items.append(discountRow)
-                    }
-                }
-                i += 1; continue
-            }
-
-            // Department header: short, ALL CAPS, no digits, no $ sign, not a
-            // known section/footer keyword. Used only as a category hint.
-            // BUT: a bare weighed-item name ("BANANAS", "AVOCADO") looks
-            // identical to the loose single-all-caps-token fallback below —
-            // if the VERY NEXT row is a weight/qty continuation line, this
-            // is that item's name, not a department header. Caught by a
-            // failing unit test before this ever hit a real receipt: without
-            // this guard, single-word weighed items were silently dropped
-            // (classified as a department hint, never added as a candidate
-            // item, so their continuation-line price had nothing to attach
-            // to and was discarded entirely).
-            let nextIsContinuation = (i + 1 < rows.count) && isContinuationLine(rows[i + 1].text)
-            if isLikelyDepartmentHeader(row.text), !nextIsContinuation {
-                pendingDepartment = row.text.trimmingCharacters(in: .whitespaces)
-                result.departmentHints.append(pendingDepartment!)
-                i += 1; continue
-            }
-
-            // Continuation-only rows (weight/qty lines with no leading item
-            // name of their own) attach to the PREVIOUS row when that row
-            // had no price yet. Matched on shape alone (not requiring a
-            // parseable price too) and ALWAYS consumed here — a continuation
-            // line whose price regex happens to fail (OCR noise) must still
-            // never fall through to the generic item bucket below, or it
-            // becomes a spurious candidate item with a garbled name and no
-            // real price (a confirmed over-count source on real receipts).
-            if isContinuationLine(row.text) {
-                if let price = firstAmount(in: row.text, requireDollarOrTrailing: true) {
-                    if inVoidedSection {
-                        if !voided.isEmpty, voided[voided.count - 1].totalPrice == nil {
-                            voided[voided.count - 1].totalPrice = price
-                            voided[voided.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
-                        }
-                    } else if !items.isEmpty, items[items.count - 1].totalPrice == nil {
-                        items[items.count - 1].totalPrice = price
-                        items[items.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
-                    }
-                }
-                i += 1; continue
-            }
-
-            // A row with no letters at all (just digits/currency/punctuation)
-            // is never a real item on its own — it's almost always a price
-            // fragment split off during row reconstruction (confirmed as a
-            // false-item source on real receipts: bare "5.15", "150.00"
-            // rows). Any legitimate bare-number line (weight/qty
-            // continuations) was already consumed by `isContinuationLine`
-            // above, so anything reaching here with no letters is noise.
-            if !row.text.contains(where: \.isLetter) {
-                i += 1; continue
-            }
-
-            // Otherwise: a normal item row. Extract price (if on this row)
-            // and tax flag from the trailing tokens.
-            var itemRow = ReceiptPreParseItemRow(rawText: row.text)
-            itemRow.totalPrice = firstAmount(in: row.text)
-            itemRow.taxFlag = detectTaxFlag(row.text)
-            itemRow.nonFoodHint = nonFoodKeywords.contains { lower.contains($0) }
-            itemRow.feeHint = feeKeywords.contains { lower.contains($0) }
-            itemRow.confidence = row.confidence
-            if inVoidedSection {
-                voided.append(itemRow)
-            } else {
-                items.append(itemRow)
-            }
-            i += 1
+        var scan = RowScan(result: result)
+        for i in rows.indices {
+            consumeRow(
+                at: i,
+                of: rows,
+                inVoidedSection: voidedStartIndex.map { i > $0 } ?? false,
+                pastFooter: footerStartIndex.map { i >= $0 } ?? false,
+                into: &scan
+            )
         }
 
-        result.candidateItems = Self.dedupeNearDuplicateReadings(items)
-        result.voidedItems = voided
+        result = scan.result
+        result.candidateItems = Self.dedupeNearDuplicateReadings(scan.items)
+        result.voidedItems = scan.voided
         result.hintsBlock = buildHintsBlock(result)
         result.duplicateKey = buildDuplicateKey(store: result.storeNameGuess, total: result.totalAmount, fullText: fullText)
         return result
+    }
+
+    // MARK: - Row scan
+
+    /// What the row loop accumulates while walking the receipt top to bottom.
+    private struct RowScan {
+        var result: ReceiptPreParseResult
+        var items: [ReceiptPreParseItemRow] = []
+        var voided: [ReceiptPreParseItemRow] = []
+    }
+
+    /// Classifies one row and folds it into `scan`. Every branch consumes the
+    /// row, in this order: totals block, skippable noise, "You saved" notes,
+    /// "Promotion" lines, department headers, weight/qty continuations, and
+    /// finally a normal item row.
+    private static func consumeRow(
+        at i: Int,
+        of rows: [VisionReceiptOCRResult.Row],
+        inVoidedSection: Bool,
+        pastFooter: Bool,
+        into scan: inout RowScan
+    ) {
+        let row = rows[i]
+        let lower = row.text.lowercased()
+
+        // Totals block — parse regardless of section, these are single facts.
+        if consumeTotalsLine(row, lower: lower, into: &scan.result) {
+            return
+        }
+        if isSkippableLine(at: i, of: rows, lower: lower, pastFooter: pastFooter, hasItems: !scan.items.isEmpty) {
+            return
+        }
+
+        // "You saved: $X" — attach to the previous item. Also accumulate
+        // into the running total-savings figure (summed, not maxed) —
+        // voided items don't count since they were never purchased.
+        // Matched on "saved" alone (not the full "you saved" phrase):
+        // OCR regularly misreads the leading "You" as "fou", "Vou", or
+        // drops it to "ou" (confirmed on 2 real receipts), and a
+        // standalone "saved: $X.XX" line is never anything else on a
+        // Publix receipt.
+        if lower.hasPrefix(youSavedPrefix) || lower.contains("you saved") || lower.contains("saved") {
+            attachYouSaved(row, inVoidedSection: inVoidedSection, to: &scan)
+            return
+        }
+
+        // "Promotion  -5.35" — a standalone discount line. Attaches its
+        // adjustment to the item immediately above (for display) AND is
+        // itself appended as its own `isDiscountLine`-flagged row — the
+        // truth data for receipt r3 confirms a printed "Promotion" line
+        // is a real row the store itself prints as one of its N listed
+        // lines (subtotal reconciles only when it's included), so
+        // dropping it entirely mis-modeled the receipt rather than
+        // fixing an over-count. Also rolls into the running
+        // total-savings figure, same as "You saved".
+        if lower.hasPrefix(promotionKeyword) {
+            attachPromotion(row, inVoidedSection: inVoidedSection, to: &scan)
+            return
+        }
+
+        // Department header: short, ALL CAPS, no digits, no $ sign, not a
+        // known section/footer keyword. Used only as a category hint.
+        // BUT: a bare weighed-item name ("BANANAS", "AVOCADO") looks
+        // identical to the loose single-all-caps-token fallback below —
+        // if the VERY NEXT row is a weight/qty continuation line, this
+        // is that item's name, not a department header. Caught by a
+        // failing unit test before this ever hit a real receipt: without
+        // this guard, single-word weighed items were silently dropped
+        // (classified as a department hint, never added as a candidate
+        // item, so their continuation-line price had nothing to attach
+        // to and was discarded entirely).
+        let nextIsContinuation = (i + 1 < rows.count) && isContinuationLine(rows[i + 1].text)
+        if isLikelyDepartmentHeader(row.text), !nextIsContinuation {
+            scan.result.departmentHints.append(row.text.trimmingCharacters(in: .whitespaces))
+            return
+        }
+
+        // Continuation-only rows (weight/qty lines with no leading item
+        // name of their own) attach to the PREVIOUS row when that row
+        // had no price yet. Matched on shape alone (not requiring a
+        // parseable price too) and ALWAYS consumed here — a continuation
+        // line whose price regex happens to fail (OCR noise) must still
+        // never fall through to the generic item bucket below, or it
+        // becomes a spurious candidate item with a garbled name and no
+        // real price (a confirmed over-count source on real receipts).
+        if isContinuationLine(row.text) {
+            attachContinuation(row, inVoidedSection: inVoidedSection, to: &scan)
+            return
+        }
+
+        // A row with no letters at all (just digits/currency/punctuation)
+        // is never a real item on its own — it's almost always a price
+        // fragment split off during row reconstruction (confirmed as a
+        // false-item source on real receipts: bare "5.15", "150.00"
+        // rows). Any legitimate bare-number line (weight/qty
+        // continuations) was already consumed by `isContinuationLine`
+        // above, so anything reaching here with no letters is noise.
+        if !row.text.contains(where: \.isLetter) {
+            return
+        }
+
+        appendItem(row, lower: lower, inVoidedSection: inVoidedSection, to: &scan)
+    }
+
+    /// Subtotal / tax / total / payment / savings lines. Returns true when
+    /// the row was one of them (and has been recorded on `result`).
+    private static func consumeTotalsLine(
+        _ row: VisionReceiptOCRResult.Row,
+        lower: String,
+        into result: inout ReceiptPreParseResult
+    ) -> Bool {
+        if let value = matchedAmount(in: row.text, keywords: subtotalKeywords) {
+            result.subtotalAmount = value
+            return true
+        }
+        if let value = matchedAmount(in: row.text, keywords: taxKeywords) {
+            result.taxAmount = value
+            return true
+        }
+        if let value = matchedAmount(in: row.text, keywords: totalKeywords), !lower.contains("subtotal") {
+            result.totalAmount = value
+            return true
+        }
+        if let value = matchedAmount(in: row.text, keywords: paymentKeywords) {
+            result.paymentAmount = value
+            result.paymentMethod = result.paymentMethod ?? bestPaymentMethodGuess(lower)
+            return true
+        }
+        if let value = matchedAmount(in: row.text, keywords: savingsKeywords) {
+            result.savingsAmount = max(result.savingsAmount ?? 0, value)
+            return true
+        }
+        return false
+    }
+
+    /// Rows that are never items: the "Voided Items" header, the change-due
+    /// line, anything past the footer marker, and the store header block.
+    private static func isSkippableLine(
+        at i: Int,
+        of rows: [VisionReceiptOCRResult.Row],
+        lower: String,
+        pastFooter: Bool,
+        hasItems: Bool
+    ) -> Bool {
+        let row = rows[i]
+        if lower.contains(voidedSectionMarkers[0]) {
+            return true // the "Voided Items" header row itself
+        }
+        // "Change    6.68" — the summary block's change-due line, not a
+        // product. "cash"/"credit"/"debit" above already catch the rest
+        // of that block; this one slipped through as a false item since
+        // "change" isn't in paymentKeywords (deliberately, to keep
+        // paymentAmount meaning "what was tendered", not the change).
+        if lower.hasPrefix("change") {
+            return true
+        }
+        if pastFooter {
+            return true
+        }
+        // Store header block (address/phone/manager line) — only
+        // before the first real item has been found, since these
+        // phrases never legitimately recur mid-receipt. Confirmed as a
+        // real false-item source on all 3 real receipts (street
+        // address, city/state/zip, phone number, and "Store Manager:"
+        // lines all had no price and no other exclusion rule).
+        if !hasItems, isLikelyStoreHeaderLine(row.text) {
+            return true
+        }
+        // Row 0 only — see isLikelyBareStoreNameLine's doc comment.
+        return i == 0 && !hasItems
+            && isLikelyBareStoreNameLine(row.text, nextRowText: rows.indices.contains(i + 1) ? rows[i + 1].text : nil)
+    }
+
+    private static func attachYouSaved(
+        _ row: VisionReceiptOCRResult.Row,
+        inVoidedSection: Bool,
+        to scan: inout RowScan
+    ) {
+        guard let value = firstAmount(in: row.text) else {
+            return
+        }
+        if inVoidedSection {
+            if !scan.voided.isEmpty {
+                scan.voided[scan.voided.count - 1].youSaved = value
+            }
+        } else if !scan.items.isEmpty {
+            scan.items[scan.items.count - 1].youSaved = value
+            scan.result.savingsAmount = (scan.result.savingsAmount ?? 0) + value
+        }
+    }
+
+    private static func attachPromotion(
+        _ row: VisionReceiptOCRResult.Row,
+        inVoidedSection: Bool,
+        to scan: inout RowScan
+    ) {
+        guard let value = firstAmount(in: row.text) else {
+            return
+        }
+        let magnitude = abs(value)
+        if !scan.items.isEmpty {
+            scan.items[scan.items.count - 1].promotionAdjustment = magnitude
+            if !inVoidedSection {
+                scan.result.savingsAmount = (scan.result.savingsAmount ?? 0) + magnitude
+            }
+        }
+        var discountRow = ReceiptPreParseItemRow(rawText: row.text, totalPrice: -magnitude)
+        discountRow.isDiscountLine = true
+        discountRow.confidence = row.confidence
+        if inVoidedSection {
+            scan.voided.append(discountRow)
+        } else {
+            scan.items.append(discountRow)
+        }
+    }
+
+    private static func attachContinuation(
+        _ row: VisionReceiptOCRResult.Row,
+        inVoidedSection: Bool,
+        to scan: inout RowScan
+    ) {
+        guard let price = firstAmount(in: row.text, requireDollarOrTrailing: true) else {
+            return
+        }
+        if inVoidedSection {
+            if !scan.voided.isEmpty, scan.voided[scan.voided.count - 1].totalPrice == nil {
+                scan.voided[scan.voided.count - 1].totalPrice = price
+                scan.voided[scan.voided.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
+            }
+        } else if !scan.items.isEmpty, scan.items[scan.items.count - 1].totalPrice == nil {
+            scan.items[scan.items.count - 1].totalPrice = price
+            scan.items[scan.items.count - 1].saleNote = row.text.trimmingCharacters(in: .whitespaces)
+        }
+    }
+
+    /// A normal item row. Extract price (if on this row) and tax flag from
+    /// the trailing tokens.
+    private static func appendItem(
+        _ row: VisionReceiptOCRResult.Row,
+        lower: String,
+        inVoidedSection: Bool,
+        to scan: inout RowScan
+    ) {
+        var itemRow = ReceiptPreParseItemRow(rawText: row.text)
+        itemRow.totalPrice = firstAmount(in: row.text)
+        itemRow.taxFlag = detectTaxFlag(row.text)
+        itemRow.nonFoodHint = nonFoodKeywords.contains { lower.contains($0) }
+        itemRow.feeHint = feeKeywords.contains { lower.contains($0) }
+        itemRow.confidence = row.confidence
+        if inVoidedSection {
+            scan.voided.append(itemRow)
+        } else {
+            scan.items.append(itemRow)
+        }
     }
 
     // MARK: - Near-duplicate dedup

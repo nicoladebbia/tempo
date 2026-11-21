@@ -24,6 +24,7 @@ final class MealPlanPromptsTests: XCTestCase {
         XCTAssertTrue(prompt.contains("broccoli"))
     }
 
+    @MainActor
     func testKeyboardDismisser_textInputsAreNotDismissTargets() {
         let container = UIView()
         let field = UITextField()

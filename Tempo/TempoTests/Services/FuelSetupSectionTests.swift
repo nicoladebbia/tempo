@@ -94,6 +94,33 @@ final class FuelSetupSectionTests: XCTestCase {
         XCTAssertEqual(draft.mealSpacingText, "About every 4 h")
     }
 
+    func testWeekSummaryCountsDaysSetAndTrainingDays() {
+        var draft = FuelSetupDraft()
+        draft.routine[2].wakeMinutes = 6 * 60
+        draft.routine[1].wakeMinutes = 7 * 60
+        XCTAssertEqual(draft.summary(for: .week), "2 of 7 days set")
+        draft.routine[1].training = TrainingSlot(startMinutes: 17 * 60, durationMinutes: 60, kind: "gym")
+        XCTAssertEqual(draft.summary(for: .week), "2 of 7 days set · 1 training")
+    }
+
+    func testCookingSummaryListsSkillDaysMinutesAndAppliances() {
+        var draft = FuelSetupDraft()
+        draft.cookingSkill = .intermediate
+        draft.cookableDaysPerWeek = 1
+        draft.cookMinutesWeekday = 20
+        draft.equipment = ["Air fryer": true, "Oven": false, "Blender": true]
+        XCTAssertEqual(draft.summary(for: .cooking), "Intermediate · cooks 1 day · 20 min weekdays · 2 appliances")
+        draft.equipment = ["Oven": true]
+        XCTAssertEqual(draft.summary(for: .cooking), "Intermediate · cooks 1 day · 20 min weekdays · 1 appliance")
+    }
+
+    func testSummaryGoalOmitsTargetWhenMaintaining() {
+        var draft = FuelSetupDraft()
+        draft.goal = .maintain
+        draft.goalWeightKg = 80
+        XCTAssertEqual(draft.summary(for: .goal), "Maintain")
+    }
+
     // MARK: - Missing / dirty
 
     func testMissingFieldsAreAttributedToTheirSection() {
@@ -367,7 +394,7 @@ final class FuelSetupSectionTests: XCTestCase {
         draft.snacksPerDay = 0
         draft.appetite = .big
         draft.save(to: context)
-        let restrictions = MealPlanPrompts.DietaryRestrictions(from: try XCTUnwrap(profile))
+        let restrictions = try MealPlanPrompts.DietaryRestrictions(from: XCTUnwrap(profile))
         let prompt = MealPlanPrompts.weeklyPlanPrompt(targets: [:], restrictions: restrictions, preferences: "").user
         XCTAssertTrue(prompt.contains("<taste_preferences>"))
         XCTAssertTrue(prompt.contains("FAVOURITE CUISINES"))
@@ -377,7 +404,8 @@ final class FuelSetupSectionTests: XCTestCase {
         XCTAssertTrue(prompt.contains("SNACKS: none"))
         XCTAssertTrue(prompt.contains("PORTIONS: big eater"))
 
-        let plain = MealPlanPrompts.weeklyPlanPrompt(targets: [:], restrictions: MealPlanPrompts.DietaryRestrictions(), preferences: "").user
+        let plain = MealPlanPrompts.weeklyPlanPrompt(targets: [:], restrictions: MealPlanPrompts.DietaryRestrictions(), preferences: "")
+            .user
         XCTAssertFalse(plain.contains("<taste_preferences>"), "nothing set, nothing said")
         XCTAssertEqual(MealPlanPrompts.DietaryRestrictions(appetite: .normal).tastePreferencesBlock, "")
     }
@@ -436,20 +464,19 @@ final class FuelSetupSectionTests: XCTestCase {
         draft.mealsPerDay = 3
         draft.save(sections: [.meals], to: context)
         let daily = try XCTUnwrap(UserDailyPlanProfile.current(in: context))
-        XCTAssertEqual(MealPlanIntake.seeded(settings: settings, dailyPlan: daily).eatingWindow, EatingWindow(firstMealHour: 11, lastMealHour: 20))
+        XCTAssertEqual(
+            MealPlanIntake.seeded(settings: settings, dailyPlan: daily).eatingWindow,
+            EatingWindow(firstMealHour: 11, lastMealHour: 20)
+        )
         XCTAssertEqual(settings.mealsPerDayPreference, 3)
     }
 
     func testEachSectionSavePostsTheChangeOnce() {
-        var count = 0
-        let token = NotificationCenter.default.addObserver(forName: .tempoDietaryProfileChanged, object: nil, queue: nil) { _ in
-            count += 1
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let changes = NotificationRecorder(.tempoDietaryProfileChanged)
         fullDraft().save(sections: [.food], to: context)
-        XCTAssertEqual(count, 1)
+        XCTAssertEqual(changes.count, 1)
         fullDraft().save(to: context)
-        XCTAssertEqual(count, 2)
+        XCTAssertEqual(changes.count, 2)
     }
 
     func testFullSaveStillWritesEverything() throws {

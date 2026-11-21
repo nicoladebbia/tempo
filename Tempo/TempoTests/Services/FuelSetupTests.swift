@@ -442,11 +442,7 @@ final class FuelSetupPersistenceTests: XCTestCase {
         """).draft
         draft.notes = "Bored of chicken."
 
-        var observed = 0
-        let token = NotificationCenter.default.addObserver(forName: .tempoDietaryProfileChanged, object: nil, queue: nil) { _ in
-            observed += 1
-        }
-        defer { NotificationCenter.default.removeObserver(token) }
+        let changes = NotificationRecorder(.tempoDietaryProfileChanged)
         draft.save(to: context)
 
         let profile = try XCTUnwrap(context.fetch(FetchDescriptor<DietaryProfile>()).first)
@@ -467,7 +463,7 @@ final class FuelSetupPersistenceTests: XCTestCase {
         XCTAssertEqual(settings.mealIntakeFirstMealHour, 8)
         XCTAssertEqual(settings.mealIntakeLastMealHour, 21)
         XCTAssertEqual(settings.groceryPreferredStores, ["Publix"])
-        XCTAssertEqual(observed, 1, "The meal plan is told to follow")
+        XCTAssertEqual(changes.count, 1, "The meal plan is told to follow")
 
         let loaded = FuelSetupDraft.load(from: context)
         XCTAssertEqual(loaded.weightKg, 78)

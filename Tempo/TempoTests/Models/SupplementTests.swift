@@ -153,12 +153,15 @@ final class SupplementTests: XCTestCase {
             for: WeeklyMealPlan.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
-        let plan = WeeklyMealPlan(
-            startDate: Date(), endDate: Date(),
-            dayTypeAssignments: [:], isActive: true
-        )
-        // Never set → decoding a nil blob yields an empty map, not a crash.
-        XCTAssertTrue(plan.supplementDecisions.isEmpty)
+        // The container only has to be alive while the plan is used.
+        withExtendedLifetime(container) {
+            let plan = WeeklyMealPlan(
+                startDate: Date(), endDate: Date(),
+                dayTypeAssignments: [:], isActive: true
+            )
+            // Never set → decoding a nil blob yields an empty map, not a crash.
+            XCTAssertTrue(plan.supplementDecisions.isEmpty)
+        }
     }
 
     // MARK: - SupplementIntakeLog ("I took it" persistence)
