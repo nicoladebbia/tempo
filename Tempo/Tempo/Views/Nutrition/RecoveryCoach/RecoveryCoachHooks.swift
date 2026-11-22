@@ -18,6 +18,8 @@ private struct RecoveryCoachHooks: ViewModifier {
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var model: RecoveryCoachModel?
+    /// The launch `.task` already refreshes; the cold-launch `.active` must not fetch again.
+    @State private var coldLaunch = ColdLaunchActivation()
 
     func body(content: Content) -> some View {
         content
@@ -29,7 +31,9 @@ private struct RecoveryCoachHooks: ViewModifier {
                 rescheduleReminder()
             }
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .active, let model else { return }
+                guard phase == .active else { return }
+                let isColdLaunch = coldLaunch.isColdLaunch()
+                guard let model, !isColdLaunch else { return }
                 Task { await model.refresh(requestedID: appState.requestedCoach?.id) }
                 rescheduleReminder()
             }
