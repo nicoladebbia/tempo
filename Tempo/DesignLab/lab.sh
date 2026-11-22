@@ -21,6 +21,7 @@ udid() {
 }
 build() {
     (cd "$HERE/$D" && xcodegen generate --quiet)
+    rm -rf "$DD/Build/Products/Debug-iphonesimulator/Lab$D.app"   # a stale app must not hide a failed build
     xcodebuild -project "$HERE/$D/Lab$D.xcodeproj" -scheme "Lab$D" -configuration Debug \
         -destination "id=$(udid)" -derivedDataPath "$DD" -quiet build 2>&1 | grep -E "error|warning: unre|BUILD" | head -40 || true
     test -d "$DD/Build/Products/Debug-iphonesimulator/Lab$D.app" || { echo "[ERR] build failed" >&2; exit 1; }
