@@ -1,0 +1,21 @@
+name: LabB
+options:
+  bundleIdPrefix: com.tempo.designlab
+  deploymentTarget:
+    iOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+    INFOPLIST_KEY_CFBundleDisplayName: "Lab B"
+    CODE_SIGNING_ALLOWED: NO
+targets:
+  LabB:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+      - ../Shared
