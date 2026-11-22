@@ -106,12 +106,14 @@ enum DailyResetCoordinator {
         let allDays = (try? context.fetch(descriptor)) ?? []
         let priorDays = allDays.filter { $0.date < today }
 
-        var finalizedDays = 0
+        // Days with nothing logged score 0 and are simply looked at again next run.
+        var scoredDays = 0
+        var emptyDays = 0
         for accountability in priorDays where accountability.accountabilityScore == 0 {
             accountability.accountabilityScore = engine.calculateDailyScore(
                 accountability: accountability
             )
-            finalizedDays += 1
+            if accountability.accountabilityScore > 0 { scoredDays += 1 } else { emptyDays += 1 }
         }
 
         // Update overall streak using yesterday's outcome.
@@ -179,8 +181,8 @@ enum DailyResetCoordinator {
 
         try? context.save()
         defaults.set(today, forKey: lastRunKey)
-        // Days still at 0 after scoring are re-checked next run; this counts days scored now, not all history.
-        logger.info("Daily reset complete: \(finalizedDays) unscored prior day(s) checked")
+        logger.info("Daily reset complete: \(scoredDays) past day(s) scored")
+        logger.debug("Daily reset: \(emptyDays) past day(s) have nothing logged to score")
     }
 
     @MainActor
