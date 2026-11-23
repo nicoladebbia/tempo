@@ -80,8 +80,9 @@ struct FoodSearchView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.sm)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s2)
+                .sensoryFeedback(.selection, trigger: selectedTab)
 
                 if let catalog {
                     switch selectedTab {
@@ -95,6 +96,7 @@ struct FoodSearchView: View {
                 }
             }
             .tidePage()
+            .tideCovered(showScanner)
             .navigationTitle("Search Food")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
@@ -108,8 +110,6 @@ struct FoodSearchView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -153,10 +153,11 @@ struct FoodSearchView: View {
             if filteredRecents.isEmpty {
                 searchEmptyState
             } else {
-                savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: "RECENT")
+                savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: "Recent")
             }
         } else if results.isEmpty, isLoading {
             ProgressView()
+                .tint(Tide.text2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if results.isEmpty, hasSearched {
             noResultsState
@@ -166,21 +167,24 @@ struct FoodSearchView: View {
                     Section {
                         ForEach(results.notices, id: \.self) { notice in
                             Label(notice, systemImage: "exclamationmark.triangle")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoAmber)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.warn)
+                                .fuelRow()
                         }
                     }
                 }
-                resultSection("YOURS", results.yours, catalog: catalog)
-                resultSection("BASIC FOODS", results.basics, catalog: catalog)
-                resultSection("PACKAGED PRODUCTS", results.products, catalog: catalog)
+                resultSection("Yours", results.yours, catalog: catalog)
+                resultSection("Basic foods", results.basics, catalog: catalog)
+                resultSection("Packaged products", results.products, catalog: catalog)
                 if isLoading || isLoadingMore {
                     HStack {
                         Spacer()
                         ProgressView()
+                            .tint(Tide.text2)
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 }
             }
             .listStyle(.insetGrouped)
@@ -191,20 +195,22 @@ struct FoodSearchView: View {
     @ViewBuilder
     private func resultSection(_ title: String, _ products: [FoodProduct], catalog: FoodCatalog) -> some View {
         if !products.isEmpty {
-            Section(title) {
+            Section {
                 ForEach(products) { product in
                     NavigationLink {
                         FoodProductView(product: product, mode: productMode, catalog: catalog)
                     } label: {
                         FoodProductRow(product: product)
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .fuelRow()
                     .onAppear {
                         if product.id == results.products.last?.id {
                             Task { await loadMorePackaged() }
                         }
                     }
                 }
+            } header: {
+                Text(title).tideLabel()
             }
         }
     }
@@ -214,12 +220,9 @@ struct FoodSearchView: View {
     @ViewBuilder
     private func savedList(_ rows: [ScannedFood], catalog: FoodCatalog, empty: String, header: String? = nil) -> some View {
         if rows.isEmpty {
-            Text(empty)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(TempoSpacing.xxl)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            centered {
+                FuelEmptyState(icon: selectedTab == .favorites ? "star" : "clock", title: empty)
+            }
         } else {
             List {
                 Section {
@@ -230,12 +233,12 @@ struct FoodSearchView: View {
                             } label: {
                                 FoodProductRow(product: product, photo: row.photoData)
                             }
-                            .listRowBackground(Color.tempoSurfaceCard)
+                            .fuelRow()
                         }
                     }
                 } header: {
                     if let header {
-                        Text(header)
+                        Text(header).tideLabel()
                     }
                 }
             }
@@ -247,22 +250,37 @@ struct FoodSearchView: View {
     // MARK: - Empty States
 
     private var searchEmptyState: some View {
-        EmptyStateView(
-            icon: "magnifyingglass",
-            title: "Find any food",
-            message: "Search basics like \"chicken breast\" or packaged products by name or brand. Or scan a barcode."
-        )
+        centered {
+            FuelEmptyState(
+                icon: "magnifyingglass",
+                title: "Find any food",
+                message: "Search basics like \"chicken breast\" or packaged products by name or brand. Or scan a barcode."
+            )
+        }
     }
 
     private var noResultsState: some View {
-        EmptyStateView(
-            icon: "fork.knife",
-            title: "Nothing found",
-            message: "Try a shorter name, or scan the barcode.",
-            actionTitle: "Scan a barcode"
-        ) {
-            showScanner = true
+        centered {
+            FuelEmptyState(
+                icon: "fork.knife",
+                title: "Nothing found",
+                message: "Try a shorter name, or scan the barcode."
+            ) {
+                Button("Scan a barcode") {
+                    HapticManager.lightImpact()
+                    showScanner = true
+                }
+                .buttonStyle(.tidePrimary)
+            }
         }
+    }
+
+    /// Puts an empty-state card in the middle of the space under the picker.
+    private func centered(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Helpers

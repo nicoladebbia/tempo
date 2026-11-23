@@ -35,7 +35,7 @@ struct RecipeSuggestionsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 if viewModel.recipeState.suggestions.isEmpty, !viewModel.recipeState.isLoading {
                     emptyState
                 } else {
@@ -48,13 +48,15 @@ struct RecipeSuggestionsView: View {
                         } label: {
                             suggestionCard(suggestion)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(FuelPressStyle())
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
         .navigationTitle("Recipes")
         .toolbar {
@@ -66,6 +68,7 @@ struct RecipeSuggestionsView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
+                .accessibilityLabel("Refresh")
             }
             // Add lives under a separate "+" so the two creation paths
             // (typed form vs AI dictation) share a single chooser without
@@ -85,8 +88,10 @@ struct RecipeSuggestionsView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add recipe")
             }
         }
+        .tideCovered(showWriteRecipe || showTellAIRecipe)
         .sheet(isPresented: $showWriteRecipe) {
             WriteRecipeView { recipe in
                 saveCustomRecipe(recipe)
@@ -129,71 +134,68 @@ struct RecipeSuggestionsView: View {
     // MARK: - Sections
 
     private func suggestionCard(_ suggestion: RecipeSuggestion) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
+        let tone = coverageTone(suggestion)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text(suggestion.recipeName)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                coverageBadge(suggestion)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Tide.s2)
+                FuelPill(text: "\(Int(suggestion.coverageScore * 100))%", color: tone)
+                Image(systemName: "chevron.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            HStack(spacing: TempoSpacing.sm) {
+
+            TideLevelBar(progress: min(max(suggestion.coverageScore, 0), 1), color: tone, height: Tide.barSlim)
+
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 if !suggestion.missingIngredients.isEmpty {
                     Label("Missing \(suggestion.missingIngredients.count)", systemImage: "minus.circle")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoWarning)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.warn)
                 } else {
                     Label("Have everything", systemImage: "checkmark.circle.fill")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSuccess)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.good)
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 Text("Macro fit \(Int(suggestion.macroAlignmentScore * 100))%")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .monospacedDigit()
             }
+
             if !suggestion.missingIngredients.isEmpty {
                 Text(suggestion.missingIngredients.joined(separator: ", "))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineLimit(2)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .contentShape(.rect(cornerRadius: Tide.tileRadius))
     }
 
-    private func coverageBadge(_ suggestion: RecipeSuggestion) -> some View {
-        let pct = Int(suggestion.coverageScore * 100)
-        let color: Color = suggestion.coverageScore >= 0.9
-            ? .tempoSuccess
-            : (suggestion.coverageScore >= 0.6 ? .tempoWarning : .tempoError)
-        return Text("\(pct)%")
-            .font(.tempoCaption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
+    /// Green when the pantry covers nearly everything, amber when it covers
+    /// most of it, red when a lot is missing.
+    private func coverageTone(_ suggestion: RecipeSuggestion) -> Color {
+        suggestion.coverageScore >= 0.9
+            ? Tide.good
+            : (suggestion.coverageScore >= 0.6 ? Tide.warn : Tide.danger)
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "fork.knife.circle")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No recipe matches yet")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Add items to your pantry — or save a recipe — and we'll rank what you can make.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        FuelEmptyState(
+            icon: "fork.knife.circle",
+            title: "No recipe matches yet",
+            message: "Add items to your pantry — or save a recipe — and we'll rank what you can make."
+        )
+        .padding(.top, Tide.s6)
     }
 }
 
@@ -216,8 +218,10 @@ struct RecipeDetailLoader: View {
                 RecipeDetailView(recipe: recipe)
             } else {
                 ProgressView()
+                    .tint(Tide.text)
             }
         }
+        .tidePage()
         .task {
             recipe = try? viewModel.recipeService?.fetch(byID: recipeID)
         }
@@ -229,115 +233,110 @@ struct RecipeDetailLoader: View {
 struct RecipeDetailView: View {
     let recipe: Recipe
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 heroCard
                 ingredientsSection
                 stepsSection
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
         .navigationTitle(recipe.name)
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private var heroCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             if let description = recipe.recipeDescription, !description.isEmpty {
                 Text(description)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: TempoSpacing.md) {
-                metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
-                metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
-                metaTag(systemImage: "flame", text: "\(Int(recipe.totalCalories)) kcal")
+            TideNumber("\(Int(recipe.totalCalories))", unit: "kcal", size: Tide.numeralM)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s4) {
+                    metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
+                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
+                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                }
             }
-            HStack(spacing: TempoSpacing.md) {
-                macroChip(label: "P", value: recipe.totalProteinGrams)
-                macroChip(label: "C", value: recipe.totalCarbsGrams)
-                macroChip(label: "F", value: recipe.totalFatGrams)
-            }
+            FuelMacroInline(
+                protein: Int(recipe.totalProteinGrams),
+                carbs: Int(recipe.totalCarbsGrams),
+                fat: Int(recipe.totalFatGrams)
+            )
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard()
     }
 
     private var ingredientsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("INGREDIENTS")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Ingredients").tideLabel()
             ForEach(recipe.orderedIngredients, id: \.id) { ing in
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: ing.isOptional ? "circle.dashed" : "circle")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
                     Text(ing.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
                     Text("\(Int(ing.quantityGrams))g")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .monospacedDigit()
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard()
     }
 
     private var stepsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("STEPS")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Steps").tideLabel()
             ForEach(Array(recipe.orderedSteps.enumerated()), id: \.element.id) { idx, step in
-                HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                    Text("\(idx + 1).")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
-                        .frame(width: 24, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                    Text("\(idx + 1)")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .monospacedDigit()
+                        .frame(width: Tide.s5, alignment: .leading)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(step.instruction)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         if let mins = step.durationMinutes {
                             Text("\(mins) min")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                 }
+                .accessibilityElement(children: .combine)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard()
     }
 
     private func metaTag(systemImage: String, text: String) -> some View {
         Label(text, systemImage: systemImage)
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
-    }
-
-    private func macroChip(label: String, value: Double) -> some View {
-        HStack(spacing: 3) {
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("\(Int(value))g")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
     }
 }

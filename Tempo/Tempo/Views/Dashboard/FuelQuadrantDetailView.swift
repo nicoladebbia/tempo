@@ -12,7 +12,8 @@ import SwiftUI
 // MARK: - FuelQuadrantDetailView
 
 // Per MODULE_DASHBOARD.md Section 4.3 — Fuel Expanded View.
-// Calorie hero ring, macro bars, meals list, calorie trend chart, weekly averages.
+// Calorie hero, macro bars, meals list, calorie trend chart, weekly averages.
+// Every number reads the same `FuelQuadrantData` as the Fuel card on Today.
 
 struct FuelQuadrantDetailView: View {
     let data: FuelQuadrantData
@@ -33,54 +34,43 @@ struct FuelQuadrantDetailView: View {
     @State
     private var showNativeNutrition = false
 
-    // Macro bar colors per MODULE_DASHBOARD.md Section 3.4.2
-    private let proteinColor = Color.tempoMacroProtein
-    private let carbsColor = Color.tempoMacroCarbs
-    private let fatColor = Color.tempoMacroFat
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s4) {
                 if data.isConnected {
                     todayHeader
                     calorieHeroSection
-                    macroSection
                     mealsSection
                     calorieTrendSection
                     weeklyAverageSection
                 } else {
                     // Native nutrition empty state — log meals directly.
-                    VStack(spacing: TempoSpacing.xl) {
-                        Image(systemName: "fork.knife.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Color.tempoViolet)
-
-                        Text("Track nutrition natively")
-                            .font(.tempoTitle3)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        Text("Log your first meal to start tracking macros, hydration, and meal timing.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: 280)
-
-                        VStack(spacing: TempoSpacing.buttonStackVertical) {
-                            NavigationLink {
-                                DailyNutritionSummaryView()
-                            } label: {
-                                Text("Log a Meal")
-                            }
-                            .buttonStyle(.tempoPrimary)
+                    FuelEmptyState(
+                        icon: "fork.knife.circle.fill",
+                        title: "Track nutrition natively",
+                        message: "Log your first meal to start tracking macros, hydration, and meal timing."
+                    ) {
+                        NavigationLink {
+                            DailyNutritionSummaryView()
+                        } label: {
+                            Text("Log a Meal")
                         }
-                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .buttonStyle(.tidePrimary)
                     }
-                    .padding(.top, TempoSpacing.xxxxl)
+                    .padding(.top, Tide.s6)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            // Full width: without it the scroll view hugs narrow content.
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
@@ -88,59 +78,52 @@ struct FuelQuadrantDetailView: View {
 
     // MARK: - Calorie Hero
 
-    // Per MODULE_DASHBOARD.md Section 4.3 — Calorie Hero Section
+    // Per MODULE_DASHBOARD.md Section 4.3 — Calorie Hero + Macro Section.
+    // Same structure as the Fuel card on Today: calories as the one big
+    // number, then the three macros.
 
     private var calorieHeroSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.xl) {
-                // Calorie ring — 120pt
-                ZStack {
-                    Circle()
-                        .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Calories", trailing: caloriesRemaining)
 
-                    Circle()
-                        .trim(from: 0, to: min(data.calorieProgress, 1.0))
-                        .stroke(
-                            data.calorieProgress > 1.0 ? Color.tempoError : Color.tempoViolet,
-                            style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(-90))
-
-                    // Sized to fit comfortably inside the 120pt ring even
-                    // at 4-digit kcal. tempoScoreDisplay (the previous
-                    // token) was huge enough that "1,541" overflowed even
-                    // with minimumScaleFactor. tempoTitle1 + tight scale
-                    // floor leaves headroom for 9,999.
-                    Text(data.formattedCalories)
-                        .font(.tempoTitle1)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                }
-                .frame(width: 120, height: 120)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    HStack(spacing: 4) {
-                        Text("of \(data.formattedCalorieTarget)")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text("kcal")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        TideNumber(data.formattedCalories, size: Tide.numeralL)
+                        Text("of \(data.formattedCalorieTarget) kcal")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .accessibilityElement(children: .combine)
+                    TideLevelBar(
+                        progress: min(data.calorieProgress, 1),
+                        color: data.calorieProgress > 1 ? Tide.danger : nil,
+                        height: Tide.bar
+                    )
+                    .animation(Tide.settle, value: data.calorieProgress)
                 }
 
-                Spacer()
+                // Drill sergeant quip
+                if !calorieQuip.isEmpty {
+                    Text(calorieQuip)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
-            // Drill sergeant quip
-            Text(calorieQuip)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .italic()
+            macroSection
         }
-        .padding(.top, TempoSpacing.lg)
+        .tideCard()
+    }
+
+    /// "420 left" / "80 over", like the Today card. Nil without both numbers.
+    private var caloriesRemaining: String? {
+        guard let consumed = data.caloriesConsumed, let target = data.calorieTarget else {
+            return nil
+        }
+        return FuelCalorieHero.remaining(consumed: consumed, target: target)
     }
 
     // MARK: - Macro Section
@@ -148,33 +131,29 @@ struct FuelQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.3 — Macro Section
 
     private var macroSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             macroRow(
                 name: "Protein",
                 current: data.proteinGrams,
                 target: data.proteinTarget,
-                color: proteinColor,
+                color: Tide.protein,
                 calPerGram: 4
             )
             macroRow(
                 name: "Carbs",
                 current: data.carbsGrams,
                 target: data.carbsTarget,
-                color: carbsColor,
+                color: Tide.carbs,
                 calPerGram: 4
             )
             macroRow(
                 name: "Fat",
                 current: data.fatGrams,
                 target: data.fatTarget,
-                color: fatColor,
+                color: Tide.fat,
                 calPerGram: 9
             )
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
     private func macroRow(name: String, current: Int?, target: Int?, color: Color, calPerGram: Int) -> some View {
@@ -183,30 +162,37 @@ struct FuelQuadrantDetailView: View {
         let targetStr = target.map { "\($0)" } ?? "--"
         let caloriePercent = macroCaloriePercent(grams: current, calPerGram: calPerGram)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(name)
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Text("\(currentStr)/\(targetStr)g")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder).frame(height: 8)
-                    Capsule().fill(color)
-                        .frame(width: geo.size.width * min(progress, 1.0), height: 8)
+        return VStack(alignment: .leading, spacing: Tide.s1) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
+                    Circle()
+                        .fill(color)
+                        .frame(width: Tide.s2, height: Tide.s2)
+                        .accessibilityHidden(true)
+                    Text(name)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                }
+                Spacer(minLength: Tide.s2)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber(currentStr, size: Tide.numeralS, relativeTo: .headline)
+                    Text("/ \(targetStr) g")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(1)
                 }
             }
-            .frame(height: 8)
+
+            TideLevelBar(progress: min(progress, 1), color: color, height: Tide.barSlim)
+                .animation(Tide.settle, value: progress)
 
             Text("\(caloriePercent)% of calories")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name) \(currentStr) of \(targetStr) grams, \(caloriePercent) percent of calories")
     }
 
     // MARK: - Today Header
@@ -216,42 +202,43 @@ struct FuelQuadrantDetailView: View {
     /// when meal times have been pushed forward due to a late wake.
     private var todayHeader: some View {
         TimelineView(.everyMinute) { context in
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
-                Text(TempoDateFormatters.dateOnly.string(from: context.date))
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Text(TempoDateFormatters.dateOnly.string(from: context.date))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text("·")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    Text("·")
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
 
-                Text(TempoDateFormatters.timeOnly.string(from: context.date))
-                    .font(.tempoTitle3)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-
-                Spacer()
+                    Text(TempoDateFormatters.timeOnly.string(from: context.date))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
 
                 if shiftMinutes != 0 {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Tide.s1) {
                         Image(systemName: "moon.zzz.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.tempoElectric)
+                            .accessibilityHidden(true)
                         Text(shiftLabel(minutes: shiftMinutes))
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoElectric)
                     }
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 4)
-                    .background(Color.tempoElectric.opacity(0.12))
-                    .clipShape(Capsule())
-                    .accessibilityLabel("Meals shifted \(abs(shiftMinutes)) minutes \(shiftMinutes > 0 ? "later" : "earlier") due to wake time")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.water)
+                    .padding(.horizontal, Tide.s2)
+                    .padding(.vertical, Tide.s1)
+                    .background(Tide.water.opacity(0.16), in: .capsule)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        "Meals shifted \(abs(shiftMinutes)) minutes \(shiftMinutes > 0 ? "later" : "earlier") due to wake time"
+                    )
                 }
             }
-            .padding(.top, TempoSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -274,94 +261,91 @@ struct FuelQuadrantDetailView: View {
     // `MealDetailView` for the full recipe + prep flow.
 
     private var mealsSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("MEALS")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                if !mealRows.isEmpty {
-                    Text("\(mealRows.count) planned")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-            .padding(.bottom, TempoSpacing.md)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(
+                title: "Meals",
+                trailing: mealRows.isEmpty ? nil : "\(mealRows.count) planned"
+            )
 
             if mealRows.isEmpty {
                 emptyMealsRow
             } else {
-                ForEach(Array(mealRows.enumerated()), id: \.element.id) { index, row in
-                    NavigationLink {
-                        MealDetailView(meal: row.meal)
-                    } label: {
-                        plannedMealRow(row)
-                    }
-                    .buttonStyle(.plain)
+                VStack(spacing: 0) {
+                    ForEach(Array(mealRows.enumerated()), id: \.element.id) { index, row in
+                        NavigationLink {
+                            MealDetailView(meal: row.meal)
+                        } label: {
+                            plannedMealRow(row)
+                        }
+                        .buttonStyle(.plain)
 
-                    if index < mealRows.count - 1 {
-                        Divider()
-                            .background(Color.tempoDivider)
+                        if index < mealRows.count - 1 {
+                            Divider()
+                                .overlay(Tide.hairline)
+                        }
                     }
                 }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard()
     }
 
     private var emptyMealsRow: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text3)
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
             Text("No meals planned for today.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
-        .frame(height: 48)
+        .frame(minHeight: Tide.hit)
     }
 
     private func plannedMealRow(_ row: FuelMealRow) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: statusIcon(for: row.meal.status))
-                .font(.system(size: 16))
+                .font(Tide.headline)
                 .foregroundStyle(statusColor(for: row.meal.status))
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(row.meal.mealName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
-                HStack(spacing: 6) {
+                HStack(spacing: Tide.s2) {
                     // When the meal has been eaten, show the ACTUAL eat
                     // time — that's the truth the user logged, and it
                     // must match the Nutrition tab. Only fall back to the
                     // planned/shifted displayedTime for not-yet-eaten meals.
                     if let eatenAt = row.meal.actualEatenAt {
                         Text(TempoDateFormatters.timeOnly.string(from: eatenAt))
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoSuccess)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.good)
                             .monospacedDigit()
                         Text("(planned \(TempoDateFormatters.timeOnly.string(from: row.displayedTime)))")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .monospacedDigit()
                     } else {
                         Text(TempoDateFormatters.timeOnly.string(from: row.displayedTime))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .monospacedDigit()
 
                         if row.shiftMinutes != 0 {
                             Text("(was \(TempoDateFormatters.timeOnly.string(from: row.originalTime)))")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
+                                .monospacedDigit()
                         }
                     }
                 }
@@ -371,36 +355,38 @@ struct FuelQuadrantDetailView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(row.meal.totalCalories > 0 ? "\(Int(row.meal.totalCalories)) kcal" : "—")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .monospacedDigit()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+            if row.meal.totalCalories > 0 {
+                TideNumber("\(Int(row.meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+            } else {
+                Text("—")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text3)
             }
+
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .frame(minHeight: 56)
-        .contentShape(Rectangle())
+        .frame(minHeight: Tide.hit + Tide.s3)
+        .contentShape(.rect)
     }
 
     private func portableOnlyBadge(eventTitle: String?) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tide.s1) {
             Image(systemName: "takeoutbag.and.cup.and.straw.fill")
-                .font(.system(size: 9, weight: .semibold))
+                .accessibilityHidden(true)
             Text(eventTitle.map { "Portable only · \($0)" } ?? "Portable only")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(0.4)
-                .lineLimit(1)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
         }
-        .foregroundStyle(Color.tempoAmber)
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, 3)
-        .background(Color.tempoAmber.opacity(0.15))
-        .clipShape(Capsule())
+        .font(Tide.label)
+        .foregroundStyle(Tide.warn)
+        .padding(.horizontal, Tide.s2)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.warn.opacity(0.16), in: .rect(cornerRadius: Tide.s3))
     }
 
     private func statusIcon(for status: MealStatus) -> String {
@@ -413,9 +399,9 @@ struct FuelQuadrantDetailView: View {
 
     private func statusColor(for status: MealStatus) -> Color {
         switch status {
-        case .eaten: .tempoSuccess
-        case .skipped: .tempoError
-        default: .tempoTextTertiary
+        case .eaten: Tide.good
+        case .skipped: Tide.danger
+        default: Tide.text3
         }
     }
 
@@ -424,25 +410,20 @@ struct FuelQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.3 — Calorie Trend Chart (7 Days)
 
     private var calorieTrendSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("CALORIE TREND")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Calorie trend")
 
             if calorieTrend.contains(where: \.hasData) {
                 trendChart
             } else {
                 Text("Nothing logged this week. Log a meal and the chart starts.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard()
     }
 
     /// Days with no eaten meal get no bar (a gap), never a fake value.
@@ -455,14 +436,14 @@ struct FuelQuadrantDetailView: View {
                 )
                 .foregroundStyle(
                     point.calories > (data.calorieTarget ?? 2400)
-                        ? Color.tempoError : Color.tempoViolet
+                        ? Tide.danger : mood.accent
                 )
-                .cornerRadius(4)
+                .cornerRadius(Tide.s1)
             }
 
             if let target = data.calorieTarget {
                 RuleMark(y: .value("Target", target))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .foregroundStyle(Tide.text3)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
             }
         }
@@ -472,10 +453,18 @@ struct FuelQuadrantDetailView: View {
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
+            }
+        }
+        .chartYAxis {
+            AxisMarks { _ in
+                AxisGridLine()
+                    .foregroundStyle(Tide.hairline)
+                AxisValueLabel()
+                    .foregroundStyle(Tide.text3)
             }
         }
         .frame(height: 160)
@@ -495,37 +484,45 @@ struct FuelQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.3 — Weekly Average Section
 
     private var weeklyAverageSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("WEEKLY AVERAGE")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Weekly average")
 
             // Averaged over the days that have eaten meals — an unlogged
             // day isn't a 0 kcal day. (Replaces hardcoded 2,250 / 172g / 82%.)
             if let avg = EatenNutritionHistory.averages(of: calorieTrend) {
-                Text("Calories: \(avg.calories.formatted())/day (target \(data.formattedCalorieTarget))")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                    : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+                layout {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text("Calories").tideLabel()
+                        TideNumber(avg.calories.formatted(), unit: "kcal/day", size: Tide.numeralS, relativeTo: .headline)
+                        Text("target \(data.formattedCalorieTarget)")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
 
-                Text("Protein: \(avg.protein)g/day")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text("Protein").tideLabel()
+                        TideNumber("\(avg.protein)", unit: "g/day", size: Tide.numeralS, relativeTo: .headline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                }
 
                 Text("Based on \(avg.daysWithData) of the last 7 days")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             } else {
                 Text("No meals logged in the last 7 days.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard()
     }
 
     // MARK: - Helpers

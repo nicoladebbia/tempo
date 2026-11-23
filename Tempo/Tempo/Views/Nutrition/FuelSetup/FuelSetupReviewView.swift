@@ -27,13 +27,16 @@ struct OptionalTimeRow: View {
     var minutes: Int?
     var defaultMinutes = 12 * 60
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         HStack {
             Toggle(label, isOn: Binding(
                 get: { minutes != nil },
                 set: { minutes = $0 ? (minutes ?? defaultMinutes) : nil }
             ))
-            .tint(Color.tempoSignal)
+            .tint(mood.accent)
             if minutes != nil {
                 DatePicker("", selection: Binding(
                     get: { Self.date(minutes ?? defaultMinutes) },
@@ -61,38 +64,53 @@ struct DayRoutineEditor: View {
     var day: DayRoutine
     let places: [RoutinePlace]
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         Form {
-            Section("Day") {
+            Section {
                 OptionalTimeRow(label: "Wake up", minutes: $day.wakeMinutes, defaultMinutes: 7 * 60)
+                    .fuelRow()
                 OptionalTimeRow(label: "Leave home", minutes: $day.leaveHomeMinutes, defaultMinutes: 8 * 60)
+                    .fuelRow()
                 OptionalTimeRow(label: "Back home", minutes: $day.backHomeMinutes, defaultMinutes: 17 * 60)
+                    .fuelRow()
                 OptionalTimeRow(label: "Bed", minutes: $day.bedMinutes, defaultMinutes: 23 * 60)
+                    .fuelRow()
+            } header: {
+                Text("Day").tideLabel()
             }
-            Section("Training") {
+            Section {
                 Toggle("Training this day", isOn: Binding(
                     get: { day.training != nil },
                     set: { day.training = $0 ? (day.training ?? TrainingSlot(startMinutes: 17 * 60)) : nil }
                 ))
-                .tint(Color.tempoSignal)
+                .fuelRow()
                 if day.training != nil {
                     DatePicker("Starts", selection: Binding(
                         get: { OptionalTimeRow.date(day.training?.startMinutes ?? 17 * 60) },
                         set: { day.training?.startMinutes = OptionalTimeRow.minutes($0) }
                     ), displayedComponents: .hourAndMinute)
+                        .fuelRow()
                     Stepper("\(day.training?.durationMinutes ?? 60) min", value: Binding(
                         get: { day.training?.durationMinutes ?? 60 },
                         set: { day.training?.durationMinutes = $0 }
                     ), in: 15 ... 240, step: 15)
+                        .fuelRow()
                     TextField("What (e.g. gym — legs, football)", text: Binding(
                         get: { day.training?.kind ?? "" },
                         set: { day.training?.kind = $0 }
                     ))
+                    .fuelRow()
                 }
+            } header: {
+                Text("Training").tideLabel()
             }
             Section {
                 ForEach($day.events) { $event in
                     RoutineEventRow(event: $event, places: places)
+                        .fuelRow()
                 }
                 .onDelete { day.events.remove(atOffsets: $0) }
                 Button {
@@ -100,15 +118,18 @@ struct DayRoutineEditor: View {
                 } label: {
                     Label("Add class / work", systemImage: "plus")
                 }
+                .fuelRow()
                 Button {
                     day.events.append(RoutineEvent(kind: .mealOut, title: "Lunch out", startMinutes: 13 * 60, placeID: places.first?.id))
                 } label: {
                     Label("Add a meal out", systemImage: "fork.knife")
                 }
+                .fuelRow()
             } header: {
-                Text("Fixed events")
+                Text("Fixed events").tideLabel()
             }
         }
+        .tint(mood.accent)
         .scrollContentBackground(.hidden)
         .tidePage()
         .navigationTitle(day.name)
@@ -124,10 +145,10 @@ struct RoutineEventRow: View {
     let places: [RoutinePlace]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack {
                 TextField("Title", text: $event.title)
-                    .font(.tempoBodyBold)
+                    .font(Tide.bodyStrong)
                 Picker("", selection: $event.kind) {
                     ForEach(RoutineEvent.Kind.allCases, id: \.self) { kind in
                         Text(kind.label).tag(kind)
@@ -143,6 +164,7 @@ struct RoutineEventRow: View {
                     .labelsHidden()
                 if event.kind != .mealOut {
                     Text("–")
+                        .foregroundStyle(Tide.text2)
                     DatePicker("", selection: Binding(
                         get: { OptionalTimeRow.date(event.endMinutes ?? event.startMinutes + 60) },
                         set: { event.endMinutes = OptionalTimeRow.minutes($0) }
@@ -169,7 +191,7 @@ struct RoutineEventRow: View {
                 ))
             }
         }
-        .font(.tempoBody)
+        .font(Tide.body)
     }
 }
 

@@ -12,6 +12,9 @@ struct RecoveryOverrideStepView: View {
     @Bindable
     var coordinator: WizardCoordinator
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         WizardStepScaffold(
             title: "Adjust around training?",
@@ -22,23 +25,26 @@ struct RecoveryOverrideStepView: View {
             onPrimary: coordinator.advance,
             onCancel: coordinator.cancel
         ) {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 if let score = coordinator.snapshot.whoop?.recoveryScore {
                     recoveryBadge(score: score)
                 }
 
                 Toggle(isOn: $coordinator.intake.recoveryAdjusted) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Skew fueling to training load")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("More fuel on training days, lighter on rest days.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .tint(Color.tempoSignal)
-                .tempoCard()
+                .tint(mood.accent)
+                .frame(minHeight: Tide.hit)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
         }
     }
@@ -52,24 +58,25 @@ struct RecoveryOverrideStepView: View {
 
     private func recoveryBadge(score: Double) -> some View {
         let color: Color = if score >= 67 {
-            .tempoSuccess
+            Tide.good
         } else if score >= 34 {
-            .tempoWarning
+            Tide.warn
         } else {
-            .tempoError
+            Tide.danger
         }
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s3) {
             Circle()
                 .fill(color)
-                .frame(width: 10, height: 10)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .accessibilityHidden(true)
             Text("Whoop recovery yesterday")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
-            Text("\(Int(score))")
-                .font(.system(size: 22, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
+            TideNumber("\(Int(score))", size: Tide.numeralS, color: color)
         }
-        .tempoCard()
+        .accessibilityElement(children: .combine)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 }

@@ -45,43 +45,56 @@ struct MealFeedbackSheet: View {
                                 HapticManager.lightImpact()
                             } label: {
                                 Image(systemName: star <= rating ? "star.fill" : "star")
-                                    .font(.system(size: 22))
-                                    .foregroundStyle(star <= rating ? Color.tempoAmber : Color.tempoTextTertiary)
+                                    .font(Tide.title2)
+                                    .foregroundStyle(star <= rating ? Tide.warn : Tide.text3)
+                                    .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                                    .contentShape(.rect)
                             }
                             .buttonStyle(.plain)
-                            .frame(maxWidth: .infinity)
+                            .accessibilityLabel("\(star) \(star == 1 ? "star" : "stars")")
                         }
                     }
-                    .padding(.vertical, TempoSpacing.xs)
+                    .fuelRow()
                 } header: {
-                    Text("How was it?")
+                    Text("How was it?").tideLabel()
                 } footer: {
                     Text("Skip the stars if you only want to leave a note.")
+                        .font(Tide.caption).foregroundStyle(Tide.text3)
                 }
 
-                Section("Overall") {
+                Section {
                     TextField("Loved this. Or didn't.", text: $overallNote, axis: .vertical)
                         .lineLimit(2 ... 4)
+                        .fuelRow()
+                } header: {
+                    Text("Overall").tideLabel()
                 }
 
                 Section {
                     TextField("Too big, too small, just right…", text: $portionNote, axis: .vertical)
                         .lineLimit(1 ... 3)
+                        .fuelRow()
                 } header: {
-                    Text("Portion")
+                    Text("Portion").tideLabel()
                 } footer: {
                     Text("If 100g feels right instead of 300g, say so. Plans will adapt.")
+                        .font(Tide.caption).foregroundStyle(Tide.text3)
                 }
 
                 Section {
                     TextField("Add lemon. Swap rice for quinoa. Less salt.", text: $suggestedChange, axis: .vertical)
                         .lineLimit(1 ... 3)
+                        .fuelRow()
                 } header: {
-                    Text("Next time")
+                    Text("Next time").tideLabel()
                 } footer: {
                     Text("Specific changes you want applied when this dish comes around again.")
+                        .font(Tide.caption).foregroundStyle(Tide.text3)
                 }
             }
+            .font(Tide.body)
+            .scrollContentBackground(.hidden)
+            .tidePage()
             .navigationTitle(meal.mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -514,6 +514,7 @@
 		5E35FD97B308B216EB09678E /* FoodCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2E44B6A74F0BDA360D5000 /* FoodCheckView.swift */; };
 		5E69E07435BBD02AE134027A /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 107CACC43246C5792548E83B /* WorkoutView.swift */; };
 		5E8B4C1848075C93B1C069B7 /* TrainingViewModel+WatchSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = E339220BBBC1B038A4C47287 /* TrainingViewModel+WatchSync.swift */; };
+		5ED1338A7962B7BBE81FC6F8 /* Tide+Fuel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4F0E9AC3D2371C38AF5E4F /* Tide+Fuel.swift */; };
 		5FB1A8087FFDEAEF6B17E2F3 /* PlanRebuildFromTodayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7F6375EC657C16AABD06051 /* PlanRebuildFromTodayTests.swift */; };
 		5FC3A6827C4CFC6322B1B3B4 /* PhoneWatchConnectivityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7D589689C5451EE86CAFCEB /* PhoneWatchConnectivityService.swift */; };
 		601D05E6B7E9C1901152145C /* PrescriptionMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FE437AEBAA0261A5ADBCA2 /* PrescriptionMathTests.swift */; };
@@ -2312,6 +2313,7 @@
 		ADF974CCFA6B9334127BA4CB /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		ADFECB175E6DE25E2E0EAC8B /* VoicePantryParseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoicePantryParseTests.swift; sourceTree = "<group>"; };
 		AE3A2335BEAF9420CA3826BB /* SyncEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEnums.swift; sourceTree = "<group>"; };
+		AE4F0E9AC3D2371C38AF5E4F /* Tide+Fuel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tide+Fuel.swift"; sourceTree = "<group>"; };
 		AE5045423EE804A1B7DD6253 /* WeekOverWeekProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekOverWeekProgress.swift; sourceTree = "<group>"; };
 		AE5712263755A5454A040725 /* SupplementMacrosTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementMacrosTests.swift; sourceTree = "<group>"; };
 		AE6263597B3354C508BBC7D4 /* Tempo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tempo.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -3725,6 +3727,7 @@
 				0597EA1F193B3DFC757ACEC1 /* Tide.metal */,
 				9DB9D78D3973641B77CEE49B /* Tide+Arena.swift */,
 				27BE1B0656C2D6E8258CCECA /* Tide+Coach.swift */,
+				AE4F0E9AC3D2371C38AF5E4F /* Tide+Fuel.swift */,
 				B9AA57662E0B6672183C6A3C /* Tide+Kitchen.swift */,
 				B38137B67BF85B1AD8E1DD0A /* Tide+Lockdown.swift */,
 				4CDF3292997ECC9533E727FD /* Tide+Onboarding.swift */,
@@ -6642,6 +6645,7 @@
 				1926D115A4B3332150CFC26B /* TestServer.swift in Sources */,
 				8E4E788748CC5CC6BBF88883 /* Tide+Arena.swift in Sources */,
 				E882D951F2AA78B5A0B0AA14 /* Tide+Coach.swift in Sources */,
+				5ED1338A7962B7BBE81FC6F8 /* Tide+Fuel.swift in Sources */,
 				33038901F609329E6B66C143 /* Tide+Kitchen.swift in Sources */,
 				D40EE1FCBCEE2DFC6BD83571 /* Tide+Lockdown.swift in Sources */,
 				9B29E17641F474D03BAF040B /* Tide+Onboarding.swift in Sources */,

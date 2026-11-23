@@ -18,6 +18,8 @@ struct WeeklyHabitsSettingsView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var promptEnabled = true
@@ -43,23 +45,30 @@ struct WeeklyHabitsSettingsView: View {
             Section {
                 Toggle("Ask me every Sunday", isOn: $promptEnabled)
                     .accessibilityIdentifier("weeklyPromptToggle")
+                    .fuelRow()
                 if promptEnabled {
                     DatePicker("Time", selection: $promptTime, displayedComponents: .hourAndMinute)
                         .accessibilityIdentifier("weeklyPromptTime")
+                        .fuelRow()
                 }
                 Button("Plan next week now") {
+                    HapticManager.lightImpact()
                     services.appState.weeklyCheckInRequested = true
                 }
+                .fuelRow()
                 if notificationsDenied {
                     Button("Open Settings") { CameraPermission.openSettings() }
                         .accessibilityIdentifier("weeklyOpenSettings")
+                        .fuelRow()
                 }
             } header: {
-                Text("Sunday planning")
+                Text("Sunday planning").tideLabel()
             } footer: {
                 Text(notificationsDenied
                     ? "Notifications are off for Tempo — turn them on in iOS Settings to get the Sunday prompt."
                     : "Tap Yes on the notification and next week is built in the background, around your routine.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
             Section {
@@ -67,46 +76,60 @@ struct WeeklyHabitsSettingsView: View {
                     FuelSetupView(embedded: true)
                 } label: {
                     Label("Routine, places & food", systemImage: "calendar")
+                        .foregroundStyle(Tide.text)
                 }
+                .fuelRow()
                 ForEach(routineSummary, id: \.self) { line in
                     Text(line)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fuelRow()
                 }
             } header: {
-                Text("Your week")
+                Text("Your week").tideLabel()
             } footer: {
                 Text("Every Sunday plan reads this. Change it any time — by voice or by hand.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
             Section {
                 if observedTimes.isEmpty, expenditure == nil {
                     Text("Log meals for a couple of weeks and your real eating times and calorie burn show up here.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fuelRow()
                 }
                 ForEach(observedTimes, id: \.meal) { item in
                     LabeledContent(item.meal, value: item.time)
+                        .fuelRow()
                 }
                 if let expenditure {
                     LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
+                        .fuelRow()
                     Text(
                         "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fuelRow()
                 }
             } header: {
-                Text("Learned from your logs")
+                Text("Learned from your logs").tideLabel()
             }
 
             Section {
                 Toggle("Remind me to take my supplements", isOn: $supplementRemindersEnabled)
+                    .fuelRow()
             } footer: {
                 Text("Per-supplement reminders can still be turned off individually from the shelf.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         }
+        .tint(mood.accent)
         .scrollContentBackground(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
         .navigationTitle("Weekly habits")
         .navigationBarTitleDisplayMode(.inline)

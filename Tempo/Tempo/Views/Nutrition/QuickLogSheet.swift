@@ -12,6 +12,8 @@ import SwiftUI
 struct QuickLogSheet: View {
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
 
@@ -30,50 +32,51 @@ struct QuickLogSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("WHAT DID YOU EAT?")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                HStack(spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("What did you eat?").tideLabel()
+                HStack(spacing: Tide.s2) {
                     TextField("2 eggs, toast with butter", text: $text, axis: .vertical)
-                        .font(.tempoBody)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1 ... 4)
-                        .padding(.horizontal, TempoSpacing.md)
-                        .frame(minHeight: 48)
-                        .background(Color.tempoBgSecondary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        .fuelField()
                         .focused($focused)
                         .submitLabel(.send)
                         .onSubmit(submit)
                         .disabled(isParsing)
                         .accessibilityIdentifier("quickLogField")
                     Button(action: submit) {
-                        if isParsing {
-                            ProgressView().frame(width: 44, height: 44)
-                        } else {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 36))
-                                .foregroundStyle(canSubmit ? Color.tempoSignal : Color.tempoTextDisabled)
-                                .frame(width: 44, height: 44)
+                        Group {
+                            if isParsing {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                                    .font(Tide.title)
+                                    .foregroundStyle(canSubmit ? mood.accent : Tide.text3)
+                            }
                         }
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                     .disabled(!canSubmit)
                     .accessibilityLabel("Parse")
                     .accessibilityIdentifier("quickLogGo")
                 }
                 if let message {
                     Text(message)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Text("Add a time or meal if you like: \"pasta at 1pm\", \"yesterday dinner\".")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s5)
             .tidePage()
             .navigationTitle("Quick Log")
             .navigationBarTitleDisplayMode(.inline)

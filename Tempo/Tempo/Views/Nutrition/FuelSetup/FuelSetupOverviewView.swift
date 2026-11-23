@@ -31,6 +31,13 @@ struct FuelSetupOverviewView: View {
     var onTalkAgain: () -> Void
     var onSaveAll: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ScaledMetric(relativeTo: .headline)
+    private var iconBox: CGFloat = Tide.icon + Tide.s2
+
     private var remaining: [FuelSetupSection] {
         draft.remainingSections(reviewed: reviewed)
     }
@@ -45,23 +52,26 @@ struct FuelSetupOverviewView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s5) {
                 header
                 if !remaining.isEmpty {
                     finishCard
                 }
                 talkCard
-                VStack(spacing: TempoSpacing.sm) {
-                    ForEach(FuelSetupSection.allCases) { section in
-                        card(section)
+                GlassEffectContainer(spacing: Tide.s1) {
+                    VStack(spacing: Tide.s3) {
+                        ForEach(FuelSetupSection.allCases) { section in
+                            card(section)
+                        }
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.sm)
-            .padding(.bottom, TempoSpacing.xl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
-        .safeAreaInset(edge: .bottom) {
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             if let blockedMessage {
                 blockedBar(blockedMessage)
             } else if let primaryActionTitle {
@@ -74,17 +84,21 @@ struct FuelSetupOverviewView: View {
     // MARK: - Pieces
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("YOUR FUEL PROFILE")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Your fuel profile")
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
             Text("Tap a section to change it. Each one saves on its own, or save everything at the bottom.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     /// "Finish setup · 3 left": chains through what's missing, required first.
+    /// Accent-tinted glass, not a fill: the one filled button on this screen is the bar at the bottom.
     private var finishCard: some View {
         let list = remaining
         let hasRequired = list.contains(where: \.isRequired)
@@ -92,27 +106,31 @@ struct FuelSetupOverviewView: View {
             HapticManager.lightImpact()
             onFinish(list)
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Finish setup · \(list.count) left")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextInverse)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(hasRequired
                         ? "Next: \(list[0].title). Needed for your plan."
                         : "Next: \(list[0].title). All optional, skip any.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextInverse.opacity(0.85))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
+                    .font(Tide.headline)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
             }
-            .padding(TempoSpacing.md)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .background(Color.tempoSignal)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .frame(minHeight: Tide.hit)
+            .padding(Tide.s4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(mood.accent.opacity(0.28)).interactive(), in: .rect(cornerRadius: Tide.cardRadius))
+            .contentShape(.rect(cornerRadius: Tide.cardRadius))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("fuelSetupFinish")
@@ -120,29 +138,29 @@ struct FuelSetupOverviewView: View {
 
     private var talkCard: some View {
         Button(action: onTalkAgain) {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(width: 36, height: 36)
-                    .background(Color.tempoSignal)
-                    .clipShape(Circle())
-                VStack(alignment: .leading, spacing: 2) {
+                    .font(Tide.headline)
+                    .foregroundStyle(mood.accent)
+                    .frame(width: iconBox, height: iconBox)
+                    .background(Tide.fill, in: .circle)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Tell me more")
-                        .font(.tempoBodyBold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                     Text("Talk or type. I fill in the sections for you.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
             }
-            .padding(TempoSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSignal.opacity(TempoOpacity.o10))
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
         .accessibilityIdentifier("fuelSetupTalkAgain")
     }
 
@@ -151,50 +169,59 @@ struct FuelSetupOverviewView: View {
         let isDirty = draft.isDirty(section, comparedTo: saved)
         let isUnset = draft.isUnset(section)
         let canSkip = isUnset && !reviewed.contains(section)
-        return HStack(spacing: TempoSpacing.sm) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             Button {
                 HapticManager.selection()
                 onOpen(section)
             } label: {
-                HStack(spacing: TempoSpacing.md) {
+                HStack(alignment: .top, spacing: Tide.s3) {
                     Image(systemName: section.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isMissing ? Color.tempoWarning : Color.tempoSignal)
-                        .frame(width: 36, height: 36)
-                        .background(Color.tempoBgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: TempoSpacing.sm) {
-                            Text(section.title)
-                                .font(.tempoBodyBold)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.85)
-                            if isMissing {
-                                chip("Needed", color: .tempoWarning)
+                        .font(Tide.headline)
+                        .foregroundStyle(isMissing ? Tide.warn : mood.accent)
+                        .frame(width: iconBox, height: iconBox)
+                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text(section.title)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if isMissing || isDirty {
+                            HStack(spacing: Tide.s1) {
+                                if isMissing {
+                                    FuelPill(text: "Needed", color: Tide.warn)
+                                }
+                                if isDirty {
+                                    FuelPill(text: section == .you && !locked.isEmpty ? "Update" : "Unsaved", color: mood.accent)
+                                }
                             }
-                            if isDirty {
-                                chip(section == .you && !locked.isEmpty ? "Update" : "Unsaved", color: .tempoInfo)
-                            }
+                            .fixedSize()
                         }
                         Text(draft.summary(for: section, unit: unit))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .lineLimit(2)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
                         if section == .you, !locked.isEmpty {
                             HealthBadge()
-                                .padding(.top, 2)
+                                .padding(.top, Tide.hair)
                         }
                     }
                     Spacer(minLength: 0)
                     if !canSkip {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .frame(minHeight: iconBox)
+                            .accessibilityHidden(true)
                     }
                 }
-                .contentShape(Rectangle())
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("fuelSection.\(section.rawValue)")
@@ -204,73 +231,65 @@ struct FuelSetupOverviewView: View {
                     onSkip(section)
                 } label: {
                     Text("Optional · Skip")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.horizontal, TempoSpacing.sm)
-                        .frame(minHeight: 44)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .padding(.horizontal, Tide.s2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Skip \(section.title)")
                 .accessibilityIdentifier("fuelSkip.\(section.rawValue)")
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(isMissing ? Color.tempoWarning.opacity(0.6) : Color.tempoBorder, lineWidth: isMissing ? 1.5 : 0.5)
-        )
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .overlay {
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder(Tide.warn.opacity(0.7), lineWidth: 1.5)
+                .opacity(isMissing ? 1 : 0)
+        }
+        .animation(Tide.snap, value: isMissing)
     }
 
-    private func chip(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(color)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, 2)
-            .background(color.opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
-            .fixedSize()
+    /// A glass bar floating at the bottom: the main button of the screen.
+    private func bottomBar(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .tideCard(padding: Tide.s4)
+            .padding(.horizontal, Tide.s4)
+            .padding(.bottom, Tide.s2)
     }
 
     private func saveAllBar(_ title: String) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
+        bottomBar {
             Button(action: onSaveAll) {
                 Text(title)
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .accessibilityIdentifier("fuelSetupSave")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .tidePage()
     }
 
     /// Plan generation can't go on: one message naming what's missing, one button.
     private func blockedBar(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Text(message)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("fuelSetupBlocked")
-            Button {
-                onFinish(draft.incompleteSections)
-            } label: {
-                Text("Finish what's missing")
+        bottomBar {
+            VStack(spacing: Tide.s3) {
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("fuelSetupBlocked")
+                Button {
+                    onFinish(draft.incompleteSections)
+                } label: {
+                    Text("Finish what's missing")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
+                .accessibilityIdentifier("fuelSetupFinishRequired")
             }
-            .buttonStyle(.tempoPrimary)
-            .accessibilityIdentifier("fuelSetupFinishRequired")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .tidePage()
     }
 }

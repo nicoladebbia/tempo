@@ -21,12 +21,15 @@ struct ManualWeighInSheet: View {
     let onSave: (_ kg: Double, _ time: Date) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.tideMood) private var mood
     @State private var text = ""
     @State private var useLb: Bool
     @State private var when: When
     @State private var time: Date
     @State private var error: String?
     @FocusState private var focused: Bool
+    @ScaledMetric(relativeTo: .largeTitle) private var weightSize: CGFloat = Tide.numeralL
+    @ScaledMetric(relativeTo: .body) private var unitWidth: CGFloat = Tide.s10 * 3
 
     init(session: CoachSession, startsWithAfter: Bool, onSave: @escaping (Double, Date) -> Void) {
         self.session = session
@@ -48,45 +51,42 @@ struct ManualWeighInSheet: View {
     /// kg from what was typed, or nil when it is not a plausible body weight.
     static func kg(from text: String, useLb: Bool) -> Double? {
         let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
-        guard let value = Double(cleaned), value > 0 else { return nil }
+        guard let value = Double(cleaned), value > 0 else {
+            return nil
+        }
         let kg = useLb ? value * 0.45359237 : value
         return RecoveryWeighIns.plausibleKg.contains(kg) ? kg : nil
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("YOUR WEIGHT")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel("Close")
+            HStack(alignment: .center, spacing: Tide.s3) {
+                Text("Your weight")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Tide.s2)
+                FuelIconButton(systemImage: "xmark", label: "Close") { dismiss() }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     Picker("When", selection: $when) {
                         ForEach(When.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                     }
                     .pickerStyle(.segmented)
                     .onChange(of: when) { _, new in time = Self.defaultTime(for: new, session: session) }
+                    .sensoryFeedback(.selection, trigger: when)
 
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(alignment: .center, spacing: Tide.s3) {
                         TextField(useLb ? "172" : "78.0", text: $text)
                             .keyboardType(.decimalPad)
                             .focused($focused)
-                            .font(.tempoTimerDisplaySmall)
+                            .font(Tide.numeral(weightSize))
+                            .foregroundStyle(Tide.text)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("coach.weightField")
                         Picker("Unit", selection: $useLb) {
@@ -94,33 +94,45 @@ struct ManualWeighInSheet: View {
                             Text("lb").tag(true)
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 110)
+                        .frame(width: unitWidth)
+                        .sensoryFeedback(.selection, trigger: useLb)
                     }
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
                     DatePicker("Time", selection: $time, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
-                        .font(.tempoSubheadline)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .tint(mood.accent)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
                     if let error {
                         Text(error)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoError)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.danger)
+                            .fixedSize(horizontal: false, vertical: true)
                             .accessibilityIdentifier("coach.weightError")
                     }
 
                     Button("Save weight") { save() }
-                        .buttonStyle(.tempoPrimary)
+                        .buttonStyle(.tidePrimary)
                         .accessibilityIdentifier("coach.saveWeight")
 
-                    Text("Same clothes (or none), towel-dry, after the toilet, before you drink. A weight from the 3 hours before the session works as your \"before\".")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "Same clothes (or none), towel-dry, after the toilet, before you drink. A weight from the 3 hours before the session works as your \"before\"."
+                    )
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s5)
+                .padding(.bottom, Tide.s8)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .top)
         }
         .tidePage()
+        .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
         .onAppear { focused = true }
     }
 

@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - Nutrition Weekly Plan View
 
 // 7-day expandable meal plan overview with day types and generation.
-// Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
+// A section of the Fuel tab: the Tide field is already drawn by the tab root.
 
 struct NutritionWeeklyPlanView: View {
     @Bindable
@@ -21,6 +21,8 @@ struct NutritionWeeklyPlanView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var expandedDay: Int?
     @State
@@ -49,7 +51,7 @@ struct NutritionWeeklyPlanView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 NextWeekPlanCard()
                 if let plan = viewModel.weeklyPlan {
                     if viewModel.showPlanUpdateBanner {
@@ -62,36 +64,30 @@ struct NutritionWeeklyPlanView: View {
                 }
 
                 generateButton
-                    .padding(.top, TempoSpacing.md)
+                    .padding(.top, Tide.s2)
 
                 aiMealsPreferencesLink
 
                 if let blocker = viewModel.planGenerationBlocker {
                     PlanBlockerCard(blocker: blocker, viewModel: viewModel)
                 } else if let error = viewModel.planGenerationError {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoError)
-                        Text(error)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoError)
-                    }
-                    .tempoCard()
+                    FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: error)
                 }
+
                 // AI disclaimer
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .accessibilityHidden(true)
                     Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.vertical, TempoSpacing.sm)
+                .foregroundStyle(Tide.text3)
+                .padding(.vertical, Tide.s2)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
             // Pin the content to the screen width: nothing inside can make the
             // page wider, so it only ever scrolls up and down.
             .containerRelativeFrame(.horizontal)
@@ -160,52 +156,54 @@ struct NutritionWeeklyPlanView: View {
 
     // MARK: - Plan Header
 
+    /// The week at a glance: its dates, how many meals are done, and whether
+    /// the plan still matches the setup.
     private func planHeaderCard(_ plan: WeeklyMealPlan) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.tempoViolet)
+        // Planned slots only: a Quick Log or a supplement dose isn't a plan meal.
+        let planMeals = plan.meals?.filter { !$0.isUnplannedLog } ?? []
+        let totalMeals = planMeals.count
+        let eatenMeals = planMeals.count(where: { $0.status == .eaten })
+        // A plan built from inputs that have since changed is not
+        // "Active" any more — say so (Update lives in the banner).
+        let stale = viewModel.isPlanOutOfDate
 
-                Text("ACTIVE PLAN")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Spacer()
-
-                // A plan built from inputs that have since changed is not
-                // "Active" any more — say so (Update lives in the banner).
-                let stale = viewModel.isPlanOutOfDate
-                Text(stale ? "Out of date" : "Active")
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(0.5)
-                    .foregroundStyle(stale ? Color.tempoAmber : Color.tempoSuccess)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background((stale ? Color.tempoAmber : Color.tempoSuccess).opacity(0.12))
-                    .clipShape(Capsule())
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text("Active plan")
+                    .tideLabel()
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Tide.s2)
+                FuelPill(text: stale ? "Out of date" : "Active", color: stale ? Tide.warn : Tide.good)
             }
 
             Text("\(Self.rangeFormatter.string(from: plan.startDate)) - \(Self.rangeFormatter.string(from: plan.endDate))")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
-            // Planned slots only: a Quick Log or a supplement dose isn't a plan meal.
-            let planMeals = plan.meals?.filter { !$0.isUnplannedLog } ?? []
-            let totalMeals = planMeals.count
-            let eatenMeals = planMeals.count(where: { $0.status == .eaten })
-            Text("\(eatenMeals)/\(totalMeals) meals completed")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber("\(eatenMeals)", size: Tide.numeralM)
+                    Text("of \(totalMeals) meals completed")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+                TideLevelBar(
+                    progress: totalMeals > 0 ? min(Double(eatenMeals) / Double(totalMeals), 1) : 0,
+                    height: Tide.bar
+                )
+                .animation(Tide.settle, value: eatenMeals)
+            }
         }
-        .tempoCard()
+        .tideCard()
     }
 
     // MARK: - Week Days List
 
     private func weekDaysList(_ plan: WeeklyMealPlan) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s3) {
             ForEach(0 ..< 7, id: \.self) { dayOffset in
                 let date = calendar.date(byAdding: .day, value: dayOffset, to: plan.startDate)!
                 let dayMeals = mealsForDate(date, in: plan)
@@ -221,29 +219,32 @@ struct NutritionWeeklyPlanView: View {
 
                 VStack(spacing: 0) {
                     // Day header
-                    dayHeaderRow(
-                        date: date,
-                        dayType: dayType,
-                        mealCount: dayMeals.count,
-                        totalCalories: dayMeals.reduce(0) { $0 + Int($1.totalCalories) },
-                        isToday: isToday,
-                        isExpanded: isExpanded
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        withAnimation(TempoAnimation.springMedium) {
+                    Button {
+                        withAnimation(Tide.snap) {
                             expandedDay = isExpanded ? nil : dayOffset
                         }
                         HapticManager.selection()
+                    } label: {
+                        dayHeaderRow(
+                            date: date,
+                            dayType: dayType,
+                            mealCount: dayMeals.count,
+                            totalCalories: dayMeals.reduce(0) { $0 + Int($1.totalCalories) },
+                            isToday: isToday,
+                            isExpanded: isExpanded
+                        )
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
                     // Expanded meals
                     if isExpanded, !dayMeals.isEmpty {
                         Divider()
-                            .background(Color.tempoDivider)
-                            .padding(.horizontal, TempoSpacing.sm)
+                            .overlay(Tide.hairline)
+                            .padding(.vertical, Tide.s2)
 
-                        VStack(spacing: TempoSpacing.xs) {
+                        VStack(spacing: 0) {
                             ForEach(dayMeals, id: \.id) { meal in
                                 // Opens the same meal page as Today, so a
                                 // wrong log from an earlier day can be
@@ -252,20 +253,20 @@ struct NutritionWeeklyPlanView: View {
                                     MealDetailView(meal: meal)
                                 } label: {
                                     compactMealRow(meal)
-                                        .contentShape(Rectangle())
+                                        .contentShape(.rect)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.top, TempoSpacing.sm)
                         .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
-                .tempoCard()
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                        .stroke(isToday ? Color.tempoViolet.opacity(0.4) : Color.clear, lineWidth: 1)
-                )
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .overlay {
+                    RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                        .stroke(isToday ? mood.accent.opacity(0.5) : Color.clear, lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
             }
         }
     }
@@ -278,24 +279,17 @@ struct NutritionWeeklyPlanView: View {
         isToday: Bool,
         isExpanded: Bool
     ) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             // Day label
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(spacing: Tide.s2) {
                     Text(dayLabel(for: date))
-                        .font(.tempoBody)
-                        .fontWeight(isToday ? .bold : .medium)
-                        .foregroundStyle(isToday ? Color.tempoViolet : Color.tempoTextPrimary)
-                        .lineLimit(1)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(isToday ? mood.accent : Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if isToday {
-                        Text("TODAY")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.tempoViolet)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoViolet.opacity(0.12))
-                            .clipShape(Capsule())
+                        FuelPill(text: "Today", color: mood.accent)
                     }
                 }
 
@@ -304,105 +298,101 @@ struct NutritionWeeklyPlanView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             // Stats
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(totalCalories) kcal")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .trailing, spacing: Tide.hair) {
+                TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
 
                 Text("\(mealCount) meals")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
             Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
                 .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                .accessibilityHidden(true)
         }
+        .frame(minHeight: Tide.hit)
     }
 
     private func dayTypeBadge(_ dayType: DayType) -> some View {
-        HStack(spacing: 4) {
+        let color = dayTypeColor(dayType)
+        return HStack(spacing: Tide.s1) {
             Image(systemName: dayTypeIcon(dayType))
-                .font(.system(size: 9))
-            Text(dayType.displayName.uppercased())
-                .font(.system(size: 9, weight: .bold))
-                .tracking(0.3)
+                .accessibilityHidden(true)
+            Text(dayType.displayName)
         }
-        .foregroundStyle(dayTypeColor(dayType))
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(dayTypeColor(dayType).opacity(0.12))
-        .clipShape(Capsule())
+        .font(Tide.label)
+        .foregroundStyle(color)
+        .padding(.horizontal, Tide.s2)
+        .padding(.vertical, Tide.s1)
+        .background(color.opacity(0.16), in: .capsule)
     }
 
     private func compactMealRow(_ meal: PlannedMeal) -> some View {
-        // Every cell is bounded: the name truncates instead of widening the
-        // row, so a long recipe name can never push the page past the screen.
-        HStack(spacing: TempoSpacing.sm) {
+        // The name wraps instead of widening the row, so a long recipe name can
+        // never push the page past the screen; time and kcal keep their width.
+        HStack(spacing: Tide.s3) {
             Circle()
                 .fill(mealStatusColor(meal.status))
-                .frame(width: 8, height: 8)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .accessibilityHidden(true)
 
             Text(meal.mealName)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
                 .layoutPriority(0)
 
+            Spacer(minLength: Tide.s2)
+
             Text(meal.scheduledTime)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .monospacedDigit()
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
-
-            Spacer(minLength: TempoSpacing.xs)
 
             Text("\(Int(meal.totalCalories)) kcal")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .monospacedDigit()
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
+
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 2)
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
     }
 
     // MARK: - Empty State
 
     private var emptyPlanState: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer().frame(height: 40)
-
-            Image(systemName: "calendar.badge.plus")
-                .font(.system(size: 44))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text("No Weekly Plan")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Generate a personalized meal plan based on your goals, training schedule, and dietary preferences.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xl)
-
+        FuelEmptyState(
+            icon: "calendar.badge.plus",
+            title: "No Weekly Plan",
+            message: "Generate a personalized meal plan based on your goals, training schedule, and dietary preferences."
+        ) {
             if !viewModel.hasProfile || FuelSetupDraft.requiredMissingMessage(in: modelContext) != nil {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tempoWarning)
+                        .font(Tide.caption)
+                        .accessibilityHidden(true)
                     Text(FuelSetupDraft.requiredMissingMessage(in: modelContext) ?? "Set up your dietary profile first.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoWarning)
+                        .font(Tide.caption)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .foregroundStyle(Tide.warn)
             }
         }
     }
@@ -410,20 +400,23 @@ struct NutritionWeeklyPlanView: View {
     // MARK: - Generate Button
 
     private var generateButton: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: Tide.s2) {
             if viewModel.isGeneratingPlan, !viewModel.planGenerationStatusLabel.isEmpty {
                 Text(viewModel.planGenerationStatusLabel)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity)
             }
             generateButtonInner
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.planGenerationStatusLabel)
+        .animation(Tide.snap, value: viewModel.planGenerationStatusLabel)
     }
 
     private var generateButtonInner: some View {
         Button {
+            HapticManager.lightImpact()
             guard viewModel.hasProfile, FuelSetupDraft.requiredMissingMessage(in: modelContext) == nil else {
                 showProfileSetup = true
                 return
@@ -435,28 +428,18 @@ struct NutritionWeeklyPlanView: View {
                 startGenerate()
             }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: Tide.s2) {
                 if viewModel.isGeneratingPlan || isPreparingWizard {
                     ProgressView()
-                        .tint(Color.tempoTextInverse)
-                        .scaleEffect(0.8)
+                        .tint(Tide.ink)
                 } else {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 16))
+                        .accessibilityHidden(true)
                 }
                 Text(viewModel.weeklyPlan != nil ? "Regenerate Plan" : "Generate New Plan")
-                    .font(.system(size: 15, weight: .semibold))
             }
-            .foregroundStyle(Color.tempoTextInverse)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(
-                (viewModel.isGeneratingPlan || isPreparingWizard)
-                    ? Color.tempoSignal.opacity(0.6)
-                    : Color.tempoSignal
-            )
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
+        .buttonStyle(.tidePrimary)
         .disabled(viewModel.isGeneratingPlan || isPreparingWizard)
         .alert("Rebuild the rest of the week?", isPresented: $showRebuildConfirm) {
             Button("Rebuild") { startGenerate() }
@@ -479,25 +462,22 @@ struct NutritionWeeklyPlanView: View {
     /// plan already follows (outdated-plan banner / rebuild prompt).
     private var aiMealsPreferencesLink: some View {
         Button {
+            HapticManager.lightImpact()
             showEditSetup = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 14))
+                    .accessibilityHidden(true)
                 Text("Edit setup")
-                    .font(.system(size: 14, weight: .medium))
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .foregroundStyle(Color.tempoTextPrimary)
-            .padding(.horizontal, TempoSpacing.md)
-            .frame(height: 48)
             .frame(maxWidth: .infinity)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
+        .buttonStyle(.tideGlass)
     }
 
     // MARK: - Actions
@@ -552,20 +532,20 @@ struct NutritionWeeklyPlanView: View {
 
     private func dayTypeColor(_ dayType: DayType) -> Color {
         switch dayType {
-        case .strength: .tempoAmber
-        case .cardio: .tempoElectric
-        case .soccer: .tempoSuccess
-        case .double: .tempoError
-        case .rest: .tempoTextTertiary
+        case .strength: Tide.warn
+        case .cardio: Tide.water
+        case .soccer: Tide.good
+        case .double: Tide.danger
+        case .rest: Tide.text3
         }
     }
 
     private func mealStatusColor(_ status: MealStatus) -> Color {
         switch status {
-        case .planned: .tempoTextTertiary
-        case .eaten: .tempoSuccess
-        case .skipped: .tempoError
-        case .modified: .tempoWarning
+        case .planned: Tide.text3
+        case .eaten: Tide.good
+        case .skipped: Tide.danger
+        case .modified: Tide.warn
         }
     }
 }

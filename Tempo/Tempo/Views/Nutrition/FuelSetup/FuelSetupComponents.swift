@@ -3,11 +3,11 @@
 // Tempo
 //
 // The building blocks of the Fuel setup flows: a one-question-per-screen
-// scaffold with progress dots and Back/Next, compact tappable choice cards
-// (~56 pt rows), steppers and number fields that sit several to a screen, a
-// chip list, and the Apple Health badge. Everything uses the design tokens:
-// title3 headings, body-size rows, 20 pt gutters, one primary button at the
-// bottom and a quiet Skip for optional questions.
+// scaffold with progress dots and Back/Next, tappable choice tiles, steppers
+// and number fields that sit several to a screen, a chip list, and the Apple
+// Health badge. Built from the Tide tokens: glass tiles for choices, soft
+// fills for inputs, one accent-filled button at the bottom and a quiet Skip
+// for optional questions.
 //
 
 import SwiftUI
@@ -37,32 +37,36 @@ struct FuelFlowScaffold<Content: View>: View {
     @ViewBuilder
     var content: () -> Content
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         VStack(spacing: 0) {
             topBar
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s6) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
                         Text(title)
-                            .font(.tempoTitle3)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.title)
+                            .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityAddTraits(.isHeader)
                         if let subtitle {
                             Text(subtitle)
-                                .font(.tempoCallout)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     content()
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.md)
-                .padding(.bottom, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
+                .padding(.bottom, Tide.s5)
             }
-            bottomBar
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar { bottomBar }
         }
         .tidePage()
         .dismissKeyboardOnTapOutside()
@@ -74,28 +78,31 @@ struct FuelFlowScaffold<Content: View>: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(width: 44, height: 44)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
             }
+            .buttonStyle(.plain)
             .accessibilityLabel("Close")
             .accessibilityIdentifier("fuelFlowClose")
             Spacer()
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 ForEach(0 ..< max(count, 1), id: \.self) { dot in
                     Capsule()
-                        .fill(dot <= index ? Color.tempoSignal : Color.tempoDivider)
-                        .frame(width: dot == index ? 22 : 8, height: 8)
-                        .animation(TempoAnimation.springMedium, value: index)
+                        .fill(dot <= index ? mood.accent : Tide.text3.opacity(0.5))
+                        .frame(width: dot == index ? Tide.s6 : Tide.s2, height: Tide.s2)
+                        .animation(Tide.snap, value: index)
                 }
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Step \(index + 1) of \(count)")
             Spacer()
             topTrailing
-                .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .trailing)
         }
-        .padding(.horizontal, TempoSpacing.sm)
+        .padding(.horizontal, Tide.s4)
+        .padding(.top, Tide.s1)
     }
 
     @ViewBuilder
@@ -105,29 +112,36 @@ struct FuelFlowScaffold<Content: View>: View {
                 HapticManager.lightImpact()
                 onSaveAndClose()
             }
-            .font(.tempoCallout.weight(.semibold))
-            .foregroundStyle(canSaveAndClose && !isSaving ? Color.tempoSignal : Color.tempoTextDisabled)
+            .buttonStyle(.tideGlass)
+            .opacity(canSaveAndClose && !isSaving ? 1 : 0.45)
             .disabled(!canSaveAndClose || isSaving)
             .accessibilityIdentifier("fuelFlowSaveClose")
         } else if let onSkipSection {
             Button("Skip section", action: onSkipSection)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("fuelFlowSkipSection")
         } else {
-            Color.clear.frame(width: 44, height: 44)
+            Color.clear.frame(width: Tide.hit, height: Tide.hit)
         }
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s2) {
+            HStack(spacing: Tide.s3) {
                 if index > 0 {
-                    Button("Back") {
+                    Button {
                         HapticManager.selection()
                         onBack()
+                    } label: {
+                        Text("Back")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .padding(.horizontal, Tide.s5)
+                            .frame(minHeight: 52)
+                            .background(Tide.fill, in: .capsule)
+                            .contentShape(.capsule)
                     }
-                    .buttonStyle(.tempoSecondary)
+                    .buttonStyle(FuelPressStyle())
                     .accessibilityIdentifier("fuelFlowBack")
                 }
                 Button {
@@ -136,26 +150,24 @@ struct FuelFlowScaffold<Content: View>: View {
                 } label: {
                     Group {
                         if isSaving {
-                            ProgressView()
+                            ProgressView().tint(Tide.ink)
                         } else {
                             Text(isLast ? lastTitle : "Next")
                         }
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(!canContinue || isSaving)
                 .accessibilityIdentifier(isLast ? "fuelFlowSave" : "fuelFlowNext")
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.sm)
-            .padding(.bottom, onSkip == nil ? TempoSpacing.sm : 0)
             if let onSkip {
                 Button(action: onSkip) {
                     Text("Optional · Skip")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .disabled(isSaving)
@@ -163,13 +175,13 @@ struct FuelFlowScaffold<Content: View>: View {
                 .accessibilityIdentifier("fuelFlowSkip")
             }
         }
-        .tidePage()
     }
 }
 
 // MARK: - FuelChoiceCard
 
-/// A tall tappable answer (radio or multi-select look).
+/// A tall tappable answer (radio or multi-select look): one glass tile, an
+/// accent outline and a tick when chosen.
 struct FuelChoiceCard: View {
     let title: String
     var subtitle: String?
@@ -177,48 +189,57 @@ struct FuelChoiceCard: View {
     let isSelected: Bool
     var action: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .headline)
+    private var iconBox: CGFloat = Tide.icon + Tide.s2
+
     var body: some View {
         Button {
             HapticManager.selection()
             action()
         } label: {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextSecondary)
-                        .frame(width: 32, height: 32)
-                        .background(Color.tempoBgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        .font(Tide.headline)
+                        .foregroundStyle(isSelected ? mood.accent : Tide.text2)
+                        .frame(width: iconBox, height: iconBox)
+                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                        .accessibilityHidden(true)
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(title)
-                        .font(.tempoBodyBold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let subtitle {
                         Text(subtitle)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22))
-                    .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextTertiary)
+                    .font(Tide.title2)
+                    .foregroundStyle(isSelected ? mood.accent : Tide.text3)
+                    .contentTransition(.symbolEffect(.replace))
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .stroke(isSelected ? Color.tempoSignal : Color.tempoBorder, lineWidth: isSelected ? 1.5 : 0.5)
-            )
-            .contentShape(Rectangle())
+            .frame(minHeight: iconBox)
+            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+            .overlay {
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .strokeBorder(mood.accent, lineWidth: 1.5)
+                    .opacity(isSelected ? 1 : 0)
+            }
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
+        .animation(Tide.snap, value: isSelected)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -238,51 +259,63 @@ struct FuelBigStepper: View {
     var label: String?
     var id: String
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     private var current: Int {
         value ?? defaultValue
     }
 
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
+        rowLayout {
             if let label {
                 Text(label)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Spacer(minLength: 0)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: 0)
+                }
             }
-            button("minus", enabled: current - step >= range.lowerBound) {
-                value = max(range.lowerBound, current - step)
-            }
-            VStack(spacing: 0) {
-                Text("\(current)")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .contentTransition(.numericText())
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-                Text(unit)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            .frame(minWidth: 64, maxWidth: label == nil ? .infinity : 72)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(label.map { "\($0) " } ?? "")\(current) \(unit)")
-            .accessibilityIdentifier(id)
-            button("plus", enabled: current + step <= range.upperBound) {
-                value = min(range.upperBound, current + step)
-            }
+            controls
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .frame(maxWidth: .infinity, minHeight: 56)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .animation(TempoAnimation.springMedium, value: current)
+        .padding(.vertical, Tide.s2)
+        .frame(maxWidth: .infinity)
+        .fuelField(radius: Tide.tileRadius)
+        .animation(Tide.snap, value: current)
         .onAppear {
             if value == nil {
                 value = defaultValue
+            }
+        }
+    }
+
+    private var rowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+    }
+
+    private var controls: some View {
+        GlassEffectContainer(spacing: Tide.s1) {
+            HStack(spacing: Tide.s2) {
+                button("minus", enabled: current - step >= range.lowerBound) {
+                    value = max(range.lowerBound, current - step)
+                }
+                VStack(spacing: Tide.hair) {
+                    TideNumber("\(current)", size: Tide.numeralM)
+                    Text(unit)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(1)
+                }
+                .frame(minWidth: Tide.s8 * 2, maxWidth: label == nil ? CGFloat.infinity : nil)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(label.map { "\($0) " } ?? "")\(current) \(unit)")
+                .accessibilityIdentifier(id)
+                button("plus", enabled: current + step <= range.upperBound) {
+                    value = min(range.upperBound, current + step)
+                }
             }
         }
     }
@@ -293,11 +326,11 @@ struct FuelBigStepper: View {
             action()
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(enabled ? Color.tempoTextPrimary : Color.tempoTextDisabled)
-                .frame(width: 44, height: 44)
-                .background(Color.tempoBgTertiary)
-                .clipShape(Circle())
+                .font(Tide.bodyStrong)
+                .foregroundStyle(enabled ? Tide.text : Tide.text3)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+                .opacity(enabled ? 1 : 0.5)
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -317,30 +350,53 @@ struct FuelNumberField: View {
     var keyboard: UIKeyboardType = .decimalPad
     var id: String
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ScaledMetric(relativeTo: .title)
+    private var numeralSize: CGFloat = Tide.numeralSheet
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
-            if let label {
-                Text(label)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer(minLength: TempoSpacing.sm)
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    labelView
+                    valueRow
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    labelView
+                    valueRow
+                }
             }
+        }
+        .padding(.vertical, Tide.s2)
+        .frame(maxWidth: .infinity)
+        .fuelField(radius: Tide.tileRadius)
+    }
+
+    @ViewBuilder
+    private var labelView: some View {
+        if let label {
+            Text(label)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var valueRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
             TextField("—", value: $value, format: .number.precision(.fractionLength(0 ... 1)))
                 .keyboardType(keyboard)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.trailing)
+                .font(Tide.numeral(numeralSize))
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
                 .accessibilityIdentifier(id)
             Text(unit)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(minWidth: 44, alignment: .leading)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: true, vertical: false)
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .frame(maxWidth: .infinity, minHeight: 56)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 }
 
@@ -359,50 +415,59 @@ struct FuelChipListInput: View {
     private var draft = ""
     @FocusState
     private var focused: Bool
+    @Environment(\.tideMood)
+    private var mood
+
+    private var canAdd: Bool {
+        !draft.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 TextField(placeholder, text: $draft)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .focused($focused)
                     .submitLabel(.done)
                     .onSubmit(add)
                     .accessibilityIdentifier(id)
                 Button(action: add) {
                     Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .frame(width: 36, height: 36)
-                        .background(draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.tempoTextDisabled : Color.tempoSignal)
-                        .clipShape(Circle())
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(canAdd ? Tide.ink : Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .background(canAdd ? mood.accent : Tide.fill, in: .circle)
+                        .contentShape(.circle)
                 }
-                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                .buttonStyle(.plain)
+                .disabled(!canAdd)
                 .accessibilityLabel("Add")
             }
-            .padding(TempoSpacing.md)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .padding(.leading, Tide.s4)
+            .padding(.trailing, Tide.s1)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+            .animation(Tide.snap, value: canAdd)
 
             if !values.isEmpty {
-                FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
+                FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                     ForEach(values, id: \.self) { value in
                         Button {
                             HapticManager.selection()
                             values.removeAll { $0 == value }
                         } label: {
-                            HStack(spacing: TempoSpacing.xs) {
+                            HStack(spacing: Tide.s2) {
                                 Text(value)
+                                    .font(Tide.bodyStrong)
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(Tide.label)
                             }
-                            .font(.tempoCallout)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .padding(.horizontal, TempoSpacing.md)
-                            .padding(.vertical, TempoSpacing.sm)
-                            .background(Color.tempoSignal.opacity(TempoOpacity.o15))
-                            .clipShape(Capsule())
+                            .foregroundStyle(Tide.text)
+                            .padding(.horizontal, Tide.s4)
+                            .frame(minHeight: Tide.hit)
+                            .background(mood.accent.opacity(0.18), in: .capsule)
+                            .contentShape(.capsule)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove \(value)")
@@ -413,25 +478,16 @@ struct FuelChipListInput: View {
                 !values.contains { $0.caseInsensitiveCompare(suggestion) == .orderedSame }
             }
             if !open.isEmpty {
-                Text("TAP TO ADD")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
-                    ForEach(open, id: \.self) { suggestion in
-                        Button {
-                            HapticManager.selection()
-                            values.append(suggestion)
-                        } label: {
-                            Text("+ \(suggestion)")
-                                .font(.tempoCallout)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                                .padding(.horizontal, TempoSpacing.md)
-                                .padding(.vertical, TempoSpacing.sm)
-                                .background(Color.tempoBgTertiary)
-                                .clipShape(Capsule())
+                Text("Tap to add")
+                    .tideLabel(Tide.text3)
+                GlassEffectContainer(spacing: Tide.s1) {
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(open, id: \.self) { suggestion in
+                            TideChip(title: "+ \(suggestion)") {
+                                HapticManager.selection()
+                                values.append(suggestion)
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -455,15 +511,16 @@ struct FuelChipListInput: View {
 
 /// "From Apple Health" marker for read-only values.
 struct HealthBadge: View {
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         Label("From Apple Health", systemImage: "heart.fill")
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoSignal)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, 3)
-            .background(Color.tempoSignal.opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
+            .font(Tide.label)
+            .foregroundStyle(mood.accent)
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.s1)
+            .background(mood.accent.opacity(0.16), in: .capsule)
     }
 }
 
@@ -475,19 +532,20 @@ struct FuelHealthRow: View {
     let value: String
 
     var body: some View {
-        HStack {
+        HStack(spacing: Tide.s2) {
             Text(label)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+            Spacer(minLength: Tide.s2)
             Text(value)
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
             Image(systemName: "lock.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.vertical, Tide.s2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label) \(value), from Apple Health, can't be edited")
     }
@@ -505,12 +563,20 @@ struct FuelPillPicker<Value: Hashable>: View {
     var selection: Value?
     var id: String
 
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text(label)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
-            HStack(spacing: TempoSpacing.sm) {
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+            layout {
                 ForEach(options, id: \.value) { option in
                     let on = selection == option.value
                     Button {
@@ -518,22 +584,20 @@ struct FuelPillPicker<Value: Hashable>: View {
                         selection = on ? nil : option.value
                     } label: {
                         Text(option.title)
-                            .font(.tempoBody.weight(on ? .semibold : .regular))
-                            .foregroundStyle(on ? Color.tempoTextInverse : Color.tempoTextPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(on ? Color.tempoSignal : Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                                    .stroke(on ? Color.clear : Color.tempoBorder, lineWidth: 0.5)
-                            )
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(on ? Tide.ink : Tide.text)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, Tide.s2)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                            .background(on ? mood.accent : Tide.fill, in: .capsule)
+                            .contentShape(.capsule)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(on ? .isSelected : [])
                 }
             }
+            .animation(Tide.snap, value: selection)
             .accessibilityIdentifier(id)
         }
     }

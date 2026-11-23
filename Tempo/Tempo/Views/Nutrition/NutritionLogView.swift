@@ -61,22 +61,25 @@ struct NutritionLogView: View {
     @State
     private var reviewRequest: MealReviewRequest?
 
+    @Environment(\.tideMood)
+    private var mood
+
     private let columns = [
-        GridItem(.flexible(), spacing: TempoSpacing.md),
-        GridItem(.flexible(), spacing: TempoSpacing.md),
+        GridItem(.flexible(), spacing: Tide.s3),
+        GridItem(.flexible(), spacing: Tide.s3),
     ]
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s4) {
                 naturalLanguageSection
                 quickActionsRow
                 loggedTodaySection
                 presetsSection
                 fullSearchButton
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
         }
         .onAppear {
             // Today's "Quick Log" button lands here with the field focused.
@@ -114,7 +117,11 @@ struct NutritionLogView: View {
             "Already logged",
             isPresented: Binding(
                 get: { presetDuplicate != nil },
-                set: { if !$0 { presetDuplicate = nil } }
+                set: {
+                    if !$0 {
+                        presetDuplicate = nil
+                    }
+                }
             ),
             presenting: presetDuplicate
         ) { preset in
@@ -152,21 +159,11 @@ struct NutritionLogView: View {
     }
 
     private var loggedEmptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "fork.knife.circle")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("Nothing logged yet today")
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Type what you ate, snap a photo or scan a pack. It lands here.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.lg)
-        .tempoCard()
+        FuelEmptyState(
+            icon: "fork.knife.circle",
+            title: "Nothing logged yet today",
+            message: "Type what you ate, snap a photo or scan a pack. It lands here."
+        )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("loggedTodayEmpty")
     }
@@ -188,7 +185,8 @@ struct NutritionLogView: View {
         let name = meal.mealName
         guard let snapshot = viewModel.undoMealEaten(
             meal, modelContext: modelContext, notifications: services.notifications
-        ) else {
+        )
+        else {
             toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
             return
         }
@@ -203,24 +201,14 @@ struct NutritionLogView: View {
     // MARK: - Natural Language Input
 
     private var naturalLanguageSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("QUICK LOG")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Quick log")
 
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 TextField("What did you eat?", text: $naturalLanguageInput)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .padding(.horizontal, TempoSpacing.md)
-                    .padding(.vertical, 12)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
-                    )
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fuelField()
                     .submitLabel(.send)
                     .focused($quickLogFocused)
                     .onSubmit {
@@ -231,93 +219,74 @@ struct NutritionLogView: View {
                 Button {
                     submitNaturalLanguage()
                 } label: {
-                    if isParsing {
-                        // Match the icon's 32pt frame so the row height
-                        // doesn't shift while the request is in flight.
-                        ProgressView()
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(
-                                naturalLanguageInput.isEmpty
-                                    ? Color.tempoTextDisabled
-                                    : Color.tempoSignal
-                            )
+                    Group {
+                        if isParsing {
+                            // Same footprint as the icon so the row height
+                            // doesn't shift while the request is in flight.
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(Tide.title)
+                                .foregroundStyle(
+                                    naturalLanguageInput.isEmpty ? Tide.text3 : mood.accent
+                                )
+                        }
                     }
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
                 .disabled(naturalLanguageInput.isEmpty || isParsing)
+                .accessibilityLabel("Send")
             }
 
             Text("e.g. \"2 eggs, toast with butter, orange juice\"")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .tempoCard()
+        .tideCard()
     }
 
     // MARK: - Quick Actions
 
     private var quickActionsRow: some View {
-        HStack(spacing: TempoSpacing.lg) {
-            quickActionButton(icon: "camera.fill", label: "Photo") {
-                showPhotoAnalysis = true
-            }
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                quickActionButton(icon: "camera.fill", label: "Photo", identifier: "nutritionLogPhoto") {
+                    showPhotoAnalysis = true
+                }
 
-            quickActionButton(icon: "barcode.viewfinder", label: "Scan") {
-                showBarcodeScanner = true
-            }
+                quickActionButton(icon: "barcode.viewfinder", label: "Scan", identifier: "nutritionLogScan") {
+                    showBarcodeScanner = true
+                }
 
-            quickActionButton(icon: "checkmark.seal", label: "Check") {
-                showFoodCheck = true
+                quickActionButton(icon: "checkmark.seal", label: "Check", identifier: "nutritionCheckFood") {
+                    showFoodCheck = true
+                }
             }
-            .accessibilityIdentifier("nutritionCheckFood")
         }
     }
 
-    private func quickActionButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: {
+    private func quickActionButton(
+        icon: String, label: String, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        FuelActionTile(icon: icon, label: label, identifier: identifier) {
             HapticManager.lightImpact()
             action()
-        }) {
-            VStack(spacing: TempoSpacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 52, height: 52)
-                    .background(Color.tempoSignal.opacity(0.1))
-                    .clipShape(Circle())
-
-                Text(label)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Presets Section
 
     private var presetsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text("PRESETS")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Spacer()
-
-                Text("\(viewModel.sortedPresets.count) saved")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Presets", trailing: "\(viewModel.sortedPresets.count) saved")
 
             if viewModel.sortedPresets.isEmpty {
                 emptyPresetsState
             } else {
-                LazyVGrid(columns: columns, spacing: TempoSpacing.md) {
+                LazyVGrid(columns: columns, spacing: Tide.s3) {
                     ForEach(viewModel.sortedPresets, id: \.id) { preset in
                         presetCard(preset)
                     }
@@ -330,44 +299,41 @@ struct NutritionLogView: View {
         Button {
             logPreset(preset)
         } label: {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 HStack {
                     Image(systemName: preset.mealType.icon)
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.tempoViolet)
+                        .font(Tide.caption)
+                        .foregroundStyle(mood.accent)
+                        .accessibilityHidden(true)
 
-                    Spacer()
+                    Spacer(minLength: Tide.s2)
 
                     Text("\(preset.useCount)x")
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .monospacedDigit()
                 }
 
                 Text(preset.name)
-                    .font(.tempoCallout)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                HStack(spacing: 4) {
-                    Text("\(Int(preset.totalCalories))")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoViolet)
-                    Text("kcal")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
+                TideNumber("\(Int(preset.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
 
-                HStack(spacing: TempoSpacing.xs) {
-                    macroLabel("P", value: Int(preset.totalProtein), color: Color.tempoMacroProtein)
-                    macroLabel("C", value: Int(preset.totalCarbs), color: Color.tempoMacroCarbs)
-                    macroLabel("F", value: Int(preset.totalFat), color: Color.tempoMacroFat)
+                HStack(spacing: Tide.s2) {
+                    macroLabel("P", value: Int(preset.totalProtein), color: Tide.protein)
+                    macroLabel("C", value: Int(preset.totalCarbs), color: Tide.carbs)
+                    macroLabel("F", value: Int(preset.totalFat), color: Tide.fat)
                 }
             }
-            .tempoCard()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
         .contextMenu {
             Button(role: .destructive) {
                 viewModel.deletePreset(preset, modelContext: modelContext)
@@ -397,7 +363,8 @@ struct NutritionLogView: View {
             preset,
             modelContext: modelContext,
             notifications: services.notifications
-        ) else {
+        )
+        else {
             toast = ToastData(message: "Couldn't log \(preset.name). Try again.", style: .error)
             return
         }
@@ -408,29 +375,18 @@ struct NutritionLogView: View {
     }
 
     private func macroLabel(_ letter: String, value: Int, color: Color) -> some View {
-        Text("\(letter)\(value)")
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+        Text("\(letter) \(value)")
+            .font(Tide.label)
             .foregroundStyle(color)
+            .monospacedDigit()
     }
 
     private var emptyPresetsState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "bookmark")
-                .font(.system(size: 24))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text("No presets yet.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text("Save your frequent meals for one-tap logging.")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xl)
-        .tempoCard()
+        FuelEmptyState(
+            icon: "bookmark",
+            title: "No presets yet",
+            message: "Save your frequent meals for one-tap logging."
+        )
     }
 
     // MARK: - Full Search Button
@@ -440,18 +396,9 @@ struct NutritionLogView: View {
             showMealLogging = true
             HapticManager.lightImpact()
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16))
-                Text("Full Meal Search")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(Color.tempoTextInverse)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(Color.tempoSignal)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            Label("Full meal search", systemImage: "magnifyingglass")
         }
+        .buttonStyle(.tidePrimary)
     }
 
     // MARK: - Actions

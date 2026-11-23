@@ -16,11 +16,15 @@ import CoreLocation
 import SwiftData
 import SwiftUI
 
+// MARK: - ParsedFoodReviewSheet
+
 struct ParsedFoodReviewSheet: View {
     let items: [ParsedFoodItem]
     let onConfirm: ([ParsedFoodItem], MealType, Date, MealOrigin) -> Void
     let onCancel: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var draft: MealReviewDraft
     /// Grams text per row while the user is typing; committed on every valid keystroke.
@@ -65,15 +69,15 @@ struct ParsedFoodReviewSheet: View {
         let pantry = pantryByItem
         return NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s4) {
                     summaryCard
                     whenCard
                     originCard(pantry: pantry)
                     foodsCard(pantry: pantry)
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.sm)
-                .padding(.bottom, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s4)
             }
             .scrollDismissesKeyboard(.interactively)
             .tidePage()
@@ -101,19 +105,19 @@ struct ParsedFoodReviewSheet: View {
     private var logBar: some View {
         Button(action: confirm) {
             Text(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kcal")
-                .font(.tempoHeadline)
+                .font(Tide.headline)
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .foregroundStyle(Color.tempoInk)
+                .foregroundStyle(Tide.ink)
                 .frame(maxWidth: .infinity, minHeight: 52)
-                .background(draft.items.isEmpty || didConfirm ? Color.tempoTextDisabled : Color.tempoSignal)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .background(draft.items.isEmpty || didConfirm ? Tide.text3 : mood.accent)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(didConfirm || draft.items.isEmpty)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .padding(.bottom, TempoSpacing.sm)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s2)
         .background(.bar)
         .animation(.snappy, value: draft.totalCalories)
         .accessibilityIdentifier("reviewLog")
@@ -134,28 +138,28 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Summary (the answer first)
 
     private var summaryCard: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                 Text("\(draft.totalCalories)")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
+                    .font(Tide.title)
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
                 Text("kcal")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text2)
             }
             .minimumScaleFactor(0.6)
-            HStack(spacing: TempoSpacing.xl) {
-                macro("P", Int(draft.totalProtein), Color.tempoMacroProtein)
-                macro("C", Int(draft.totalCarbs), Color.tempoMacroCarbs)
-                macro("F", Int(draft.totalFat), Color.tempoMacroFat)
+            HStack(spacing: Tide.s5) {
+                macro("P", Int(draft.totalProtein), Tide.protein)
+                macro("C", Int(draft.totalCarbs), Tide.carbs)
+                macro("F", Int(draft.totalFat), Tide.fat)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.lg)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(.vertical, Tide.s4)
+        .background(Tide.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         .animation(.snappy, value: draft.totalCalories)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -165,12 +169,12 @@ struct ParsedFoodReviewSheet: View {
     }
 
     private func macro(_ letter: String, _ grams: Int, _ color: Color) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             Text(letter).foregroundStyle(color).fontWeight(.semibold)
-            Text("\(grams)g").foregroundStyle(Color.tempoTextPrimary)
+            Text("\(grams)g").foregroundStyle(Tide.text)
                 .contentTransition(.numericText())
         }
-        .font(.tempoCallout.monospacedDigit())
+        .font(Tide.body.monospacedDigit())
     }
 
     // MARK: - When
@@ -179,8 +183,8 @@ struct ParsedFoodReviewSheet: View {
         card("WHEN") {
             HStack {
                 Text(Self.relativeDay(draft.eatenAt))
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 DatePicker(
                     "Time eaten",
@@ -192,7 +196,7 @@ struct ParsedFoodReviewSheet: View {
                 .accessibilityIdentifier("reviewTime")
             }
             .frame(minHeight: 44)
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 ForEach(MealType.allCases, id: \.self) { type in
                     mealChip(type)
                 }
@@ -207,18 +211,18 @@ struct ParsedFoodReviewSheet: View {
             HapticManager.selection()
             withAnimation(.snappy) { draft.setMealType(type) }
         } label: {
-            VStack(spacing: TempoSpacing.xs) {
+            VStack(spacing: Tide.s1) {
                 Image(systemName: type.icon)
-                    .font(.system(size: 18))
+                    .font(Tide.headline)
                 Text(type.displayName)
-                    .font(.tempoCaption1)
+                    .font(Tide.caption)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .foregroundStyle(selected ? Color.tempoInk : Color.tempoTextPrimary)
+            .foregroundStyle(selected ? Tide.ink : Tide.text)
             .frame(maxWidth: .infinity, minHeight: 56)
-            .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            .background(selected ? mood.accent : Tide.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(type.displayName)
@@ -240,21 +244,21 @@ struct ParsedFoodReviewSheet: View {
 
     private func originCard(pantry: [String: [PantryPreviewLine]]) -> some View {
         card("WHERE FROM") {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 originChoice(.kitchen, icon: "house.fill", title: "Kitchen")
                 originChoice(.out, icon: "fork.knife", title: "Ate out")
             }
             .accessibilityIdentifier("reviewOrigin")
             if draft.origin == .mixed {
                 Label("Mixed: some from home, some out", systemImage: "arrow.triangle.branch")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .accessibilityIdentifier("reviewOriginMixed")
             }
             if let originHeadline {
                 Text(originHeadline)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .accessibilityIdentifier("reviewOriginHeadline")
             }
             pantryStatus(pantry: pantry)
@@ -269,11 +273,11 @@ struct ParsedFoodReviewSheet: View {
             withAnimation(.snappy) { draft.setOrigin(choice) }
         } label: {
             Label(title, systemImage: icon)
-                .font(.tempoCallout.weight(.semibold))
-                .foregroundStyle(selected ? Color.tempoInk : Color.tempoTextPrimary)
+                .font(Tide.body.weight(.semibold))
+                .foregroundStyle(selected ? Tide.ink : Tide.text)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .background(selected ? mood.accent : Tide.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -286,26 +290,28 @@ struct ParsedFoodReviewSheet: View {
         let lines = draft.items.flatMap { pantry[$0.id] ?? [] }
         if lines.isEmpty {
             Label(
-                draft.origin == .out ? "Nothing from home. Your pantry stays as it is." : "Nothing from home. Nothing comes off your pantry.",
+                draft
+                    .origin == .out ? "Nothing from home. Your pantry stays as it is." :
+                    "Nothing from home. Nothing comes off your pantry.",
                 systemImage: "checkmark.circle"
             )
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
             .fixedSize(horizontal: false, vertical: true)
             .accessibilityIdentifier("reviewOriginPreview")
         } else {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Comes off your pantry")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                     ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                         Text("\(line.displayName) \(line.amountText)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .padding(.horizontal, TempoSpacing.md)
-                            .padding(.vertical, TempoSpacing.xs + 2)
-                            .background(Color.tempoBgTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text)
+                            .padding(.horizontal, Tide.s3)
+                            .padding(.vertical, Tide.s1 + 2)
+                            .background(Tide.fill)
                             .clipShape(Capsule())
                     }
                 }
@@ -321,11 +327,11 @@ struct ParsedFoodReviewSheet: View {
             showHomeSetting = true
         } label: {
             Label(home == nil ? "Set home" : "Home: set", systemImage: home == nil ? "house" : "house.fill")
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(home == nil ? Color.tempoSignal : Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.md)
+                .font(Tide.caption.weight(.semibold))
+                .foregroundStyle(home == nil ? mood.accent : Tide.text2)
+                .padding(.horizontal, Tide.s3)
                 .frame(minHeight: 44)
-                .background(Color.tempoBgTertiary)
+                .background(Tide.fill)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -384,18 +390,18 @@ struct ParsedFoodReviewSheet: View {
         card("WHAT YOU ATE") {
             if draft.items.isEmpty {
                 Text("Nothing left to log.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .frame(minHeight: 44, alignment: .leading)
             } else {
                 Text("Mark what came from your kitchen. Only those come off your pantry.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                 VStack(spacing: 0) {
                     let visible = items.filter { draft.factors[$0.id] != nil }
                     ForEach(Array(visible.enumerated()), id: \.element.id) { index, item in
                         if index > 0 {
-                            Divider().overlay(Color.tempoDivider).padding(.vertical, TempoSpacing.sm)
+                            Divider().overlay(Tide.hairline).padding(.vertical, Tide.s2)
                         }
                         row(item, pantryLines: pantry[item.id] ?? [])
                     }
@@ -407,40 +413,40 @@ struct ParsedFoodReviewSheet: View {
     private func row(_ original: ParsedFoodItem, pantryLines: [PantryPreviewLine]) -> some View {
         let current = original.scaled(by: draft.factor(for: original.id))
         let fromKitchen = draft.origin(for: original.id) == .kitchen
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(original.name.capitalizedFirst)
-                        .font(.tempoBodyBold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                     Text(current.formattedPortion)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                Spacer(minLength: TempoSpacing.sm)
+                Spacer(minLength: Tide.s2)
                 Text("\(Int(current.calories)) kcal")
-                    .font(.tempoCallout.weight(.semibold).monospacedDigit())
+                    .font(Tide.body.weight(.semibold).monospacedDigit())
                     .contentTransition(.numericText())
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
             }
             if current.isBigPortion {
                 Label("That's a big one. Check the portion.", systemImage: "exclamationmark.circle.fill")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoWarning)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.warn)
                     .accessibilityIdentifier("reviewBigPortion")
             }
             if fromKitchen, !pantryLines.isEmpty {
                 Text("Off pantry: " + pantryLines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 ForEach(MealReviewDraft.factorChoices, id: \.self) { choice in
                     chip(choice, for: original)
                 }
             }
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 homeToggle(original, fromKitchen: fromKitchen)
                 Spacer(minLength: 0)
                 if original.quantityGrams > 0 {
@@ -451,8 +457,8 @@ struct ParsedFoodReviewSheet: View {
             if expanded.contains(original.id), original.quantityGrams > 0 {
                 HStack {
                     Text("Exact weight")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                     Spacer()
                     gramsField(original, current: current)
                 }
@@ -470,11 +476,11 @@ struct ParsedFoodReviewSheet: View {
             gramsText[original.id] = nil
         } label: {
             Text(Self.chipLabel(choice))
-                .font(.tempoCallout.weight(.semibold))
-                .foregroundStyle(selected ? Color.tempoInk : Color.tempoTextPrimary)
+                .font(Tide.body.weight(.semibold))
+                .foregroundStyle(selected ? Tide.ink : Tide.text)
                 .frame(maxWidth: .infinity, minHeight: 44)
-                .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .background(selected ? mood.accent : Tide.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(Self.chipLabel(choice)) portion of \(original.name)")
@@ -487,11 +493,11 @@ struct ParsedFoodReviewSheet: View {
             withAnimation(.snappy) { draft.setOrigin(fromKitchen ? .out : .kitchen, for: original.id) }
         } label: {
             Label("From my kitchen", systemImage: fromKitchen ? "house.fill" : "house")
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(fromKitchen ? Color.tempoSignal : Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.md)
+                .font(Tide.caption.weight(.semibold))
+                .foregroundStyle(fromKitchen ? mood.accent : Tide.text2)
+                .padding(.horizontal, Tide.s3)
                 .frame(minHeight: 44)
-                .background(fromKitchen ? Color.tempoSignal.opacity(0.16) : Color.tempoBgTertiary)
+                .background(fromKitchen ? mood.accent.opacity(0.16) : Tide.fill)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -512,9 +518,9 @@ struct ParsedFoodReviewSheet: View {
             }
         } label: {
             Label("Grams", systemImage: "scalemass")
-                .font(.tempoCaption1)
-                .foregroundStyle(open ? Color.tempoSignal : Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.sm)
+                .font(Tide.caption)
+                .foregroundStyle(open ? mood.accent : Tide.text2)
+                .padding(.horizontal, Tide.s2)
                 .frame(minHeight: 44)
         }
         .buttonStyle(.plain)
@@ -527,8 +533,8 @@ struct ParsedFoodReviewSheet: View {
             withAnimation(.snappy) { draft.remove(original.id) }
         } label: {
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text3)
                 .frame(width: 44, height: 44)
         }
         .buttonStyle(.plain)
@@ -554,16 +560,16 @@ struct ParsedFoodReviewSheet: View {
             )
             .keyboardType(.numberPad)
             .multilineTextAlignment(.trailing)
-            .font(.tempoCallout.monospacedDigit())
+            .font(Tide.body.monospacedDigit())
             .frame(width: 56)
             Text("g")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.horizontal, TempoSpacing.md)
+        .padding(.horizontal, Tide.s3)
         .frame(minHeight: 44)
-        .background(Color.tempoBgTertiary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .background(Tide.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
     }
 
     static func chipLabel(_ factor: Double) -> String {
@@ -577,17 +583,15 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Card chrome
 
     private func card(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text(title)
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .tideLabel()
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(Tide.s4)
+        .background(Tide.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
     }
 }
 

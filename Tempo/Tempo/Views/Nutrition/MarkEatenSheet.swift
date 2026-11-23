@@ -46,6 +46,10 @@ struct MarkEatenSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Eat time being edited. Bound to the scrubber; `.now` by default.
     @State
@@ -89,7 +93,7 @@ struct MarkEatenSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s4) {
                     header
                     // When the user explicitly chose "Ate something else", the
                     // "what did you eat" field is the point — put it ABOVE the
@@ -110,15 +114,12 @@ struct MarkEatenSheet: View {
                         substituteSection
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.md)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
+                .padding(.bottom, Tide.s4)
             }
-            .safeAreaInset(edge: .bottom) {
-                saveButton
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.md)
-                    .tidePage()
-            }
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar { saveButton }
             .tidePage()
             .navigationTitle(meal.mealName)
             .navigationBarTitleDisplayMode(.inline)
@@ -137,23 +138,19 @@ struct MarkEatenSheet: View {
     /// from the prior iteration was redundant with the nav title and ate
     /// vertical space below the toolbar — dropped.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
-            Text(timeAgoLabel)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .monospacedDigit()
-                .contentTransition(.numericText())
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            TideNumber(timeAgoLabel, size: Tide.numeralSheet)
             if secondsAgo >= 60 {
                 Text("·")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Text(Self.clockFormatter.string(from: eatTime))
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+                TideNumber(Self.clockFormatter.string(from: eatTime), size: Tide.numeralSheet, weight: .medium, color: Tide.text2)
             }
+            Spacer(minLength: 0)
         }
+        .animation(Tide.snap, value: timeAgoLabel)
+        .accessibilityElement(children: .combine)
     }
 
     private static let clockFormatter: DateFormatter = {
@@ -165,25 +162,23 @@ struct MarkEatenSheet: View {
     /// Slider scrubs eat-time backward from `.now`. Stops at `now`
     /// (no future eating). The label above ticks live as the user drags.
     private var timeScrubber: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack {
-                Text("WHEN")
-                    .font(.tempoCaption2)
-                    .fontWeight(.semibold)
-                    .tracking(0.4)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Spacer()
+                Text("When").tideLabel()
+                Spacer(minLength: Tide.s2)
                 Button {
                     eatTime = .now
                     HapticManager.lightImpact()
                 } label: {
                     Text("Now")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .disabled(secondsAgo < 30)
+                .opacity(secondsAgo < 30 ? 0.4 : 1)
             }
 
             Slider(
@@ -198,41 +193,39 @@ struct MarkEatenSheet: View {
                 ),
                 in: -maxBackwardSeconds ... 0
             )
-            .tint(Color.tempoSignal)
+            .tint(mood.accent)
             .onChange(of: eatTime) { _, _ in
                 HapticManager.selection()
             }
+            .accessibilityLabel("Eat time")
+            .accessibilityValue(timeAgoLabel)
 
             HStack {
                 Text("4 h ago")
                 Spacer()
                 Text("Now")
             }
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
+            .accessibilityHidden(true)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     /// Five chips, evenly spaced. Tapping a chip toggles selection;
     /// tapping the same chip again deselects (so a second tap doesn't
     /// commit accidentally — commits happen via Save).
     private var feelChips: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("HOW DID IT FEEL?")
-                .font(.tempoCaption2)
-                .fontWeight(.semibold)
-                .tracking(0.4)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("How did it feel?").tideLabel()
 
-            HStack(spacing: 8) {
+            chipRow {
                 ForEach(MealFeel.allCases, id: \.self) { feel in
                     feelChip(feel)
                 }
             }
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     /// Collapsible "Ate something else" section. Collapsed = a single
@@ -242,59 +235,53 @@ struct MarkEatenSheet: View {
     /// `saveButton.action` — the caller parses the note through the NL
     /// pipeline to compute real macros and swap the displayed foods.
     private var substituteSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Button {
-                withAnimation(.snappy(duration: 0.18)) {
+                withAnimation(Tide.snap) {
                     ateSomethingElse.toggle()
                 }
                 HapticManager.lightImpact()
             } label: {
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: ateSomethingElse ? "checkmark.circle.fill" : "arrow.triangle.swap")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(ateSomethingElse ? Color.tempoSignal : Color.tempoTextSecondary)
+                        .font(Tide.headline)
+                        .foregroundStyle(ateSomethingElse ? mood.accent : Tide.text2)
+                        .frame(width: Tide.icon, alignment: .leading)
+                        .accessibilityHidden(true)
                     Text("Ate something else")
-                        .font(.tempoCallout)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: Tide.s2)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
                         .rotationEffect(.degrees(ateSomethingElse ? 180 : 0))
+                        .accessibilityHidden(true)
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityValue(ateSomethingElse ? "Expanded" : "Collapsed")
 
             if ateSomethingElse {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("WHAT DID YOU EAT?")
-                            .font(.tempoCaption2)
-                            .fontWeight(.semibold)
-                            .tracking(0.4)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Text("What did you eat?").tideLabel()
                         TextField(
                             "Chicken, rice, beans, olive oil…",
                             text: $substituteText,
                             axis: .vertical
                         )
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(2 ... 4)
-                        .padding(TempoSpacing.sm)
-                        .tidePage()
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                        .padding(.vertical, Tide.s2)
+                        .fuelField()
                     }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("WHERE FROM?")
-                            .font(.tempoCaption2)
-                            .fontWeight(.semibold)
-                            .tracking(0.4)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Text("Where from?").tideLabel()
                         Picker("Where from", selection: $usedPantry) {
                             Text("Ate out").tag(false)
                             Text("Used my pantry").tag(true)
@@ -304,92 +291,92 @@ struct MarkEatenSheet: View {
                     Text(usedPantry
                         ? "We'll take what you ate off your pantry stock and log the real macros for today."
                         : "We'll log the real macros for today. Your pantry stays as-is (you ate out / used something untracked).")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    /// Five chips side by side; stacked as full-width rows at accessibility
+    /// text sizes so no name is squeezed or cut.
+    private func chipRow(@ViewBuilder _ content: () -> some View) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s2))
+        return layout { content() }
+    }
+
+    private func choiceChip(symbol: String, title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(HStackLayout(spacing: Tide.s3))
+            : AnyLayout(VStackLayout(spacing: Tide.s1))
+        return Button(action: action) {
+            layout {
+                Image(systemName: symbol)
+                    .font(Tide.headline)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(Tide.label)
+                    .lineLimit(stacked ? 2 : 1)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .multilineTextAlignment(stacked ? .leading : .center)
+                if stacked {
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s3)
+            .padding(.horizontal, Tide.s1)
+            .foregroundStyle(isSelected ? mood.accent : Tide.text2)
+            .background(
+                isSelected ? mood.accent.opacity(0.2) : Tide.fill,
+                in: .rect(cornerRadius: Tide.controlRadius)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .stroke(isSelected ? mood.accent : Color.clear, lineWidth: 1.5)
+            }
+            .contentShape(.rect(cornerRadius: Tide.controlRadius))
+        }
+        .buttonStyle(.plain)
+        .animation(Tide.snap, value: isSelected)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func feelChip(_ feel: MealFeel) -> some View {
         let isSelected = selectedFeel == feel
-        return Button {
+        return choiceChip(symbol: feel.symbolName, title: feel.displayName, isSelected: isSelected) {
             selectedFeel = isSelected ? nil : feel
             HapticManager.lightImpact()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: feel.symbolName)
-                    .font(.system(size: 16, weight: .semibold))
-                Text(feel.displayName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(isSelected ? Color.tempoSignal.opacity(0.20) : Color.tempoSurfaceCard)
-            .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                    .stroke(isSelected ? Color.tempoSignal : Color.clear, lineWidth: 1.5)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(feel.displayName)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     /// Satiety signal — mainly used to scale a slot's portion DOWN over time
     /// when the user repeatedly says "too much" / "didn't finish."
     private var satietyChips: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("HOW FULL ARE YOU?")
-                .font(.tempoCaption2)
-                .fontWeight(.semibold)
-                .tracking(0.4)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("How full are you?").tideLabel()
 
-            HStack(spacing: 8) {
+            chipRow {
                 ForEach(MealSatiety.allCases, id: \.self) { satiety in
                     satietyChip(satiety)
                 }
             }
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func satietyChip(_ satiety: MealSatiety) -> some View {
         let isSelected = selectedSatiety == satiety
-        return Button {
+        return choiceChip(symbol: satiety.symbolName, title: satiety.displayName, isSelected: isSelected) {
             selectedSatiety = isSelected ? nil : satiety
             HapticManager.lightImpact()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: satiety.symbolName)
-                    .font(.system(size: 16, weight: .semibold))
-                Text(satiety.displayName)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(isSelected ? Color.tempoSignal.opacity(0.20) : Color.tempoSurfaceCard)
-            .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                    .stroke(isSelected ? Color.tempoSignal : Color.clear, lineWidth: 1.5)
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(satiety.displayName)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var saveButton: some View {
@@ -398,21 +385,15 @@ struct MarkEatenSheet: View {
             HapticManager.notification(.success)
             dismiss()
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "checkmark.circle.fill")
+                    .accessibilityHidden(true)
                 Text(saveLabel)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
-            .font(.tempoCallout)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .foregroundStyle(Color.tempoTextInverse)
-            .background(Color.tempoSignal)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tidePrimary)
     }
 
     /// Save-button copy adapts to the lane the user chose. Substitute
@@ -430,9 +411,13 @@ struct MarkEatenSheet: View {
     /// Returns a non-nil substitute only when the toggle is on AND the
     /// note has real content. Whitespace-only notes are dropped.
     private var builtSubstitute: Substitute? {
-        guard ateSomethingElse else { return nil }
+        guard ateSomethingElse else {
+            return nil
+        }
         let trimmed = substituteText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
+        guard !trimmed.isEmpty else {
+            return nil
+        }
         return Substitute(note: trimmed, usedPantry: usedPantry)
     }
 

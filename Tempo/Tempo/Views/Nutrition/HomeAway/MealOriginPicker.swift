@@ -33,9 +33,11 @@ struct MealOriginPicker: View {
     private var home: HomeLocation? = HomeLocationStore().home
     @State
     private var showHomeSetting = false
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Picker("Where from", selection: Binding(
                 get: { origin },
                 set: { origin = $0; pickedByHand = true }
@@ -47,18 +49,27 @@ struct MealOriginPicker: View {
             .accessibilityIdentifier("mealOrigin")
             if let headline {
                 Text(headline)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("mealOriginHeadline")
             }
             Text(detail)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("mealOriginDetail")
-            Button(home == nil ? "Set home" : "Change home") { showHomeSetting = true }
-                .font(.tempoCaption1)
-                .accessibilityIdentifier("mealOriginSetHome")
+            Button {
+                showHomeSetting = true
+            } label: {
+                Text(home == nil ? "Set home" : "Change home")
+                    .font(Tide.caption)
+                    .foregroundStyle(mood.accent)
+                    .frame(minHeight: Tide.hit, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("mealOriginSetHome")
         }
         .task { await refresh() }
         .sheet(isPresented: $showHomeSetting, onDismiss: { Task { await refresh() } }) {

@@ -52,36 +52,65 @@ struct NutritionTabView: View {
     /// Same, for Coach meal ideas.
     @State
     private var mealIdeasBlocker: AIBlocker?
+    @State
+    private var showSettings = false
+    /// Segment taps, for the selection haptic.
+    @State
+    private var sectionTaps = 0
+
+    /// Something of Fuel's own is presented over the page: the field stops.
+    private var isCovered: Bool {
+        showQuickLog || showMealLogging || showScan || showSettings
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                TidePageBackground()
-                VStack(spacing: 0) {
-                    // Segmented control
-                    sectionPicker
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.vertical, TempoSpacing.sm)
+            // The date, the page name and the section switcher stay put; the
+            // sections scroll underneath them with a soft edge.
+            VStack(spacing: 0) {
+                switch viewModel.loadState {
+                case .loading:
+                    Spacer()
+                    ProgressView()
+                        .tint(Tide.text2)
+                    Spacer()
 
-                    // Content
-                    switch viewModel.loadState {
-                    case .loading:
-                        Spacer()
-                        ProgressView()
-                            .tint(Color.tempoSignal)
-                        Spacer()
+                case let .error(message):
+                    errorState(message)
 
-                    case let .error(message):
-                        errorState(message)
-
-                    case .loaded:
-                        sectionContent
-                    }
+                case .loaded:
+                    sectionContent
                 }
             }
-            .navigationTitle("FUEL")
-            .navigationBarTitleDisplayMode(.inline)
-            .tempoSettingsToolbar()
+            .safeAreaBar(edge: .top, spacing: 0) {
+                VStack(spacing: Tide.s3) {
+                    header
+                    sectionPicker
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s3)
+                .background(alignment: .top) {
+                    // Ink that fades out under the switcher, so the cards
+                    // scrolling beneath never read through the title.
+                    LinearGradient(
+                        stops: [
+                            .init(color: Tide.ink.opacity(0.97), location: 0),
+                            .init(color: Tide.ink.opacity(0.95), location: 0.85),
+                            .init(color: Tide.ink.opacity(0), location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .padding(.bottom, -Tide.s3)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                }
+            }
+            .tidePage(energy: 1)
+            .toolbar(.hidden, for: .navigationBar)
+            .tempoSettingsToolbar(isPresented: $showSettings)
+            .tideCovered(isCovered)
             // A meal was changed or deleted from another screen (meal detail,
             // Watch, Log tab): drop a row about to be deleted BEFORE the model
             // goes away, then re-read today's meals + presets.
@@ -208,6 +237,29 @@ struct NutritionTabView: View {
 
     // MARK: - Section Picker
 
+    /// The date and the page name, with Settings. Calm: nothing here competes
+    /// with the numbers below.
+    private var header: some View {
+        HStack(alignment: .center, spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                    .tideLabel()
+                Text("Fuel")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Tide.s2)
+            FuelIconButton(systemImage: "gearshape.fill", label: "Settings") {
+                HapticManager.lightImpact()
+                showSettings = true
+            }
+            .accessibilityIdentifier("fuel.settings")
+        }
+    }
+
+    /// Today, Plan, Log, Kitchen, Coach: the system's glass segmented control.
     private var sectionPicker: some View {
         Picker("Section", selection: $viewModel.selectedTab) {
             ForEach(NutritionSection.allCases) { section in
@@ -216,8 +268,9 @@ struct NutritionTabView: View {
         }
         .pickerStyle(.segmented)
         .onChange(of: viewModel.selectedTab) { _, _ in
-            HapticManager.selection()
+            sectionTaps += 1
         }
+        .sensoryFeedback(.selection, trigger: sectionTaps)
     }
 
     // MARK: - Section Content
@@ -250,64 +303,40 @@ struct NutritionTabView: View {
     /// recipe suggestions and the weekly review. These are short workflows
     /// that don't need their own segmented-control slots.
     private var planQuickLinks: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            NavigationLink {
-                RecipeSuggestionsView(viewModel: viewModel)
-            } label: {
-                Label("Recipes", systemImage: "fork.knife.circle.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                NavigationLink {
+                    RecipeSuggestionsView(viewModel: viewModel)
+                } label: {
+                    Label("Recipes", systemImage: "fork.knife.circle.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                NavigationLink {
+                    WeeklyMealReviewView()
+                } label: {
+                    Label("Review", systemImage: "text.bubble.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
             }
-            .buttonStyle(.plain)
-            NavigationLink {
-                WeeklyMealReviewView()
-            } label: {
-                Label("Review", systemImage: "text.bubble.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            }
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.sm)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s3)
     }
 
     // MARK: - Error State
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
-
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoWarning)
-
-            Text("Failed to Load")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xl)
-
-            Button {
-                viewModel.loadToday(modelContext: modelContext)
-            } label: {
-                Text("Retry")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.tempoSignal)
-                    .clipShape(Capsule())
+            FuelEmptyState(icon: "exclamationmark.triangle.fill", title: "Fuel did not load", message: message) {
+                Button("Retry") {
+                    viewModel.loadToday(modelContext: modelContext)
+                }
+                .buttonStyle(.tidePrimary)
             }
-
+            .padding(.horizontal, Tide.edge)
             Spacer()
         }
     }

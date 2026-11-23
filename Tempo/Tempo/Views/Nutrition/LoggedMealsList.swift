@@ -11,6 +11,8 @@
 
 import SwiftUI
 
+// MARK: - LoggedMealsList
+
 struct LoggedMealsList: View {
     let meals: [PlannedMeal]
     let onOpen: (PlannedMeal) -> Void
@@ -18,7 +20,7 @@ struct LoggedMealsList: View {
     let onSavePreset: (PlannedMeal) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             header
             list
         }
@@ -31,30 +33,20 @@ struct LoggedMealsList: View {
         let protein = meals.reduce(0) { $0 + $1.totalProtein }
         let carbs = meals.reduce(0) { $0 + $1.totalCarbs }
         let fat = meals.reduce(0) { $0 + $1.totalFat }
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("LOGGED TODAY")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                Text(meals.count == 1 ? "1 meal" : "\(meals.count) meals")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            HStack(spacing: TempoSpacing.md) {
-                Text("\(Int(kcal.rounded())) kcal")
-                    .font(.tempoTitle3)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer(minLength: 0)
-                MacroChip(letter: "P", grams: protein, color: .tempoMacroProtein)
-                MacroChip(letter: "C", grams: carbs, color: .tempoMacroCarbs)
-                MacroChip(letter: "F", grams: fat, color: .tempoMacroFat)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(
+                title: "Logged today",
+                trailing: meals.count == 1 ? "1 meal" : "\(meals.count) meals"
+            )
+            TideNumber("\(Int(kcal.rounded()))", unit: "kcal", size: Tide.numeralM)
+            HStack(spacing: Tide.s2) {
+                MacroChip(letter: "P", grams: protein, color: Tide.protein)
+                MacroChip(letter: "C", grams: carbs, color: Tide.carbs)
+                MacroChip(letter: "F", grams: fat, color: Tide.fat)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard()
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("loggedTodayHeader")
     }
@@ -64,7 +56,7 @@ struct LoggedMealsList: View {
     private var list: some View {
         SwipeDeleteList(
             items: meals,
-            rowGap: TempoSpacing.sm,
+            rowGap: Tide.s2,
             swipe: { meal in
                 .init(label: meal.isUnplannedLog ? "Delete" : "Not eaten") { onDelete(meal) }
             }
@@ -95,10 +87,13 @@ struct LoggedMealsList: View {
     }
 }
 
-// MARK: - Row
+// MARK: - LoggedMealRow
 
 struct LoggedMealRow: View {
     let meal: PlannedMeal
+
+    @Environment(\.tideMood)
+    private var mood
 
     private var type: MealType? {
         MealType.inferred(fromName: meal.mealName)
@@ -109,72 +104,62 @@ struct LoggedMealRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: TempoSpacing.md) {
+        HStack(alignment: .top, spacing: Tide.s3) {
             Image(systemName: type?.icon ?? "fork.knife")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoViolet)
-                .frame(width: 36, height: 36)
-                .background(Color.tempoViolet.opacity(TempoOpacity.o15))
-                .clipShape(Circle())
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.hit - Tide.s2, height: Tide.hit - Tide.s2)
+                .background(mood.accent.opacity(0.14), in: .circle)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Text(meal.mealName)
-                        .font(.tempoCallout)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .lineLimit(1)
-                    Spacer(minLength: TempoSpacing.xs)
-                    Text("\(Int(meal.totalCalories.rounded())) kcal")
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.tempoViolet)
-                        .lineLimit(1)
-                        .fixedSize()
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(2)
+                    Spacer(minLength: Tide.s1)
+                    TideNumber(
+                        "\(Int(meal.totalCalories.rounded()))", unit: "kcal",
+                        size: Tide.numeralS, relativeTo: .headline
+                    )
+                    .fixedSize()
                 }
                 if !foods.isEmpty {
                     Text(foods)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .lineLimit(1)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(2)
                 }
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     if let at = meal.actualEatenAt {
                         Text(at.formatted(date: .omitted, time: .shortened))
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .fixedSize()
                     }
                     if let origin = meal.origin {
                         originBadge(origin)
                     }
-                    Spacer(minLength: 0)
-                    MacroChip(letter: "P", grams: meal.totalProtein, color: .tempoMacroProtein)
-                    MacroChip(letter: "C", grams: meal.totalCarbs, color: .tempoMacroCarbs)
-                    MacroChip(letter: "F", grams: meal.totalFat, color: .tempoMacroFat)
                 }
-                .padding(.top, 2)
+                HStack(spacing: Tide.s1) {
+                    MacroChip(letter: "P", grams: meal.totalProtein, color: Tide.protein)
+                    MacroChip(letter: "C", grams: meal.totalCarbs, color: Tide.carbs)
+                    MacroChip(letter: "F", grams: meal.totalFat, color: Tide.fat)
+                }
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-        .contentShape(Rectangle())
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .contentShape(.rect)
     }
 
     private func originBadge(_ origin: MealOrigin) -> some View {
         let isKitchen = origin == .kitchen
-        return Label(isKitchen ? "Kitchen" : "Eaten out", systemImage: isKitchen ? "refrigerator.fill" : "fork.knife")
-            .labelStyle(.titleAndIcon)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(isKitchen ? Color.tempoSuccess : Color.tempoAmber)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background((isKitchen ? Color.tempoSuccess : Color.tempoAmber).opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
-            .lineLimit(1)
-            .fixedSize()
+        return FuelPill(
+            text: isKitchen ? "Kitchen" : "Eaten out",
+            color: isKitchen ? Tide.good : Tide.warn
+        )
     }
 }
 
@@ -186,13 +171,13 @@ struct MacroChip: View {
     let color: Color
 
     var body: some View {
-        Text("\(letter) \(Int(grams.rounded()))g")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+        Text("\(letter) \(Int(grams.rounded())) g")
+            .font(Tide.label)
+            .monospacedDigit()
             .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.12))
-            .clipShape(Capsule())
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.s1)
+            .background(color.opacity(0.14), in: .capsule)
             .lineLimit(1)
             .fixedSize()
     }
