@@ -41,6 +41,8 @@ struct WeekPlanView: View {
     private var pulseIndex: Int?
     @State
     private var pulseGestureStart: Int?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query
     private var userSettings: [UserSettings]
     @Query
@@ -58,51 +60,44 @@ struct WeekPlanView: View {
     private let calendar = Calendar.current
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: Tide.s5) {
-                // Week header
-                weekHeader
+        TrainPlanPage {
+            // Week header: the range and the previous/next buttons.
+            weekHeader
 
-                // §11.6 — scrubbable volume-pulse strip: drag across the week
-                // to inspect any day; the day's card expands in sync.
-                weekPulse
+            // §11.6 — the week strip. Drag across it to inspect any day; that
+            // day's card expands in sync below.
+            weekPulse
 
-                // Live-week-only context cards — a history/preview week must
-                // not wear this week's deload banner or coach review.
-                if weekOffset == 0 {
-                    // Deload week indicator
-                    if viewModel.isDeloadWeek {
-                        deloadBanner
-                    }
-
-                    // One weekly coach card: last week's graded outcome (Phase 4)
-                    // with this week's AI plan rationale (Phase 2) folded in.
-                    if let outcome = viewModel.lastWeekOutcome {
-                        coachReviewCard(outcome, rationale: viewModel.aiWeekRationale)
-                    } else if let rationale = viewModel.aiWeekRationale {
-                        aiRationaleCard(rationale)
-                    }
-
-                    if viewModel.aiWeekUnavailable, viewModel.aiWeekRationale == nil {
-                        Label(
-                            "Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.",
-                            systemImage: "wifi.exclamationmark"
-                        )
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+            // Live-week-only context cards — a history/preview week must
+            // not wear this week's deload banner or coach review.
+            if weekOffset == 0 {
+                if viewModel.isDeloadWeek {
+                    deloadBanner
                 }
 
-                // 7-day grid
-                // Per MODULE_TRAINING.md Section 9.2
-                dayGrid
+                // One weekly coach card: last week's graded outcome (Phase 4)
+                // with this week's AI plan rationale (Phase 2) folded in.
+                if let outcome = viewModel.lastWeekOutcome {
+                    coachReviewCard(outcome, rationale: viewModel.aiWeekRationale)
+                } else if let rationale = viewModel.aiWeekRationale {
+                    aiRationaleCard(rationale)
+                }
 
-                // Daily detail cards
-                dailyCards
+                if viewModel.aiWeekUnavailable, viewModel.aiWeekRationale == nil {
+                    Label(
+                        "Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.",
+                        systemImage: "wifi.exclamationmark"
+                    )
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .padding(Tide.s3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                }
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+
+            // Daily detail cards (per MODULE_TRAINING.md Section 9.3)
+            dailyCards
         }
         .tidePage()
         .navigationTitle(navTitle)
@@ -241,26 +236,28 @@ struct WeekPlanView: View {
             formatter.dateFormat = "MMM d"
             return "\(formatter.string(from: displayedMonday)) – \(formatter.string(from: last)), \(calendar.component(.year, from: displayedMonday))"
         }()
+        let canGoBack = weekOffset > -Self.historyWeeksBack
+        let canGoForward = weekOffset < 1
 
-        return HStack(spacing: Tide.s3) {
-            Button {
+        return HStack(spacing: Tide.s2) {
+            TrainIconButton(
+                systemImage: "chevron.left",
+                label: "Previous week",
+                tint: canGoBack ? Tide.text : Tide.text3
+            ) {
                 weekOffset -= 1
                 loadOffsetWeek()
                 HapticManager.selection()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(Tide.caption)
-                    .foregroundStyle(weekOffset > -Self.historyWeeksBack ? Color.accentColor : Tide.text3)
-                    .frame(width: 32, height: 32)
             }
-            .disabled(weekOffset <= -Self.historyWeeksBack)
+            .disabled(!canGoBack)
 
-            Spacer()
-
-            VStack(spacing: Tide.hair) {
+            VStack(spacing: Tide.s1) {
                 Text(dateText)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(Tide.labelShrink)
                 if weekOffset != 0 {
                     // Tap the label to jump back to the live week.
                     Button {
@@ -268,29 +265,29 @@ struct WeekPlanView: View {
                         loadOffsetWeek()
                         HapticManager.selection()
                     } label: {
-                        Text(weekOffset > 0 ? "PREVIEW — tap for this week" : "HISTORY — tap for this week")
-                            .font(Tide.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(TideTrain.caution)
+                        TrainTag(
+                            text: weekOffset > 0 ? "PREVIEW — tap for this week" : "HISTORY — tap for this week",
+                            color: TideTrain.caution
+                        )
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            .frame(maxWidth: .infinity)
 
-            Spacer()
-
-            Button {
+            TrainIconButton(
+                systemImage: "chevron.right",
+                label: "Next week",
+                tint: canGoForward ? Tide.text : Tide.text3
+            ) {
                 weekOffset += 1
                 loadOffsetWeek()
                 HapticManager.selection()
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(Tide.caption)
-                    .foregroundStyle(weekOffset < 1 ? Color.accentColor : Tide.text3)
-                    .frame(width: 32, height: 32)
             }
-            .disabled(weekOffset >= 1)
+            .disabled(!canGoForward)
         }
-        .padding(.top, Tide.s3)
     }
 
     // MARK: - Week Pulse (§11.6)
@@ -330,153 +327,141 @@ struct WeekPlanView: View {
     }
 
     private var weekPulse: some View {
-        let volumes = displayedSlots.map { $0.map(dayVolume) ?? 0 }
+        let slots = displayedSlots
+        let volumes = slots.map { $0.map(dayVolume) ?? 0 }
         let peak = max(volumes.max() ?? 0, 1)
+        let days: [TrainPlanWeekStrip.Day] = (0 ..< 7).map { idx in
+            let plan = slots[safe: idx].flatMap(\.self)
+            let volume = volumes[safe: idx] ?? 0
+            let date = calendar.date(byAdding: .day, value: idx, to: displayedMonday) ?? displayedMonday
+            return TrainPlanWeekStrip.Day(
+                id: idx,
+                weekday: dayAbbreviations[safe: idx] ?? "",
+                code: plan.map { workoutAbbreviation($0.type) },
+                // §21 (b) two-a-day — the "+SWM"/"+RUN" tag keeps the variety
+                // visible in the week scan.
+                extra: plan.flatMap { $0.isTwoADay ? $0.secondarySessionType : nil }.map { "+\(workoutAbbreviation($0))" },
+                load: volume > 0 ? volume / peak : 0,
+                barColor: pulseColor(plan: plan, hasLoad: volume > 0),
+                isToday: calendar.isDateInToday(date),
+                isDone: plan?.status == .completed,
+                isMatch: plan?.type == .football && plan?.status != .completed
+            )
+        }
 
         return VStack(spacing: Tide.s2) {
-            if let idx = pulseIndex {
-                pulseCallout(index: idx)
-            }
-
-            GeometryReader { geo in
-                let slotWidth = geo.size.width / 7
-                HStack(alignment: .bottom, spacing: Tide.s1) {
-                    ForEach(0 ..< 7, id: \.self) { idx in
-                        pulseBar(
-                            plan: displayedSlots[safe: idx].flatMap(\.self),
-                            volume: volumes[safe: idx] ?? 0,
-                            peak: peak,
-                            isSelected: pulseIndex == idx
-                        )
-                    }
+            Group {
+                if let idx = pulseIndex {
+                    pulseCallout(index: idx)
+                } else {
+                    Text("Drag across the week to read any day.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Tide.s1)
                 }
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            if pulseGestureStart == nil {
-                                pulseGestureStart = pulseIndex
-                            }
-                            let idx = min(6, max(0, Int(value.location.x / slotWidth)))
-                            if pulseIndex != idx {
-                                pulseIndex = idx
-                                HapticManager.selection()
-                                if let slot = displayedSlots[safe: idx], let plan = slot {
-                                    expandedPlanID = plan.id
-                                }
-                            }
-                        }
-                        .onEnded { value in
-                            // A stationary tap on the already-selected day
-                            // collapses the scrub.
-                            let idx = min(6, max(0, Int(value.location.x / slotWidth)))
-                            if abs(value.translation.width) < 4, pulseGestureStart == idx {
-                                pulseIndex = nil
-                                expandedPlanID = nil
-                            }
-                            pulseGestureStart = nil
-                        }
-                )
             }
-            .frame(height: 72)
+            .frame(minHeight: Tide.hit)
+
+            TrainPlanWeekStrip(
+                days: days,
+                selected: pulseIndex,
+                onScrub: { idx in
+                    if pulseGestureStart == nil {
+                        pulseGestureStart = pulseIndex
+                    }
+                    if pulseIndex != idx {
+                        pulseIndex = idx
+                        HapticManager.selection()
+                        if let slot = displayedSlots[safe: idx], let plan = slot {
+                            expandedPlanID = plan.id
+                        }
+                    }
+                },
+                onRelease: { idx, travel in
+                    // A stationary tap on the already-selected day
+                    // collapses the scrub.
+                    if travel < 4, pulseGestureStart == idx {
+                        pulseIndex = nil
+                        expandedPlanID = nil
+                    }
+                    pulseGestureStart = nil
+                }
+            )
         }
         .animation(Tide.lively, value: pulseIndex)
     }
 
-    private func pulseBar(plan: WorkoutPlan?, volume: Double, peak: Double, isSelected: Bool) -> some View {
-        let hasLoad = volume > 0
-        let height = hasLoad ? 12 + 56 * (volume / peak) : 8
-        let color: Color = {
-            guard let plan else {
-                return Tide.text3.opacity(0.25)
-            }
-            if !hasLoad {
-                // Non-lifting days (football, run, rest) — a neutral stub.
-                return Tide.text3.opacity(0.4)
-            }
-            let base = recoveryDotColor(plan: plan)
-            return plan.status == .completed ? base : base.opacity(0.45)
-        }()
-
-        return VStack(spacing: 0) {
-            Capsule()
-                .fill(color)
-                .frame(height: height)
-                .overlay(
-                    Capsule().stroke(
-                        isSelected ? Tide.text : Color.clear,
-                        lineWidth: 1.5
-                    )
-                )
+    private func pulseColor(plan: WorkoutPlan?, hasLoad: Bool) -> Color {
+        guard let plan else {
+            return Tide.text3.opacity(0.25)
         }
-        .frame(maxWidth: .infinity)
-        .scaleEffect(isSelected ? 1.08 : 1.0, anchor: .bottom)
+        if !hasLoad {
+            // Non-lifting days (football, run, rest) — a neutral stub.
+            return Tide.text3.opacity(0.4)
+        }
+        let base = recoveryDotColor(plan: plan)
+        return plan.status == .completed ? base : base.opacity(0.45)
     }
 
     private func pulseCallout(index: Int) -> some View {
-        HStack(spacing: Tide.s2) {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             if let slot = displayedSlots[safe: index], let plan = slot {
-                Circle()
-                    .fill(recoveryDotColor(plan: plan))
-                    .frame(width: 8, height: 8)
-                Text(dayName(for: plan.date))
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                Text(workoutAbbreviation(plan.type))
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                Spacer()
-                if dayVolume(plan) > 0 {
-                    Text(volumeLabel(dayVolume(plan)))
+                HStack(spacing: Tide.s2) {
+                    Circle()
+                        .fill(recoveryDotColor(plan: plan))
+                        .frame(width: TideTrain.dot, height: TideTrain.dot)
+                        .accessibilityHidden(true)
+                    Text(dayName(for: plan.date))
                         .font(Tide.headline)
-                        .foregroundStyle(Color.accentColor)
-                        .monospacedDigit()
-                }
-                if plan.totalSets > 0 {
-                    Text("\(plan.completedSets)/\(plan.totalSets) sets")
+                        .foregroundStyle(Tide.text)
+                    Text(workoutAbbreviation(plan.type))
                         .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                        .foregroundStyle(Tide.text2)
+                }
+                if !stacked {
+                    Spacer(minLength: Tide.s2)
+                }
+                HStack(spacing: Tide.s2) {
+                    if dayVolume(plan) > 0 {
+                        Text(volumeLabel(dayVolume(plan)))
+                            .font(TideTrain.figure(.headline))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    if plan.totalSets > 0 {
+                        Text("\(plan.completedSets)/\(plan.totalSets) sets")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
                 }
             } else {
                 Text("\(dayAbbreviations[safe: index] ?? "") — no data")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
-                Spacer()
             }
         }
         .padding(.horizontal, Tide.s3)
-        .padding(.vertical, Tide.s2).tideCard(padding: 0, radius: Tide.tileRadius)
+        .padding(.vertical, stacked ? Tide.s2 : 0)
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+        .tideCard(padding: 0, radius: Tide.tileRadius)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     // MARK: - Deload Banner
 
     private var deloadBanner: some View {
-        HStack(spacing: Tide.s2) {
-            Image(systemName: "arrow.down.circle.fill")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(TideTrain.caution)
-
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Deload week")
-                    .font(Tide.headline)
-                    .foregroundStyle(TideTrain.caution)
-
-                Text("\(viewModel.deloadStyle.blurb) Your body rebuilds stronger.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            }
-
-            Spacer()
+        TrainBanner(
+            systemImage: "arrow.down.circle.fill",
+            label: "Deload week",
+            tint: TideTrain.caution,
+            message: "\(viewModel.deloadStyle.blurb) Your body rebuilds stronger."
+        ) {
+            EmptyView()
         }
-        .padding(Tide.s4)
-        .background(TideTrain.caution.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                .stroke(TideTrain.caution.opacity(0.3), lineWidth: 1)
-        )
     }
 
     // MARK: - Coach Review (Phase 4)
@@ -487,38 +472,38 @@ struct WeekPlanView: View {
         let good = outcome.qualityScore >= 0.6 && outcome.overreachEvents == 0
         let accent = good ? TideTrain.positive : TideTrain.caution
 
-        return VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: good ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .font(Tide.bodyStrong)
+                    .font(Tide.caption)
                     .foregroundStyle(accent)
-                Text("Last week")
-                    .font(Tide.headline)
-                    .foregroundStyle(accent)
-                Spacer()
-                Text("\(Int((outcome.qualityScore * 100).rounded()))%")
-                    .font(Tide.headline)
-                    .foregroundStyle(accent)
+                    .accessibilityHidden(true)
+                Text("Last week").tideLabel(accent)
+                Spacer(minLength: Tide.s2)
+                TideNumber(
+                    "\(Int((outcome.qualityScore * 100).rounded()))",
+                    unit: "%",
+                    size: Tide.numeralS,
+                    relativeTo: .title2,
+                    color: accent
+                )
             }
 
             Text(coachReviewSummary(outcome))
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let rationale {
-                Divider().overlay(accent.opacity(0.3))
+                Divider().overlay(Tide.hairline)
                 rationaleRow(rationale)
             }
         }
-        .padding(Tide.s4)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(accent.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                .stroke(accent.opacity(0.3), lineWidth: 1)
-        )
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .overlay {
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder(accent.opacity(0.35), lineWidth: 1)
+        }
     }
 
     private func coachReviewSummary(_ outcome: WeekOutcome) -> String {
@@ -542,9 +527,7 @@ struct WeekPlanView: View {
     /// Rationale on its own — only when there's no graded last week yet.
     private func aiRationaleCard(_ rationale: String) -> some View {
         rationaleRow(rationale)
-            .padding(Tide.s4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func rationaleRow(_ rationale: String) -> some View {
@@ -560,97 +543,6 @@ struct WeekPlanView: View {
         }
     }
 
-    // MARK: - 7-Day Grid
-
-    // Per MODULE_TRAINING.md Section 9.2
-
-    private var dayGrid: some View {
-        HStack(spacing: Tide.hair) {
-            ForEach(Array(displayedSlots.enumerated()), id: \.offset) { index, slot in
-                if let plan = slot {
-                    dayCell(plan: plan, dayLabel: dayAbbreviations[safe: index] ?? "")
-                } else {
-                    emptyDayCell(dayLabel: dayAbbreviations[safe: index] ?? "")
-                }
-            }
-        }
-    }
-
-    /// A day with no data (history week before the app existed, or a gap).
-    private func emptyDayCell(dayLabel: String) -> some View {
-        VStack(spacing: Tide.hair) {
-            Text(dayLabel)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-            Circle()
-                .fill(Tide.text3.opacity(0.25))
-                .frame(width: 8, height: 8)
-            Text("—")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-            Color.clear.frame(width: 10, height: 10)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s2)
-    }
-
-    private func dayCell(plan: WorkoutPlan, dayLabel: String) -> some View {
-        let isToday = calendar.isDateInToday(plan.date)
-        let isCompleted = plan.status == .completed
-
-        return VStack(spacing: Tide.hair) {
-            // Day label
-            Text(dayLabel)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-
-            // Recovery dot
-            Circle()
-                .fill(recoveryDotColor(plan: plan))
-                .frame(width: 8, height: 8)
-
-            // Workout type abbreviation
-            Text(workoutAbbreviation(plan.type))
-                .font(Tide.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(workoutTypeColor(plan: plan))
-
-            // §21 (b) two-a-day — the day carries a cardio SECOND session; show a
-            // "+SWM"/"+RUN" tag so the variety is visible in the week scan, not
-            // hidden until the Today card opens.
-            if plan.isTwoADay, let second = plan.secondarySessionType {
-                Text("+\(workoutAbbreviation(second))")
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text3)
-            }
-
-            // Status indicator
-            if isCompleted {
-                Image(systemName: "checkmark")
-                    .font(Tide.label)
-                    .foregroundStyle(TideTrain.positive)
-            } else if plan.type == .football {
-                Image(systemName: "sportscourt")
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text2)
-            } else {
-                Color.clear.frame(width: 10, height: 10)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s2)
-        .background(
-            isToday
-                ? Tide.fill
-                : Color.clear
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                .stroke(isToday ? Color.accentColor : Color.clear, lineWidth: 1.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-    }
-
     // MARK: - Daily Detail Cards
 
     // Per MODULE_TRAINING.md Section 9.3
@@ -661,10 +553,10 @@ struct WeekPlanView: View {
                 dailyCard(plan: plan)
             }
             if weekOffset < 0, displayedSlots.allSatisfy({ $0 == nil }) {
-                Text("No training recorded this week.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .padding(.top, Tide.s3)
+                TrainEmptyCard(
+                    systemImage: "calendar.badge.clock",
+                    title: "No training recorded this week."
+                )
             }
         }
     }
@@ -681,103 +573,104 @@ struct WeekPlanView: View {
                     expandedPlanID = isExpanded ? nil : plan.id
                 }
             } label: {
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    // Day label
-                    HStack(spacing: Tide.s2) {
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    TideIconTile(systemName: workoutIcon(plan.type), tint: workoutTypeColor(plan: plan))
+
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        // Day label
                         if isToday {
                             Text("Today").tideLabel(Color.accentColor)
                         } else {
-                            Text(dayName)
+                            Text(dayName).tideLabel(Tide.text3)
+                        }
+
+                        Text(plan.type.displayName)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        // Meta line
+                        if plan.type.isGymWorkout {
+                            Text(
+                                "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
+                            )
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                        } else if plan.type == .football {
+                            // Engine note distinguishes a dated fixture
+                            // ("Match day") from a recurring football
+                            // weekday ("Football day") — §14.
+                            Text(plan.notes ?? "Football day")
                                 .font(Tide.caption)
-                                .foregroundStyle(Tide.text3)
+                                .foregroundStyle(Tide.text2)
+                        } else if plan.type == .rest {
+                            Text("Recovery day")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        } else if plan.type == .mobility {
+                            Text("~25 min · Active recovery")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+
+                        // §21 (b) two-a-day — name the cardio second session
+                        // in the detail card so the plan reads honestly.
+                        if plan.isTwoADay, let second = plan.secondarySessionType {
+                            Text("+ easy \(second.displayName.lowercased()) · second session")
+                                .font(Tide.caption)
+                                .foregroundStyle(Color.accentColor)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if isCompleted {
+                            // A session saved early reads as partial, not "Completed".
+                            TrainTag(
+                                text: plan.completedSets < plan.totalSets && plan.totalSets > 0
+                                    ? "Done \(plan.completedSets)/\(plan.totalSets) sets"
+                                    : "Completed",
+                                systemImage: "checkmark",
+                                color: TideTrain.positive
+                            )
                         }
                     }
 
-                    // Workout info
-                    HStack {
-                        // Icon
-                        Image(systemName: workoutIcon(plan.type))
-                            .font(Tide.body)
-                            .foregroundStyle(workoutTypeColor(plan: plan))
+                    Spacer(minLength: Tide.s2)
 
-                        VStack(alignment: .leading, spacing: Tide.hair) {
-                            HStack(spacing: Tide.s1) {
-                                Text(plan.type.displayName)
-                                    .font(Tide.headline)
-                                    .foregroundStyle(Tide.text)
-
-                                if isCompleted {
-                                    // A session saved early reads as partial, not "Completed".
-                                    Text(plan.completedSets < plan.totalSets && plan.totalSets > 0
-                                        ? "— Done \(plan.completedSets)/\(plan.totalSets) sets"
-                                        : "— Completed")
-                                        .font(Tide.caption)
-                                        .foregroundStyle(TideTrain.positive)
-                                }
-                            }
-
-                            // Meta line
-                            if plan.type.isGymWorkout {
-                                Text(
-                                    "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
-                                )
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
-                            } else if plan.type == .football {
-                                // Engine note distinguishes a dated fixture
-                                // ("Match day") from a recurring football
-                                // weekday ("Football day") — §14.
-                                Text(plan.notes ?? "Football day")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text2)
-                            } else if plan.type == .rest {
-                                Text("Recovery day")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text2)
-                            } else if plan.type == .mobility {
-                                Text("~25 min · Active recovery")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text2)
-                            }
-
-                            // §21 (b) two-a-day — name the cardio second session
-                            // in the detail card so the plan reads honestly.
-                            if plan.isTwoADay, let second = plan.secondarySessionType {
-                                Text("+ easy \(second.displayName.lowercased()) · second session")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                        }
-
-                        Spacer()
-
-                        if isCompleted, let seconds = plan.actualDurationSeconds {
-                            Text(WorkoutPlan.durationLabel(seconds: seconds))
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text3)
-                        }
-
+                    VStack(alignment: .trailing, spacing: Tide.s2) {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(Tide.label)
                             .foregroundStyle(Tide.text3)
+                            .accessibilityHidden(true)
+                        if isCompleted, let seconds = plan.actualDurationSeconds {
+                            Text(WorkoutPlan.durationLabel(seconds: seconds))
+                                .font(TideTrain.figure(.footnote, weight: .medium))
+                                .foregroundStyle(Tide.text3)
+                                .lineLimit(1)
+                        }
                     }
                 }
                 .padding(Tide.s4)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityHint(isExpanded ? "Hides the details" : "Shows the details")
 
             // Expanded content — every day type renders something useful on tap.
             if isExpanded {
                 Divider()
+                    .overlay(Tide.hairline)
                     .padding(.horizontal, Tide.s4)
 
                 expandedContent(for: plan)
                     .padding(.horizontal, Tide.s4)
-                    .padding(.vertical, Tide.s2)
+                    .padding(.vertical, Tide.s3)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tide.fill, in: .rect(cornerRadius: Tide.cardRadius))
+        .glassEffect(
+            .regular.tint(isToday ? Color.accentColor.opacity(0.14) : Tide.glassCard),
+            in: .rect(cornerRadius: Tide.tileRadius)
+        )
     }
 
     // MARK: - Expanded Content
@@ -821,7 +714,7 @@ struct WeekPlanView: View {
                         Text("\(index + 1)")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
-                            .frame(width: 16, alignment: .trailing)
+                            .frame(minWidth: Tide.s4, alignment: .trailing)
 
                         Text(plannedEx.exercise?.name ?? "Exercise")
                             .font(Tide.body)
@@ -851,7 +744,7 @@ struct WeekPlanView: View {
                     Text("\(index + 1)")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
-                        .frame(width: 16, alignment: .trailing)
+                        .frame(minWidth: Tide.s4, alignment: .trailing)
 
                     Text(move.name)
                         .font(Tide.body)
