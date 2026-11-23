@@ -12,6 +12,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - WaterCardView
+
 struct WaterCardView: View {
     /// Today's target in ml. nil = work it out from the canonical daily target.
     var targetMl: Int?
@@ -48,8 +50,12 @@ struct WaterCardView: View {
                 Text("Water").tideLabel()
                 Spacer(minLength: Tide.s2)
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                    TideNumber(totalMl.formatted(), size: Tide.numeralS, relativeTo: .headline,
-                               color: totalMl >= target ? Tide.good : Tide.text)
+                    TideNumber(
+                        totalMl.formatted(),
+                        size: Tide.numeralS,
+                        relativeTo: .headline,
+                        color: totalMl >= target ? Tide.good : Tide.text
+                    )
                     Text("/ \(target.formatted()) ml")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
@@ -63,23 +69,17 @@ struct WaterCardView: View {
                 .animation(Tide.settle, value: progress)
 
             GlassEffectContainer(spacing: Tide.s2) {
-                HStack(spacing: Tide.s2) {
-                    chip("+250", id: "water.add250") { add(250) }
-                    chip("+500", id: "water.add500") { add(500) }
-                    chip("Custom", id: "water.addCustom") { showCustom = true }
-                    Spacer(minLength: 0)
-                    if let lastEntryMl {
-                        Button {
-                            undo()
-                        } label: {
-                            Label("Undo \(lastEntryMl)", systemImage: "arrow.uturn.backward")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
-                                .frame(minHeight: Tide.hit)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("water.undo")
+                // One row when it fits; otherwise Undo drops under the chips
+                // so no label ever wraps mid-word.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        chips
+                        Spacer(minLength: 0)
+                        undoButton
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        HStack(spacing: Tide.s2) { chips }
+                        undoButton
                     }
                 }
             }
@@ -100,11 +100,39 @@ struct WaterCardView: View {
         }
     }
 
+    @ViewBuilder
+    private var chips: some View {
+        chip("+250", id: "water.add250") { add(250) }
+        chip("+500", id: "water.add500") { add(500) }
+        chip("Custom", id: "water.addCustom") { showCustom = true }
+    }
+
+    @ViewBuilder
+    private var undoButton: some View {
+        if let lastEntryMl {
+            Button {
+                undo()
+            } label: {
+                Label("Undo \(lastEntryMl)", systemImage: "arrow.uturn.backward")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("water.undo")
+        }
+    }
+
     private func chip(_ title: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.water)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, Tide.s4)
                 .frame(minHeight: Tide.hit)
                 .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
