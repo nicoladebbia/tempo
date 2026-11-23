@@ -298,6 +298,7 @@
 		35DF7EA31D5874C664A1C9B9 /* TrainingSessionDisplayMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F20941657886F627A26E4A /* TrainingSessionDisplayMathTests.swift */; };
 		3629577D4FA183C1326E1B2D /* ParsedFoodReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F1D97FF53391563A1D37DE /* ParsedFoodReviewSheet.swift */; };
 		367B3D8145DFBD9D50FCF5CB /* AIBlockerCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F43D9A4F15BC8C4654BB595 /* AIBlockerCard.swift */; };
+		36869631BD75217D7EB37F31 /* Tide+TrainSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096796E3898ACF9E6FD0C60F /* Tide+TrainSession.swift */; };
 		36A33246E2BA98AC5A703B7D /* GuidedRunActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C0693DAAC959F0146E325C /* GuidedRunActivityManager.swift */; };
 		36D46BF586019E4AE013A861 /* OnboardingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18F1A61E3E6137EC69CAA180 /* OnboardingFlowTests.swift */; };
 		3791550EC493D9811CF7B21F /* TrainingPauseSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1580EEFFE8C76AF3E60D7279 /* TrainingPauseSchedule.swift */; };
@@ -1443,6 +1444,7 @@
 		09295342C0BB497703ADF332 /* cue_ex_hammer_curl.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_hammer_curl.mp3; sourceTree = "<group>"; };
 		0932747A76F3FA53AC4C1DFD /* TrainingCalendar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingCalendar.swift; sourceTree = "<group>"; };
 		095A3F9FCB6B848D0282AD9A /* SupplementRound1Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementRound1Tests.swift; sourceTree = "<group>"; };
+		096796E3898ACF9E6FD0C60F /* Tide+TrainSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tide+TrainSession.swift"; sourceTree = "<group>"; };
 		09AFD987E2C8CA8FE0171129 /* MealPlanPromptsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanPromptsTests.swift; sourceTree = "<group>"; };
 		0A204D65048A4208AED4B31F /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		0A904B07B9D88F1BD8CB4E99 /* cue_move_rotator_cuff_external_rotations.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_rotator_cuff_external_rotations.mp3; sourceTree = "<group>"; };
@@ -3735,6 +3737,7 @@
 				C871F52CEB79E318248D19E0 /* Tide+Settings.swift */,
 				05A451A12423FB6AA5643883 /* Tide+Shared.swift */,
 				1130BBA5CB5329656C3B7441 /* Tide+Train.swift */,
+				096796E3898ACF9E6FD0C60F /* Tide+TrainSession.swift */,
 				5A7B6032AC3435B3942056D6 /* TideCelebration.metal */,
 				70466F4A254B9F82C9FAA0E5 /* TideComponents.swift */,
 				A0AFD51F8198DE6E60C2384F /* TideGallery.swift */,
@@ -6653,6 +6656,7 @@
 				3F16730B4FC2B3B72C0C6DBB /* Tide+Settings.swift in Sources */,
 				C5EB6E6256D80C4F70DECFEA /* Tide+Shared.swift in Sources */,
 				10D268BE664B009EA750E974 /* Tide+Train.swift in Sources */,
+				36869631BD75217D7EB37F31 /* Tide+TrainSession.swift in Sources */,
 				08D989951B2D83127DF1EA04 /* Tide.metal in Sources */,
 				E2EFB8E2B10A97B3993387E7 /* TideCelebration.metal in Sources */,
 				B5ADC1D24F3E4FDD62AE498C /* TideComponents.swift in Sources */,

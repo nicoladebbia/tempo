@@ -52,6 +52,11 @@ struct WorkoutSummaryView: View {
                 // Header
                 headerSection
 
+                // PR badges (if any): the best news comes first.
+                if !viewModel.detectedPRs.isEmpty {
+                    prSection
+                }
+
                 // Stats
                 statsCard
 
@@ -62,11 +67,6 @@ struct WorkoutSummaryView: View {
                     InlineSetFeedbackView(viewModel: viewModel)
                 }
 
-                // PR badges (if any)
-                if !viewModel.detectedPRs.isEmpty {
-                    prSection
-                }
-
                 // trainer-feedback-tests — "New max: Squat 120 kg — your
                 // trainer's 75% is now 90 kg." / "New best: 30m in 4.30″".
                 if !viewModel.testResultMessages.isEmpty {
@@ -75,15 +75,8 @@ struct WorkoutSummaryView: View {
 
                 // Warm-up marker (the guided mobility block logs no sets).
                 if viewModel.todayPlan?.warmupCompleted == true {
-                    HStack(spacing: Tide.s2) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(TideTrain.positive)
-                            .accessibilityHidden(true)
-                        Text("Warm-up completed")
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
-                    }
-                    .frame(maxWidth: .infinity)
+                    TrainTag(text: "Warm-up completed", systemImage: "checkmark.seal.fill", color: TideTrain.positive)
+                        .frame(maxWidth: .infinity)
                 }
 
                 // §4 — trainer-program exercises Tempo adjusted (recovery/pain
@@ -140,12 +133,16 @@ struct WorkoutSummaryView: View {
             // §8.2 — completion RING (was a static checkmark): sweeps to the
             // fraction of working sets actually completed, so a cut-short
             // session visibly reads as partial, not falsely "done".
-            TrainRing(progress: ringProgress, tint: TideTrain.positive, diameter: 200) {
+            TrainRing(
+                progress: ringProgress,
+                tint: completionFraction >= 1 ? TideTrain.positive : TideTrain.caution,
+                diameter: TideTrainSession.summaryRing
+            ) {
                 VStack(spacing: Tide.hair) {
                     TideNumber(
                         "\(Int((completionFraction * 100).rounded()))",
                         unit: "%",
-                        size: 56,
+                        size: TideTrainSession.ringClock,
                         relativeTo: .largeTitle
                     )
                     Text("Sets done").tideLabel()
@@ -202,7 +199,7 @@ struct WorkoutSummaryView: View {
 
             ForEach(Array(viewModel.detectedPRs.enumerated()), id: \.element.id) { index, pr in
                 if index > 0 {
-                    Divider().overlay(Tide.hairline)
+                    TrainSessionRule()
                 }
                 HStack(spacing: Tide.s3) {
                     VStack(alignment: .leading, spacing: Tide.hair) {
@@ -230,6 +227,10 @@ struct WorkoutSummaryView: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder(TideTrain.record.opacity(0.45), lineWidth: Tide.hair)
+        )
     }
 
     // MARK: - Test Result Section (trainer-feedback-tests)
@@ -238,7 +239,7 @@ struct WorkoutSummaryView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             ForEach(Array(viewModel.testResultMessages.enumerated()), id: \.offset) { index, message in
                 if index > 0 {
-                    Divider().overlay(Tide.hairline)
+                    TrainSessionRule()
                 }
                 HStack(alignment: .top, spacing: Tide.s3) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -292,7 +293,7 @@ struct WorkoutSummaryView: View {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(Array(trainerAdjustedExercises.enumerated()), id: \.element.id) { index, plannedEx in
                         if index > 0 {
-                            Divider().overlay(Tide.hairline)
+                            TrainSessionRule()
                         }
                         HStack(alignment: .top, spacing: Tide.s3) {
                             VStack(alignment: .leading, spacing: Tide.hair) {
@@ -330,7 +331,7 @@ struct WorkoutSummaryView: View {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
                         if index > 0 {
-                            Divider().overlay(Tide.hairline)
+                            TrainSessionRule()
                         }
                         exerciseSummaryRow(plannedEx)
                     }

@@ -48,31 +48,34 @@ struct PerSideRepsControl: View {
     var splitEnabled: Bool
 
     var body: some View {
-        Button {
-            splitEnabled.toggle()
-            if splitEnabled {
-                right = left
+        VStack(spacing: Tide.s3) {
+            Button {
+                splitEnabled.toggle()
+                if splitEnabled {
+                    right = left
+                }
+                HapticManager.selection()
+            } label: {
+                Label(
+                    splitEnabled ? "Same both sides" : "Log sides separately",
+                    systemImage: splitEnabled ? "arrow.triangle.merge" : "arrow.left.arrow.right"
+                )
             }
-            HapticManager.selection()
-        } label: {
-            Label(
-                splitEnabled ? "Same both sides" : "Log sides separately",
-                systemImage: splitEnabled ? "arrow.triangle.merge" : "arrow.left.arrow.right"
-            )
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-        }
-        .buttonStyle(.plain)
+            .buttonStyle(.tideGlass)
 
-        if splitEnabled {
-            TrainStepper(
-                value: $right,
-                label: "Reps — right",
-                range: 1 ... 100,
-                step: 1,
-                format: "%.0f",
-                unit: "reps / side"
-            )
+            if splitEnabled {
+                TrainSessionField(
+                    value: $right,
+                    label: "Reps — right",
+                    range: 1 ... 100,
+                    step: 1,
+                    format: "%.0f",
+                    unit: "reps / side"
+                )
+                .tideCard(padding: Tide.s4)
+                .transition(.opacity)
+            }
         }
+        .animation(Tide.snap, value: splitEnabled)
     }
 }

@@ -25,6 +25,10 @@ struct ActiveWorkoutView: View {
     private var services
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var inputWeight: Double = 0
@@ -261,6 +265,8 @@ struct ActiveWorkoutView: View {
                 Color.clear
             }
         }
+        // Set → rest → next set cross-fades instead of cutting.
+        .animation(reduceMotion ? nil : Tide.snap, value: phaseKey)
         // The cover is opened from inside a page: draw its own field.
         .trainSheetRoot(energy: 0.8)
         // §12 — the PR moment lands on the set that earned it, not later on
@@ -332,6 +338,7 @@ struct ActiveWorkoutView: View {
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                 }
+                .accessibilityLabel("Pause workout")
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
@@ -437,116 +444,63 @@ struct ActiveWorkoutView: View {
     // MARK: - Timer Bar
 
     private var timerBar: some View {
-        let fraction = Double(viewModel.completedSets) / Double(max(1, viewModel.totalSets))
-        return VStack(spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                // Elapsed time
-                Text(viewModel.formattedElapsedTime)
-                    .font(TideTrain.figure(.title2))
-                    .foregroundStyle(Tide.text)
-                    .contentTransition(.numericText())
+        TrainSessionBar(
+            elapsed: viewModel.formattedElapsedTime,
+            done: viewModel.completedSets,
+            total: viewModel.totalSets,
+            volume: viewModel.formattedVolume
+        )
+    }
 
-                Spacer(minLength: Tide.s2)
-
-                // Progress
-                Text("\(viewModel.completedSets)/\(viewModel.totalSets) sets")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .contentTransition(.numericText())
-
-                // Volume
-                Text(viewModel.formattedVolume)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .contentTransition(.numericText())
-            }
-            TideLevelBar(progress: fraction, height: Tide.barSlim)
-                .animation(Tide.snap, value: fraction)
+    /// Which screen the session is on: a change cross-fades the page.
+    private var phaseKey: Int {
+        switch viewModel.sessionState {
+        case .warmup: 0
+        case .exercise(.setActive): 1
+        case .exercise(.resting): 2
+        case .exercise(.betweenExercises): 3
+        case .paused: 4
+        case .interruptedCall: 5
+        case .crashedRecovery: 6
+        default: 7
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.vertical, Tide.s2)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Set Active Content
 
     // Per MODULE_TRAINING.md Section 3 — Weight/reps inputs, DONE button
 
-    /// §11.7 rework — a single-screen cockpit: compact header, one-line alert
-    /// chips, LAST/TARGET/BEST context from real history, steppers, dots, and
-    /// a Skip+Finish action row. No ScrollView: everything fits one page.
+    /// The logger: what you are lifting, then the current set as one hero card
+    /// (weight and reps side by side, the numbers you compare them with in its
+    /// footer), then what is next. Finish Set sits at the bottom, under the thumb.
     private var setActiveContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: Tide.s3) {
+            VStack(spacing: Tide.s4) {
                 exerciseHeader
 
                 alertChips
 
-                contextStrip
-
-                if isBodyweightLift {
-                    // §15 fix — no bodyweight on file yet: prompt for it inline,
-                    // once, right here (not a separate screen), so the FIRST
-                    // bodyweight-lift log of the session never has to fall back
-                    // to 0 kg. Persisted to UserProfile.weightKg on Finish Set —
-                    // see `persistBodyweightIfNeeded()`.
-                    if bodyweightKg <= 0 {
-                        TrainStepper(
-                            value: $bodyweightPromptDisplayValue,
-                            label: "Your bodyweight",
-                            range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
-                            step: weightStep,
-                            format: weightUnit == .kg ? "%.1f" : "%.0f",
-                            unit: weightUnit.abbreviation,
-                            caption: "Needed to log this lift. Saved to your profile for pull-ups, dips and similar lifts.",
-                            onTapValue: { activeEntryField = .bodyweight }
-                        )
-                    }
-                    // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
-                    // load — negative = assistance (band/machine), positive =
-                    // weight belt/vest. Effective load = bodyweight ± this.
+                // §15 fix — no bodyweight on file yet: prompt for it inline,
+                // once, right here (not a separate screen), so the FIRST
+                // bodyweight-lift log of the session never has to fall back
+                // to 0 kg. Persisted to UserProfile.weightKg on Finish Set —
+                // see `persistBodyweightIfNeeded()`.
+                if isBodyweightLift, bodyweightKg <= 0 {
                     TrainStepper(
-                        value: $inputAddedLoad,
-                        label: "Added load",
-                        range: -weightRangeMax ... weightRangeMax,
-                        step: weightStep,
-                        format: weightUnit == .kg ? "%+.1f" : "%+.0f",
-                        unit: weightUnit.abbreviation,
-                        caption: "Minus is assisted, plus is weighted. \(bodyweightEffectiveHint)",
-                        onTapValue: { activeEntryField = .addedLoad }
-                    )
-                } else {
-                    // Weight input — the logged number is TOTAL load including the
-                    // bar. For bar-loaded lifts we show a per-side plate hint so
-                    // there's no ambiguity about what to actually put on.
-                    TrainStepper(
-                        value: $inputWeight,
-                        label: currentEquipment.isBarLoaded ? "Weight, total with bar" : "Weight",
-                        range: weightRangeMin ... weightRangeMax,
+                        value: $bodyweightPromptDisplayValue,
+                        label: "Your bodyweight",
+                        range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
                         step: weightStep,
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation,
-                        caption: currentSetIsCalibration ? calibrationPromptText : perSideHint,
-                        captionColor: currentSetIsCalibration ? TideTrain.caution : Tide.text2,
-                        onTapValue: { activeEntryField = .weight }
+                        caption: "Needed to log this lift. Saved to your profile for pull-ups, dips and similar lifts.",
+                        onTapValue: { activeEntryField = .bodyweight }
                     )
+                    .tideCard(padding: Tide.s4)
                 }
 
-                // Reps input
-                TrainStepper(
-                    value: $inputReps,
-                    label: isPerSideExercise ? "REPS — LEFT" : "Reps",
-                    range: 1 ... 100,
-                    step: 1,
-                    format: "%.0f",
-                    unit: isPerSideExercise ? "reps / side" : "reps",
-                    // §11.12 — the effort target that makes the weight make
-                    // sense: the load is computed FOR this rep count at this
-                    // proximity to failure.
-                    caption: effortCaption,
-                    captionColor: TideTrain.caution,
-                    onTapValue: { activeEntryField = .reps }
-                )
+                setCard
+
                 // Fix #9 — optional L/R split (e.g. L 8 / R 7).
                 if isPerSideExercise, !currentSetIsWarmup {
                     PerSideRepsControl(left: $inputReps, right: $inputRepsRight, splitEnabled: $logRepsSeparately)
@@ -554,8 +508,6 @@ struct ActiveWorkoutView: View {
 
                 // RPE is collected end-of-set in the inline feedback panel
                 // (under the rest timer), not here — one prompt, not two.
-
-                setProgress
 
                 upNextLine
             }
@@ -568,6 +520,85 @@ struct ActiveWorkoutView: View {
                 .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s3)
         }
+    }
+
+    /// The current set: weight and reps as one card.
+    private var setCard: some View {
+        let hasHints = loadHint != nil || effortCaption != nil
+        return TrainSessionSetCard(showsHints: hasHints) {
+            if isBodyweightLift {
+                // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
+                // load — negative = assistance (band/machine), positive =
+                // weight belt/vest. Effective load = bodyweight ± this.
+                TrainSessionField(
+                    value: $inputAddedLoad,
+                    label: "Added load",
+                    range: -weightRangeMax ... weightRangeMax,
+                    step: weightStep,
+                    format: weightUnit == .kg ? "%+.1f" : "%+.0f",
+                    unit: weightUnit.abbreviation,
+                    reserveLabel: true,
+                    onTapValue: { activeEntryField = .addedLoad }
+                )
+            } else {
+                // Weight input — the logged number is TOTAL load including the
+                // bar. For bar-loaded lifts we show a per-side plate hint so
+                // there's no ambiguity about what to actually put on.
+                TrainSessionField(
+                    value: $inputWeight,
+                    label: currentEquipment.isBarLoaded ? "Weight, total with bar" : "Weight",
+                    range: weightRangeMin ... weightRangeMax,
+                    step: weightStep,
+                    format: weightUnit == .kg ? "%.1f" : "%.0f",
+                    unit: weightUnit.abbreviation,
+                    reserveLabel: true,
+                    onTapValue: { activeEntryField = .weight }
+                )
+            }
+        } secondary: {
+            TrainSessionField(
+                value: $inputReps,
+                label: isPerSideExercise ? "REPS — LEFT" : "Reps",
+                range: 1 ... 100,
+                step: 1,
+                format: "%.0f",
+                unit: isPerSideExercise ? "reps / side" : "reps",
+                reserveLabel: true,
+                onTapValue: { activeEntryField = .reps }
+            )
+        } hints: {
+            if let loadHint {
+                Text(loadHint.text)
+                    .font(Tide.caption)
+                    .foregroundStyle(loadHint.color)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // §11.12 — the effort target that makes the weight make
+            // sense: the load is computed FOR this rep count at this
+            // proximity to failure.
+            if let effortCaption {
+                Text(effortCaption)
+                    .font(Tide.caption)
+                    .foregroundStyle(TideTrain.caution)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        } footer: {
+            contextStrip
+        }
+    }
+
+    /// The line under the weight: the plates to load, the calibration prompt,
+    /// or what a bodyweight set adds up to.
+    private var loadHint: (text: String, color: Color)? {
+        if isBodyweightLift {
+            return ("Minus is assisted, plus is weighted. \(bodyweightEffectiveHint)", Tide.text2)
+        }
+        if currentSetIsCalibration {
+            return (calibrationPromptText, TideTrain.caution)
+        }
+        return perSideHint.map { ($0, Tide.text2) }
     }
 
     /// "Leave 2 reps in the tank" — nil on ramp sets and when there is no target.
@@ -727,28 +758,11 @@ struct ActiveWorkoutView: View {
     /// LAST / TARGET / BEST — the numbers a lifter actually wants mid-set:
     /// what you did last time, what today asks, what your ceiling is.
     private var contextStrip: some View {
-        HStack(alignment: .top, spacing: Tide.s3) {
-            statCell("Last", lastSessionStat ?? "—")
-            statCell("Target", targetStat ?? "—", highlight: true)
-            statCell("Best e1RM", bestE1RMStat ?? "—")
-        }
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-    }
-
-    private func statCell(_ label: String, _ value: String, highlight: Bool = false) -> some View {
-        VStack(spacing: Tide.hair) {
-            Text(value)
-                .font(TideTrain.figure(.headline))
-                .foregroundStyle(highlight ? Color.accentColor : Tide.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.numericText())
-            Text(label).tideLabel()
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
+        TrainSessionContext(cells: [
+            .init(label: "Last", value: lastSessionStat ?? "—"),
+            .init(label: "Target", value: targetStat ?? "—", highlight: true),
+            .init(label: "Best e1RM", value: bestE1RMStat ?? "—"),
+        ])
     }
 
     // MARK: - Drop Set Control (§6.4 / §6.5)
@@ -792,7 +806,11 @@ struct ActiveWorkoutView: View {
     /// Skip + Finish side by side — skip always visible, never the hero.
     private var actionRow: some View {
         GlassEffectContainer(spacing: Tide.s3) {
-            HStack(spacing: Tide.s3) {
+            // Large text: the two buttons stack, Finish Set last (lowest, under the thumb).
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
+            layout {
                 // §2.16 — skip without logging. On a warmup set one tap drops the
                 // whole remaining ramp; on a working set it skips just this set.
                 Button {
@@ -803,7 +821,7 @@ struct ActiveWorkoutView: View {
                     }
                 } label: {
                     Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
-                        .frame(minHeight: TideTrain.bigButton - Tide.s4)
+                        .frame(minHeight: TideTrain.bigButton - Tide.s2)
                 }
                 .buttonStyle(.tideGlass)
 
@@ -815,7 +833,7 @@ struct ActiveWorkoutView: View {
                     commitCurrentSet()
                 } label: {
                     Text(finishButtonLabel)
-                        .frame(minHeight: TideTrain.bigButton - Tide.s4)
+                        .frame(minHeight: TideTrain.bigButton - Tide.s2)
                 }
                 .buttonStyle(.tidePrimary)
                 .sensoryFeedback(.success, trigger: viewModel.completedSets)
@@ -884,22 +902,22 @@ struct ActiveWorkoutView: View {
 
         return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: Tide.s5) {
-                VStack(alignment: .leading, spacing: Tide.s1) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     Text("Warm-up · move \(viewModel.warmupMoveIndex + 1) of \(total)").tideLabel()
+                    TrainSessionDots(count: total, current: viewModel.warmupMoveIndex)
                     Text(move.name)
                         .font(Tide.title)
                         .foregroundStyle(move.isTendonPrep ? Color.accentColor : Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(move.dose)
-                        .font(Tide.headline)
-                        .monospacedDigit()
+                        .font(TideTrain.figure(.headline))
                         .foregroundStyle(Tide.text2)
                 }
 
                 if isTimed {
-                    TrainRing(progress: fraction, diameter: 200) {
+                    TrainRing(progress: fraction, diameter: TideTrainSession.restRingCompact) {
                         Text(warmupCountdownLabel)
-                            .trainNumeral(56)
+                            .trainNumeral(TideTrainSession.ringClock)
                             .foregroundStyle(Tide.text)
                             .contentTransition(.numericText(countsDown: true))
                     }
@@ -910,23 +928,27 @@ struct ActiveWorkoutView: View {
                     .accessibilityValue(warmupCountdownLabel)
                 }
 
-                Text(move.howTo)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text(move.howTo)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                if let cue = move.cue {
-                    HStack(alignment: .top, spacing: Tide.s2) {
-                        Image(systemName: "lightbulb.fill")
-                            .font(Tide.caption)
-                            .foregroundStyle(Color.accentColor)
-                            .accessibilityHidden(true)
-                        Text(cue)
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if let cue = move.cue {
+                        TrainSessionRule()
+                        HStack(alignment: .top, spacing: Tide.s2) {
+                            Image(systemName: "lightbulb.fill")
+                                .font(Tide.caption)
+                                .foregroundStyle(TideTrain.caution)
+                                .accessibilityHidden(true)
+                            Text(cue)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
             .padding(.horizontal, Tide.edge)
             .padding(.vertical, Tide.s3)
@@ -983,17 +1005,19 @@ struct ActiveWorkoutView: View {
                     VStack(spacing: Tide.s3) {
                         ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
                             if index > 0 {
-                                Divider().overlay(Tide.hairline)
+                                TrainSessionRule()
                             }
-                            HStack {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text("Ramp set \(index + 1)")
                                     .font(Tide.bodyStrong)
                                     .foregroundStyle(Tide.text2)
-                                Spacer()
+                                Spacer(minLength: Tide.s2)
                                 Text(warmupTargetLabel(set))
                                     .font(TideTrain.figure(.title3))
                                     .foregroundStyle(Tide.text)
+                                    .multilineTextAlignment(.trailing)
                             }
+                            .accessibilityElement(children: .combine)
                         }
                     }
                     .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -1030,51 +1054,31 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Header
 
-    /// §11.13 rework — the demo picture is the hero again: full-width 150pt
-    /// card, name + muscle/set line on a bottom gradient, session ring
-    /// top-right, and a "How to" button opening the full exercise detail
-    /// (instructions + cues) without spending page height on them.
+    /// What you are lifting: the demo picture, the name, where you are in it, and
+    /// the "How to" and "This hurts" buttons. The set strip sits right under it:
+    /// it is the progress of this exercise.
     private var exerciseHeader: some View {
         Group {
             if let exercise = viewModel.currentExercise?.exercise {
-                HStack(alignment: .center, spacing: Tide.s3) {
-                    ExerciseImageView(exercise: exercise, style: .hero)
-                        .frame(width: TideTrain.thumb, height: TideTrain.thumb)
-                        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        // trainer-feedback-tests — this session's a
-                        // trainer-flagged 1RM/3RM/5RM/time-trial test.
-                        if viewModel.currentExercise?.isTestExercise == true {
-                            Text("TEST — WORK UP TO A MAX")
-                                .font(Tide.label)
-                                .foregroundStyle(Color.accentColor)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    if typeSize.isAccessibilitySize {
+                        // Large text: picture and buttons on one row, the name
+                        // gets the full width under them.
+                        HStack(spacing: Tide.s3) {
+                            headerPicture(exercise)
+                            Spacer(minLength: 0)
+                            headerButtons
                         }
-                        Text(exercise.name)
-                            .accessibilityLabel(exercise.name.uppercased())
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.8)
-                        Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
-                            .contentTransition(.numericText())
-                    }
-                    .accessibilityElement(children: .combine)
-                    Spacer(minLength: 0)
-
-                    GlassEffectContainer(spacing: Tide.s2) {
-                        HStack(spacing: Tide.s2) {
-                            TrainIconButton(systemImage: "info.circle", label: "How to") {
-                                showHowTo = true
-                            }
-                            // "This hurts" flow — see PainReportSheet.swift.
-                            TrainIconButton(systemImage: "bandage", label: "This hurts", tint: Tide.danger) {
-                                showPainReport = true
-                            }
+                        headerTitle(exercise)
+                    } else {
+                        HStack(alignment: .center, spacing: Tide.s3) {
+                            headerPicture(exercise)
+                            headerTitle(exercise)
+                            Spacer(minLength: 0)
+                            headerButtons
                         }
                     }
+                    setProgress
                 }
             }
         }
@@ -1087,6 +1091,51 @@ struct ActiveWorkoutView: View {
             removal: .move(edge: .leading).combined(with: .opacity)
         ))
         .animation(Tide.lively, value: viewModel.currentExerciseIndex)
+    }
+
+    private func headerPicture(_ exercise: Exercise) -> some View {
+        ExerciseImageView(exercise: exercise, style: .hero)
+            .frame(width: TideTrain.thumb, height: TideTrain.thumb)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private func headerTitle(_ exercise: Exercise) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            // trainer-feedback-tests — this session's a
+            // trainer-flagged 1RM/3RM/5RM/time-trial test.
+            if viewModel.currentExercise?.isTestExercise == true {
+                Text("TEST — WORK UP TO A MAX")
+                    .font(Tide.label)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(exercise.name)
+                .accessibilityLabel(exercise.name.uppercased())
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var headerButtons: some View {
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                TrainIconButton(systemImage: "info.circle", label: "How to") {
+                    showHowTo = true
+                }
+                // "This hurts" flow — see PainReportSheet.swift.
+                TrainIconButton(systemImage: "bandage", label: "This hurts", tint: Tide.danger) {
+                    showPainReport = true
+                }
+            }
+        }
     }
 
     /// §11.13 — what's coming after this exercise, visible WHILE lifting
@@ -1110,6 +1159,7 @@ struct ActiveWorkoutView: View {
                 dropSetControl
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var upNextName: String? {
@@ -1124,6 +1174,7 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Set Progress
 
+    /// One capsule per set, with the remove and add buttons at its ends.
     private var setProgress: some View {
         HStack(spacing: Tide.s2) {
             Button {
@@ -1176,66 +1227,60 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Transition
 
+    /// The brief moment between two exercises: who is next, with their picture.
     private func exerciseTransition(toIndex: Int) -> some View {
-        VStack(spacing: Tide.s4) {
+        let exercises = viewModel.todayPlan?.orderedExercises ?? []
+        let next = toIndex < exercises.count ? exercises[toIndex] : nil
+        return VStack(spacing: Tide.s4) {
             Spacer()
-
-            Text("Next exercise").tideLabel(Tide.text3)
-
-            if let plan = viewModel.todayPlan {
-                let exercises = plan.orderedExercises
-                if toIndex < exercises.count, let name = exercises[toIndex].exercise?.name {
-                    Text(name)
-                        .accessibilityLabel(name.uppercased())
+            if let exercise = next?.exercise {
+                ExerciseImageView(exercise: exercise, style: .hero)
+                    .frame(width: TideTrain.hero, height: TideTrain.hero)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(spacing: Tide.s2) {
+                    Text("Next exercise").tideLabel(Tide.text3)
+                    Text(exercise.name)
+                        .accessibilityLabel(exercise.name.uppercased())
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(exercise.muscleGroup.displayName)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
+            } else {
+                Text("Next exercise").tideLabel(Tide.text3)
             }
-
-            ProgressView()
-
             Spacer()
         }
+        .padding(.horizontal, Tide.edge)
         .frame(maxWidth: .infinity)
     }
 
     // MARK: - Paused Overlay
 
     private var pausedOverlay: some View {
-        VStack(spacing: Tide.s6) {
-            Spacer()
-
-            Image(systemName: "pause.circle.fill")
-                .trainGlyph(80)
-                .foregroundStyle(Tide.text3)
-
-            Text("PAUSED")
-                .font(Tide.title)
-                .foregroundStyle(Tide.text)
-
-            Text(viewModel.formattedElapsedTime)
-                .trainNumeral(56)
-                .foregroundStyle(Tide.text)
-
-            VStack(spacing: Tide.s3) {
-                Button {
-                    viewModel.resume()
-                } label: {
-                    Text("Resume")
-                }
-                .buttonStyle(.tidePrimary)
-
-                Button {
-                    showFinishConfirmation = true
-                } label: {
-                    Text("End Workout")
-                        .foregroundStyle(Tide.danger)
-                }
-                .buttonStyle(.tideGlass)
+        TrainSessionStateView(
+            systemImage: "pause.fill",
+            title: "PAUSED",
+            figure: viewModel.formattedElapsedTime
+        ) {
+            Button {
+                viewModel.resume()
+            } label: {
+                Text("Resume")
             }
-            .padding(.horizontal, Tide.edge)
+            .buttonStyle(.tidePrimary)
 
-            Spacer()
+            Button {
+                showFinishConfirmation = true
+            } label: {
+                Text("End Workout")
+                    .foregroundStyle(Tide.danger)
+            }
+            .buttonStyle(.tideGlass)
         }
     }
 
@@ -1245,72 +1290,44 @@ struct ActiveWorkoutView: View {
     /// restores itself when the call ends (no buttons needed, but an escape
     /// hatch resumes manually if CallKit never reports the end).
     private var interruptedCallOverlay: some View {
-        VStack(spacing: Tide.s6) {
-            Spacer()
-
-            Image(systemName: "phone.fill")
-                .trainGlyph(60)
-                .foregroundStyle(Color.accentColor)
-
-            Text("On a call")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            Text("Workout paused — it resumes by itself when you hang up.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Tide.edge)
-
+        TrainSessionStateView(
+            systemImage: "phone.fill",
+            title: "On a call",
+            message: "Workout paused — it resumes by itself when you hang up."
+        ) {
             Button {
                 viewModel.handleCallChange(callEnded: true)
             } label: {
                 Text("Resume now")
             }
             .buttonStyle(.tideGlass)
-
-            Spacer()
         }
     }
 
     // MARK: - Crash Recovery Content
 
     private var crashRecoveryContent: some View {
-        VStack(spacing: Tide.s6) {
-            Spacer()
-
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .trainGlyph(60)
-                .foregroundStyle(TideTrain.caution)
-
-            Text("Resume Your Workout?")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            Text("It looks like a workout was in progress.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-
-            VStack(spacing: Tide.s3) {
-                Button {
-                    viewModel.resumeFromCrash()
-                } label: {
-                    Text("Resume workout")
-                }
-                .buttonStyle(.tidePrimary)
-
-                Button {
-                    // .discarded closes this cover from TrainingTabView.
-                    viewModel.discardCrashedWorkout(modelContext: modelContext)
-                } label: {
-                    Text("Discard")
-                        .foregroundStyle(Tide.danger)
-                }
-                .buttonStyle(.tideGlass)
+        TrainSessionStateView(
+            systemImage: "arrow.counterclockwise",
+            tint: TideTrain.caution,
+            title: "Resume Your Workout?",
+            message: "It looks like a workout was in progress."
+        ) {
+            Button {
+                viewModel.resumeFromCrash()
+            } label: {
+                Text("Resume workout")
             }
-            .padding(.horizontal, Tide.edge)
+            .buttonStyle(.tidePrimary)
 
-            Spacer()
+            Button {
+                // .discarded closes this cover from TrainingTabView.
+                viewModel.discardCrashedWorkout(modelContext: modelContext)
+            } label: {
+                Text("Discard")
+                    .foregroundStyle(Tide.danger)
+            }
+            .buttonStyle(.tideGlass)
         }
     }
 
