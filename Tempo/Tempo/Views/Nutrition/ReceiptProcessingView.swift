@@ -158,7 +158,7 @@ struct ReceiptProcessingView: View {
                 }
             }
             .frame(width: 24, height: 24)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(stage.title)
                     .font(state == .active ? Tide.bodyStrong : Tide.body)
                     .foregroundStyle(state == .upcoming ? Tide.text3 : Tide.text)
