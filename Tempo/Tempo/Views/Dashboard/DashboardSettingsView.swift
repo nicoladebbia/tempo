@@ -26,6 +26,9 @@ struct DashboardSettingsView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+
+    @Environment(\.dynamicTypeSize)
+    private var headerTypeSize
     @Query
     private var allSettings: [UserSettings]
     @Query
@@ -278,7 +281,11 @@ struct DashboardSettingsView: View {
         NavigationLink {
             ProfileSettingsDetailView()
         } label: {
-            HStack(spacing: Tide.s4) {
+            // At accessibility sizes the picture sits above the text so the name keeps its width.
+            let layout = headerTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(spacing: Tide.s4))
+            layout {
                 TideSettingsAvatar(initial: profileInitial)
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
@@ -300,12 +307,14 @@ struct DashboardSettingsView: View {
                         .contentTransition(.numericText())
                 }
 
-                Spacer(minLength: Tide.s2)
+                if !headerTypeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
 
-                Image(systemName: "chevron.right")
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text3)
-                    .accessibilityHidden(true)
+                    Image(systemName: "chevron.right")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                }
             }
             .tideCard(padding: Tide.s4)
             .contentShape(.rect(cornerRadius: Tide.cardRadius))
@@ -795,7 +804,10 @@ struct ProfileSettingsDetailView: View {
                 }
             }
             .labelsHidden()
+            .font(Tide.bodyStrong)
             .tint(Tide.text2)
+            // A menu picker pads its own end; pull it back to the row's edge.
+            .padding(typeSize.isAccessibilitySize ? .leading : .trailing, -Tide.s3)
             .onChange(of: identityLabel) { _, newValue in
                 profile?.identityLabel = newValue
                 touch()
@@ -864,22 +876,35 @@ struct ProfileSettingsDetailView: View {
         autocapitalize: Bool = true,
         onCommit: @escaping (String) -> Void
     ) -> some View {
-        SettingsControlRow(label: label) {
-            HStack(spacing: 0) {
-                if let prefix {
+        let field = TextField(placeholder, text: text)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
+            .multilineTextAlignment(typeSize.isAccessibilitySize || prefix != nil ? .leading : .trailing)
+            .textInputAutocapitalization(autocapitalize ? .words : .never)
+            .autocorrectionDisabled(!autocapitalize)
+            .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+        return SettingsControlRow(label: label) {
+            if let prefix {
+                // The "@" hugs the name: a hidden copy of the text sets the width,
+                // and the real field sits on top of it.
+                HStack(spacing: 0) {
                     Text(prefix)
                         .font(Tide.body)
                         .foregroundStyle(Tide.text3)
+                    Text(text.wrappedValue.isEmpty ? placeholder : text.wrappedValue)
+                        .font(Tide.body)
+                        .lineLimit(1)
+                        .hidden()
+                        .padding(.trailing, Tide.s1)
+                        .overlay { field }
                 }
-                TextField(placeholder, text: text)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(autocapitalize ? .words : .never)
-                    .autocorrectionDisabled(!autocapitalize)
-                    .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+                .frame(minHeight: Tide.hit)
+                // Cancel the caret room so the name lines up with the other values.
+                .padding(.trailing, -Tide.s1)
+            } else {
+                field
+                    .frame(minHeight: Tide.hit)
             }
-            .frame(minHeight: Tide.hit)
         }
     }
 

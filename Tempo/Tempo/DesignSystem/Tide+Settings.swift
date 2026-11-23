@@ -24,6 +24,8 @@ extension Tide {
     static let settingsRow: CGFloat = hit + s2
     /// Gap between two groups on a settings page.
     static let settingsGroupGap: CGFloat = s6
+    /// How far an icon tile may grow with the text size, so the title keeps its room.
+    static let settingsTileCap: CGFloat = icon * 1.5
     /// The profile picture in the Settings header, and the large one on the Profile page.
     static let settingsAvatar: CGFloat = 56
     static let settingsAvatarLarge: CGFloat = 88
@@ -212,7 +214,10 @@ struct TideSettingsAvatar: View {
     @Environment(\.tideMood)
     private var mood
     @ScaledMetric(relativeTo: .title)
-    private var scale = 1.0
+    private var scaledScale = 1.0
+
+    /// The picture grows with the text, but never past one and a half times.
+    private var scale: CGFloat { min(scaledScale, 1.5) }
 
     var body: some View {
         Text(initial)

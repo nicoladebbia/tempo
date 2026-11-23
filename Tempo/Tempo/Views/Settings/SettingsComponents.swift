@@ -23,7 +23,9 @@ struct SettingsGroupCard: View {
     let rows: [AnyView]
 
     @ScaledMetric(relativeTo: .footnote)
-    private var tile = Tide.icon
+    private var scaledTile = Tide.icon
+
+    private var tile: CGFloat { min(scaledTile, Tide.settingsTileCap) }
 
     /// Convenience: build from a result-builder of rows.
     init(title: String? = nil, @SettingsRowBuilder rows: () -> [AnyView]) {
@@ -89,7 +91,9 @@ struct SettingsIconTile: View {
     let tint: Color
 
     @ScaledMetric(relativeTo: .footnote)
-    private var size = Tide.icon
+    private var scaledSize = Tide.icon
+
+    private var size: CGFloat { min(scaledSize, Tide.settingsTileCap) }
 
     var body: some View {
         Image(systemName: systemName)
@@ -309,7 +313,9 @@ struct SettingsRowDivider: View {
     var underTitle = true
 
     @ScaledMetric(relativeTo: .footnote)
-    private var tile = Tide.icon
+    private var scaledTile = Tide.icon
+
+    private var tile: CGFloat { min(scaledTile, Tide.settingsTileCap) }
 
     var body: some View {
         TideSettingsHairline(inset: underTitle ? Tide.s4 + tile + Tide.s3 : Tide.s4)
