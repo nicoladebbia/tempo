@@ -13,6 +13,8 @@
 
 import SwiftUI
 
+// MARK: - TellAIRecipeView
+
 struct TellAIRecipeView: View {
     let apiClient: APIClient
     var onSave: (Recipe) -> Void
@@ -36,55 +38,32 @@ struct TellAIRecipeView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                Text("Describe your recipe — ingredients with amounts, then steps. The AI will structure it.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s4) {
+                    Text("Describe your recipe — ingredients with amounts, then steps. The AI will structure it.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                ZStack(alignment: .topLeading) {
-                    if text.isEmpty {
-                        Text(placeholder)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .padding(.horizontal, TempoSpacing.md + 4)
-                            .padding(.vertical, TempoSpacing.md + 4)
-                            .allowsHitTesting(false)
+                    editor
+
+                    if let blocker {
+                        AIBlockerCard(blocker: blocker) {
+                            self.blocker = nil
+                            Task { await parseAndPreview() }
+                        }
+                    } else if let errorText {
+                        Text(errorText)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.danger)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    TextEditor(text: $text)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .scrollContentBackground(.hidden)
-                        .padding(.horizontal, TempoSpacing.md)
-                        .padding(.vertical, TempoSpacing.md)
-                        .focused($textFocused)
-                        .disabled(isParsing)
                 }
-                .frame(minHeight: 220)
-                .background(Color.tempoBgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                        .stroke(Color.tempoBorder, lineWidth: 1)
-                )
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                if let blocker {
-                    AIBlockerCard(blocker: blocker) {
-                        self.blocker = nil
-                        Task { await parseAndPreview() }
-                    }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                } else if let errorText {
-                    Text(errorText)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                }
-
-                Spacer()
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
-            .padding(.vertical, TempoSpacing.lg)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .tidePage()
             .navigationTitle("Tell AI")
             .navigationBarTitleDisplayMode(.inline)
@@ -107,6 +86,7 @@ struct TellAIRecipeView: View {
                 }
             }
             .onAppear { textFocused = true }
+            .tideCovered(pendingRecipe != nil)
             // After parsing, present a preview so the user can audit what
             // Haiku produced before it lands in the DB. Save fires onSave
             // upstream then dismisses both sheets; Discard just clears the
@@ -128,6 +108,35 @@ struct TellAIRecipeView: View {
         }
     }
 
+    /// The free-text box: a soft-filled field with the example as its placeholder.
+    private var editor: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty {
+                Text(placeholder)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.horizontal, Tide.s4)
+                    .padding(.vertical, Tide.s5)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            TextEditor(text: $text)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, Tide.s3)
+                .padding(.vertical, Tide.s3)
+                .focused($textFocused)
+                .disabled(isParsing)
+        }
+        .frame(minHeight: 220)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .stroke(Tide.hairline, lineWidth: 1)
+        )
+    }
+
     private var placeholder: String {
         """
         Pasta carbonara, serves 2.
@@ -138,9 +147,13 @@ struct TellAIRecipeView: View {
 
     @MainActor
     private func parseAndPreview() async {
-        guard !isParsing else { return }
+        guard !isParsing else {
+            return
+        }
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            return
+        }
         textFocused = false
         isParsing = true
         errorText = nil
@@ -184,18 +197,21 @@ private struct RecipePreviewSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     header
                     ingredientsBlock
                     stepsBlock
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .tidePage()
             .navigationTitle("Preview")
             .navigationBarTitleDisplayMode(.inline)
@@ -218,78 +234,88 @@ private struct RecipePreviewSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text(recipe.name)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            HStack(spacing: TempoSpacing.md) {
-                Label("\(recipe.servings) servings", systemImage: "fork.knife")
-                if let prep = recipe.prepMinutes, prep > 0 {
-                    Label("\(prep) min prep", systemImage: "timer")
-                }
-                if let cook = recipe.cookMinutes, cook > 0 {
-                    Label("\(cook) min cook", systemImage: "flame")
-                }
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s4) { metaLabels }
+                VStack(alignment: .leading, spacing: Tide.s1) { metaLabels }
             }
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+        }
+    }
+
+    @ViewBuilder
+    private var metaLabels: some View {
+        Label("\(recipe.servings) servings", systemImage: "fork.knife")
+        if let prep = recipe.prepMinutes, prep > 0 {
+            Label("\(prep) min prep", systemImage: "timer")
+        }
+        if let cook = recipe.cookMinutes, cook > 0 {
+            Label("\(cook) min cook", systemImage: "flame")
         }
     }
 
     private var ingredientsBlock: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("INGREDIENTS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            VStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Ingredients").tideLabel()
+            VStack(spacing: 0) {
                 ForEach(recipe.orderedIngredients) { ing in
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                         Text(ing.displayName)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: Tide.s2)
                         Text(ing.displayQuantity ?? "\(Int(ing.quantityGrams))g")
-                            .font(.tempoCaption1.monospacedDigit())
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .monospacedDigit()
                     }
-                    .padding(.horizontal, TempoSpacing.md)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, Tide.s2)
+                    .frame(minHeight: Tide.hit)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+
+                    if ing.id != recipe.orderedIngredients.last?.id {
+                        Divider().overlay(Tide.hairline)
+                    }
                 }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
     private var stepsBlock: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("STEPS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Steps").tideLabel()
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 ForEach(Array(recipe.orderedSteps.enumerated()), id: \.element.id) { index, step in
-                    HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                         Text("\(index + 1)")
-                            .font(.tempoCaption1.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(Color.tempoSignal)
-                            .frame(width: 20, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 2) {
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .monospacedDigit()
+                            .frame(width: Tide.s5, alignment: .leading)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
                             Text(step.instruction)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                                 .fixedSize(horizontal: false, vertical: true)
                             if let min = step.durationMinutes, min > 0 {
                                 Text("~\(min) min")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
                             }
                         }
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 }

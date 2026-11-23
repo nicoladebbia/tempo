@@ -16,108 +16,128 @@ struct FluidSheet: View {
     @State private var bottleText = ""
     @State private var error: String?
     @State private var bottleAtOpen = 0
+    @ScaledMetric(relativeTo: .title) private var exactSize: CGFloat = Tide.numeralM
+    @ScaledMetric(relativeTo: .body) private var useWidth: CGFloat = Tide.s10 * 2.5
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("WHAT YOU DRANK")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(width: 44, height: 44)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
-                }
-                .accessibilityLabel("Close")
+            HStack(alignment: .center, spacing: Tide.s3) {
+                Text("What you drank")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Tide.s2)
+                FuelIconButton(systemImage: "xmark", label: "Close") { dismiss() }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                VStack(alignment: .leading, spacing: Tide.s6) {
                     Text("From the start of the session until you weighed yourself. Everything you drank after the weigh-in doesn't count.")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    VStack(spacing: TempoSpacing.sm) {
-                        ForEach(CoachQuickAnswerAction.allCases, id: \.rawValue) { action in
-                            Button(action.title) {
-                                Task { await model.answerFluid(action) }
-                                dismiss()
+                    GlassEffectContainer(spacing: Tide.s2) {
+                        VStack(spacing: Tide.s2) {
+                            ForEach(CoachQuickAnswerAction.allCases, id: \.rawValue) { action in
+                                Button {
+                                    Task { await model.answerFluid(action) }
+                                    dismiss()
+                                } label: {
+                                    Text(action.title)
+                                        .multilineTextAlignment(.center)
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.tideGlass)
+                                .accessibilityIdentifier("coach.answer.\(action.rawValue)")
                             }
-                            .buttonStyle(.tempoSecondary)
-                            .accessibilityIdentifier("coach.answer.\(action.rawValue)")
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("OR AN EXACT AMOUNT")
-                            .font(.tempoModuleTag)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        HStack {
-                            TextField("500", text: $exactText)
-                                .keyboardType(.numberPad)
-                                .font(.tempoTimerDisplaySmall)
-                                .accessibilityIdentifier("coach.exactField")
-                            Text("mL").foregroundStyle(Color.tempoTextTertiary)
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Text("Or an exact amount").tideLabel()
+                        HStack(spacing: Tide.s2) {
+                            HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                                TextField("500", text: $exactText)
+                                    .keyboardType(.numberPad)
+                                    .font(Tide.numeral(exactSize))
+                                    .foregroundStyle(Tide.text)
+                                    .accessibilityIdentifier("coach.exactField")
+                                Text("mL")
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text3)
+                            }
+                            .fuelField(radius: Tide.tileRadius)
                             Button("Use") { saveExact() }
-                                .buttonStyle(.tempoPrimary)
-                                .frame(width: 100)
+                                .buttonStyle(.tidePrimary)
+                                .frame(width: useWidth)
                                 .accessibilityIdentifier("coach.exactUse")
                         }
                         if let error {
-                            Text(error).font(.tempoCaption1).foregroundStyle(Color.tempoError)
+                            Text(error)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.danger)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("YOUR BOTTLE")
-                            .font(.tempoModuleTag)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        HStack {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Text("Your bottle").tideLabel()
+                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                             TextField("750", text: $bottleText)
                                 .keyboardType(.numberPad)
-                                .font(.tempoHeadline)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
                                 .onChange(of: bottleText) { _, new in
-                                    if let ml = Int(new) { model.setBottleMl(ml) }
+                                    if let ml = Int(new) {
+                                        model.setBottleMl(ml)
+                                    }
                                 }
                                 .accessibilityIdentifier("coach.bottleField")
-                            Text("mL per bottle").foregroundStyle(Color.tempoTextTertiary)
+                            Text("mL per bottle")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text3)
                         }
+                        .fuelField(radius: Tide.tileRadius)
                         Text("The notification buttons use this size.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     if model.fluids.editedLiters != nil || model.fluids.quickAnswerLiters != nil {
-                        Button("Clear and start over") {
+                        Button {
                             Task { await model.clearFluid() }
                             dismiss()
+                        } label: {
+                            Text("Clear and start over")
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.tempoGhost)
+                        .buttonStyle(.tideGlass)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.xl)
-                .padding(.bottom, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s5)
+                .padding(.bottom, Tide.s8)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .top)
         }
         .tidePage()
+        .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
         .onAppear {
             bottleText = String(model.bottleMl)
             bottleAtOpen = model.bottleMl
         }
         .onDisappear {
             // A new bottle size re-prices an earlier "one bottle" answer.
-            if model.bottleMl != bottleAtOpen { Task { await model.recompute() } }
+            if model.bottleMl != bottleAtOpen {
+                Task { await model.recompute() }
+            }
         }
     }
 

@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - Nutrition Coach View
 
 // AI coaching section with daily message, meal suggestions, and recovery-aware guidance.
-// Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice.
+// Four glass cards on the Fuel page's field: briefing, suggestion, recovery, feedback.
 
 struct NutritionCoachView: View {
     @Bindable
@@ -21,6 +21,10 @@ struct NutritionCoachView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// AI state for the three coach sections (daily briefing, recovery
     /// guidance, meal feedback). Lives here, not on NutritionTabViewModel —
@@ -30,26 +34,28 @@ struct NutritionCoachView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s4) {
                 dailyCoachingCard
                 mealSuggestionSection
                 recoveryGuidanceCard
                 recentMealFeedback
 
                 // AI disclaimer
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .accessibilityHidden(true)
                     Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.vertical, TempoSpacing.sm)
+                .foregroundStyle(Tide.text3)
+                .padding(.vertical, Tide.s2)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
         }
@@ -110,7 +116,9 @@ struct NutritionCoachView: View {
         insights.restoreFromCache(eatenMealIDs: eatenMeals.map(\.id))
         // No targets yet → the tab hasn't loaded today; asking the AI now
         // would cache a briefing built on zeros for the whole day.
-        guard viewModel.todayCalorieTarget > 0 else { return }
+        guard viewModel.todayCalorieTarget > 0 else {
+            return
+        }
         let day = dayContext()
         let provider = coachProvider
         await insights.loadDailyBriefing(day, provider: provider, isOnline: isOnline)
@@ -137,67 +145,116 @@ struct NutritionCoachView: View {
         }
     }
 
+    // MARK: - Shared pieces
+
     /// Spinner row shared by the AI sections (same pattern as the meal-suggestion card).
     private func insightLoadingRow(_ text: String) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             ProgressView()
+                .tint(Tide.text2)
                 .scaleEffect(0.8)
+                .accessibilityHidden(true)
             Text(text)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
     }
 
     /// Error line + retry under the fallback template.
     private func insightErrorRow(_ message: String, retry: @escaping () -> Void) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(alignment: .center, spacing: Tide.s2) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 12))
-                .foregroundStyle(Color.tempoError)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.danger)
+                .accessibilityHidden(true)
             Text(message)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoError)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.danger)
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: TempoSpacing.xs)
+            Spacer(minLength: Tide.s2)
             Button("Retry", action: retry)
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(Color.tempoViolet)
+                .buttonStyle(.plain)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .contentShape(.rect)
         }
     }
 
     private func refreshButton(isLoading: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .disabled(isLoading || !isOnline)
         .accessibilityLabel("Refresh")
     }
 
+    /// The small tracked title of a card, with its icon.
+    private func cardTitle(_ title: String, icon: String, tint: Color) -> some View {
+        HStack(spacing: Tide.s2) {
+            Image(systemName: icon)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(title).tideLabel()
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// One small figure in a stat row: label over a condensed number.
+    private struct Stat {
+        let label: String
+        let value: String
+        let unit: String
+        let color: Color
+    }
+
+    /// A row of stats; stacked at accessibility text sizes so nothing truncates.
+    private func statRow(_ stats: [Stat]) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return layout {
+            ForEach(stats, id: \.label) { stat in
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(stat.label).tideLabel()
+                    TideNumber(
+                        stat.value,
+                        unit: stat.unit.isEmpty ? nil : stat.unit,
+                        size: Tide.numeralS,
+                        relativeTo: .headline,
+                        color: stat.color
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
     // MARK: - Daily Coaching Card
 
     private var dailyCoachingCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.tempoViolet)
-
-                Text("DAILY BRIEFING")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Spacer()
-
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(spacing: Tide.s2) {
+                cardTitle("Daily briefing", icon: "brain.head.profile", tint: mood.accent)
+                Spacer(minLength: Tide.s2)
                 Text(todayTimeString)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .monospacedDigit()
                 if insights.daily.value != nil {
                     refreshButton(isLoading: insights.daily.isLoading, action: refreshDailyBriefing)
+                        .padding(.vertical, -Tide.s3)
+                        .padding(.trailing, -Tide.s3)
                 }
             }
 
@@ -205,8 +262,8 @@ struct NutritionCoachView: View {
                 insightLoadingRow("Reading your day…")
             } else {
                 Text(insights.daily.value ?? dailyMessage)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -215,227 +272,137 @@ struct NutritionCoachView: View {
             }
 
             // Today's stats summary
-            HStack(spacing: TempoSpacing.lg) {
-                coachStat(
-                    label: "Eaten",
-                    value: "\(viewModel.todayCaloriesConsumed)",
-                    unit: "kcal",
-                    color: Color.tempoViolet
-                )
-                coachStat(
-                    label: "Target",
-                    value: "\(viewModel.todayCalorieTarget)",
-                    unit: "kcal",
-                    color: Color.tempoTextSecondary
-                )
-                coachStat(
-                    label: "Protein",
-                    value: "\(viewModel.todayProteinConsumed)",
-                    unit: "/\(viewModel.todayProteinTarget)g",
-                    color: Color.tempoMacroProtein
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                FuelCalorieHero(consumed: viewModel.todayCaloriesConsumed, target: viewModel.todayCalorieTarget)
+                FuelMacroColumns(
+                    protein: (viewModel.todayProteinConsumed, viewModel.todayProteinTarget),
+                    carbs: (viewModel.todayCarbsConsumed, viewModel.todayCarbsTarget),
+                    fat: (viewModel.todayFatConsumed, viewModel.todayFatTarget)
                 )
             }
         }
-        .tempoCard()
-    }
-
-    private func coachStat(label: String, value: String, unit: String, color: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(size: 18, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
-
-            Text(unit)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-        .frame(maxWidth: .infinity)
+        .tideCard()
+        .animation(Tide.snap, value: insights.daily.isLoading)
     }
 
     // MARK: - Meal Suggestion
 
     private var mealSuggestionSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.tempoAmber)
-
-                Text("MEAL SUGGESTION")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            cardTitle("Meal suggestion", icon: "sparkles", tint: mood.accent)
 
             if viewModel.isLoadingMealSuggestions {
-                HStack(spacing: TempoSpacing.sm) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Finding meals for your remaining macros…")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
+                insightLoadingRow("Finding meals for your remaining macros…")
             } else if !viewModel.mealSuggestions.isEmpty {
-                ForEach(viewModel.mealSuggestions) { suggestion in
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                        HStack {
-                            Text(suggestion.name)
-                                .font(.tempoCallout)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Text(suggestion.prepTime)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-
-                        Text(suggestion.description)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack(spacing: TempoSpacing.md) {
-                            macroLabel("\(suggestion.calories)", "kcal", Color.tempoViolet)
-                            macroLabel("\(suggestion.protein)g", "P", Color.tempoMacroProtein)
-                            macroLabel("\(suggestion.carbs)g", "C", Color.tempoAmber)
-                            macroLabel("\(suggestion.fat)g", "F", Color.tempoElectric)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(viewModel.mealSuggestions) { suggestion in
+                        suggestionRow(suggestion)
+                        if suggestion.id != viewModel.mealSuggestions.last?.id {
+                            Divider().overlay(Tide.hairline)
                         }
                     }
-                    .padding(.vertical, TempoSpacing.xs)
                 }
             } else if let error = viewModel.mealSuggestionError {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .accessibilityHidden(true)
                     Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 Text("Tap below to get a personalized meal suggestion based on your remaining macros and preferences.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Button {
                 viewModel.getMealSuggestions(apiClient: services.apiClient)
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: Tide.s2) {
                     if viewModel.isLoadingMealSuggestions {
                         ProgressView()
-                            .tint(Color.tempoTextInverse)
+                            .tint(Tide.ink)
                             .scaleEffect(0.8)
                     } else {
                         Image(systemName: "wand.and.stars")
-                            .font(.system(size: 14))
                     }
                     Text(viewModel.mealSuggestions.isEmpty ? "Get Meal Suggestion" : "New Suggestion")
-                        .font(.system(size: 14, weight: .semibold))
+                        .multilineTextAlignment(.center)
                 }
-                .foregroundStyle(Color.tempoTextInverse)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(
-                    viewModel.isLoadingMealSuggestions
-                        ? Color.tempoAmber.opacity(0.6)
-                        : Color.tempoAmber
-                )
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
+            .buttonStyle(.tidePrimary)
             .disabled(viewModel.isLoadingMealSuggestions)
         }
-        .tempoCard()
+        .tideCard()
+        .animation(Tide.snap, value: viewModel.isLoadingMealSuggestions)
+        .sensoryFeedback(.success, trigger: viewModel.mealSuggestions.count) { old, new in new > old }
     }
 
-    private func macroLabel(_ value: String, _ label: String, _ color: Color) -> some View {
-        VStack(spacing: 1) {
-            Text(value)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
-            Text(label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(Color.tempoTextTertiary)
+    private func suggestionRow(_ suggestion: MealSuggestion) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text(suggestion.name)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Tide.s2)
+                Text(suggestion.prepTime)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+
+            Text(suggestion.description)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                TideNumber("\(suggestion.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                FuelMacroInline(protein: suggestion.protein, carbs: suggestion.carbs, fat: suggestion.fat)
+            }
         }
     }
 
     // MARK: - Recovery Guidance
 
     private var recoveryGuidanceCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "heart.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(recoveryColor)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(spacing: Tide.s2) {
+                cardTitle("Recovery-aware guidance", icon: "heart.circle.fill", tint: recoveryColor)
 
-                Text("RECOVERY-AWARE GUIDANCE")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                Spacer(minLength: Tide.s2)
 
-                Spacer()
+                if let score = viewModel.recoveryScore {
+                    FuelPill(text: "\(Int(score))%", color: recoveryColor)
+                }
 
                 if insights.recovery.value != nil {
                     refreshButton(isLoading: insights.recovery.isLoading, action: refreshRecoveryGuidance)
-                }
-
-                if let score = viewModel.recoveryScore {
-                    Text("\(Int(score))%")
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                        .foregroundStyle(recoveryColor)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(recoveryColor.opacity(0.12))
-                        .clipShape(Capsule())
+                        .padding(.vertical, -Tide.s3)
+                        .padding(.trailing, -Tide.s3)
                 }
             }
 
             // Whoop recovery stats row
             if let recovery = viewModel.todayRecovery {
-                HStack(spacing: TempoSpacing.lg) {
-                    coachStat(
-                        label: "Recovery",
-                        value: "\(Int(recovery.score))%",
-                        unit: viewModel.recoveryZone?.uppercased() ?? "",
-                        color: recoveryColor
-                    )
-                    coachStat(
-                        label: "HRV",
-                        value: String(format: "%.0f", recovery.hrvRmssd),
-                        unit: "ms",
-                        color: Color.tempoElectric
-                    )
-                    coachStat(
-                        label: "RHR",
-                        value: String(format: "%.0f", recovery.restingHeartRate),
-                        unit: "bpm",
-                        color: Color.tempoTextSecondary
-                    )
-                    if let sleep = viewModel.todaySleep {
-                        coachStat(
-                            label: "Sleep",
-                            value: String(format: "%.1f", sleep.totalHours),
-                            unit: "hrs",
-                            color: Color.tempoViolet
-                        )
-                    }
-                }
+                statRow(recoveryStats(recovery))
             }
 
             if insights.recovery.isLoading {
                 insightLoadingRow("Building recovery guidance…")
             } else {
                 Text(insights.recovery.value?.message ?? recoveryNutritionMessage)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
 
                 // Recovery nutrition tips
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     ForEach(displayedRecoveryTips, id: \.text) { tip in
                         recoveryTip(icon: tip.icon, text: tip.text)
                     }
@@ -446,19 +413,38 @@ struct NutritionCoachView: View {
                 insightErrorRow(error, retry: refreshRecoveryGuidance)
             }
         }
-        .tempoCard()
+        .tideCard()
+        .animation(Tide.snap, value: insights.recovery.isLoading)
+    }
+
+    private func recoveryStats(_ recovery: WhoopRecoveryData) -> [Stat] {
+        var stats = [
+            Stat(
+                label: "Recovery",
+                value: "\(Int(recovery.score))%",
+                unit: viewModel.recoveryZone?.uppercased() ?? "",
+                color: recoveryColor
+            ),
+            Stat(label: "HRV", value: String(format: "%.0f", recovery.hrvRmssd), unit: "ms", color: Tide.text),
+            Stat(label: "RHR", value: String(format: "%.0f", recovery.restingHeartRate), unit: "bpm", color: Tide.text),
+        ]
+        if let sleep = viewModel.todaySleep {
+            stats.append(Stat(label: "Sleep", value: String(format: "%.1f", sleep.totalHours), unit: "hrs", color: Tide.text))
+        }
+        return stats
     }
 
     private func recoveryTip(icon: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
             Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(Color.tempoViolet)
-                .frame(width: 16)
+                .font(Tide.caption)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.s5, alignment: .leading)
+                .accessibilityHidden(true)
 
             Text(text)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -466,26 +452,19 @@ struct NutritionCoachView: View {
     // MARK: - Recent Meal Feedback
 
     private var recentMealFeedback: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.tempoElectric)
-
-                Text("MEAL FEEDBACK")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            cardTitle("Meal feedback", icon: "chart.bar.fill", tint: mood.accent)
 
             if eatenMeals.isEmpty {
                 Text("No meals logged today. Get moving, soldier.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .italic()
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                ForEach(eatenMeals, id: \.id) { meal in
-                    mealFeedbackRow(meal)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(eatenMeals, id: \.id) { meal in
+                        mealFeedbackRow(meal)
+                    }
                 }
 
                 if let error = eatenMeals.lazy.compactMap({ insights.feedbackState(for: $0.id).errorMessage }).first {
@@ -493,38 +472,39 @@ struct NutritionCoachView: View {
                 }
             }
         }
-        .tempoCard()
+        .tideCard()
     }
 
     private func mealFeedbackRow(_ meal: PlannedMeal) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(alignment: .top, spacing: Tide.s3) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.good)
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(meal.mealName)
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 let feedback = insights.feedbackState(for: meal.id)
                 if feedback.isLoading {
                     insightLoadingRow("Reviewing…")
                 } else {
                     Text(feedback.value ?? mealFeedback(for: meal))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            Text("\(Int(meal.totalCalories)) kcal")
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color.tempoTextTertiary)
+            TideNumber("\(Int(meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
         }
-        .padding(.vertical, TempoSpacing.xxs)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Computed
@@ -580,13 +560,13 @@ struct NutritionCoachView: View {
 
     private var recoveryColor: Color {
         guard let zone = viewModel.recoveryZone else {
-            return .tempoTextTertiary
+            return Tide.text3
         }
         switch zone {
-        case "green": return .tempoSuccess
-        case "yellow": return .tempoWarning
-        case "red": return .tempoError
-        default: return .tempoTextTertiary
+        case "green": return Tide.good
+        case "yellow": return Tide.warn
+        case "red": return Tide.danger
+        default: return Tide.text3
         }
     }
 
