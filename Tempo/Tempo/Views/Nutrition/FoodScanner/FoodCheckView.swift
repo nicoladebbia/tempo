@@ -82,11 +82,8 @@ struct FoodCheckView: View {
                             KitchenEmpty(
                                 systemImage: "clock.arrow.circlepath",
                                 title: "Nothing checked yet",
-                                message: "Products you scan or open show up here.",
-                                actionTitle: "Scan a product"
-                            ) {
-                                showScanner = true
-                            }
+                                message: "Products you scan or open show up here."
+                            )
                         } else {
                             KitchenEmpty(
                                 systemImage: "star",

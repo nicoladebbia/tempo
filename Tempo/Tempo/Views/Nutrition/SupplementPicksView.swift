@@ -89,7 +89,7 @@ struct SupplementPicksView: View {
 
     private func errorState(_ message: String) -> some View {
         KitchenFailure(
-            title: "Couldn't load picks",
+            title: "Picks unavailable",
             message: message,
             retryTitle: "Try Again",
             retry: { Task { await loadPicks() } }
