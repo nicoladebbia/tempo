@@ -105,6 +105,14 @@ struct TodayView: View {
         return nil
     }
 
+    /// Something of Today's own is presented over the page, or a detail
+    /// page is pushed on top of it.
+    private var isCovered: Bool {
+        showMealLogging || showWhoopConnect || showSettings || showInsightDetail || showNonNegotiableSetup
+            || showScoreBreakdown || showMilestoneCelebration || showProgressReport || focusModel != nil
+            || openMeal != nil || !services.appState.todayPath.isEmpty
+    }
+
     var body: some View {
         @Bindable
         var appState = services.appState
@@ -126,6 +134,7 @@ struct TodayView: View {
                         .accessibilityIdentifier("today.loading")
                 }
             }
+            .tideCovered(isCovered)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showSettings) {
                 NavigationStack {

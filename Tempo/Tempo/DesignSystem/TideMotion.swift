@@ -27,9 +27,36 @@ final class TidePower {
     }
 }
 
+extension EnvironmentValues {
+    /// True while a sheet or cover sits over this view. SwiftUI still counts
+    /// a covered view as visible, so whoever presents says so here (see
+    /// `tideCovered(_:)`) and the shaders underneath stop.
+    @Entry var tideCovered = false
+}
+
+private struct TideCoveredModifier: ViewModifier {
+    let covered: Bool
+    @Environment(\.tideCovered)
+    private var inherited
+
+    func body(content: Content) -> some View {
+        content.environment(\.tideCovered, covered || inherited)
+    }
+}
+
+extension View {
+    /// Stops Tide shaders in this view while `covered` is true. Apply it
+    /// below the `.sheet`/`.fullScreenCover` it describes, so the presented
+    /// content keeps its own clock.
+    func tideCovered(_ covered: Bool) -> some View {
+        modifier(TideCoveredModifier(covered: covered))
+    }
+}
+
 /// Runs `content` with a clock for shaders. The clock stops (and the shader
 /// renders one still frame) under Reduce Motion, in Low Power Mode, when the
-/// app is not active, and while the view is off screen.
+/// app is not active, while the view is off screen (another tab, scrolled
+/// away) and while a sheet or cover is over it.
 struct TideClock<Content: View>: View {
     var fps: Double = 30
     @ViewBuilder var content: (_ time: Double) -> Content
@@ -38,6 +65,8 @@ struct TideClock<Content: View>: View {
     private var reduceMotion
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.tideCovered)
+    private var covered
     @State
     private var isVisible = false
     @State
@@ -47,7 +76,7 @@ struct TideClock<Content: View>: View {
     static var stillTime: Double { 40 }
 
     private var paused: Bool {
-        reduceMotion || TidePower.shared.isLowPower || scenePhase != .active || !isVisible
+        reduceMotion || TidePower.shared.isLowPower || scenePhase != .active || !isVisible || covered
     }
 
     var body: some View {

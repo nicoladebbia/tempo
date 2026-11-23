@@ -191,6 +191,7 @@ private struct CaptureHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .tideCovered(isPresented || showMeal || showScan || showFocus)
             .sheet(isPresented: $isPresented, onDismiss: runPending) {
                 CaptureSheet { action in
                     pending = action

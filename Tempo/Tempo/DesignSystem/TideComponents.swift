@@ -137,6 +137,8 @@ struct TideDial: View {
             VStack(spacing: Tide.s1) {
                 TideNumber(score.map(String.init) ?? "--", size: diameter * 0.36, relativeTo: .largeTitle)
                 Text(caption).tideLabel()
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
             }
             .padding(.horizontal, diameter * 0.2)
         }

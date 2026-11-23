@@ -21,6 +21,7 @@ struct WorkoutSessionHost: ViewModifier {
         var session = services.workoutSession
         let viewModel = session.viewModel
         return content
+            .tideCovered(session.showActiveWorkout || session.showSummary)
             .sensoryFeedback(.success, trigger: session.starts)
             .fullScreenCover(isPresented: $session.showActiveWorkout) {
                 NavigationStack {

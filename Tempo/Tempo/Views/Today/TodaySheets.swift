@@ -147,7 +147,7 @@ struct ScoreBreakdownSheet: View {
         let breakdown = vm.scoreBreakdown
         TodaySheetChrome(title: "Score breakdown") {
             if let score = vm.dailyScore {
-                TideDial(score: score, diameter: Tide.dialSheet)
+                TideDial(score: score, caption: "of 100", diameter: Tide.dialSheet)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Tide.s2)
             }

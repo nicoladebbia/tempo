@@ -62,6 +62,8 @@ enum Tide {
 
     /// The hero dial on Today.
     static let dialHero: CGFloat = 164
+    /// How far a one-line label may shrink before it would wrap.
+    static let labelShrink: CGFloat = 0.7
     /// The dial inside a sheet.
     static let dialSheet: CGFloat = 120
     /// Numeral sizes at the default text size: hero figure, tile figure, inline figure.
