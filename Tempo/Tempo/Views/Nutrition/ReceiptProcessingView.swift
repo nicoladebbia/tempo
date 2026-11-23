@@ -15,10 +15,6 @@ struct ReceiptProcessingView: View {
 
     @State
     private var startedAt = Date()
-    @State
-    private var scanLineUp = false
-    @Environment(\.accessibilityReduceMotion)
-    private var reduceMotion
     @Environment(\.tideMood)
     private var mood
 
@@ -39,12 +35,6 @@ struct ReceiptProcessingView: View {
         .scrollIndicators(.hidden)
         .onAppear {
             startedAt = Date()
-            guard !reduceMotion else {
-                return
-            }
-            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
-                scanLineUp = true
-            }
         }
         .accessibilityElement(children: .contain)
     }
@@ -58,24 +48,15 @@ struct ReceiptProcessingView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: Tide.Kitchen.receiptThumbWidth, height: Tide.Kitchen.receiptThumbHeight)
+                    .clipShape(shape)
             } else {
-                Tide.fill
+                shape.fill(Tide.fill)
+                    .frame(width: Tide.Kitchen.receiptThumbWidth, height: Tide.Kitchen.receiptThumbHeight)
             }
-            GeometryReader { proxy in
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [mood.accent.opacity(0), mood.accent.opacity(0.55), mood.accent.opacity(0)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(height: 36)
-                    .offset(y: scanLineUp ? proxy.size.height - 36 : 0)
-            }
+            // The same lit corners and sweeping band as the camera: the page is being read.
+            KitchenFrame(width: Tide.Kitchen.receiptThumbWidth, height: Tide.Kitchen.receiptThumbHeight, looking: true)
         }
-        .frame(width: 150, height: 190)
-        .clipShape(shape)
         .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
         .overlay(alignment: .topTrailing) {
             if images.count > 1 {
@@ -88,6 +69,7 @@ struct ReceiptProcessingView: View {
                     .padding(Tide.s2)
             }
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Photo of your receipt")
     }
 
@@ -113,12 +95,13 @@ struct ReceiptProcessingView: View {
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .contentTransition(.numericText())
                     .transition(.opacity)
             } else {
                 RoundedRectangle(cornerRadius: Tide.controlRadius)
                     .fill(Tide.fill)
-                    .frame(width: 54, height: 16)
+                    .frame(width: Tide.s10 + Tide.s3, height: Tide.s4)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,8 +111,13 @@ struct ReceiptProcessingView: View {
     // MARK: - Stages
 
     private var stagesCard: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            ForEach(ReceiptScanProgress.Stage.allCases, id: \.self) { stage in
+        let stages = ReceiptScanProgress.Stage.allCases
+        let finished = stages.filter { progress.state(of: $0) == .done }.count
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideLevelBar(progress: Double(finished) / Double(max(stages.count, 1)), color: mood.accent, height: Tide.bar)
+                .animation(Tide.settle, value: finished)
+                .accessibilityHidden(true)
+            ForEach(stages, id: \.self) { stage in
                 stageRow(stage)
             }
             TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -157,7 +145,7 @@ struct ReceiptProcessingView: View {
                         .foregroundStyle(Tide.text3)
                 }
             }
-            .frame(width: 24, height: 24)
+            .frame(width: Tide.icon, height: Tide.icon)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(stage.title)
                     .font(state == .active ? Tide.bodyStrong : Tide.body)

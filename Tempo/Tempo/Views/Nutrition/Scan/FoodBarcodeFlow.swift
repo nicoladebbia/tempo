@@ -169,57 +169,77 @@ struct FoodBarcodeFlow: View {
 
     // MARK: - Loading
 
+    /// The product page's own shape, shimmering: the picture, then the score.
     private var loadingContent: some View {
         VStack(spacing: Tide.s4) {
-            ProgressView()
-                .controlSize(.large)
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .fill(Tide.fill)
+                .frame(height: Tide.Kitchen.heroPicture)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                RoundedRectangle(cornerRadius: Tide.controlRadius)
+                    .fill(Tide.fill)
+                    .frame(width: Tide.Kitchen.heroPicture, height: Tide.s5)
+                RoundedRectangle(cornerRadius: Tide.controlRadius)
+                    .fill(Tide.fill)
+                    .frame(width: Tide.Kitchen.suggestion, height: Tide.s4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .fill(Tide.fill)
+                .frame(height: Tide.Kitchen.verdictDial + Tide.s10)
             Text("Looking up product…")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+            Spacer(minLength: 0)
         }
+        .shimmer()
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Looking up product")
     }
 
     // MARK: - Not found
 
     private func notFoundContent(_ barcode: String) -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Tide.s4) {
             Spacer()
+            VStack(spacing: Tide.s4) {
+                KitchenHeroDisc(systemImage: "barcode.viewfinder")
+                VStack(spacing: Tide.s2) {
+                    Text("Not in the database yet")
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                VStack(spacing: Tide.s3) {
+                    Button("Add this product") {
+                        showAddProduct = true
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .accessibilityIdentifier("addMissingProduct")
 
-            Image(systemName: "barcode.viewfinder")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
+                    Button("Search by name") {
+                        showSearch = true
+                    }
+                    .buttonStyle(.tideGlass)
 
-            Text("Not in the database yet")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-                .padding(.top, Tide.s4)
-
-            Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
+                    Button("Scan again") {
+                        scanState = .scanning
+                    }
+                    .buttonStyle(.tideGlass)
+                }
                 .padding(.top, Tide.s2)
-
-            VStack(spacing: Tide.s3) {
-                Button("Add this product") {
-                    showAddProduct = true
-                }
-                .buttonStyle(.tidePrimary)
-                .accessibilityIdentifier("addMissingProduct")
-
-                Button("Search by name") {
-                    showSearch = true
-                }
-                .buttonStyle(.tideGlass)
-
-                Button("Scan again") {
-                    scanState = .scanning
-                }
-                .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, Tide.s10)
-            .padding(.top, Tide.s6)
-
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
+            .frame(maxWidth: Tide.stateWidth)
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -229,26 +249,15 @@ struct FoodBarcodeFlow: View {
     // MARK: - Failed
 
     private func failedContent(barcode: String, message: String) -> some View {
-        VStack(spacing: Tide.s4) {
+        VStack {
             Spacer()
-            Image(systemName: "wifi.exclamationmark")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-                .multilineTextAlignment(.center)
-            VStack(spacing: Tide.s3) {
-                Button("Try again") {
-                    lookUp(barcode)
-                }
-                .buttonStyle(.tidePrimary)
-                Button("Scan again") {
-                    scanState = .scanning
-                }
-                .buttonStyle(.tideGlass)
-            }
-            .padding(.horizontal, Tide.s10)
+            KitchenFailure(
+                title: "Couldn't look it up",
+                message: message,
+                retry: { lookUp(barcode) },
+                secondaryTitle: "Scan again",
+                secondary: { scanState = .scanning }
+            )
             Spacer()
         }
         .padding(.horizontal, Tide.edge)

@@ -32,6 +32,7 @@ struct PantryBarcodeFlow: View {
     }
 
     @State private var scanState: ScanState = .scanning
+    @Environment(\.tideMood) private var mood
 
     var body: some View {
         ZStack {
@@ -73,34 +74,45 @@ struct PantryBarcodeFlow: View {
 
     private func loadingContent(_ code: String) -> some View {
         VStack(spacing: Tide.s4) {
-            ProgressView().controlSize(.large)
+            KitchenHeroDisc(systemImage: "barcode.viewfinder")
+            ProgressView().controlSize(.large).tint(mood.accent)
             Text("Looking up \(code)…")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+                .monospacedDigit()
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func messageContent(icon: String, title: String, message: String) -> some View {
-        VStack(spacing: Tide.s4) {
+        VStack {
             Spacer()
-            Image(systemName: icon)
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-            Text(title)
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Tide.s10)
-            Button("Scan again") {
-                scanState = .scanning
+            VStack(spacing: Tide.s4) {
+                KitchenHeroDisc(systemImage: icon, tint: Tide.Kitchen.warn)
+                VStack(spacing: Tide.s2) {
+                    Text(title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button("Scan again") {
+                    scanState = .scanning
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.top, Tide.s2)
             }
-            .buttonStyle(.tidePrimary)
-            .padding(.horizontal, Tide.s10)
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
+            .frame(maxWidth: Tide.stateWidth)
             Spacer()
         }
+        .padding(.horizontal, Tide.edge)
     }
 
     private func lookUp(_ barcode: String) {

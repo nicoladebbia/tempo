@@ -226,11 +226,14 @@ struct SupplementBarcodeFlow: View {
 
     private func loadingContent(_ text: String) -> some View {
         VStack(spacing: Tide.s4) {
-            ProgressView().controlSize(.large)
+            KitchenHeroDisc(systemImage: "barcode.viewfinder")
+            ProgressView().controlSize(.large).tint(mood.accent)
             Text(text)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Confirm card
@@ -239,11 +242,8 @@ struct SupplementBarcodeFlow: View {
         VStack(spacing: Tide.s6) {
             Spacer()
             VStack(spacing: Tide.s2) {
-                Image(systemName: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
-                    .font(Tide.largeTitle)
-                    .foregroundStyle(mood.accent)
-                    .padding(.bottom, Tide.s1)
-                    .accessibilityHidden(true)
+                KitchenHeroDisc(systemImage: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
+                    .padding(.bottom, Tide.s2)
                 if let brand = dto.brand, !brand.isEmpty {
                     Text(brand)
                         .tideLabel(Tide.text3)
@@ -277,7 +277,7 @@ struct SupplementBarcodeFlow: View {
                     .padding(.top, Tide.s1)
             }
             .frame(maxWidth: .infinity)
-            .tideCard(padding: Tide.s4)
+            .tideCard(padding: Tide.s5)
             .padding(.horizontal, Tide.edge)
 
             VStack(spacing: Tide.s3) {
@@ -286,7 +286,7 @@ struct SupplementBarcodeFlow: View {
                 Button("Scan again") { resetScanner() }
                     .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, Tide.s10)
+            .padding(.horizontal, Tide.edge)
             Spacer()
         }
     }
@@ -324,10 +324,7 @@ struct SupplementBarcodeFlow: View {
     private func duplicateContent(dto: SupplementLookupDTO, existing: Supplement) -> some View {
         VStack(spacing: Tide.s4) {
             Spacer()
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+            KitchenHeroDisc(systemImage: "arrow.triangle.2.circlepath")
             Text("Already on your shelf")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
@@ -335,7 +332,7 @@ struct SupplementBarcodeFlow: View {
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, Tide.s10)
+                .padding(.horizontal, Tide.edge)
             VStack(spacing: Tide.s3) {
                 Button("Restocked") { restock(dto: dto, existing: existing) }
                     .buttonStyle(.tidePrimary)
@@ -344,7 +341,7 @@ struct SupplementBarcodeFlow: View {
                 Button("Scan again") { resetScanner() }
                     .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, Tide.s10)
+            .padding(.horizontal, Tide.edge)
             Spacer()
         }
     }
@@ -361,11 +358,8 @@ struct SupplementBarcodeFlow: View {
     ) -> some View {
         ScrollView {
             VStack(spacing: Tide.s4) {
-                Image(systemName: icon)
-                    .font(Tide.largeTitle)
-                    .foregroundStyle(Tide.text3)
+                KitchenHeroDisc(systemImage: icon, tint: Tide.Kitchen.warn)
                     .padding(.top, Tide.s8)
-                    .accessibilityHidden(true)
                 Text(title)
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
@@ -414,7 +408,7 @@ struct SupplementBarcodeFlow: View {
                     }
                     .buttonStyle(.tideGlass)
                 }
-                .padding(.horizontal, Tide.s10)
+                .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s8)
             }
         }

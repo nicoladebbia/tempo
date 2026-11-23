@@ -75,7 +75,9 @@ struct SupplementsView: View {
         let sections = shelfSections(logs: logs)
         return ScrollView(.vertical) {
             VStack(spacing: Tide.s5) {
-                shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                if !supplements.isEmpty {
+                    shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                }
                 if let catalogNote {
                     KitchenNotice(systemImage: "checkmark.circle.fill", text: catalogNote, tint: Tide.Kitchen.good)
                         .accessibilityIdentifier("supplementCatalogNote")
@@ -235,7 +237,7 @@ struct SupplementsView: View {
                     KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
                 }
             }
-            if total > 0 {
+            if lowCount > 0 {
                 KitchenShelfBar(parts: [
                     .init(id: "stocked", value: Double(max(total - lowCount, 0)), color: mood.accent),
                     .init(id: "low", value: Double(lowCount), color: Tide.Kitchen.warn),

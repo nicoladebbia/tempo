@@ -475,7 +475,7 @@ extension Tide.Kitchen {
     /// The big glass disc with a symbol on an intro or permission screen.
     static let heroDisc: CGFloat = 96
     /// The product picture at the top of a product page.
-    static let heroPicture: CGFloat = 240
+    static let heroPicture: CGFloat = 208
     /// The verdict ring next to the product picture.
     static let verdictDial: CGFloat = 112
     /// Arm length and stroke of the corner brackets on a camera frame.
