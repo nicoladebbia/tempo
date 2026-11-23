@@ -115,7 +115,7 @@ struct StaplesSheet: View {
         .kitchenSheet()
     }
 
-    static let peekHeight: CGFloat = 140
+    static let peekHeight: CGFloat = 152
 
     // MARK: Header
 
@@ -129,6 +129,7 @@ struct StaplesSheet: View {
                     Text(unanswered == 0 ? "All answered." : "\(unanswered) left. Do you have it?")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
+                        .contentTransition(.numericText())
                 }
                 Spacer()
                 Button("Done") {
@@ -137,6 +138,14 @@ struct StaplesSheet: View {
                 }
                 .buttonStyle(.tidePrimary)
                 .fixedSize()
+            }
+            if !suggestions.isEmpty {
+                TideLevelBar(
+                    progress: Double(max(0, suggestions.count - unanswered)) / Double(suggestions.count),
+                    color: unanswered == 0 ? Tide.Kitchen.good : mood.accent
+                )
+                .animation(Tide.snap, value: unanswered)
+                .accessibilityHidden(true)
             }
             HStack {
                 Button("Skip for now") {

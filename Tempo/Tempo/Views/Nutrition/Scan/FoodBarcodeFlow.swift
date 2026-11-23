@@ -172,27 +172,29 @@ struct FoodBarcodeFlow: View {
     /// The product page's own shape, shimmering: the picture, then the score.
     private var loadingContent: some View {
         VStack(spacing: Tide.s4) {
-            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                .fill(Tide.fill)
-                .frame(height: Tide.Kitchen.heroPicture)
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                RoundedRectangle(cornerRadius: Tide.controlRadius)
+            VStack(spacing: Tide.s4) {
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
                     .fill(Tide.fill)
-                    .frame(width: Tide.Kitchen.heroPicture, height: Tide.s5)
-                RoundedRectangle(cornerRadius: Tide.controlRadius)
+                    .frame(height: Tide.Kitchen.heroPicture)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.fill)
+                        .frame(width: Tide.Kitchen.heroPicture, height: Tide.s5)
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.fill)
+                        .frame(width: Tide.Kitchen.suggestion, height: Tide.s4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
                     .fill(Tide.fill)
-                    .frame(width: Tide.Kitchen.suggestion, height: Tide.s4)
+                    .frame(height: Tide.Kitchen.verdictDial + Tide.s10)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                .fill(Tide.fill)
-                .frame(height: Tide.Kitchen.verdictDial + Tide.s10)
+            .shimmer()
             Text("Looking up product…")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
             Spacer(minLength: 0)
         }
-        .shimmer()
         .padding(.horizontal, Tide.edge)
         .padding(.top, Tide.s10)
         .accessibilityElement(children: .ignore)

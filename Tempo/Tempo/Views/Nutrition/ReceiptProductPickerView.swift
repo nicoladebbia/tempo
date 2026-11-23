@@ -98,20 +98,36 @@ struct ReceiptProductPickerView: View {
             VStack(spacing: 0) {
                 searchField
                 if isSearching {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Rows the size of the results that are coming.
+                    VStack(spacing: Tide.s2) {
+                        ForEach(0 ..< 5, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                                .fill(Tide.fill)
+                                .frame(height: Tide.Kitchen.row + Tide.s4)
+                        }
+                    }
+                    .shimmer()
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Searching")
                 } else if let searchError {
-                    Text(searchError)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    KitchenFailure(
+                        title: "Search didn't work",
+                        message: searchError,
+                        retryTitle: "Try again",
+                        retry: { Task { await search() } }
+                    )
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if results.isEmpty {
-                    Text("No matching products found. You can keep the name as typed below.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .multilineTextAlignment(.center)
-                        .padding(Tide.s4)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    KitchenEmpty(
+                        systemImage: "magnifyingglass",
+                        title: "No match",
+                        message: "No matching products found. You can keep the name as typed below."
+                    )
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
                         LazyVStack(spacing: Tide.s2) {
@@ -227,7 +243,7 @@ struct ReceiptProductPickerView: View {
                 Tide.fill
             }
         }
-        .frame(width: 52, height: 52)
+        .frame(width: Tide.Kitchen.thumb, height: Tide.Kitchen.thumb)
         .clipShape(shape)
         .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
     }

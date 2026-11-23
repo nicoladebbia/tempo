@@ -36,6 +36,12 @@ struct ScannedProductLabelView: View {
     private var fitContext = FoodFitContext.none
     @State
     private var toast: ToastData?
+    @ScaledMetric
+    private var thumb: CGFloat = Tide.Kitchen.heroDisc
+    @ScaledMetric
+    private var glyph: CGFloat = Tide.s5 + Tide.hair
+    @ScaledMetric
+    private var levelWidth: CGFloat = Tide.Kitchen.heroDisc - Tide.s8
 
     private var hasLabel: Bool {
         product.per100g.hasCoreMacros
@@ -117,7 +123,7 @@ struct ScannedProductLabelView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: Tide.s3) {
             FoodRemoteImage(url: product.imageURL ?? product.imageSmallURL, product: product, contentMode: .fit)
-                .frame(width: 96, height: 96)
+                .frame(width: thumb, height: thumb)
                 .background(Tide.fill)
                 .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
                 .accessibilityHidden(true)
@@ -238,7 +244,7 @@ struct ScannedProductLabelView: View {
                 }
             }
         }
-        .frame(height: 10)
+        .frame(height: Tide.Kitchen.ringStroke)
         .clipShape(Capsule())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(split.slices.map { "\($0.label) \(Int(($0.percent * 100).rounded())) percent of calories" }.joined(separator: ", "))
@@ -251,17 +257,18 @@ struct ScannedProductLabelView: View {
                 .foregroundStyle(color)
                 .accessibilityHidden(true)
             Text(FoodProductView.amount(value, unit: "g"))
-                .font(Tide.bodyStrong)
+                .font(Tide.numeral(Tide.numeralS))
                 .monospacedDigit()
+                .contentTransition(.numericText())
                 .foregroundStyle(Tide.text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(0.7)
             Text(name)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s2)
+        .padding(.vertical, Tide.s3)
         .background(color.opacity(0.15))
         .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)
@@ -306,25 +313,36 @@ struct ScannedProductLabelView: View {
             Image(systemName: icon)
                 .font(Tide.body)
                 .foregroundStyle(color)
-                .frame(width: 22)
+                .frame(width: glyph)
                 .accessibilityHidden(true)
             Text(name)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
             Spacer(minLength: Tide.s2)
             Text(FoodProductView.amount(value, unit: "g"))
-                .font(Tide.bodyStrong)
+                .font(Tide.numeral(Tide.numeralS))
                 .monospacedDigit()
                 .foregroundStyle(Tide.text)
-            Text(level?.label ?? "n/a")
-                .font(Tide.label)
-                .foregroundStyle(color)
-                .frame(width: 64)
-                .padding(.vertical, Tide.s1)
-                .background(color.opacity(0.15), in: .capsule)
+            VStack(alignment: .trailing, spacing: Tide.hair) {
+                KitchenLevelMeter(filled: Self.pips(for: level), tint: color)
+                Text(level?.label ?? "n/a")
+                    .font(Tide.label)
+                    .foregroundStyle(color)
+            }
+            .frame(width: levelWidth, alignment: .trailing)
         }
+        .frame(minHeight: Tide.Kitchen.tile)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? "unknown") level")
+    }
+
+    private static func pips(for level: LabelFacts.Level?) -> Int {
+        switch level {
+        case .low: 1
+        case .medium: 2
+        case .high: 3
+        case nil: 0
+        }
     }
 
     private static func color(for level: LabelFacts.Level?) -> Color {
@@ -351,7 +369,7 @@ struct ScannedProductLabelView: View {
                     HStack(spacing: Tide.s2) {
                         Image(systemName: "dumbbell.fill")
                             .foregroundStyle(Tide.protein)
-                            .frame(width: 22)
+                            .frame(width: glyph)
                             .accessibilityHidden(true)
                         Text("\(FoodProductView.format((density * 10).rounded() / 10)) g protein per 100 kcal")
                             .font(Tide.body)
@@ -362,7 +380,7 @@ struct ScannedProductLabelView: View {
                     HStack(alignment: .top, spacing: Tide.s2) {
                         Image(systemName: check.kind.icon)
                             .foregroundStyle(check.kind.color)
-                            .frame(width: 22)
+                            .frame(width: glyph)
                             .accessibilityHidden(true)
                         Text(check.text)
                             .font(Tide.body)
@@ -454,38 +472,28 @@ struct ScannedProductLabelView: View {
     // MARK: - Missing + warnings + actions
 
     private var missingCard: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Label("No label data yet", systemImage: "doc.text.magnifyingglass")
-                .font(Tide.bodyStrong)
+        VStack(spacing: Tide.s3) {
+            KitchenHeroDisc(systemImage: "doc.text.magnifyingglass", tint: Tide.Kitchen.warn)
+            Text("No label data yet")
+                .font(Tide.title2)
                 .foregroundStyle(Tide.text)
+                .accessibilityAddTraits(.isHeader)
             Text("We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you.")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button("Photograph the label") { showEditor = true }
                 .buttonStyle(.tidePrimary)
                 .padding(.top, Tide.s1)
                 .accessibilityIdentifier("labelPhotograph")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
         .tideCard()
     }
 
     private func warning(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: Tide.s2) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Tide.Kitchen.warn)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .tideCard(padding: Tide.s4)
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                .strokeBorder(Tide.Kitchen.warn.opacity(0.4), lineWidth: 1)
-        )
+        KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: text, tint: Tide.Kitchen.warn)
     }
 
     private var secondaryActions: some View {

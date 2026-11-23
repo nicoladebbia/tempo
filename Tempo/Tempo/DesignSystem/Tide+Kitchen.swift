@@ -855,3 +855,30 @@ struct KitchenListeningRing: View {
         .accessibilityHidden(true)
     }
 }
+
+
+// MARK: - KitchenLevelMeter
+
+/// Three pips that fill up to a low / medium / high level, so a traffic light reads at a glance.
+/// `filled` is 0 to 3; the colour says whether that is good or bad.
+struct KitchenLevelMeter: View {
+    let filled: Int
+    let tint: Color
+
+    @ScaledMetric
+    private var pipWidth: CGFloat = Tide.s4
+    @ScaledMetric
+    private var pipHeight: CGFloat = Tide.s1
+
+    var body: some View {
+        HStack(spacing: Tide.hair) {
+            ForEach(0 ..< 3, id: \.self) { index in
+                Capsule()
+                    .fill(index < filled ? tint : Tide.track)
+                    .frame(width: pipWidth, height: pipHeight)
+            }
+        }
+        .animation(Tide.snap, value: filled)
+        .accessibilityHidden(true)
+    }
+}

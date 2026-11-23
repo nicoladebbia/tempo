@@ -110,17 +110,19 @@ struct CheaperSwapsSheet: View {
                     if viewModel.groceryStoreModeState.isFetchingSwaps {
                         // The shape of the answer, shimmering, with the line that says what is happening.
                         VStack(alignment: .leading, spacing: Tide.s3) {
-                            ForEach(0 ..< 3, id: \.self) { _ in
-                                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                                    .fill(Tide.fill)
-                                    .frame(height: Tide.Kitchen.row + Tide.s4)
+                            VStack(spacing: Tide.s3) {
+                                ForEach(0 ..< 3, id: \.self) { _ in
+                                    RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                                        .fill(Tide.fill)
+                                        .frame(height: Tide.Kitchen.row + Tide.s4)
+                                }
                             }
+                            .shimmer()
                             Text("Thinking of cheaper swaps…")
                                 .font(Tide.body)
                                 .foregroundStyle(Tide.text2)
                                 .frame(maxWidth: .infinity)
                         }
-                        .shimmer()
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Thinking of cheaper swaps")
                     } else if let error = viewModel.groceryStoreModeState.swapsError {
