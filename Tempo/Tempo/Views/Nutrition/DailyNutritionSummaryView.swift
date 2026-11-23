@@ -203,6 +203,7 @@ struct DailyNutritionSummaryView: View {
         ) {
             Button {
                 showMealLogging = true
+                HapticManager.lightImpact()
             } label: {
                 Label("Log a meal", systemImage: "plus")
             }
@@ -392,6 +393,7 @@ struct DailyNutritionSummaryView: View {
             // Log meal button
             Button {
                 showMealLogging = true
+                HapticManager.lightImpact()
             } label: {
                 Label("Log a meal", systemImage: "plus")
             }
@@ -619,7 +621,8 @@ extension NutritionMealEntry {
                 let status: NutritionMealStatus = switch meal.status {
                 case .eaten: .logged
                 case .skipped: .skipped
-                case .planned, .modified: .planned
+                case .planned,
+                     .modified: .planned
                 }
                 let time = if status == .logged, let eatenAt = meal.actualEatenAt {
                     TempoDateFormatters.timeOnly.string(from: eatenAt)

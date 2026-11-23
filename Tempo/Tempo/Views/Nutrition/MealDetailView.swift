@@ -624,27 +624,45 @@ struct MealDetailView: View {
             }
             .buttonStyle(.tidePrimary)
             GlassEffectContainer(spacing: Tide.s2) {
-                HStack(spacing: Tide.s2) {
-                    // "Ate something else" — surfaces the substitute lane directly
-                    // instead of burying it inside the Mark-Eaten sheet. Opens the
-                    // same sheet pre-expanded to the swap section.
-                    Button {
-                        resolveAsSubstitute()
-                    } label: {
-                        Label("Ate something else", systemImage: "arrow.triangle.swap")
-                            .frame(maxWidth: .infinity)
+                // Side by side while both labels fit on one line, stacked at
+                // large text sizes.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        substituteButton
+                        skipButton(fill: false)
                     }
-                    .buttonStyle(.tideGlass)
-                    Button {
-                        resolveAsSkipped()
-                    } label: {
-                        Label("Skip", systemImage: "xmark.circle.fill")
-                            .frame(maxWidth: .infinity)
+                    VStack(spacing: Tide.s2) {
+                        substituteButton
+                        skipButton(fill: true)
                     }
-                    .buttonStyle(.tideGlass)
                 }
             }
         }
+    }
+
+    /// "Ate something else" — surfaces the substitute lane directly
+    /// instead of burying it inside the Mark-Eaten sheet. Opens the
+    /// same sheet pre-expanded to the swap section.
+    private var substituteButton: some View {
+        Button {
+            resolveAsSubstitute()
+        } label: {
+            Label("Ate something else", systemImage: "arrow.triangle.swap")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+    }
+
+    private func skipButton(fill: Bool) -> some View {
+        Button {
+            resolveAsSkipped()
+        } label: {
+            Label("Skip", systemImage: "xmark.circle.fill")
+                .lineLimit(1)
+                .frame(maxWidth: fill ? .infinity : nil)
+        }
+        .buttonStyle(.tideGlass)
     }
 
     /// Triggers the MarkEatenSheet rather than committing immediately.
@@ -833,7 +851,7 @@ struct MealDetailView: View {
     private func timelineTrack(now: Date, display: MealScheduleDisplay, phase: SchedulePhase) -> some View {
         let progress = markerProgress(now: now, display: display, phase: phase)
         let trackColor = trackColorFor(phase: phase)
-        return VStack(spacing: 8) {
+        return VStack(spacing: Tide.s2) {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Tide.hairline)
@@ -922,7 +940,7 @@ struct MealDetailView: View {
 
     private func shiftChip(minutes: Int) -> some View {
         let sign = minutes > 0 ? "+" : "−"
-        return HStack(spacing: 4) {
+        return HStack(spacing: Tide.s1) {
             Image(systemName: "moon.zzz.fill")
                 .font(Tide.label)
             Text("\(sign)\(formatDuration(minutes: abs(minutes))) wake shift")
@@ -931,7 +949,7 @@ struct MealDetailView: View {
         }
         .foregroundStyle(Tide.water)
         .padding(.horizontal, Tide.s2)
-        .padding(.vertical, 4)
+        .padding(.vertical, Tide.s1)
         .background(Tide.water.opacity(0.12))
         .clipShape(Capsule())
         .accessibilityLabel("Schedule shifted by \(abs(minutes)) minutes due to wake time")
@@ -1050,7 +1068,7 @@ struct MealDetailView: View {
     }
 
     private func inlineMetric(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tide.s1) {
             Image(systemName: icon)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -1090,7 +1108,7 @@ struct MealDetailView: View {
                     .tracking(0.5)
                     .foregroundStyle(Tide.text2)
             }
-            .padding(.top, 4)
+            .padding(.top, Tide.s1)
 
             ForEach(group.items) { ingredient in
                 checklistRow(
@@ -1170,7 +1188,7 @@ struct MealDetailView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(step.instruction)
                         .font(Tide.body)
                         .foregroundStyle(checked ? Tide.text3 : Tide.text)
@@ -1192,7 +1210,7 @@ struct MealDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 4)
+        .padding(.vertical, Tide.s1)
     }
 
     // MARK: - Fallback
@@ -1358,7 +1376,7 @@ struct MealDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 4)
+        .padding(.vertical, Tide.s1)
     }
 
     // MARK: - Mutation helpers

@@ -95,8 +95,8 @@ struct NutritionTabView: View {
                     // scrolling beneath never read through the title.
                     LinearGradient(
                         stops: [
-                            .init(color: Tide.ink.opacity(0.92), location: 0),
-                            .init(color: Tide.ink.opacity(0.88), location: 0.8),
+                            .init(color: Tide.ink.opacity(0.97), location: 0),
+                            .init(color: Tide.ink.opacity(0.95), location: 0.85),
                             .init(color: Tide.ink.opacity(0), location: 1),
                         ],
                         startPoint: .top,

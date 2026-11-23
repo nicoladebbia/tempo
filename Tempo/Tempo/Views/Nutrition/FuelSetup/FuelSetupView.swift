@@ -230,7 +230,7 @@ struct FuelSetupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 promptList
-                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 180)
+                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 130)
                     .accessibilityIdentifier("fuelSetupSaid")
                 if let blocker {
                     AIBlockerCard(blocker: blocker) {

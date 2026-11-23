@@ -879,7 +879,7 @@ struct PhotoAlternativesSheet: View {
         .padding(.horizontal, Tide.s3)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isCurrent ? Tide.fill : Tide.fill)
+        .background(Tide.fill)
         .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
         .overlay {
             if isCurrent {
