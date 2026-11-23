@@ -139,7 +139,7 @@ struct TideHeatmap: View {
     }
 
     private var dayCount: Int {
-        (Calendar.current.dateComponents([.day], from: gridStart, to: endDate).day ?? 0) + 1
+        max(0, (Calendar.current.dateComponents([.day], from: gridStart, to: endDate).day ?? 0) + 1)
     }
 
     private var weekCount: Int {

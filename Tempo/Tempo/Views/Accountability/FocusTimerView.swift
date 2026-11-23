@@ -73,6 +73,7 @@ struct FocusTimerView: View {
             // Completion overlay
             if case let .completed(totalSessions) = viewModel.focusState {
                 completionOverlay(totalSessions: totalSessions)
+                    .accessibilityAddTraits(.isModal)
             }
         }
         .tidePage(energy: 1)

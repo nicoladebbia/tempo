@@ -364,7 +364,7 @@ struct WeeklyRecoverySummaryView: View {
                 GeometryReader { geo in
                     Capsule()
                         .fill(color)
-                        .frame(width: max(Tide.s2, geo.size.width * fraction))
+                        .frame(width: fraction > 0 ? max(Tide.s2, geo.size.width * fraction) : 0)
                 }
             }
     }
