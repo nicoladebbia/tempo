@@ -41,6 +41,22 @@ enum TideTrainSession {
     static let rule: CGFloat = 1
     /// One dot of a step trail, and the long one that is "now".
     static let dot: CGFloat = 8
+    /// The line that joins the cards of a superset.
+    static let rail: CGFloat = 2
+    /// How strong a tinted outline is drawn.
+    static let outlineOpacity = 0.4
+    /// The icon tile on a banner.
+    static let bannerTile: CGFloat = 40
+}
+
+extension View {
+    /// A thin tinted outline that marks a card as special (a record, a superset).
+    func trainSessionOutline(_ color: Color, radius: CGFloat = Tide.tileRadius) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(color.opacity(TideTrainSession.outlineOpacity), lineWidth: TideTrainSession.rule)
+        )
+    }
 }
 
 // MARK: - TrainSessionBar

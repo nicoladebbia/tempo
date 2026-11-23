@@ -535,11 +535,8 @@ struct TodayWorkoutView: View {
                 viewModel.trainAnyway(modelContext: modelContext)
             } label: {
                 Text("Train anyway")
-                    .font(Tide.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.tideGlass)
             .accessibilityHint("Reopens today's workout so you can start it.")
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -556,7 +553,7 @@ struct TodayWorkoutView: View {
         let hasRecovery = (viewModel.loadRecoveryScore(modelContext: modelContext) ?? 0) > 0
         let dot = Circle()
             .fill(hasRecovery ? recoveryDotColor(plan: plan) : Tide.text3)
-            .frame(width: 8, height: 8)
+            .frame(width: TideTrainSession.dot, height: TideTrainSession.dot)
         let recovery = Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
             .foregroundStyle(Tide.text)
         let adjustment = Text(adjustmentLabel(plan: plan))
@@ -701,7 +698,7 @@ struct TodayWorkoutView: View {
                plan.isTwoADay,
                let second = plan.secondarySessionType
             {
-                Divider().overlay(Tide.text3.opacity(0.3))
+                TrainSessionRule()
                 HStack(spacing: Tide.s2) {
                     Image(systemName: plan.secondaryCompleted ? "checkmark.circle.fill" : "circle")
                         .foregroundStyle(plan.secondaryCompleted ? Color.accentColor : Tide.text3)
@@ -731,7 +728,7 @@ struct TodayWorkoutView: View {
                let plannedRaw = plan.plannedTypeRaw,
                let plannedType = WorkoutType(rawValue: plannedRaw)
             {
-                Divider().overlay(Tide.text3.opacity(0.3))
+                TrainSessionRule()
                 HStack {
                     Text("Plan said \(plannedType.displayName).")
                         .font(Tide.caption)
@@ -770,7 +767,7 @@ struct TodayWorkoutView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
+        .padding(.vertical, Tide.s1)
     }
 
     private func intensityColor(_ intensity: SessionIntensity) -> Color {
@@ -820,22 +817,12 @@ struct TodayWorkoutView: View {
             } label: {
                 Text("Add to Calendar")
                     .font(Tide.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Tide.ink)
-                    .padding(.horizontal, Tide.s2)
-                    .padding(.vertical, Tide.s1)
-                    .background(Color.accentColor)
-                    .clipShape(Capsule())
             }
+            .buttonStyle(.trainBanner())
+            .fixedSize()
         }
-        .padding(.horizontal, Tide.s3)
-        .padding(.vertical, Tide.s2)
-        .background(Color.accentColor.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-        )
+        .tideCard(padding: Tide.s3, radius: Tide.controlRadius)
+        .trainSessionOutline(Color.accentColor, radius: Tide.controlRadius)
     }
 
     // MARK: - Workout Countdown Banner
@@ -860,14 +847,8 @@ struct TodayWorkoutView: View {
 
             Spacer()
         }
-        .padding(.horizontal, Tide.s3)
-        .padding(.vertical, Tide.s2)
-        .background(Color.accentColor.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-        )
+        .tideCard(padding: Tide.s3, radius: Tide.controlRadius)
+        .trainSessionOutline(Color.accentColor, radius: Tide.controlRadius)
     }
 
     /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
@@ -1165,7 +1146,7 @@ struct TodayWorkoutView: View {
             }
             .foregroundStyle(Color.accentColor)
             .padding(.horizontal, Tide.s2)
-            .padding(.vertical, 4)
+            .padding(.vertical, Tide.s1)
 
             // Exercise cards with connecting line
             ForEach(Array(exercises.enumerated()), id: \.element.id) { idx, plannedEx in
@@ -1173,18 +1154,18 @@ struct TodayWorkoutView: View {
                     // Vertical connecting line
                     VStack(spacing: 0) {
                         Rectangle()
-                            .fill(idx == 0 ? Color.clear : Color.accentColor.opacity(0.4))
-                            .frame(width: 2)
+                            .fill(idx == 0 ? Color.clear : Color.accentColor.opacity(TideTrainSession.outlineOpacity))
+                            .frame(width: TideTrainSession.rail)
 
                         Circle()
                             .fill(Color.accentColor)
-                            .frame(width: 8, height: 8)
+                            .frame(width: TideTrainSession.dot, height: TideTrainSession.dot)
 
                         Rectangle()
-                            .fill(idx == exercises.count - 1 ? Color.clear : Color.accentColor.opacity(0.4))
-                            .frame(width: 2)
+                            .fill(idx == exercises.count - 1 ? Color.clear : Color.accentColor.opacity(TideTrainSession.outlineOpacity))
+                            .frame(width: TideTrainSession.rail)
                     }
-                    .frame(width: 8)
+                    .frame(width: TideTrainSession.dot)
 
                     // Exercise card content
                     exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx, allExercises: allExercises)
@@ -1192,11 +1173,8 @@ struct TodayWorkoutView: View {
             }
         }
         .padding(Tide.s1)
-        .background(Tide.fill.opacity(0.5), in: .rect(cornerRadius: Tide.cardRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 1)
-        )
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.cardRadius))
+        .trainSessionOutline(Color.accentColor, radius: Tide.cardRadius)
     }
 
     private func exerciseCard(index: Int, plannedExercise: PlannedExercise, allExercises: [PlannedExercise]) -> some View {
@@ -1804,26 +1782,23 @@ struct TodayWorkoutView: View {
     private var loadingState: some View {
         VStack(spacing: Tide.s4) {
             ProgressView()
-                .scaleEffect(1.2)
+                .controlSize(.large)
             Text("Generating your workout...")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
         }
+        .tideCard(padding: Tide.s5)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s10)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 100)
     }
 
     // MARK: - Empty State
 
     private var emptyState: some View {
         VStack(spacing: Tide.s4) {
-            Image(systemName: "figure.strengthtraining.traditional")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-
-            Text("No workout planned")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text2)
+            TrainEmptyCard(systemImage: "figure.strengthtraining.traditional", title: "No workout planned")
 
             Button("Generate Today's Workout") {
                 Task {
@@ -1832,7 +1807,8 @@ struct TodayWorkoutView: View {
             }
             .buttonStyle(.tidePrimary)
         }
-        .padding(.top, 100)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s10)
     }
 
     // MARK: - Helpers

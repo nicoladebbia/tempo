@@ -227,10 +227,7 @@ struct WorkoutSummaryView: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        .overlay(
-            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
-                .strokeBorder(TideTrain.record.opacity(0.45), lineWidth: Tide.hair)
-        )
+        .trainSessionOutline(TideTrain.record)
     }
 
     // MARK: - Test Result Section (trainer-feedback-tests)
