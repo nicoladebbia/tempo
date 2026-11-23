@@ -27,46 +27,35 @@ struct PausedTrainingCard: View {
     private var showResumeOptions = false
 
     var body: some View {
-        VStack(alignment: .center, spacing: TempoSpacing.md) {
+        VStack(alignment: .center, spacing: Tide.s3) {
             Image(systemName: "leaf.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.largeTitle)
+                .foregroundStyle(TideTrain.positive)
                 .accessibilityHidden(true)
 
-            Text("PAUSED")
-                .font(.tempoCaption2.weight(.bold))
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+            Text("PAUSED").tideLabel()
 
             Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(subtitle)
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
 
             Button {
                 showResumeOptions = true
             } label: {
                 Text("Resume now")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoSuccess)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xs)
+            .buttonStyle(.trainBanner(tint: TideTrain.positive))
+            .padding(.top, Tide.s2)
         }
         .frame(maxWidth: .infinity)
-        .padding(TempoSpacing.xl)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s5)
         .confirmationDialog("Resume training?", isPresented: $showResumeOptions, titleVisibility: .visible) {
             if needsFixedModeDecision {
                 Button("Continue this week where I left off (shift program)") {

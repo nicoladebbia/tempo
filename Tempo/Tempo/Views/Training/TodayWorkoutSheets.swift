@@ -30,18 +30,18 @@ struct ExerciseReorderSheet: View {
         NavigationStack {
             List {
                 ForEach(viewModel.todayPlan?.orderedExercises ?? [], id: \.id) { ex in
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Text(ex.exercise?.name ?? "Exercise")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                         Spacer()
                         if ex.supersetGroup != nil {
                             Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
+                                .font(Tide.label)
+                                .foregroundStyle(Color.accentColor)
                         }
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Tide.fill)
                 }
                 .onMove { source, destination in
                     viewModel.moveExercises(from: source, to: destination)
@@ -51,7 +51,7 @@ struct ExerciseReorderSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .environment(\.editMode, .constant(.active))
             .navigationTitle("Reorder")
             .navigationBarTitleDisplayMode(.inline)
@@ -84,9 +84,9 @@ struct SwapExerciseSheet: View {
                 let alternatives = viewModel.swapAlternatives(for: target, modelContext: modelContext)
                 if alternatives.isEmpty {
                     Text("No alternatives for this muscle group.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .listRowBackground(Color.tempoSurfaceCard)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .listRowBackground(Tide.fill)
                 } else {
                     ForEach(alternatives, id: \.id) { exercise in
                         Button {
@@ -95,18 +95,18 @@ struct SwapExerciseSheet: View {
                         } label: {
                             ExercisePickRow(exercise: exercise)
                         }
-                        .listRowBackground(Color.tempoSurfaceCard)
+                        .listRowBackground(Tide.fill)
                     }
                     // §2.13b — swaps teach the planner.
                     Text("Tempo remembers your pick — future days prescribe it instead. Swap back anytime to undo.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .listRowBackground(Color.clear)
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Swap \(target.exercise?.name ?? "Exercise")")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -160,7 +160,7 @@ struct AddExerciseSheet: View {
         NavigationStack {
             List {
                 ForEach(sections, id: \.group) { section in
-                    Section(section.group.displayName.uppercased()) {
+                    Section(section.group.displayName) {
                         ForEach(section.exercises, id: \.id) { exercise in
                             Button {
                                 viewModel.addExercise(exercise, modelContext: modelContext)
@@ -168,14 +168,14 @@ struct AddExerciseSheet: View {
                             } label: {
                                 ExercisePickRow(exercise: exercise)
                             }
-                            .listRowBackground(Color.tempoSurfaceCard)
+                            .listRowBackground(Tide.fill)
                         }
                     }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
@@ -195,23 +195,21 @@ struct ExercisePickRow: View {
     let exercise: Exercise
 
     var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(exercise.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Text(exercise.equipment.rawValue.capitalized)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
             Spacer()
             if exercise.isCompound {
-                Text("COMPOUND")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.xs)
-                    .padding(.vertical, 2)
-                    .background(Color.tempoBgSecondary)
+                Text("Compound").tideLabel(Tide.text2)
+                    .padding(.horizontal, Tide.s1)
+                    .padding(.vertical, Tide.hair)
+                    .background(Tide.fill)
                     .clipShape(Capsule())
             }
         }

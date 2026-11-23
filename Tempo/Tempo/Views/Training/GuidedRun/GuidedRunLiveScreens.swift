@@ -17,21 +17,18 @@ struct GuidedRunCountdownScreen: View {
     let nextStepTitle: String
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
-            Text("GET READY")
-                .font(.tempoOrdersLabel)
-                .tracking(TempoTracking.ordersLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Get ready").tideLabel()
             Text(secondsRemaining > 0 ? "\(secondsRemaining)" : "GO")
-                .font(.system(size: 140, weight: .heavy, design: .rounded))
-                .foregroundStyle(secondsRemaining > 0 ? Color.tempoTextPrimary : Color.tempoSignal)
+                .trainNumeral(140, weight: .heavy)
+                .foregroundStyle(secondsRemaining > 0 ? Tide.text : Color.accentColor)
                 .monospacedDigit()
                 .contentTransition(.numericText(countsDown: true))
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: secondsRemaining)
+                .animation(Tide.lively, value: secondsRemaining)
             Text(nextStepTitle)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -73,14 +70,14 @@ struct GuidedRunWorkScreen: View {
 
             if let step, let workKind {
                 ScrollView {
-                    VStack(spacing: TempoSpacing.xxl) {
+                    VStack(spacing: Tide.s6) {
                         header(step)
-                        Spacer(minLength: TempoSpacing.xl)
+                        Spacer(minLength: Tide.s5)
                         workBody(workKind)
-                        Spacer(minLength: TempoSpacing.xl)
+                        Spacer(minLength: Tide.s5)
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s4)
                     .frame(minHeight: 480)
                 }
                 controls(workKind)
@@ -89,14 +86,12 @@ struct GuidedRunWorkScreen: View {
     }
 
     private func header(_ step: GuidedRunStep) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
-            Text("BLOCK \(step.blockIndex + 1)/\(step.blockCount) · \(step.blockName.uppercased())")
-                .font(.tempoOrdersLabel)
-                .tracking(TempoTracking.ordersLabel)
-                .foregroundStyle(Color.tempoSignal)
+        VStack(spacing: Tide.hair) {
+            Text("Block \(step.blockIndex + 1)/\(step.blockCount) · \(step.blockName)")
+                .tideLabel(Color.accentColor)
             Text(step.blockTrainerText)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
         }
@@ -121,86 +116,77 @@ struct GuidedRunWorkScreen: View {
     private func timedRepBody(index: Int, of: Int, capSeconds: Double?, distanceLabel: String?) -> some View {
         let elapsed = session.elapsedInCurrentStep
         let overCap = capSeconds.map { elapsed > $0 } ?? false
-        return VStack(spacing: TempoSpacing.md) {
-            Text("REP \(index + 1)/\(of)")
-                .font(.tempoDrillLabel)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+        return VStack(spacing: Tide.s3) {
+            Text("Rep \(index + 1)/\(of)").tideLabel()
             Text(GuidedRunFormatting.clock(elapsed))
-                .font(.system(size: 96, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(overCap ? Color.tempoError : Color.tempoTextPrimary)
-                .animation(.easeOut(duration: 0.15), value: overCap)
+                .trainNumeral(96, weight: .bold)
+                .foregroundStyle(overCap ? Tide.danger : Tide.text)
+                .animation(Tide.snap, value: overCap)
             if let capSeconds {
                 Text("Cap \(GuidedRunFormatting.repTime(capSeconds))")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(overCap ? Color.tempoError : Color.tempoRecoveryGreen)
+                    .font(Tide.headline)
+                    .foregroundStyle(overCap ? Tide.danger : TideTrain.positive)
             }
             if let distanceLabel {
                 Text(distanceLabel)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
     }
 
     private func roundBody(index: Int, of: Int) -> some View {
-        VStack(spacing: TempoSpacing.md) {
-            Text("ROUND")
-                .font(.tempoDrillLabel)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(spacing: Tide.s3) {
+            Text("Round")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
             Text("\(index + 1)")
-                .font(.system(size: 120, weight: .heavy, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .trainNumeral(120, weight: .heavy)
+                .foregroundStyle(Tide.text)
             Text("of \(of)")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text2)
         }
     }
 
     private func continuousBody(targetSeconds: Double, targetDistanceLabel: String?) -> some View {
         let elapsed = session.elapsedInCurrentStep
-        return VStack(spacing: TempoSpacing.md) {
+        return VStack(spacing: Tide.s3) {
             Text(GuidedRunFormatting.clock(elapsed))
-                .font(.system(size: 88, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .trainNumeral(88, weight: .bold)
+                .foregroundStyle(Tide.text)
             if let remaining = session.remainingInCurrentStep {
                 Text("\(GuidedRunFormatting.clock(remaining)) remaining")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text2)
             }
             distanceRow
         }
     }
 
     private func continuousDistanceBody(targetMeters: Double, targetLabel: String) -> some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Text(GuidedRunFormatting.distance(meters: locationTracker.distanceMeters, useMiles: useMiles))
-                .font(.system(size: 72, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .trainNumeral(72, weight: .bold)
+                .foregroundStyle(Tide.text)
             Text("Target \(targetLabel)")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text2)
             Text(GuidedRunFormatting.clock(session.elapsedInCurrentStep))
-                .font(.tempoDataMedium)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(TideTrain.figure(.headline))
+                .foregroundStyle(Tide.text3)
             paceRow
         }
     }
 
     private func freeformBody(text: String) -> some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Text(GuidedRunFormatting.clock(session.elapsedInCurrentStep))
-                .font(.system(size: 88, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .trainNumeral(88, weight: .bold)
+                .foregroundStyle(Tide.text)
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             distanceRow
         }
@@ -209,16 +195,16 @@ struct GuidedRunWorkScreen: View {
     @ViewBuilder
     private var distanceRow: some View {
         if locationTracker.isTracking {
-            VStack(spacing: TempoSpacing.xxs) {
+            VStack(spacing: Tide.hair) {
                 Text(GuidedRunFormatting.distance(meters: locationTracker.distanceMeters, useMiles: useMiles))
-                    .font(.tempoDataMedium)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(TideTrain.figure(.headline))
+                    .foregroundStyle(Tide.text)
                 paceRow
             }
         } else if !locationTracker.isAuthorized {
             Text("Timer only — location not available")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 
@@ -226,16 +212,16 @@ struct GuidedRunWorkScreen: View {
     private var paceRow: some View {
         if let pace = GuidedRunFormatting.pace(secondsPerKm: locationTracker.currentPaceSecondsPerKm, useMiles: useMiles) {
             Text(pace)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 
     // MARK: - Controls
 
     private func controls(_ kind: GuidedRunWorkKind) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
                 secondaryButton(title: session.isPaused ? "Resume" : "Pause", systemImage: session.isPaused ? "play.fill" : "pause.fill") {
                     session.isPaused ? session.resume() : session.pause()
                 }
@@ -256,9 +242,9 @@ struct GuidedRunWorkScreen: View {
             }
             doneButton
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.xl)
-        .padding(.top, TempoSpacing.sm)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s5)
+        .padding(.top, Tide.s2)
     }
 
     private func isRepeatable(_ kind: GuidedRunWorkKind) -> Bool {
@@ -275,7 +261,7 @@ struct GuidedRunWorkScreen: View {
             session.markDone(liveDistanceMeters: locationTracker.isTracking ? locationTracker.distanceMeters : nil)
         } label: {
             Text("Done")
-                .font(.tempoHeadline)
+                .font(Tide.headline)
                 .frame(maxWidth: .infinity)
                 .frame(height: 64)
         }
@@ -291,17 +277,14 @@ struct GuidedRunWorkScreen: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 2) {
+            VStack(spacing: Tide.hair) {
                 Image(systemName: systemImage)
-                    .font(.tempoHeadline)
+                    .font(Tide.headline)
                 Text(title)
-                    .font(.tempoCaption2)
+                    .font(Tide.caption)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .foregroundStyle(Color.tempoTextSecondary)
         }
-        .buttonStyle(TempoSecondaryButtonStyle())
+        .buttonStyle(.trainRail)
         .disabled(disabled)
     }
 }
@@ -325,42 +308,35 @@ struct GuidedRunRestScreen: View {
         VStack(spacing: 0) {
             GuidedRunTopBar(isMuted: $isMuted, onExit: onExit)
             Spacer()
-            VStack(spacing: TempoSpacing.lg) {
-                Text("REST")
-                    .font(.tempoOrdersLabel)
-                    .tracking(TempoTracking.ordersLabel)
-                    .foregroundStyle(Color.tempoAmber)
+            VStack(spacing: Tide.s4) {
+                Text("Rest").tideLabel(TideTrain.caution)
                 Text(GuidedRunFormatting.clock(session.remainingInCurrentStep ?? 0))
-                    .font(.system(size: 110, weight: .heavy, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .trainNumeral(110, weight: .heavy)
+                    .foregroundStyle(Tide.text)
                 GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
 
                 if let nextStep, case let .work(kind) = nextStep.kind {
-                    VStack(spacing: TempoSpacing.xxs) {
-                        Text("UP NEXT")
-                            .font(.tempoDrillLabel)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                    VStack(spacing: Tide.hair) {
+                        Text("Up next").tideLabel()
                         Text(nextStep.blockName)
-                            .font(.tempoTitle3)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                         Text(GuidedRunFormatting.workDescription(kind))
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
-                    .padding(.top, TempoSpacing.xl)
+                    .padding(.top, Tide.s5)
                 }
             }
             .accessibilityIdentifier("guidedRunRestScreen")
             Spacer()
 
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 Button {
                     session.isPaused ? session.resume() : session.pause()
                 } label: {
                     Text(session.isPaused ? "Resume" : "Pause")
-                        .font(.tempoHeadline)
+                        .font(Tide.headline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                 }
@@ -371,7 +347,7 @@ struct GuidedRunRestScreen: View {
                     session.skipRep()
                 } label: {
                     Text("Skip rest")
-                        .font(.tempoHeadline)
+                        .font(Tide.headline)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                 }
@@ -379,8 +355,8 @@ struct GuidedRunRestScreen: View {
                 .disabled(session.isPaused)
                 .accessibilityIdentifier("guidedRunSkipRestButton")
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.xl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s5)
         }
     }
 }
@@ -397,17 +373,17 @@ private struct GuidedRunHeartRateBadge: View {
 
     var body: some View {
         if let bpm {
-            HStack(spacing: TempoSpacing.xxs) {
+            HStack(spacing: Tide.hair) {
                 Image(systemName: "heart.fill")
-                    .foregroundStyle(Color.tempoError)
+                    .foregroundStyle(Tide.danger)
                 Text("\(Int(bpm.rounded())) bpm")
                 if let maxHeartRate, let zone = HeartRateZoneCalculator.zone(bpm: bpm, maxHeartRate: maxHeartRate) {
                     Text(HeartRateZoneCalculator.zoneLabel(zone))
                         .fontWeight(.bold)
                 }
             }
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
             .accessibilityIdentifier("guidedRunHeartRateBadge")
         }
     }
@@ -427,8 +403,8 @@ private struct GuidedRunTopBar: View {
                 onExit()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text2)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel("End session")
@@ -438,12 +414,12 @@ private struct GuidedRunTopBar: View {
                 HapticManager.selection()
             } label: {
                 Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text2)
                     .frame(width: 44, height: 44)
             }
             .accessibilityLabel(isMuted ? "Unmute cues" : "Mute cues")
         }
-        .padding(.horizontal, TempoSpacing.sm)
+        .padding(.horizontal, Tide.s2)
     }
 }

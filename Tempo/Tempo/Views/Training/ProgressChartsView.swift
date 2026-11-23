@@ -67,8 +67,8 @@ struct ProgressChartsView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.sm)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s2)
 
                 ScrollView(.vertical, showsIndicators: false) {
                     switch selectedTab {
@@ -106,7 +106,7 @@ struct ProgressChartsView: View {
     // Per MODULE_TRAINING.md Section 11.4
 
     private var overviewTab: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             // §11.8 — the week-in-motion hero: this week's volume, delta vs
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
@@ -123,8 +123,8 @@ struct ProgressChartsView: View {
             // Body part split
             bodyPartSplitCard
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     // MARK: - This Week Hero (§11.8)
@@ -212,27 +212,25 @@ struct ProgressChartsView: View {
         let previous = weeks.dropLast().last?.volume ?? 0
         let delta = previous > 0 ? (current - previous) / previous : nil
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("THIS WEEK")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("This week").tideLabel(Tide.text3)
                     Text(formatVolume(current))
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .monospacedDigit()
+                        .trainNumeral(44, relativeTo: .largeTitle)
+                        .foregroundStyle(Tide.text)
+                        .contentTransition(.numericText())
                 }
                 Spacer()
                 if let delta {
-                    HStack(spacing: 2) {
+                    HStack(spacing: Tide.hair) {
                         Image(systemName: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(Tide.label)
                         Text("\(abs(Int((delta * 100).rounded())))% vs last week")
-                            .font(.tempoCaption1)
+                            .font(Tide.caption)
                             .fontWeight(.semibold)
                     }
-                    .foregroundStyle(delta >= 0 ? Color.tempoRecoveryGreen : Color.tempoAmber)
+                    .foregroundStyle(delta >= 0 ? TideTrain.positive : TideTrain.caution)
                 }
             }
 
@@ -244,7 +242,7 @@ struct ProgressChartsView: View {
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [Color.tempoAccent.opacity(0.3), .clear],
+                            colors: [Color.accentColor.opacity(0.3), .clear],
                             startPoint: .top, endPoint: .bottom
                         )
                     )
@@ -253,7 +251,7 @@ struct ProgressChartsView: View {
                         x: .value("Week", week.weekStart),
                         y: .value("Volume", week.volume)
                     )
-                    .foregroundStyle(Color.tempoAccent)
+                    .foregroundStyle(Color.accentColor)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                     .interpolationMethod(.monotone)
                 }
@@ -262,18 +260,16 @@ struct ProgressChartsView: View {
                 .frame(height: 56)
             }
 
-            HStack(spacing: TempoSpacing.lg) {
+            HStack(spacing: Tide.s4) {
                 Label("\(weekStreak)-week streak", systemImage: "flame.fill")
-                    .foregroundStyle(weekStreak > 0 ? Color.tempoAmber : Color.tempoTextTertiary)
+                    .foregroundStyle(weekStreak > 0 ? TideTrain.caution : Tide.text3)
                 Label("\(prCount30d) PRs this month", systemImage: "star.fill")
-                    .foregroundStyle(prCount30d > 0 ? Color.tempoAccent : Color.tempoTextTertiary)
+                    .foregroundStyle(prCount30d > 0 ? Color.accentColor : Tide.text3)
                 Spacer()
             }
-            .font(.tempoCaption1)
+            .font(Tide.caption)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private var allTimeStats: some View {
@@ -283,36 +279,32 @@ struct ProgressChartsView: View {
             .filter { $0.status == .completed }
             .reduce(0) { $0 + $1.completedSets }
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("ALL-TIME")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("All-time").tideLabel()
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-            ], spacing: TempoSpacing.sm) {
+                GridItem(.flexible(), spacing: Tide.s2),
+                GridItem(.flexible(), spacing: Tide.s2),
+                GridItem(.flexible(), spacing: Tide.s2),
+            ], spacing: Tide.s2) {
                 overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
                 overviewStatCell(label: "Volume (\(weightUnit.abbreviation))", value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit))
                 overviewStatCell(label: "Sets", value: "\(totalSets)")
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func overviewStatCell(label: String, value: String) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(TideTrain.figure(.title))
+                .foregroundStyle(Tide.text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.6)
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
     }
 
@@ -324,23 +316,21 @@ struct ProgressChartsView: View {
             ? 0
             : Double(recentWeeks.reduce(0) { $0 + $1.count }) / Double(recentWeeks.count)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                Text("WORKOUT FREQUENCY")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Workout frequency").tideLabel()
                 Spacer()
                 if average > 0 {
                     Text(String(format: "avg %.1f/wk", average))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
 
             if recentWeeks.isEmpty {
                 Text("No workouts yet")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .frame(maxWidth: .infinity)
                     .frame(height: 120)
             } else {
@@ -352,82 +342,76 @@ struct ProgressChartsView: View {
                         )
                         .foregroundStyle(
                             idx == recentWeeks.count - 1
-                                ? Color.tempoAccent
-                                : Color.tempoSignal.opacity(0.7)
+                                ? Color.accentColor
+                                : Color.accentColor.opacity(0.7)
                         )
-                        .cornerRadius(TempoRadius.xs)
+                        .cornerRadius(Tide.s1)
                     }
                     if average > 0 {
                         RuleMark(y: .value("Average", average))
-                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.5))
+                            .foregroundStyle(Tide.text3.opacity(0.5))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     }
                 }
                 .chartYAxis {
                     AxisMarks { _ in
                         AxisGridLine()
-                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.2))
+                            .foregroundStyle(Tide.text3.opacity(0.2))
                         AxisValueLabel()
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
                 .chartXAxis {
                     AxisMarks { _ in
                         AxisValueLabel()
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
                 .frame(height: 120)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     /// Per MODULE_TRAINING.md Section 11.4 — Body part split donut chart
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("MUSCLE GROUP DISTRIBUTION")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Muscle group distribution").tideLabel()
 
             if distribution.isEmpty {
                 Text("No data yet")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .frame(maxWidth: .infinity)
                     .frame(height: 120)
             } else {
                 ForEach(distribution, id: \.group) { item in
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Text(item.group.displayName)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text)
                             .frame(width: 80, alignment: .leading)
 
                         GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                                .fill(Color.tempoSignal)
+                            RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
+                                .fill(Color.accentColor)
                                 .frame(width: max(4, geo.size.width * item.percentage))
                         }
                         .frame(height: 12)
 
                         Text("\(Int(item.percentage * 100))%")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .frame(width: 36, alignment: .trailing)
                     }
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Exercises Tab
@@ -437,16 +421,16 @@ struct ProgressChartsView: View {
     private var exercisesTab: some View {
         let exercisesWithHistory = exercises.filter { ($0.history?.isEmpty ?? true) == false }
 
-        return LazyVStack(spacing: TempoSpacing.sm) {
+        return LazyVStack(spacing: Tide.s2) {
             if exercisesWithHistory.isEmpty {
-                VStack(spacing: TempoSpacing.md) {
+                VStack(spacing: Tide.s3) {
                     Spacer().frame(height: 80)
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.largeTitle)
+                        .foregroundStyle(Tide.text3)
                     Text("Complete workouts to see progress")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
@@ -460,42 +444,40 @@ struct ProgressChartsView: View {
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     private func exerciseProgressRow(_ exercise: Exercise) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(exercise.name.uppercased())
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(exercise.name)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(1)
 
                 if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
                     Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
 
             Spacer()
 
             Text(exercise.muscleGroup.displayName)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.xs)
-                .padding(.vertical, 2)
-                .background(Color.tempoSurfaceElevated)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .padding(.horizontal, Tide.s1)
+                .padding(.vertical, Tide.hair)
+                .background(Tide.fill)
                 .clipShape(Capsule())
 
             Image(systemName: "chevron.right")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     // MARK: - Muscle Groups Tab
@@ -505,52 +487,48 @@ struct ProgressChartsView: View {
     private var muscleGroupsTab: some View {
         let distribution = muscleGroupDistribution
 
-        return VStack(spacing: TempoSpacing.xl) {
+        return VStack(spacing: Tide.s5) {
             // Weekly volume by muscle group
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("WEEKLY VOLUME BY MUSCLE GROUP")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("Weekly volume by muscle group").tideLabel()
 
                 if distribution.isEmpty {
                     Text("No data yet")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .frame(maxWidth: .infinity)
                         .frame(height: 120)
                 } else {
                     ForEach(distribution, id: \.group) { item in
-                        HStack(spacing: TempoSpacing.sm) {
+                        HStack(spacing: Tide.s2) {
                             Text(item.group.displayName)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text)
                                 .frame(width: 80, alignment: .leading)
 
                             GeometryReader { geo in
-                                RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                                    .fill(Color.tempoSignal)
+                                RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
+                                    .fill(Color.accentColor)
                                     .frame(width: max(4, geo.size.width * item.percentage))
                             }
                             .frame(height: 16)
 
                             Text(formatVolume(item.volume))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                                 .frame(width: 60, alignment: .trailing)
                         }
                     }
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tideCard(padding: Tide.s4)
 
             // Balance analysis
             // Per MODULE_TRAINING.md Section 11.3 — Push/Pull ratio
             balanceAnalysis
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     private var balanceAnalysis: some View {
@@ -561,45 +539,40 @@ struct ProgressChartsView: View {
             .reduce(0.0) { $0 + $1.volume }
         let ratio = pullVolume > 0 ? pushVolume / pullVolume : 0
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("BALANCE ANALYSIS")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Balance analysis").tideLabel()
 
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 let isBalanced = ratio >= 0.8 && ratio <= 1.3
                 Image(systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .font(.tempoBody)
-                    .foregroundStyle(isBalanced ? Color.tempoRecoveryGreen : Color.tempoRecoveryYellow)
+                    .font(Tide.body)
+                    .foregroundStyle(isBalanced ? TideTrain.positive : TideTrain.caution)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Push/Pull Ratio")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
 
                     Text(ratio > 0 ? String(format: "%.1f:1 (ideal: 1:1)", ratio) : "Not enough data")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Activity Tab (non-gym: football / sprint / conditioning)
 
     private var activityTab: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             if activitySessions.isEmpty {
                 EmptyStateView(
                     icon: "figure.run",
                     title: "No Activity Yet",
                     message: "Log a football, run, or conditioning session to track it here."
                 )
-                .padding(.top, TempoSpacing.xxxl)
+                .padding(.top, Tide.s8)
             } else {
                 // All-time totals
                 HStack(spacing: 0) {
@@ -607,54 +580,45 @@ struct ProgressChartsView: View {
                     activityTotal("\(Int(totalActiveMinutes))m", "Active")
                     activityTotal(String(format: "%.0f", totalActivityStrain), "Total Strain")
                 }
-                .padding(TempoSpacing.cardPadding)
-                .frame(maxWidth: .infinity)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .tideCard(padding: Tide.s4)
 
                 // Recent sessions
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("RECENT SESSIONS")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Recent sessions").tideLabel(Tide.text3)
 
                     ForEach(activitySessions.prefix(20), id: \.id) { session in
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text(activityTypeLabel(session))
-                                    .font(.tempoBody)
+                                    .font(Tide.body)
                                     .fontWeight(.medium)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                                    .foregroundStyle(Tide.text)
                                 Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
                             }
                             Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
+                            VStack(alignment: .trailing, spacing: Tide.hair) {
                                 if let strain = session.strain {
                                     Text(String(format: "%.1f strain", strain))
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoTextSecondary)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text2)
                                 }
                                 if let mins = session.durationMinutes {
                                     Text("\(Int(mins)) min")
-                                        .font(.tempoCaption2)
-                                        .foregroundStyle(Color.tempoTextTertiary)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text3)
                                 }
                             }
                         }
-                        .padding(.vertical, TempoSpacing.xs)
+                        .padding(.vertical, Tide.s1)
                     }
                 }
-                .padding(TempoSpacing.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .tideCard(padding: Tide.s4)
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.xxxl)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s8)
     }
 
     private var totalActiveMinutes: Double {
@@ -668,11 +632,11 @@ struct ProgressChartsView: View {
     private func activityTotal(_ value: String, _ label: String) -> some View {
         VStack(spacing: 4) {
             Text(value)
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
         .frame(maxWidth: .infinity)
     }

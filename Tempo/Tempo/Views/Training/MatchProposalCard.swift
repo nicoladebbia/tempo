@@ -41,7 +41,7 @@ struct MatchProposalCard: View {
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             ForEach(proposals.prefix(2), id: \.startDate) { event in
                 proposalRow(event)
             }
@@ -54,54 +54,29 @@ struct MatchProposalCard: View {
     // MARK: - Row
 
     private func proposalRow(_ event: CalendarEvent) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xxs) {
-                Image(systemName: "sportscourt")
-                    .font(.system(size: 11, weight: .semibold))
-                Text("FOUND ON YOUR CALENDAR")
-                    .font(.tempoCaption2)
-                    .fontWeight(.bold)
-            }
-            .foregroundStyle(Color.tempoSignal)
-
-            Text("\u{201C}\(event.title)\u{201D} — \(dayLabel(event.startDate)). Match day?")
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Confirming locks it into the match schedule and re-plans the days around it.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            HStack(spacing: TempoSpacing.sm) {
+        TrainBanner(
+            systemImage: "sportscourt",
+            label: "Found on your calendar",
+            tint: TideTrain.caution,
+            title: "\u{201C}\(event.title)\u{201D} — \(dayLabel(event.startDate)). Match day?",
+            message: "Confirming locks it into the match schedule and re-plans the days around it."
+        ) {
+            HStack(spacing: Tide.s2) {
                 Button {
                     confirm(event)
                 } label: {
                     Text("Add match")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .padding(.horizontal, TempoSpacing.md)
-                        .frame(height: 36)
-                        .background(Color.tempoAmber)
-                        .clipShape(Capsule())
                 }
+                .buttonStyle(.trainBanner(tint: TideTrain.caution))
 
                 Button {
                     dismissProposal(event)
                 } label: {
                     Text("Not a match")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.horizontal, TempoSpacing.md)
-                        .frame(height: 36)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(Capsule())
                 }
+                .buttonStyle(.trainBanner(filled: false))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Data

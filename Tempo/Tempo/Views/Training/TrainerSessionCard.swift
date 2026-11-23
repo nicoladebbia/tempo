@@ -47,22 +47,20 @@ struct TrainerSessionCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(heading)
-                .font(.tempoCaption2)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text((day.title ?? day.workoutType.displayName).uppercased())
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(heading).tideLabel()
+            Text(day.title ?? day.workoutType.displayName)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .padding(.bottom, Tide.s1)
             ForEach(day.exercises) { block in
                 blockRow(block)
             }
             if let notes = day.notes {
                 Text(notes)
-                    .font(.tempoCaption1)
+                    .font(Tide.caption)
                     .italic()
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if canLog {
@@ -74,9 +72,7 @@ struct TrainerSessionCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .sheet(item: $loggingBlock) { block in
             if let workoutPlanID, let programSessionKey, let viewModel {
                 ConditioningLogSheet(
@@ -101,16 +97,15 @@ struct TrainerSessionCard: View {
     }
 
     private var loggedRow: some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             Image(systemName: "checkmark.seal.fill")
-                .foregroundStyle(Color.tempoRecoveryGreen)
+                .foregroundStyle(TideTrain.positive)
             Text("Logged")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 48)
-        .padding(.top, TempoSpacing.xs)
+        .frame(maxWidth: .infinity, minHeight: 52)
+        .padding(.top, Tide.s1)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("guidedRunLoggedRow")
     }
@@ -120,26 +115,22 @@ struct TrainerSessionCard: View {
             HapticManager.impact(.medium)
             isPresentingGuidedRun = true
         } label: {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 Image(systemName: "figure.run")
                 Text("Start guided run")
             }
-            .font(.tempoHeadline)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
         }
-        .buttonStyle(TempoPrimaryButtonStyle())
-        .padding(.top, TempoSpacing.xs)
+        .buttonStyle(.tidePrimary)
+        .padding(.top, Tide.s2)
         .accessibilityIdentifier("startGuidedRunButton")
     }
 
     private func blockRow(_ block: ProgramExercise) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             HStack(alignment: .firstTextBaseline) {
                 Text(block.name)
-                    .font(.tempoBody)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if canLog {
                     Button {
@@ -147,20 +138,22 @@ struct TrainerSessionCard: View {
                         loggingBlock = block
                     } label: {
                         Text("Log")
-                            .font(.tempoCaption1)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .trailing)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             Text(trainerPrescription(block))
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             if let notes = block.notes {
                 Text(notes)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.caption)
+                    .foregroundStyle(Color.accentColor)
             }
             if canLog, let viewModel, let programSessionKey {
                 let results = viewModel.conditioningResults(forSessionKey: programSessionKey, modelContext: modelContext)
@@ -176,15 +169,15 @@ struct TrainerSessionCard: View {
     /// The compact "4/4 under 65\" · best 58\"" / "35' · 5.2 km · RPE 8" line
     /// under a logged block.
     private func resultLine(_ result: ConditioningBlockResult, block: ProgramExercise) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             Image(systemName: resultIcon(result))
                 .foregroundStyle(resultColor(result))
             Text(resultText(result, block: block))
-                .font(.tempoCaption2)
+                .font(Tide.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.top, 2)
+        .padding(.top, Tide.hair)
     }
 
     private func resultIcon(_ result: ConditioningBlockResult) -> String {
@@ -197,9 +190,9 @@ struct TrainerSessionCard: View {
 
     private func resultColor(_ result: ConditioningBlockResult) -> Color {
         switch result.targetMet {
-        case true: Color.tempoRecoveryGreen
-        case false: Color.tempoError
-        case nil: Color.tempoTextTertiary
+        case true: TideTrain.positive
+        case false: Tide.danger
+        case nil: Tide.text3
         }
     }
 

@@ -58,44 +58,41 @@ extension TodayWorkoutView {
         let sessionName = trainerDay?.title ?? plan?.type.displayName ?? "Training"
         let blockCount = trainerDay?.exercises.count ?? plan?.orderedExercises.count ?? 0
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "moon.zzz.fill")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoViolet)
+                    .font(Tide.headline)
+                    .foregroundStyle(TideTrain.violet)
                     .frame(width: 40, height: 40)
-                    .background(Color.tempoViolet.opacity(TempoOpacity.o15))
+                    .background(TideTrain.violet.opacity(TempoOpacity.o15))
                     .clipShape(Circle())
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("It's past midnight. Get to bed.")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text("Sleep is part of the plan. The session waits for the morning.")
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text("TOMORROW MORNING")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Tomorrow morning").tideLabel(Tide.text3)
                 Text(sessionName)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                 if blockCount > 0 {
                     Text(trainerDay?.isStrength == false ? "\(blockCount) blocks" : "\(blockCount) exercises")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(TempoSpacing.md)
-            .background(Color.tempoSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .padding(Tide.s3)
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
 
             Button(action: onSkipForTonight) {
                 Text("Skip for tonight")
@@ -103,9 +100,7 @@ extension TodayWorkoutView {
             }
             .buttonStyle(.tempoSecondary)
         }
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
+        .tideCard(padding: Tide.s4)
+        .padding(.horizontal, Tide.s4)
     }
 }

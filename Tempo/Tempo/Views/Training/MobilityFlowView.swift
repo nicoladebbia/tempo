@@ -28,7 +28,7 @@ struct MobilityFlowPickerView: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     ForEach(MobilityFlow.all) { flow in
                         Button {
                             activeFlow = flow
@@ -38,10 +38,10 @@ struct MobilityFlowPickerView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.md)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
             }
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Mobility Flows")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -59,32 +59,29 @@ struct MobilityFlowPickerView: View {
     }
 
     private func flowRow(_ flow: MobilityFlow) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: "figure.flexibility")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.headline)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(flow.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(flow.focus)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
 
             Text("\(flow.estimatedDuration) · \(flow.moves.count) moves")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 }
 
@@ -126,7 +123,7 @@ struct MobilityFlowPlayerView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle(flow.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -157,92 +154,90 @@ struct MobilityFlowPlayerView: View {
 
     private func moveContent(_ move: WarmupMove) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                Text("MOVE \(moveIndex + 1) OF \(flow.moves.count)")
-                    .font(.tempoCaption1)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xl)
+            VStack(spacing: Tide.s5) {
+                Text("Move \(moveIndex + 1) of \(flow.moves.count)").tideLabel(Tide.text3)
+                    .padding(.top, Tide.s5)
 
-                Text(move.name.uppercased())
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(move.name)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
 
                 Text(move.dose)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.headline)
+                    .foregroundStyle(Color.accentColor)
 
                 // Countdown for timed moves — wall-clock, survives backgrounding.
                 if move.durationSeconds != nil, let end = moveEndDate {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         let remaining = max(0, Int(end.timeIntervalSince(context.date).rounded()))
                         Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .trainNumeral(56, weight: .bold)
+                            .foregroundStyle(Tide.text)
                     }
                 }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     Text(move.howTo)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let cue = move.cue {
-                        HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                        HStack(alignment: .top, spacing: Tide.s1) {
                             Image(systemName: "lightbulb.fill")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoSignal)
+                                .font(Tide.caption)
+                                .foregroundStyle(Color.accentColor)
                             Text(cue)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .padding(TempoSpacing.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .tideCard(padding: Tide.s4)
 
-                Button {
-                    advance()
-                } label: {
-                    Text(move.durationSeconds == nil ? "DONE — NEXT" : "SKIP")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(move.durationSeconds == nil ? Color.tempoSignal : Color.tempoSurfaceCard)
-                        .foregroundStyle(move.durationSeconds == nil ? .white : Color.tempoTextPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                if move.durationSeconds == nil {
+                    Button {
+                        advance()
+                    } label: {
+                        Text("Done — next")
+                    }
+                    .buttonStyle(.tidePrimary)
+                } else {
+                    Button {
+                        advance()
+                    } label: {
+                        Text("Skip")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.xxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
         }
     }
 
     // MARK: Completion
 
     private var completionContent: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Color.tempoRecoveryGreen)
+                .trainGlyph(72)
+                .foregroundStyle(TideTrain.positive)
 
-            Text("FLOW COMPLETE")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+            Text("Flow complete")
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
 
             Text(dayMarkedDone
                 ? "Mobility day logged. That counts."
                 : "Recovery work done. Your future sessions thank you.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
 
             Spacer()
@@ -252,16 +247,16 @@ struct MobilityFlowPlayerView: View {
                 onFinished()
             } label: {
                 Text("DONE")
-                    .font(.tempoHeadline)
+                    .font(Tide.headline)
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    .background(Color.accentColor)
+                    .foregroundStyle(Tide.ink)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
             }
-            .padding(.bottom, TempoSpacing.xxl)
+            .padding(.bottom, Tide.s6)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: Advance

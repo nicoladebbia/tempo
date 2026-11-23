@@ -22,7 +22,7 @@ struct BodyQuadrantDetailView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 if data.isConnected {
                     // Recovery Hero
                     recoveryHeroSection
@@ -51,8 +51,8 @@ struct BodyQuadrantDetailView: View {
                     )
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Body")
@@ -121,7 +121,7 @@ struct BodyQuadrantDetailView: View {
     // MARK: - Helpers
 
     private var zoneColor: Color {
-        data.recoveryZone?.color ?? Color.tempoTextTertiary
+        data.recoveryZone?.color ?? Tide.text3
     }
 
     /// Score digits without the "%" suffix, so the 64pt display font
@@ -187,9 +187,9 @@ struct BodyQuadrantDetailView: View {
 
     private var spo2Comparison: (String, Color) {
         guard let spo2 = data.spo2 else {
-            return ("--", .tempoTextTertiary)
+            return ("--", Tide.text3)
         }
-        return spo2 >= 95 ? ("Normal", .tempoSuccess) : ("Low", .tempoError)
+        return spo2 >= 95 ? ("Normal", TideTrain.positive) : ("Low", Tide.danger)
     }
 
     // MARK: - Recovery Hero
@@ -197,30 +197,30 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Hero Section
 
     private var recoveryHeroSection: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             // Data source badge
             if data.dataSource != .none {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(spacing: Tide.s1) {
                     Image(systemName: data.dataSource == .whoop
                         ? "sensor.tag.radiowaves.forward.fill"
                         : "applewatch")
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                     Text(data.dataSource.rawValue)
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                 }
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.horizontal, TempoSpacing.sm)
+                .foregroundStyle(Tide.text3)
+                .padding(.horizontal, Tide.s2)
                 .padding(.vertical, 4)
-                .background(Color.tempoSurfaceCard)
+                .background(Tide.fill)
                 .clipShape(Capsule())
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            HStack(spacing: TempoSpacing.xl) {
+            HStack(spacing: Tide.s5) {
                 // Recovery ring — 120pt
                 ZStack {
                     Circle()
-                        .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                        .stroke(Tide.hairline, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     if let score = data.recoveryScore {
                         Circle()
                             .trim(from: 0, to: score / 100)
@@ -232,41 +232,38 @@ struct BodyQuadrantDetailView: View {
                     }
                     VStack(spacing: 0) {
                         Text(scoreDigits)
-                            .font(.tempoScoreDisplay)
+                            .font(TideTrain.figure(.largeTitle))
                             .foregroundStyle(zoneColor)
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
-                        Text("RECOVERY")
-                            .font(.tempoCaption2)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text("Recovery").tideLabel(Tide.text3)
                     }
                     .frame(width: 96)
                 }
                 .frame(width: 120, height: 120)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Recovery")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
 
                     Text(recoveryQuip)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .italic()
 
                     // CTA when using HealthKit fallback (no Whoop recovery score)
                     if data.dataSource == .healthKit, data.recoveryScore == nil {
                         Text("Connect Whoop for full recovery data")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.caption)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
 
                 Spacer()
             }
         }
-        .padding(.top, TempoSpacing.lg)
+        .padding(.top, Tide.s4)
     }
 
     // MARK: - Metric Cards
@@ -275,8 +272,8 @@ struct BodyQuadrantDetailView: View {
 
     private var metricCardsSection: some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: TempoSpacing.sm), count: 4),
-            spacing: TempoSpacing.sm
+            columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 4),
+            spacing: Tide.s2
         ) {
             metricCard(
                 value: hrvDigits,
@@ -309,11 +306,8 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Trend Chart (7 Days)
 
     private var recoveryTrendSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("RECOVERY TREND")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Recovery trend").tideLabel()
 
             Chart(trendData) { point in
                 // Area fill
@@ -323,7 +317,7 @@ struct BodyQuadrantDetailView: View {
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Color.tempoTextPrimary.opacity(0.15), Color.clear],
+                        colors: [Tide.text.opacity(0.15), Color.clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -335,7 +329,7 @@ struct BodyQuadrantDetailView: View {
                     x: .value("Day", point.date, unit: .day),
                     y: .value("Score", point.score)
                 )
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
                 .lineStyle(StrokeStyle(lineWidth: 2))
                 .interpolationMethod(.catmullRom)
 
@@ -352,7 +346,7 @@ struct BodyQuadrantDetailView: View {
                    Calendar.current.isDate(selection.date, inSameDayAs: point.date)
                 {
                     RuleMark(x: .value("Selected", selection.date, unit: .day))
-                        .foregroundStyle(Color.tempoTextSecondary.opacity(0.4))
+                        .foregroundStyle(Tide.text2.opacity(0.4))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                         .annotation(
                             position: .top,
@@ -375,7 +369,7 @@ struct BodyQuadrantDetailView: View {
             .chartYAxis {
                 AxisMarks(position: .leading, values: [33, 67]) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        .foregroundStyle(Color.tempoDivider)
+                        .foregroundStyle(Tide.hairline)
                 }
             }
             .chartXAxis {
@@ -383,18 +377,15 @@ struct BodyQuadrantDetailView: View {
                     AxisValueLabel {
                         if let date = value.as(Date.self) {
                             Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                 }
             }
             .frame(height: 160)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     // MARK: - Sleep Breakdown
@@ -402,11 +393,8 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Sleep Breakdown
 
     private var sleepBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("SLEEP BREAKDOWN")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Sleep breakdown").tideLabel()
 
             // Stacked bar
             let total = Double(deepSleepMin + remSleepMin + lightSleepMin + awakeSleepMin)
@@ -429,7 +417,7 @@ struct BodyQuadrantDetailView: View {
                         color: Color.tempoSleepAwake
                     ) // #FF9500
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
             }
             .frame(height: 24)
 
@@ -459,17 +447,14 @@ struct BodyQuadrantDetailView: View {
 
             // Performance + bed time
             Text("Performance: \(data.formattedSleepPerformance)")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
 
             Text("In bed: 11:15 PM → 6:45 AM")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     // MARK: - Strain Breakdown
@@ -477,25 +462,22 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Strain Breakdown
 
     private var strainBreakdownSection: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Text("STRAIN BREAKDOWN")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(spacing: Tide.s3) {
+            Text("Strain breakdown").tideLabel()
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // Semicircle gauge
             ZStack {
                 // Arc background
                 SemiCircleArc(progress: 1.0)
-                    .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .stroke(Tide.hairline, style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .frame(width: 160, height: 80)
 
                 // Arc fill with gradient
                 SemiCircleArc(progress: min((data.strain ?? 0) / 21.0, 1.0))
                     .stroke(
                         LinearGradient(
-                            colors: [Color.tempoSuccess, Color.tempoWarning, Color.tempoError],
+                            colors: [TideTrain.positive, TideTrain.caution, Tide.danger],
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
@@ -506,17 +488,14 @@ struct BodyQuadrantDetailView: View {
             .frame(height: 90)
 
             Text("Strain zone: \(strainZoneLabel)")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
 
             Text("Recommended: \(strainRecommendation) (recovery \(data.formattedRecovery))")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     // MARK: - Historical Comparison
@@ -524,66 +503,58 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Historical Comparison
 
     private var historicalComparisonSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("HISTORICAL COMPARISON")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Historical comparison").tideLabel()
 
             VStack(spacing: 0) {
                 comparisonRow(
                     period: "Yesterday",
                     metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "+5%", color: .tempoSuccess),
-                        ComparisonMetric(label: "HRV", delta: "-2 ms", color: .tempoError),
+                        ComparisonMetric(label: "Recovery", delta: "+5%", color: TideTrain.positive),
+                        ComparisonMetric(label: "HRV", delta: "-2 ms", color: Tide.danger),
                     ]
                 )
-                Divider().background(Color.tempoDivider)
+                Divider().background(Tide.hairline)
                 comparisonRow(
                     period: "Last Week",
                     metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "+8%", color: .tempoSuccess),
-                        ComparisonMetric(label: "Sleep", delta: "+0.5h", color: .tempoSuccess),
+                        ComparisonMetric(label: "Recovery", delta: "+8%", color: TideTrain.positive),
+                        ComparisonMetric(label: "Sleep", delta: "+0.5h", color: TideTrain.positive),
                     ]
                 )
-                Divider().background(Color.tempoDivider)
+                Divider().background(Tide.hairline)
                 comparisonRow(
                     period: "7-day avg",
                     metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "\(Int(avgRecovery))%", color: .tempoTextPrimary),
-                        ComparisonMetric(label: "HRV", delta: "\(Int(avgHRV)) ms", color: .tempoTextPrimary),
+                        ComparisonMetric(label: "Recovery", delta: "\(Int(avgRecovery))%", color: Tide.text),
+                        ComparisonMetric(label: "HRV", delta: "\(Int(avgHRV)) ms", color: Tide.text),
                     ]
                 )
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     private func metricCard(value: String, label: String, comparison: (String, Color)) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s1) {
             Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
 
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .lineLimit(1)
 
             Text(comparison.0)
-                .font(.tempoCaption2)
+                .font(Tide.caption)
                 .foregroundStyle(comparison.1)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 84)
-        .padding(10)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .tideCard(padding: 10, radius: Tide.tileRadius)
     }
 
     private func tooltipCard(for point: RecoveryTrendPoint) -> some View {
@@ -592,29 +563,28 @@ struct BodyQuadrantDetailView: View {
         let deltaText = delta > 0
             ? "+\(Int(delta)) vs 7-day avg"
             : delta < 0 ? "\(Int(delta)) vs 7-day avg" : "= 7-day avg"
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: Tide.hair) {
             Text(TempoDateFormatters.shortDayOfWeek.string(from: point.date).uppercased())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("\(Int(point.score))")
-                    .font(.tempoTitle3)
+                    .font(Tide.headline)
                     .foregroundStyle(zone.color)
                 Text("%")
-                    .font(.tempoCaption1)
+                    .font(Tide.caption)
                     .foregroundStyle(zone.color)
             }
             Text(deltaText)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, TempoSpacing.xs)
-        .background(Color.tempoSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .padding(.horizontal, Tide.s2)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 1)
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                .stroke(Tide.hairline, lineWidth: 1)
         )
     }
 
@@ -630,47 +600,46 @@ struct BodyQuadrantDetailView: View {
                 .fill(color)
                 .frame(width: 8, height: 8)
             Text("\(label)  \(duration)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
             Spacer()
         }
     }
 
     private func comparisonRow(period: String, metrics: [ComparisonMetric]) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Text(period.uppercased())
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .frame(width: 88, alignment: .leading)
 
             ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
                 HStack(spacing: 4) {
                     Text(metric.label)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                     Text(metric.delta)
-                        .font(.tempoCallout)
+                        .font(Tide.body)
                         .monospacedDigit()
                         .foregroundStyle(metric.color)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.vertical, TempoSpacing.xs)
+        .padding(.vertical, Tide.s1)
     }
 
     private func comparisonIndicator(current: Double?, average: Double, higherIsBetter: Bool) -> (String, Color) {
         guard let current else {
-            return ("--", .tempoTextTertiary)
+            return ("--", Tide.text3)
         }
         let ratio = current / average
         if ratio > 1.05 {
-            return ("↑ vs avg", higherIsBetter ? Color.tempoSuccess : Color.tempoError)
+            return ("↑ vs avg", higherIsBetter ? TideTrain.positive : Tide.danger)
         } else if ratio < 0.95 {
-            return ("↓ vs avg", higherIsBetter ? Color.tempoError : Color.tempoSuccess)
+            return ("↓ vs avg", higherIsBetter ? Tide.danger : TideTrain.positive)
         }
-        return ("= avg", Color.tempoTextTertiary)
+        return ("= avg", Tide.text3)
     }
 
     private func formatMinutes(_ minutes: Int) -> String {

@@ -87,7 +87,6 @@ struct TrainerProgramImportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                TidePageBackground()
                 if isProcessing {
                     processingOverlay
                 } else {
@@ -110,7 +109,7 @@ struct TrainerProgramImportView: View {
         }
         // Matches the convention every standalone onboarding screen already
         // follows for a modally-presented dark-only screen.
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear {
             if importService == nil {
                 importService = TrainerProgramImportService(apiClient: services.apiClient)
@@ -167,53 +166,53 @@ struct TrainerProgramImportView: View {
 
     private var sourcePicker: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xxl) {
-                VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s6) {
+                VStack(spacing: Tide.s2) {
                     Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.tempoViolet)
+                        .font(Tide.largeTitle)
+                        .foregroundStyle(TideTrain.violet)
                     Text("Get your coach's program into Tempo")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.center)
                     Text(
                         "Add every sheet your coach sent — photos, PDFs, Word/Excel files, or pasted text. Tempo reads them all as one program and you review before it goes live."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
                 }
-                .padding(.top, TempoSpacing.xl)
-                .padding(.horizontal, TempoSpacing.xl)
+                .padding(.top, Tide.s5)
+                .padding(.horizontal, Tide.s5)
 
                 if let quotaBanner {
                     Text(quotaBanner)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.xl)
+                        .padding(.horizontal, Tide.s5)
                 }
 
                 if let quotaExceededMessage {
-                    VStack(spacing: TempoSpacing.sm) {
+                    VStack(spacing: Tide.s2) {
                         Text(quotaExceededMessage)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoError)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.danger)
                             .multilineTextAlignment(.center)
                         Button("Upgrade to Tempo Pro") {
                             showPaywall = true
                         }
                         .buttonStyle(.tempoSecondary)
                     }
-                    .padding(.horizontal, TempoSpacing.xl)
+                    .padding(.horizontal, Tide.s5)
                 }
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.xl)
+                        .padding(.horizontal, Tide.s5)
                 }
 
                 if !sources.isEmpty {
@@ -235,17 +234,17 @@ struct TrainerProgramImportView: View {
                         Text("Read Program")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tempoPrimary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .buttonStyle(.tidePrimary)
+                    .padding(.horizontal, Tide.edge)
                 }
 
                 #if DEBUG
                     Button("Load Sample Program (DEBUG)") {
                         loadSample()
                     }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.md)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.top, Tide.s3)
 
                     // trainer-feedback-tests — a separate sample (today's
                     // weekday, one exercise flagged as a test) so the
@@ -255,58 +254,54 @@ struct TrainerProgramImportView: View {
                     Button("Load Test Day Sample (DEBUG)") {
                         loadTestDaySample()
                     }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xs)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.top, Tide.s1)
                 #endif
             }
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
     }
 
     // MARK: - Added sources list
 
     private var sourceListSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("SOURCES")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Sources").tideLabel(Tide.text3)
 
             ForEach(sources) { source in
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     Image(systemName: source.systemImage)
-                        .foregroundStyle(Color.tempoViolet)
+                        .foregroundStyle(TideTrain.violet)
                         .frame(width: 24)
                     Text(source.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
                     Spacer()
                     Button {
                         removeSource(source.id)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .foregroundStyle(Tide.text3)
                     }
                     .accessibilityLabel("Remove \(source.displayName)")
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     private var addSourceButtons: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Button {
                 showCameraPicker = true
             } label: {
                 Label("Take Photo", systemImage: "camera.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
 
             PhotosPicker(
                 selection: $photosSelection,
@@ -334,15 +329,15 @@ struct TrainerProgramImportView: View {
             }
             .buttonStyle(.tempoSecondary)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     private var processingOverlay: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView().scaleEffect(1.4)
             Text(processingLabel)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
     }
 
@@ -741,20 +736,20 @@ private struct PasteTextSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 TextEditor(text: $text)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .scrollContentBackground(.hidden)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                    .padding(Tide.s2)
+                    .background(Tide.fill.opacity(TempoOpacity.o40))
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
                     .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xl)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: Tide.controlRadius)
+                            .stroke(Tide.hairline, lineWidth: 1)
                     )
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s4)
 
                 Button {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -767,13 +762,13 @@ private struct PasteTextSheet: View {
                     Text("Add")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.horizontal, Tide.edge)
 
                 Spacer()
             }
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Paste Text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -782,6 +777,5 @@ private struct PasteTextSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }

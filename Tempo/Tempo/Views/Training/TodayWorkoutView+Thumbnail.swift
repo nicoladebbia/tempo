@@ -19,9 +19,11 @@ import SwiftUI
 
 extension TodayWorkoutView {
     func exerciseCardRow(exercise: Exercise, index: Int, plannedExercise: PlannedExercise) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
-            ExerciseImageView(exercise: exercise, style: .thumbnail)
-                .frame(width: 40, height: 40)
+        HStack(alignment: .top, spacing: Tide.s3) {
+            ExerciseImageView(exercise: exercise, style: .hero)
+                .frame(width: TideTrain.thumb, height: TideTrain.thumb)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+                .accessibilityHidden(true)
 
             exerciseCardContent(index: index, plannedExercise: plannedExercise)
         }

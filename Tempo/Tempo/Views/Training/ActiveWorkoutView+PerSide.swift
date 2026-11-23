@@ -59,17 +59,15 @@ struct PerSideRepsControl: View {
                 splitEnabled ? "Same both sides" : "Log sides separately",
                 systemImage: splitEnabled ? "arrow.triangle.merge" : "arrow.left.arrow.right"
             )
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
         }
         .buttonStyle(.plain)
 
         if splitEnabled {
-            Text("REPS — RIGHT")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            NumberStepperView(
+            TrainStepper(
                 value: $right,
+                label: "Reps — right",
                 range: 1 ... 100,
                 step: 1,
                 format: "%.0f",

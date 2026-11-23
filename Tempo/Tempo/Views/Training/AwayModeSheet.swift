@@ -40,7 +40,7 @@ struct AwayModeSheet: View {
                 if let activePause {
                     Section("Currently paused") {
                         statusRow(
-                            icon: "leaf.fill", color: .tempoSuccess,
+                            icon: "leaf.fill", color: TideTrain.positive,
                             title: activePause.reason.reportLabel,
                             subtitle: activePause.plannedEndDate.map {
                                 "Until \($0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))"
@@ -51,6 +51,7 @@ struct AwayModeSheet: View {
                             dismiss()
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 } else {
                     Section {
                         NavigationLink {
@@ -59,12 +60,13 @@ struct AwayModeSheet: View {
                             Label("I'm sick / taking a break", systemImage: "leaf.fill")
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 }
 
                 if let activeTravel {
                     Section("Limited equipment") {
                         statusRow(
-                            icon: "bag.fill", color: .tempoElectric,
+                            icon: "bag.fill", color: Tide.water,
                             title: activeTravel.scope.displayName,
                             subtitle: activeTravel.availableEquipment
                                 .map(\.travelDisplayName).sorted().joined(separator: ", ")
@@ -74,6 +76,7 @@ struct AwayModeSheet: View {
                             dismiss()
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 } else {
                     Section {
                         NavigationLink {
@@ -82,8 +85,10 @@ struct AwayModeSheet: View {
                             Label("Limited equipment (travel)", systemImage: "bag.fill")
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 }
             }
+            .trainSheetRoot()
             .navigationTitle("Away from the gym")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -95,12 +100,12 @@ struct AwayModeSheet: View {
     }
 
     private func statusRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: icon)
                 .foregroundStyle(color)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.tempoBodyBold)
-                Text(subtitle).font(.tempoCaption1).foregroundStyle(Color.tempoTextSecondary)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title).font(Tide.bodyStrong)
+                Text(subtitle).font(Tide.caption).foregroundStyle(Tide.text2)
             }
         }
     }
@@ -135,21 +140,25 @@ private struct StartPauseView: View {
                     TextField("What's up?", text: $otherText)
                 }
             }
+            .listRowBackground(Tide.fill)
             Section("How long") {
                 Toggle("Until I resume", isOn: $untilResume)
                 if !untilResume {
                     Stepper("\(Int(days)) day\(Int(days) == 1 ? "" : "s")", value: $days, in: 1 ... 14)
                 }
             }
+            .listRowBackground(Tide.fill)
             Section {
                 Text("No trainer sessions, no reminders, and Nutrition switches to rest days while you're paused.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
+            .listRowBackground(Color.clear)
         }
+        .tidePage()
         .navigationTitle("Take a break")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startPause(
                     reason: reason,
@@ -160,16 +169,10 @@ private struct StartPauseView: View {
                 onDone()
             } label: {
                 Text("Start")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoSignal)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .padding(TempoSpacing.md)
-            .background(.bar)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 }
@@ -210,6 +213,7 @@ private struct StartTravelEquipmentView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            .listRowBackground(Tide.fill)
             Section("What do you actually have?") {
                 ForEach(Self.pickable, id: \.self) { equipment in
                     Button {
@@ -221,10 +225,10 @@ private struct StartTravelEquipmentView: View {
                     } label: {
                         HStack {
                             Text(equipment.travelDisplayName)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .foregroundStyle(Tide.text)
                             Spacer()
                             if selected.contains(equipment) {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tempoSignal)
+                                Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
                             }
                         }
                     }
@@ -232,34 +236,31 @@ private struct StartTravelEquipmentView: View {
                 Button("Full gym (no swaps needed)") {
                     selected = Set(Equipment.allCases)
                 }
-                .font(.tempoCaption1)
+                .font(Tide.caption)
             }
+            .listRowBackground(Tide.fill)
             Section {
                 Text(
                     "Trainer exercises that need gear you don't have get swapped to the closest match on what you DO have — same sets and reps, labeled \"Hotel swap\"."
                 )
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             }
+            .listRowBackground(Color.clear)
         }
+        .tidePage()
         .navigationTitle("Limited equipment")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startTravelEquipmentPeriod(scope: scope, availableEquipment: selected, modelContext: modelContext)
                 onDone()
             } label: {
                 Text("Start")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoElectric)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .padding(TempoSpacing.md)
-            .background(.bar)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
             .disabled(selected.isEmpty)
         }
     }

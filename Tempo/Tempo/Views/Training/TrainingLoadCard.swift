@@ -62,16 +62,23 @@ struct TrainingLoadCard: View {
         let points = points
         let strainDays = dailyStrain.suffix(ReadinessAssembler.strainWindow).filter { $0.strain != nil }.count
 
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                Text("TRAINING LOAD")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Training load")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if let current = points.last?.ratio {
-                    Text(String(format: "%.2f · %@", current, zoneLabel(current)))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(zoneColor(current))
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        Text(String(format: "%.2f", current))
+                            .font(TideTrain.figure(.title2))
+                            .foregroundStyle(zoneColor(current))
+                            .contentTransition(.numericText())
+                        Text(zoneLabel(current))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
 
@@ -79,22 +86,20 @@ struct TrainingLoadCard: View {
                 Text(
                     "Building your baseline — \(min(strainDays, Self.minStrainDays))/\(Self.minStrainDays) days of Whoop strain. Keep the strap on."
                 )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
             } else {
                 chart(points)
                 Text(
                     "Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(String(format: "%.1f", TrainingSafetyFloor.acwrCompositeMax)) injury risk climbs and the coach blocks two-a-days."
                 )
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func chart(_ points: [Point]) -> some View {
@@ -105,10 +110,10 @@ struct TrainingLoadCard: View {
                 yStart: .value("Low", Self.lowBound),
                 yEnd: .value("High", high)
             )
-            .foregroundStyle(Color.tempoRecoveryGreen.opacity(0.12))
+            .foregroundStyle(TideTrain.positive.opacity(0.12))
 
             RuleMark(y: .value("Limit", high))
-                .foregroundStyle(Color.tempoRecoveryRed.opacity(0.6))
+                .foregroundStyle(Tide.danger.opacity(0.6))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
 
             ForEach(points) { point in
@@ -116,7 +121,7 @@ struct TrainingLoadCard: View {
                     x: .value("Day", point.date),
                     y: .value("ACWR", point.ratio)
                 )
-                .foregroundStyle(Color.tempoSignal)
+                .foregroundStyle(Color.accentColor)
                 .interpolationMethod(.monotone)
             }
             if let last = points.last {
@@ -131,17 +136,17 @@ struct TrainingLoadCard: View {
         .chartYAxis {
             AxisMarks(values: [0, Self.lowBound, high]) { _ in
                 AxisGridLine()
-                    .foregroundStyle(Color.tempoTextTertiary.opacity(0.2))
+                    .foregroundStyle(Tide.text3.opacity(0.2))
                 AxisValueLabel()
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: 7)) { _ in
                 AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .frame(height: 140)
@@ -161,11 +166,11 @@ struct TrainingLoadCard: View {
 
     private func zoneColor(_ ratio: Double) -> Color {
         if ratio > TrainingSafetyFloor.acwrCompositeMax {
-            return .tempoRecoveryRed
+            return Tide.danger
         }
         if ratio < Self.lowBound {
-            return .tempoRecoveryYellow
+            return TideTrain.caution
         }
-        return .tempoRecoveryGreen
+        return TideTrain.positive
     }
 }

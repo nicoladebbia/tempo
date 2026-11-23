@@ -37,57 +37,57 @@ struct TrainerProgramChangeLogView: View {
                 Section {
                     ForEach(upcomingSkips) { skip in
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text(skip.summary)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text)
                                 Text(skip.date.formatted(date: .abbreviated, time: .omitted))
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
                             }
                             Spacer()
                             Button("Undo") { undo(skip) }
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoSignal)
+                                .font(Tide.body)
+                                .foregroundStyle(Color.accentColor)
                                 .buttonStyle(.borderless)
                         }
                     }
                 } header: {
-                    Text("SKIPPED — ONLY THAT DAY")
+                    Text("Skipped — only that day")
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
             }
             ForEach(entries) { entry in
                 Section {
                     ForEach(entry.editSummaries, id: \.self) { summary in
                         if entry.isUndone(summary) {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text(summary)
-                                    .font(.tempoBody)
+                                    .font(Tide.body)
                                     .strikethrough()
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .foregroundStyle(Tide.text3)
                                 Text("Skip undone")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
                             }
                             .accessibilityElement(children: .combine)
                         } else {
                             Text(summary)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                         }
                     }
                     if !entry.sourceText.isEmpty {
                         DisclosureGroup("Original message") {
                             Text(entry.sourceText)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                     }
                 } header: {
                     Text(entry.date.formatted(date: .abbreviated, time: .shortened))
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
             }
         }
         .scrollContentBackground(.hidden)
@@ -109,8 +109,8 @@ struct TrainerProgramChangeLogView: View {
         .overlay {
             if entries.isEmpty, upcomingSkips.isEmpty {
                 Text("No changes logged yet.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
             }
         }
     }

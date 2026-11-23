@@ -69,7 +69,6 @@ struct GuidedRunView: View {
 
     var body: some View {
         ZStack {
-            TidePageBackground()
             if let session, session.phase == .finished || session.phase == .endedEarly {
                 GuidedRunSummaryView(
                     plan: plan,
@@ -88,7 +87,7 @@ struct GuidedRunView: View {
                 preStartContent
             }
         }
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -144,27 +143,26 @@ struct GuidedRunView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
                         .frame(width: 44, height: 44)
                 }
                 Spacer()
             }
-            .padding(.horizontal, TempoSpacing.sm)
+            .padding(.horizontal, Tide.s2)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                        Text("GUIDED RUN")
-                            .font(.tempoDrillLabel)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoSignal)
+                VStack(alignment: .leading, spacing: Tide.s6) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text("Guided run")
+                            .font(Tide.label)
+                            .foregroundStyle(Color.accentColor)
                         Text(heading)
-                            .font(.tempoLargeTitle)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.largeTitle)
+                            .foregroundStyle(Tide.text)
                     }
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    VStack(alignment: .leading, spacing: Tide.s3) {
                         ForEach(plan.blocks) { block in
                             preStartBlockRow(block)
                         }
@@ -172,28 +170,25 @@ struct GuidedRunView: View {
 
                     if plan.isEmpty {
                         Text("Nothing to guide here — log this one manually.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
                 }
-                .padding(TempoSpacing.screenEdge)
+                .padding(Tide.edge)
             }
 
             startButton
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s5)
         }
     }
 
     private func preStartBlockRow(_ block: GuidedRunBlock) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text(block.name.uppercased())
-                .font(.tempoOrdersLabel)
-                .tracking(TempoTracking.ordersLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(block.name).tideLabel()
             Text(block.trainerText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
             if block.restIsDefault {
                 Stepper(
@@ -205,18 +200,15 @@ struct GuidedRunView: View {
                     in: 10 ... 300,
                     step: 5
                 )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
             } else {
                 Text("Rest: \(Int(block.restSeconds))s (trainer's)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func effectiveRest(_ block: GuidedRunBlock) -> Double {
@@ -246,7 +238,7 @@ struct GuidedRunView: View {
             #endif
         } label: {
             Text(plan.isEmpty ? "Nothing to run" : "Start guided run")
-                .font(.tempoHeadline)
+                .font(Tide.headline)
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
         }

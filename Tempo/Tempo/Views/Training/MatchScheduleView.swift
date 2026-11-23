@@ -49,20 +49,20 @@ struct MatchScheduleView: View {
                     Text(
                         "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 }
                 .listRowBackground(Color.clear)
 
                 if upcoming.isEmpty {
                     Section {
                         Text("No matches scheduled.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text3)
                             .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, TempoSpacing.md)
+                            .padding(.vertical, Tide.s3)
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Tide.fill)
                 } else {
                     Section("Upcoming") {
                         ForEach(upcoming) { match in
@@ -70,24 +70,24 @@ struct MatchScheduleView: View {
                         }
                         .onDelete(perform: deleteUpcoming)
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Tide.fill)
                 }
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Matches")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(Color.accentColor)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAdd = true
                     } label: {
                         Label("Add", systemImage: "plus")
-                            .foregroundStyle(Color.tempoSignal)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -100,23 +100,23 @@ struct MatchScheduleView: View {
     }
 
     private func matchRow(_ match: Match) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             HStack {
                 Text(match.opponent.map { "vs \($0)" } ?? "Match")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if !match.isCompetitive {
                     Text("Friendly")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
             Text(match.kickoff.formatted(date: .abbreviated, time: .shortened))
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.vertical, TempoSpacing.xxs)
+        .padding(.vertical, Tide.hair)
     }
 
     // MARK: - Mutations (each re-periodizes the week deterministically)
@@ -176,30 +176,30 @@ private struct MatchEntrySheet: View {
                         displayedComponents: [.date, .hourAndMinute]
                     )
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
 
                 Section("Opponent (optional)") {
                     TextField("e.g. Inter Miami", text: $opponent)
                         .textInputAutocapitalization(.words)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
 
                 Section {
                     Toggle("Competitive fixture", isOn: $competitive)
                 } footer: {
                     Text("Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.")
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Add Match")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .foregroundStyle(Tide.text2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
@@ -208,7 +208,7 @@ private struct MatchEntrySheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
+                    .foregroundStyle(Color.accentColor)
                 }
             }
         }

@@ -58,32 +58,34 @@ struct TrainerFeedbackReviewView: View {
                 if matchedEdits.isEmpty, unmatchedEdits.isEmpty {
                     Section {
                         Text("No changes found in that message.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
+                    .listRowBackground(Tide.fill)
                 }
                 if !matchedEdits.isEmpty {
-                    Section("CHANGES") {
+                    Section("Changes") {
                         ForEach(matchedEdits) { edit in
                             Toggle(isOn: binding(for: edit.id)) {
                                 Text(edit.summary)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text)
                             }
-                            .tint(Color.tempoSignal)
+                            .tint(Color.accentColor)
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 }
                 if !unmatchedEdits.isEmpty {
                     Section {
                         ForEach(unmatchedEdits) { edit in
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text(edit.summary)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text3)
                                 Text(edit.matchFailureReason ?? "Couldn't match.")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoWarning)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(TideTrain.caution)
                             }
                         }
                     } header: {
@@ -91,10 +93,11 @@ struct TrainerFeedbackReviewView: View {
                     } footer: {
                         Text("Fix these yourself on the program's Edit screen if you still want them.")
                     }
+                    .listRowBackground(Color.clear)
                 }
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Review Changes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -119,7 +122,6 @@ struct TrainerFeedbackReviewView: View {
                 Text(applyError ?? "")
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func binding(for id: UUID) -> Binding<Bool> {

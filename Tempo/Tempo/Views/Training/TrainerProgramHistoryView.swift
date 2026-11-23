@@ -33,16 +33,16 @@ struct TrainerProgramHistoryView: View {
                     title: "No Program History Yet",
                     message: "Programs you've replaced or finished show up here with how much of them you actually completed."
                 )
-                .padding(.top, TempoSpacing.xxxl)
+                .padding(.top, Tide.s8)
             } else {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     ForEach(archivedPrograms) { program in
                         historyRow(program)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s4)
+                .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
             }
         }
         .tidePage()
@@ -52,27 +52,25 @@ struct TrainerProgramHistoryView: View {
 
     private func historyRow(_ program: TrainerProgram) -> some View {
         let stats = TrainerProgramHistoryStats.stats(for: program, modelContext: modelContext)
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s1) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(program.name)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text(dateRange(for: program))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
                 Spacer()
                 Text(program.scheduleMode.displayName)
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption.weight(.semibold))
+                    .foregroundStyle(Tide.text2)
             }
 
             TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
         }
-        .padding(TempoSpacing.cardPaddingCompact)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     /// Cadence-aware dates — see `TrainerProgramDurationText`.
@@ -91,21 +89,21 @@ struct TrainerComplianceBar: View {
 
     var body: some View {
         if stats.scheduled > 0 {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 HStack {
                     Text("\(stats.done) / \(stats.scheduled) sessions done")
-                        .font(.tempoCaption1.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.caption.weight(.semibold))
+                        .foregroundStyle(Tide.text)
                     Spacer()
                     Text("\(Int((stats.fraction * 100).rounded()))%")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoDivider)
+                        Capsule().fill(Tide.hairline)
                         Capsule()
-                            .fill(Color.tempoSignal)
+                            .fill(Color.accentColor)
                             .frame(width: geo.size.width * stats.fraction)
                     }
                 }
@@ -113,8 +111,8 @@ struct TrainerComplianceBar: View {
             }
         } else {
             Text(emptyText)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 }

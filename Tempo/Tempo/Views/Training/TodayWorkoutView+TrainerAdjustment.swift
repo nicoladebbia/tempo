@@ -25,35 +25,35 @@ extension TodayWorkoutView {
         {
             let unit = settings?.weightUnit ?? .kg
             let trainerDisplay = WeightFormat.number(kg: trainerKg, unit: unit)
-            HStack(alignment: .top, spacing: TempoSpacing.xs) {
+            HStack(alignment: .top, spacing: Tide.s1) {
                 if plannedExercise.trainerOverrideApplied {
                     Label("Using trainer's \(trainerDisplay)\(unit.abbreviation)", systemImage: "checkmark.circle")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 } else {
                     let todayKg = plannedExercise.orderedSets.first(where: { !$0.isWarmup })?.targetWeight ?? trainerKg
                     let todayDisplay = WeightFormat.number(kg: todayKg, unit: unit)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Trainer \(trainerDisplay)\(unit.abbreviation) → today \(todayDisplay)\(unit.abbreviation)")
-                            .font(.tempoCaption2)
+                            .font(Tide.caption)
                             .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoWarning)
+                            .foregroundStyle(TideTrain.caution)
                         if let note = plannedExercise.loadAdjustmentNote {
                             Text(note)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
-                    Spacer(minLength: TempoSpacing.sm)
+                    Spacer(minLength: Tide.s2)
                     Button("Use trainer's weight") {
                         viewModel.useTrainerWeight(for: plannedExercise, modelContext: modelContext)
                     }
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.caption.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.top, 2)
+            .padding(.top, Tide.hair)
         }
     }
 }
