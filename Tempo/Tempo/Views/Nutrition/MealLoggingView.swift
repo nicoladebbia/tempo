@@ -693,20 +693,18 @@ struct PortionEditorView: View {
     }
 
     private var chipRow: some View {
-        GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                // A 100 g "serving" is just the default, not a real one — offer
-                // plain amounts instead of three chips that mean 50/100/200 anyway.
-                if abs(unitGrams - 100) < 0.5 {
-                    ForEach([50.0, 100, 150, 200], id: \.self) { amount in
-                        chip("\(Self.format(amount)) \(unitLabel)", grams: amount)
-                    }
-                } else {
-                    chip("½ serving", grams: unitGrams * 0.5)
-                    chip("1 serving", grams: unitGrams)
-                    chip("2 servings", grams: unitGrams * 2)
-                    chip("100 \(unitLabel)", grams: 100)
+        HStack(spacing: Tide.s2) {
+            // A 100 g "serving" is just the default, not a real one — offer
+            // plain amounts instead of three chips that mean 50/100/200 anyway.
+            if abs(unitGrams - 100) < 0.5 {
+                ForEach([50.0, 100, 150, 200], id: \.self) { amount in
+                    chip("\(Self.format(amount)) \(unitLabel)", grams: amount)
                 }
+            } else {
+                chip("½ serving", grams: unitGrams * 0.5)
+                chip("1 serving", grams: unitGrams)
+                chip("2 servings", grams: unitGrams * 2)
+                chip("100 \(unitLabel)", grams: 100)
             }
         }
     }
@@ -719,15 +717,11 @@ struct PortionEditorView: View {
         } label: {
             Text(label)
                 .font(Tide.caption)
-                .foregroundStyle(selected ? Tide.ink : Tide.text)
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
-                .padding(.horizontal, Tide.s3)
-                .frame(minHeight: Tide.hit)
-                .background(selected ? mood.accent : Color.clear, in: .capsule)
-                .glassEffect(.regular.interactive(), in: .capsule)
+                .fuelChip(selected: selected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
         .sensoryFeedback(.selection, trigger: selected)
     }
 

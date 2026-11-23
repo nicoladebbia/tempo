@@ -329,17 +329,9 @@ struct MarkEatenSheet: View {
                     Spacer(minLength: 0)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s3)
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, Tide.s1)
-            .foregroundStyle(isSelected ? mood.accent : Tide.text2)
-            .background(
-                isSelected ? mood.accent.opacity(0.2) : Tide.fill,
-                in: .rect(cornerRadius: Tide.controlRadius)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                    .stroke(isSelected ? mood.accent : Color.clear, lineWidth: 1.5)
-            }
+            .fuelChoice(selected: isSelected, minHeight: Tide.hit + Tide.s3)
             .contentShape(.rect(cornerRadius: Tide.controlRadius))
         }
         .buttonStyle(.plain)

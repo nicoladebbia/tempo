@@ -139,10 +139,18 @@ struct FuelMacroInline: View {
     let fat: Int
 
     var body: some View {
-        HStack(spacing: Tide.s3) {
-            figure("P", protein, Tide.protein)
-            figure("C", carbs, Tide.carbs)
-            figure("F", fat, Tide.fat)
+        // Three in a row while they fit, stacked at large text sizes.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                figure("P", protein, Tide.protein)
+                figure("C", carbs, Tide.carbs)
+                figure("F", fat, Tide.fat)
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                figure("P", protein, Tide.protein)
+                figure("C", carbs, Tide.carbs)
+                figure("F", fat, Tide.fat)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Protein \(protein) grams, carbs \(carbs) grams, fat \(fat) grams")
@@ -422,6 +430,17 @@ extension Tide {
     static let fuelSkeletonRow: CGFloat = 52
     /// A food or meal icon on a hero.
     static let fuelHeroIcon: CGFloat = 52
+    /// A meal photo on its review screen, and a number field beside a unit.
+    static let fuelPhoto: CGFloat = 240
+    static let fuelAmountField: CGFloat = 80
+    /// Height of an inline time wheel.
+    static let fuelWheel: CGFloat = 100
+    /// Smallest height of a free-text recipe box.
+    static let fuelEditor: CGFloat = 220
+    /// Height of the 7-day calorie chart.
+    static let fuelChart: CGFloat = 160
+    /// The big record button on the voice screen.
+    static let fuelMic: CGFloat = 96
 }
 
 // MARK: - FuelSection
@@ -831,6 +850,8 @@ struct FuelAIState: View {
     let kind: Kind
     var actionTitle: String?
     var action: (() -> Void)?
+    /// False when it already sits inside a card (no card in a card).
+    var isCard = true
 
     @Environment(\.tideMood)
     private var mood
@@ -838,6 +859,14 @@ struct FuelAIState: View {
     private var isSlow = false
 
     var body: some View {
+        if isCard {
+            content.tideCard()
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: Tide.s4) {
             switch kind {
             case let .working(message):
@@ -861,7 +890,6 @@ struct FuelAIState: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .tideCard()
         .animation(Tide.snap, value: isSlow)
         .task {
             if case .working = kind {

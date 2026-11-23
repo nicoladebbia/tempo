@@ -41,6 +41,8 @@ struct VoiceMealLogView: View {
         case blocked(AIBlocker)
     }
 
+    private static let noFoodMessage = "No food items found."
+
     @State private var phase: Phase = .idle
     @State private var questions: [VoiceClarifyingQuestion] = []
     @State private var questionIndex = 0
@@ -68,6 +70,12 @@ struct VoiceMealLogView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(Tide.edge)
+            // The one action sits under the thumb once there is something to log.
+            .fuelBottomBar(isShown: phase == .confirming) {
+                Button("Log it") { logResolvedItems() }
+                    .buttonStyle(.tidePrimary)
+            }
+            .animation(Tide.settle, value: phase)
             .tidePage()
             .navigationTitle("Voice Log")
             .navigationBarTitleDisplayMode(.inline)
@@ -113,27 +121,31 @@ struct VoiceMealLogView: View {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
                     .font(Tide.title)
                     .foregroundStyle(Tide.ink)
-                    .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Tide.danger : mood.accent)
-                    .clipShape(Circle())
+                    .symbolEffect(.pulse, isActive: transcriber.isListening)
+                    .frame(width: Tide.fuelMic, height: Tide.fuelMic)
+                    .background(transcriber.isListening ? Tide.danger : mood.accent, in: .circle)
+                    .contentShape(.circle)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FuelPressStyle())
+            .animation(Tide.snap, value: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop recording" : "Start recording")
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
-                    .padding(Tide.s4)
                     .frame(maxWidth: .infinity)
-                    .background(Tide.fill)
-                    .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    .transition(.opacity)
             }
 
             if let err = transcriber.error {
                 Text(err)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.danger)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -157,11 +169,7 @@ struct VoiceMealLogView: View {
     private var thinkingSection: some View {
         VStack(spacing: Tide.s4) {
             Spacer()
-            ProgressView()
-                .controlSize(.large)
-            Text("Reading your meal…")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+            FuelAIState(kind: .working("Reading your meal…"))
             Spacer()
         }
     }
@@ -194,34 +202,28 @@ struct VoiceMealLogView: View {
 
     private var clarifyingSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            Text("Question \(questionIndex + 1) of \(questions.count)")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
+            TideSectionLabel(title: "Question \(questionIndex + 1) of \(questions.count)")
 
             if questionIndex < questions.count {
                 let q = questions[questionIndex]
                 Text(q.question)
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(q.options.prefix(4), id: \.self) { option in
                     Button {
+                        HapticManager.lightImpact()
                         answers[q.question] = option
                         advanceQuestion()
                     } label: {
                         Text(option)
                             .font(Tide.body)
-                            .foregroundStyle(Tide.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(Tide.s3)
-                            .background(Tide.fill)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Tide.hairline, lineWidth: 1)
-                            )
+                            .padding(.horizontal, Tide.s4)
+                            .fuelChoice(selected: false, minHeight: Tide.hit + Tide.s3)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FuelPressStyle())
                 }
             }
 
@@ -250,7 +252,7 @@ struct VoiceMealLogView: View {
                 answers: answers
             )
             phase = resolved.isEmpty
-                ? .failed("No food items found.")
+                ? .failed(Self.noFoodMessage)
                 : .confirming
         } catch {
             phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
@@ -258,10 +260,15 @@ struct VoiceMealLogView: View {
     }
 
     private var confirmationSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Confirm your meal")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
+        // What will be logged: the confident items only, so the number matches
+        // the Confirm Meal sheet the user lands on next.
+        let kcal = resolved.filter { !$0.isLowConfidence }.reduce(0) { $0 + Int($1.calories) }
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(
+                title: "Confirm your meal",
+                trailing: resolved.count == 1 ? "1 item" : "\(resolved.count) items"
+            )
+            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralL)
 
             ScrollView {
                 VStack(spacing: Tide.s2) {
@@ -270,27 +277,20 @@ struct VoiceMealLogView: View {
                     }
                 }
             }
-
-            Button {
-                logResolvedItems()
-            } label: {
-                Text("Log it")
-            }
-            .buttonStyle(.tidePrimary)
+            .scrollIndicators(.hidden)
         }
     }
 
     private func resolvedRow(_ item: VoiceResolvedItem) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text(item.name)
-                    .font(Tide.headline)
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                Spacer()
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Tide.s2)
                 if item.isLowConfidence {
-                    Text("Low confidence")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.warn)
+                    FuelPill(text: "Low confidence", color: Tide.warn)
                 }
             }
 
@@ -298,6 +298,8 @@ struct VoiceMealLogView: View {
                 + "P \(Int(item.proteinG)) / C \(Int(item.carbsG)) / F \(Int(item.fatG))")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true)
 
             if item.isLowConfidence {
                 Button {
@@ -309,14 +311,14 @@ struct VoiceMealLogView: View {
                         .font(Tide.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(Tide.s4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tide.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func logResolvedItems() {
@@ -355,22 +357,24 @@ struct VoiceMealLogView: View {
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: Tide.s4) {
+        // transcriber.start() clears transcribedText itself.
+        let retry = { phase = .idle }
+        return VStack(spacing: Tide.s4) {
             Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(Tide.title)
-                .foregroundStyle(Tide.warn)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            Button {
-                // transcriber.start() clears transcribedText itself.
-                phase = .idle
-            } label: {
-                Text("Try again")
+            if message == Self.noFoodMessage {
+                FuelAIState(
+                    kind: .empty(
+                        title: "No food found",
+                        message: "Nothing in that sounded like food. Say what was on the plate, with amounts if you can."
+                    ),
+                    actionTitle: "Try again", action: retry
+                )
+            } else {
+                FuelAIState(
+                    kind: .failed(title: "Couldn't read that", message: message),
+                    actionTitle: "Try again", action: retry
+                )
             }
-            .buttonStyle(.tidePrimary)
             Spacer()
         }
     }
