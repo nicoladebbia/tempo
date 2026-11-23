@@ -20,6 +20,8 @@ struct GroceryListView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// True while the AddGroceryItemSheet is presented.
     @State
@@ -261,12 +263,18 @@ struct GroceryListView: View {
                     .accessibilityLabel("Budget used")
             }
             if isOver {
-                HStack(spacing: Tide.s3) {
+                let stacked = typeSize.isAccessibilitySize
+                let layout = stacked
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
                     Text("Over budget. Tighten up or swap something.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.danger)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Tide.s2)
+                    if !stacked {
+                        Spacer(minLength: Tide.s2)
+                    }
                     TideChip(title: "Cheaper swaps") {
                         showCheaperSwaps = true
                         Task { await viewModel.fetchCheaperSwaps() }
