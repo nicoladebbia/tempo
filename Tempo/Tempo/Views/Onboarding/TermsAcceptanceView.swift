@@ -46,6 +46,7 @@ struct TermsAcceptanceView: View {
                     isSubmitting = false
                 }
             },
+            errorMessage: viewModel.tosAcceptError,
             centered: true
         ) {
             OnboardingHeroTile(systemName: "doc.text.fill")
@@ -65,12 +66,6 @@ struct TermsAcceptanceView: View {
             }
             .toggleStyle(.tempo)
 
-            if let err = viewModel.tosAcceptError {
-                Text(err)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-            }
         }
     }
 

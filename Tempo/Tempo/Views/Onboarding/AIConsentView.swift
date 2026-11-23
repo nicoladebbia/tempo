@@ -26,7 +26,9 @@ struct AIConsentView: View {
             primaryEnabled: !isSubmitting,
             primaryAction: { submit(consent: true) },
             skipTitle: "Skip — use rule-based only",
-            skipAction: isSubmitting ? nil : { submit(consent: false) },
+            skipAction: { submit(consent: false) },
+            skipEnabled: !isSubmitting,
+            errorMessage: viewModel.aiConsentError,
             centered: true
         ) {
             OnboardingHeroTile(systemName: "brain.head.profile")
@@ -43,13 +45,6 @@ struct AIConsentView: View {
                 "Tempo sends your training, sleep, and nutrition data to Anthropic only when you trigger an AI feature. Your data is never used to train their models. Toggle this off anytime in Settings.",
                 systemImage: "lock.fill"
             )
-
-            if let err = viewModel.aiConsentError {
-                Text(err)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-            }
         }
     }
 

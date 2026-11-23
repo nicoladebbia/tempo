@@ -22,6 +22,9 @@ struct OnboardingScaffold<Content: View>: View {
     var primaryAction: (() -> Void)?
     var skipTitle = "SKIP"
     var skipAction: (() -> Void)?
+    var skipEnabled = true
+    /// A failure to show right above the buttons, where it is never below the fold.
+    var errorMessage: String?
     /// Centre the title and content on the page (a hero step) instead of
     /// starting at the top.
     var centered = false
@@ -82,6 +85,15 @@ struct OnboardingScaffold<Content: View>: View {
     private var footer: some View {
         if primaryAction != nil || skipAction != nil {
             VStack(spacing: Tide.s1) {
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.bottom, Tide.s1)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
                 if let primaryTitle, let primaryAction {
                     Button(primaryTitle, action: primaryAction)
                         .buttonStyle(.tidePrimary)
@@ -96,6 +108,7 @@ struct OnboardingScaffold<Content: View>: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
+                    .disabled(!skipEnabled)
                 }
             }
             .padding(.horizontal, Tide.edge)

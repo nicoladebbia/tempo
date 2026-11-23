@@ -28,11 +28,52 @@ struct MilestoneCelebrationView: View {
     private var showIcon = false
     @State
     private var start = Date()
+    @State
+    private var burstDone = false
 
     /// Seconds the burst plays before it holds its last, nearly empty, frame.
     private let burstSeconds = 4.5
 
     var body: some View {
+        // The scroll view only matters at the largest text sizes on a small
+        // phone; otherwise the content fills the page and the spacers centre it.
+        GeometryReader { proxy in
+            ScrollView {
+                content
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                    .padding(.horizontal, Tide.edge)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .background { burst }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            buttons
+        }
+        .tidePage(energy: 1)
+        .sensoryFeedback(.success, trigger: showIcon)
+        .task {
+            // The shader stops redrawing once the burst has played out.
+            try? await Task.sleep(for: .seconds(burstSeconds))
+            burstDone = true
+        }
+        .onAppear {
+            start = Date()
+            if reduceMotion {
+                showIcon = true
+                showContent = true
+            } else {
+                withAnimation(Tide.lively.delay(0.2)) {
+                    showIcon = true
+                }
+                withAnimation(Tide.settle.delay(0.5)) {
+                    showContent = true
+                }
+            }
+        }
+    }
+
+    private var content: some View {
         VStack(spacing: Tide.s6) {
             Spacer()
 
@@ -76,35 +117,13 @@ struct MilestoneCelebrationView: View {
 
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, Tide.edge)
-        .background { burst }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            buttons
-        }
-        .tidePage(energy: 1)
-        .sensoryFeedback(.success, trigger: showIcon)
-        .onAppear {
-            start = Date()
-            if reduceMotion {
-                showIcon = true
-                showContent = true
-            } else {
-                withAnimation(Tide.lively.delay(0.2)) {
-                    showIcon = true
-                }
-                withAnimation(Tide.settle.delay(0.5)) {
-                    showContent = true
-                }
-            }
-        }
     }
 
     // MARK: - Burst
 
     private var burst: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { context in
-            let t = reduceMotion ? burstSeconds : min(context.date.timeIntervalSince(start), burstSeconds)
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || burstDone)) { context in
+            let t = reduceMotion || burstDone ? burstSeconds : min(context.date.timeIntervalSince(start), burstSeconds)
             Rectangle()
                 .fill(.white)
                 .visualEffect { content, proxy in

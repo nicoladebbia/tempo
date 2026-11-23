@@ -43,6 +43,7 @@ struct WhoopConnectView: View {
                 }
             },
             skipAction: { viewModel.skip() },
+            errorMessage: errorMessage,
             centered: true
         ) {
             OnboardingHeroTile(systemName: "waveform.path.ecg", tint: Color.tempoSuccess)
@@ -58,13 +59,6 @@ struct WhoopConnectView: View {
                 )
             }
             .onboardingCard()
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-            }
         }
     }
 }

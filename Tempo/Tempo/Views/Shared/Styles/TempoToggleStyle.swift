@@ -18,14 +18,13 @@ struct TempoToggleStyle: ToggleStyle {
     private var mood
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: Tide.s3) {
+        // The system toggle keeps the label and the switch as one VoiceOver
+        // element ("<label>, switch button, on").
+        Toggle(isOn: configuration.$isOn) {
             configuration.label
-            Spacer(minLength: Tide.s2)
-            Toggle("", isOn: configuration.$isOn)
-                .toggleStyle(.switch)
-                .tint(mood.accent)
-                .labelsHidden()
         }
+        .toggleStyle(.switch)
+        .tint(mood.accent)
         .frame(minHeight: Tide.hit)
         .sensoryFeedback(.selection, trigger: configuration.isOn)
     }
