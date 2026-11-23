@@ -28,10 +28,7 @@ struct PausedTrainingCard: View {
 
     var body: some View {
         VStack(alignment: .center, spacing: Tide.s3) {
-            Image(systemName: "leaf.fill")
-                .font(Tide.largeTitle)
-                .foregroundStyle(TideTrain.positive)
-                .accessibilityHidden(true)
+            TideIconTile(systemName: "leaf.fill", tint: TideTrain.positive, size: TideTrainSession.stateTile)
 
             Text("PAUSED").tideLabel()
 

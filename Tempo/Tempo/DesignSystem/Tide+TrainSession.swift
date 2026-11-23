@@ -47,8 +47,10 @@ enum TideTrainSession {
     static let rail: CGFloat = 2
     /// How strong a tinted outline is drawn.
     static let outlineOpacity = 0.4
-    /// The icon tile on a banner.
-    static let bannerTile: CGFloat = 40
+    /// A small number field beside its label (minutes, metres, rounds).
+    static let fieldWidth: CGFloat = 100
+    /// The "Rep 3" label column, so every rep field starts at the same edge.
+    static let repLabel: CGFloat = 52
 }
 
 extension View {

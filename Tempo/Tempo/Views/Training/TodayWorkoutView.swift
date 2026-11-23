@@ -1417,9 +1417,7 @@ struct TodayWorkoutView: View {
     // Per MODULE_TRAINING.md Section 2.10
 
     private var restDayContent: some View {
-        VStack(spacing: Tide.s6) {
-            Spacer().frame(height: Tide.s8)
-
+        VStack(spacing: Tide.s5) {
             // §8 connect — a brain-reshaped rest day (planned pool → rest)
             // renders THIS content, so the prescription's why + the "keep
             // planned workout" override must live here too, not just on
@@ -1428,19 +1426,21 @@ struct TodayWorkoutView: View {
                 dailySessionCard(session)
             }
 
-            Image(systemName: "figure.yoga")
-                .font(Tide.largeTitle)
-                .imageScale(.large)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+            VStack(spacing: Tide.s4) {
+                TideIconTile(
+                    systemName: "figure.yoga",
+                    tint: TideTrain.positive,
+                    size: TideTrainSession.stateTile
+                )
 
-            VStack(spacing: Tide.s2) {
                 Text("Your body builds muscle while you rest.")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let nextType = nextWorkoutType {
+                    TrainSessionRule()
                     VStack(spacing: Tide.hair) {
                         Text("Next workout: Tomorrow")
                             .font(Tide.caption)
@@ -1448,13 +1448,17 @@ struct TodayWorkoutView: View {
                         Text(nextType)
                             .font(Tide.headline)
                             .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.center)
                     }
                 }
-            }
 
-            // Mobility flow button
-            mobilityFlowButton
+                // Mobility flow button
+                mobilityFlowButton
+            }
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s5)
         }
+        .padding(.top, Tide.s3)
     }
 
     private var mobilityFlowButton: some View {
@@ -1462,6 +1466,7 @@ struct TodayWorkoutView: View {
             showMobilityFlows = true
         } label: {
             Label("Start a mobility flow", systemImage: "figure.flexibility")
+                .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tideGlass)
     }
