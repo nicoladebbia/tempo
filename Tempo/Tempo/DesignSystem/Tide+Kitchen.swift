@@ -817,3 +817,41 @@ struct KitchenRowPressStyle: ButtonStyle {
             .animation(Tide.snap, value: configuration.isPressed)
     }
 }
+
+
+// MARK: - KitchenListeningRing
+
+/// Soft rings that swell out from a mic button while it listens, so a quiet room still looks alive.
+/// Holds still under Reduce Motion. Decoration only.
+struct KitchenListeningRing: View {
+    let active: Bool
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var swell = false
+
+    var body: some View {
+        ZStack {
+            ForEach(0 ..< 2, id: \.self) { index in
+                Circle()
+                    .stroke(tint ?? mood.accent, lineWidth: Tide.hair)
+                    .scaleEffect(swell ? 1.6 + CGFloat(index) * 0.3 : 1)
+                    .opacity(swell ? 0 : (active ? 0.5 : 0))
+                    .animation(
+                        swell ? .easeOut(duration: 1.8).repeatForever(autoreverses: false).delay(Double(index) * 0.7) : .default,
+                        value: swell
+                    )
+            }
+        }
+        .onAppear { swell = active && !reduceMotion }
+        .onChange(of: active) { _, isActive in
+            swell = isActive && !reduceMotion
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}

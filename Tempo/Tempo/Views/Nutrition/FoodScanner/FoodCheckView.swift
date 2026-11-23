@@ -77,10 +77,26 @@ struct FoodCheckView: View {
                 }
 
                 if rows.isEmpty {
-                    Text(tab == .history ? "Products you scan or open show up here." : "Tap the star on a product to keep it here.")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .listRowBackground(Color.clear)
+                    Section {
+                        if tab == .history {
+                            KitchenEmpty(
+                                systemImage: "clock.arrow.circlepath",
+                                title: "Nothing checked yet",
+                                message: "Products you scan or open show up here.",
+                                actionTitle: "Scan a product"
+                            ) {
+                                showScanner = true
+                            }
+                        } else {
+                            KitchenEmpty(
+                                systemImage: "star",
+                                title: "No favourites yet",
+                                message: "Tap the star on a product to keep it here."
+                            )
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 } else if let catalog {
                     Section {
                         ForEach(rows) { row in
@@ -154,9 +170,9 @@ struct FoodCheckView: View {
             HapticManager.lightImpact()
             action()
         } label: {
-            VStack(spacing: Tide.s2) {
+            VStack(spacing: Tide.s3) {
                 Image(systemName: icon)
-                    .font(Tide.title2)
+                    .font(Tide.title)
                     .foregroundStyle(mood.accent)
                     .accessibilityHidden(true)
                 Text(title)
@@ -164,7 +180,7 @@ struct FoodCheckView: View {
                     .foregroundStyle(Tide.text)
             }
             .frame(maxWidth: .infinity, minHeight: Tide.hit)
-            .padding(.vertical, Tide.s5)
+            .padding(.vertical, Tide.s6)
             .glassEffect(.regular.tint(Tide.glassCard).interactive(), in: .rect(cornerRadius: Tide.tileRadius))
             .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
