@@ -93,7 +93,12 @@ struct WeeklySelfGradeCard: View {
     /// ISO-week marker in UserSettings so the card doesn't re-appear.
     let onDismiss: () -> Void
 
-    @State private var expanded: Bool = false
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @State
+    private var expanded: Bool = false
 
     var body: some View {
         if stats.isEmpty {
@@ -103,102 +108,124 @@ struct WeeklySelfGradeCard: View {
         }
     }
 
+    private var acceptancePercent: Int {
+        Int((stats.acceptanceRate * 100).rounded())
+    }
+
     private var content: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             header
-            statsGrid
+            headline
+            statsRow
             if !confidenceAdjustments.isEmpty {
-                Divider()
-                    .background(Color.tempoSteel.opacity(0.3))
                 adjustmentsSection
             }
         }
-        .padding(TempoSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .fill(Color.tempoSurfaceCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoSignal.opacity(0.18), lineWidth: 1)
-        )
+        .tideCard()
     }
 
     private var header: some View {
         HStack {
-            Label("This Week with Coach", systemImage: "chart.bar.doc.horizontal")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .tracking(TempoTracking.drillLabel)
-            Spacer()
+            Text("This week with Coach").tideLabel()
+            Spacer(minLength: Tide.s2)
             Button {
                 onDismiss()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(Color.tempoTextTertiary)
+                Image(systemName: "xmark")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
                     .accessibilityLabel(Text("Dismiss self-grade"))
             }
             .buttonStyle(.plain)
+            // The close button is taller than the label beside it; pull it back
+            // so the header keeps the card's padding.
+            .padding(.vertical, -Tide.s3)
+            .padding(.trailing, -Tide.s3)
         }
     }
 
-    private var statsGrid: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            row(label: "Suggestions made", value: "\(stats.suggestionsMade)", emphasis: false)
-            row(
-                label: "You took",
-                value: "\(stats.takenCount)  (\(Int((stats.acceptanceRate * 100).rounded()))%)",
-                emphasis: false
-            )
-            row(
-                label: "Worked well",
-                value: "\(stats.workedWellCount)",
-                emphasis: true,
-                tint: Color.tempoSuccess
-            )
-            row(
-                label: "You regretted",
-                value: "\(stats.regrettedCount)",
-                emphasis: true,
-                tint: Color.tempoError
-            )
-        }
-    }
-
-    private func row(
-        label: String,
-        value: String,
-        emphasis: Bool,
-        tint: Color = .tempoTextPrimary
-    ) -> some View {
-        HStack {
-            Text(label)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
-            Text(value)
-                .font(emphasis ? .tempoHeadline : .tempoBody)
-                .foregroundStyle(tint)
-                .monospacedDigit()
+    /// How much of Coach's advice you took: the one number of the card.
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(acceptancePercent)", unit: "%", size: Tide.numeralL)
+                Text("of suggestions taken")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+            }
+            .accessibilityElement(children: .combine)
+            TideLevelBar(progress: stats.acceptanceRate, height: Tide.bar)
         }
     }
 
     @ViewBuilder
+    private var statsRow: some View {
+        if typeSize.isAccessibilitySize {
+            // One per line: no row of four fits at these sizes.
+            VStack(alignment: .leading, spacing: Tide.s3) { statItems(oneLine: false) }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: Tide.s4) { statItems(oneLine: true) }
+                Grid(alignment: .topLeading, horizontalSpacing: Tide.s4, verticalSpacing: Tide.s3) {
+                    GridRow {
+                        stat(label: "Suggestions", value: stats.suggestionsMade, color: Tide.text, oneLine: false)
+                        stat(label: "You took", value: stats.takenCount, color: Tide.text, oneLine: false)
+                    }
+                    GridRow {
+                        stat(label: "Worked well", value: stats.workedWellCount, color: mood.accent, oneLine: false)
+                        stat(label: "Regretted", value: stats.regrettedCount, color: Tide.danger, oneLine: false)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func statItems(oneLine: Bool) -> some View {
+        stat(label: "Suggestions", value: stats.suggestionsMade, color: Tide.text, oneLine: oneLine)
+        stat(label: "You took", value: stats.takenCount, color: Tide.text, oneLine: oneLine)
+        stat(label: "Worked well", value: stats.workedWellCount, color: mood.accent, oneLine: oneLine)
+        stat(label: "Regretted", value: stats.regrettedCount, color: Tide.danger, oneLine: oneLine)
+    }
+
+    private func stat(label: String, value: Int, color: Color, oneLine: Bool) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            TideNumber(
+                "\(value)", size: Tide.numeralS, relativeTo: .headline, color: color
+            )
+            Text(label)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .lineLimit(oneLine ? 1 : 2)
+                .fixedSize(horizontal: oneLine, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
     private var adjustmentsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("I'm adjusting confidence on:")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Rectangle().fill(Tide.hairline).frame(height: 1)
+                .accessibilityHidden(true)
+            Text("I'm adjusting confidence on")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .padding(.top, Tide.s1)
             ForEach(confidenceAdjustments.prefix(expanded ? confidenceAdjustments.count : 3), id: \.id) { adj in
                 adjustmentRow(adj)
             }
             if confidenceAdjustments.count > 3 {
                 Button {
-                    withAnimation { expanded.toggle() }
+                    withAnimation(Tide.snap) { expanded.toggle() }
                 } label: {
                     Text(expanded ? "Show less" : "Show all \(confidenceAdjustments.count)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
@@ -206,25 +233,23 @@ struct WeeklySelfGradeCard: View {
     }
 
     private func adjustmentRow(_ adj: WeeklyConfidenceAdjustment) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
             Image(systemName: adj.delta < 0 ? "arrow.down.right" : "arrow.up.right")
-                .foregroundStyle(adj.delta < 0 ? Color.tempoError : Color.tempoSuccess)
-                .imageScale(.small)
+                .font(Tide.caption)
+                .foregroundStyle(adj.delta < 0 ? Tide.danger : mood.accent)
+                .accessibilityHidden(true)
             Text(adj.subject)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Text(
-                String(
-                    format: "%.2f → %.2f",
-                    adj.oldConfidence,
-                    adj.newConfidence
-                )
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
+            TideNumber(
+                String(format: "%.2f → %.2f", adj.oldConfidence, adj.newConfidence),
+                size: TideCoach.figureSmall, relativeTo: .footnote, weight: .semibold, color: Tide.text2
             )
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
-            .monospacedDigit()
+            .fixedSize()
         }
+        .accessibilityElement(children: .combine)
     }
 }
 

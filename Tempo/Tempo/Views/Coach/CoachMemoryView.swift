@@ -20,33 +20,49 @@ import SwiftUI
 // MARK: - CoachMemoryView
 
 struct CoachMemoryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @Query(filter: #Predicate<LearnedPreference> { $0.isActive })
     private var preferences: [LearnedPreference]
 
-    @State private var selectedPolarity: LearnedPreference.Polarity = .positive
-    @State private var editingPreference: LearnedPreference?
-    @State private var presentingRedoInterview: Bool = false
+    @State
+    private var selectedPolarity: LearnedPreference.Polarity = .positive
+    @State
+    private var editingPreference: LearnedPreference?
+    @State
+    private var presentingRedoInterview: Bool = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
-                polarityTabs
-                groupedList
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    header
+                    polarityTabs
+                    groupedList
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+            }
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 footer
             }
             .tidePage()
+            .navigationTitle("Coach's memory")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.tempoGhost)
+                    Button("Close", systemImage: "xmark") { dismiss() }
                 }
             }
         }
+        .tideCovered(editingPreference != nil || presentingRedoInterview)
         .sheet(item: $editingPreference) { pref in
             EditPreferenceSheet(preference: pref, onDelete: { delete(pref) })
         }
@@ -59,61 +75,32 @@ struct CoachMemoryView: View {
 
     // MARK: - Header
 
+    /// The one number of the page: how much Coach has learned.
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("Coach's Memory")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Coach knows \(activeCount) things about you.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            TideNumber("\(activeCount)", size: Tide.numeralL)
+            Text(activeCount == 1 ? "thing Coach knows about you" : "things Coach knows about you")
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Polarity tabs
 
     private var polarityTabs: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            polarityTab(.positive, label: "Likes")
-            polarityTab(.negative, label: "Dislikes")
-            polarityTab(.avoidAtAllCosts, label: "Hard Avoids")
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.sm)
+        TideCoachChoiceChips(
+            options: [
+                .init(value: .positive, title: "Likes", count: count(of: .positive)),
+                .init(value: .negative, title: "Dislikes", count: count(of: .negative)),
+                .init(value: .avoidAtAllCosts, title: "Hard avoids", count: count(of: .avoidAtAllCosts)),
+            ],
+            selection: $selectedPolarity
+        )
     }
 
-    private func polarityTab(_ polarity: LearnedPreference.Polarity, label: String) -> some View {
-        let count = preferences.filter { $0.polarity == polarity }.count
-        let isSelected = selectedPolarity == polarity
-        return Button {
-            selectedPolarity = polarity
-        } label: {
-            HStack(spacing: TempoSpacing.xs) {
-                Text(label)
-                    .font(.tempoCaption1)
-                Text("(\(count))")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xs)
-            .background(
-                Capsule()
-                    .fill(isSelected ? polarityColor(polarity).opacity(0.18) : Color.tempoSurfaceCard)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        isSelected ? polarityColor(polarity) : Color.clear,
-                        lineWidth: 1
-                    )
-            )
-            .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .buttonStyle(.plain)
+    private func count(of polarity: LearnedPreference.Polarity) -> Int {
+        preferences.count { $0.polarity == polarity }
     }
 
     // MARK: - Grouped list
@@ -123,154 +110,119 @@ struct CoachMemoryView: View {
             preferences: preferences,
             polarity: selectedPolarity
         )
-        return ScrollView {
-            LazyVStack(alignment: .leading, spacing: TempoSpacing.md) {
-                if groups.isEmpty {
-                    emptyState
-                } else {
-                    ForEach(groups, id: \.scope) { group in
-                        scopeSection(group)
-                    }
+        return LazyVStack(alignment: .leading, spacing: Tide.s5) {
+            if groups.isEmpty {
+                emptyState
+            } else {
+                ForEach(groups, id: \.scope) { group in
+                    scopeSection(group)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.md)
         }
+        .animation(Tide.snap, value: selectedPolarity)
     }
 
     private func scopeSection(_ group: CoachMemoryGrouping.Group) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("\(group.scope.displayLabel) (\(group.preferences.count))")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .tracking(TempoTracking.drillLabel)
-            ForEach(group.preferences, id: \.id) { pref in
-                preferenceRow(pref)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: group.scope.displayLabel, trailing: "\(group.preferences.count)")
+            GlassEffectContainer(spacing: Tide.s3) {
+                VStack(spacing: Tide.s3) {
+                    ForEach(group.preferences, id: \.id) { pref in
+                        preferenceRow(pref)
+                    }
+                }
             }
         }
     }
 
     private func preferenceRow(_ pref: LearnedPreference) -> some View {
         Button { editingPreference = pref } label: {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                HStack {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Text(pref.text)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
-                    Spacer()
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
                     if pref.needsReview {
-                        Text("Review")
-                            .font(.tempoCaption2)
-                            .padding(.horizontal, TempoSpacing.xs)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.tempoAmber.opacity(0.18)))
-                            .foregroundStyle(Color.tempoAmber)
+                        TideCoachPill(title: "Review", color: Tide.streak)
                     }
                 }
-                HStack(spacing: TempoSpacing.sm) {
-                    confidenceBar(pref.confidence)
-                    Text(Int(pref.confidence * 100).description + "%")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                HStack(spacing: Tide.s3) {
+                    TideLevelBar(progress: pref.confidence, height: Tide.barSlim)
+                    TideNumber(
+                        "\(Int(pref.confidence * 100))", unit: "%",
+                        size: TideCoach.figureSmall, relativeTo: .subheadline, weight: .semibold, color: Tide.text2
+                    )
+                    .fixedSize()
+                }
+                HStack(spacing: Tide.s2) {
                     sourcePill(pref.source)
-                    Spacer()
-                    Text("last seen \(relativeDate(pref.lastSeenAt))")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Spacer(minLength: Tide.s2)
+                    Text("Seen \(relativeDate(pref.lastSeenAt))")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(1)
                 }
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                    .fill(Color.tempoSurfaceCard)
-            )
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
-    }
-
-    private func confidenceBar(_ confidence: Double) -> some View {
-        // 10-segment bar — fill `floor(confidence * 10)` cells.
-        let filled = Int((confidence * 10).rounded())
-        return HStack(spacing: 2) {
-            ForEach(0..<10, id: \.self) { i in
-                Capsule()
-                    .fill(i < filled ? Color.tempoSignal : Color.tempoSteel.opacity(0.25))
-                    .frame(width: 6, height: 4)
-            }
-        }
+        .buttonStyle(TideCoachPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Edit")
     }
 
     private func sourcePill(_ source: LearnedPreference.Source) -> some View {
-        let (label, color): (String, Color) = {
-            switch source {
-            case .explicit: return ("Explicit", Color.tempoInfo)
-            case .observed: return ("Observed", Color.tempoTextTertiary)
-            case .inferred: return ("Inferred", Color.tempoTextTertiary)
-            case .userVerified: return ("Verified", Color.tempoSuccess)
-            }
-        }()
-        return Text(label)
-            .font(.tempoCaption2)
-            .padding(.horizontal, TempoSpacing.xs)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.18)))
-            .foregroundStyle(color)
+        switch source {
+        case .explicit: TideCoachPill(title: "Explicit", color: Tide.fat)
+        case .observed: TideCoachPill(title: "Observed", color: Tide.text2)
+        case .inferred: TideCoachPill(title: "Inferred", color: Tide.text2)
+        case .userVerified: TideCoachPill(title: "Verified", color: mood.accent)
+        }
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Spacer(minLength: TempoSpacing.xxl)
-            Text(emptyStateMessage)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-        }
-        .frame(maxWidth: .infinity)
+        Text(emptyStateMessage)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6, radius: Tide.tileRadius)
     }
 
     private var emptyStateMessage: String {
         switch selectedPolarity {
         case .positive:
-            return "Coach hasn't learned any likes yet. Chat with it more to fill this in."
+            "Coach hasn't learned any likes yet. Chat with it more to fill this in."
         case .negative:
-            return "No dislikes recorded yet."
+            "No dislikes recorded yet."
         case .avoidAtAllCosts:
-            return "No hard avoids set. Add some by re-doing the Coach interview."
+            "No hard avoids set. Add some by re-doing the Coach interview."
         }
     }
 
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Button {
-                presentingRedoInterview = true
-            } label: {
-                HStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Re-do Coach interview")
-                        .font(.tempoCaption1)
-                }
-            }
-            .buttonStyle(.tempoGhost)
+        Button {
+            presentingRedoInterview = true
+        } label: {
+            Label("Re-do Coach interview", systemImage: "arrow.clockwise")
+                .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
+        .buttonStyle(.tideGlass)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Helpers
 
-    private var activeCount: Int { preferences.count }
-
-    private func polarityColor(_ polarity: LearnedPreference.Polarity) -> Color {
-        switch polarity {
-        case .positive: return Color.tempoSignal
-        case .negative: return Color.tempoTextSecondary
-        case .avoidAtAllCosts: return Color.tempoError
-        }
+    private var activeCount: Int {
+        preferences.count
     }
 
     private func relativeDate(_ date: Date) -> String {
@@ -291,51 +243,83 @@ struct CoachMemoryView: View {
 private struct EditPreferenceSheet: View {
     @Bindable var preference: LearnedPreference
     let onDelete: () -> Void
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
-    @State private var draftText: String = ""
-    @State private var draftConfidence: Double = 0
-    @State private var draftScope: LearnedPreference.Scope = .always
-    @State private var draftPolarity: LearnedPreference.Polarity = .positive
-    @State private var confirmDelete: Bool = false
+    @State
+    private var draftText: String = ""
+    @State
+    private var draftConfidence: Double = 0
+    @State
+    private var draftScope: LearnedPreference.Scope = .always
+    @State
+    private var draftPolarity: LearnedPreference.Polarity = .positive
+    @State
+    private var confirmDelete: Bool = false
+    @State
+    private var saves = 0
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Text") {
-                    TextField("Preference", text: $draftText, axis: .vertical)
-                        .lineLimit(2...6)
-                }
-                Section("Confidence") {
-                    Slider(value: $draftConfidence, in: 0...1)
-                    Text("\(Int((draftConfidence * 100).rounded()))%")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Section("Scope") {
-                    Picker("Scope", selection: $draftScope) {
-                        ForEach(LearnedPreference.Scope.allCases, id: \.self) { scope in
-                            Text(scope.displayLabel).tag(scope)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s4) {
+                    card("Text") {
+                        TextField(
+                            text: $draftText,
+                            prompt: Text("Preference").foregroundStyle(Tide.text3),
+                            axis: .vertical
+                        ) {
+                            Text("Preference")
                         }
+                        .lineLimit(2 ... 6)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .tint(mood.accent)
                     }
-                }
-                Section("Polarity") {
-                    Picker("Polarity", selection: $draftPolarity) {
-                        ForEach(LearnedPreference.Polarity.allCases, id: \.self) { p in
-                            Text(p.displayLabel).tag(p)
+
+                    card("Confidence", trailing: "\(Int((draftConfidence * 100).rounded()))%") {
+                        Slider(value: $draftConfidence, in: 0 ... 1)
+                            .tint(mood.accent)
+                            .frame(minHeight: Tide.hit)
+                    }
+
+                    card("Scope") {
+                        Picker("Scope", selection: $draftScope) {
+                            ForEach(LearnedPreference.Scope.allCases, id: \.self) { scope in
+                                Text(scope.displayLabel).tag(scope)
+                            }
                         }
+                        .pickerStyle(.menu)
+                        .tint(mood.accent)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
                     }
-                    .pickerStyle(.segmented)
-                }
-                Section {
-                    Button("Save (marks as Verified)") { save() }
-                    Button("This is wrong — delete", role: .destructive) {
-                        confirmDelete = true
+
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        TideSectionLabel(title: "Polarity")
+                        TideCoachChoiceChips(
+                            options: LearnedPreference.Polarity.allCases.map {
+                                .init(value: $0, title: $0.displayLabel)
+                            },
+                            selection: $draftPolarity
+                        )
                     }
+                    .padding(.top, Tide.s1)
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
-            .navigationTitle("Edit Preference")
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                actions
+            }
+            .tidePage()
+            .navigationTitle("Edit preference")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -343,6 +327,7 @@ private struct EditPreferenceSheet: View {
                 }
             }
             .onAppear { hydrateDraft() }
+            .sensoryFeedback(.success, trigger: saves)
             .alert("Delete this preference?", isPresented: $confirmDelete) {
                 Button("Cancel", role: .cancel) {}
                 Button("Delete", role: .destructive) {
@@ -353,6 +338,36 @@ private struct EditPreferenceSheet: View {
                 Text("I won't propose it again.")
             }
         }
+    }
+
+    private func card(
+        _ title: String,
+        trailing: String? = nil,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: title, trailing: trailing)
+            content()
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private var actions: some View {
+        VStack(spacing: Tide.s2) {
+            Button("Save and mark verified") { save() }
+                .buttonStyle(.tidePrimary)
+            Button(role: .destructive) {
+                confirmDelete = true
+            } label: {
+                Text("This is wrong, delete")
+                    .foregroundStyle(Tide.danger)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tideGlass)
+        }
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s2)
     }
 
     private func hydrateDraft() {
@@ -369,6 +384,7 @@ private struct EditPreferenceSheet: View {
         preference.confidence = draftConfidence
         preference.markUserVerified()
         try? modelContext.save()
+        saves += 1
         dismiss()
     }
 }
@@ -378,14 +394,14 @@ private struct EditPreferenceSheet: View {
 extension LearnedPreference.Scope {
     var displayLabel: String {
         switch self {
-        case .always: return "Always"
-        case .weekday: return "Weekdays"
-        case .weekend: return "Weekend"
-        case .dayTypeHard: return "Hard Training Days"
-        case .dayTypeRest: return "Rest Days"
-        case .eventTravel: return "Travel"
-        case .eventMatch: return "Match Days"
-        case .seasonalSummer: return "Summer"
+        case .always: "Always"
+        case .weekday: "Weekdays"
+        case .weekend: "Weekend"
+        case .dayTypeHard: "Hard Training Days"
+        case .dayTypeRest: "Rest Days"
+        case .eventTravel: "Travel"
+        case .eventMatch: "Match Days"
+        case .seasonalSummer: "Summer"
         }
     }
 }
@@ -393,9 +409,9 @@ extension LearnedPreference.Scope {
 extension LearnedPreference.Polarity {
     var displayLabel: String {
         switch self {
-        case .positive: return "Like"
-        case .negative: return "Dislike"
-        case .avoidAtAllCosts: return "Hard Avoid"
+        case .positive: "Like"
+        case .negative: "Dislike"
+        case .avoidAtAllCosts: "Hard Avoid"
         }
     }
 }
