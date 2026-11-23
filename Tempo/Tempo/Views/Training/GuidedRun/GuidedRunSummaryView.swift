@@ -47,7 +47,7 @@ struct GuidedRunSummaryView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
+                VStack(alignment: .leading, spacing: Tide.s6) {
                     header
                     ForEach(plan.blocks) { block in
                         blockSummary(block)
@@ -55,15 +55,15 @@ struct GuidedRunSummaryView: View {
                     rpeSection
                     notesSection
                 }
-                .padding(TempoSpacing.screenEdge)
+                .padding(Tide.edge)
             }
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Session Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Discard") { showDiscardConfirm = true }
-                        .foregroundStyle(Color.tempoError)
+                        .foregroundStyle(Tide.danger)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -91,53 +91,48 @@ struct GuidedRunSummaryView: View {
                 Text("Nothing will be logged — reps, times and distance are lost.")
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-            Text("SESSION COMPLETE")
-                .font(.tempoDrillLabel)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoSignal)
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text("Session complete")
+                .font(Tide.label)
+                .foregroundStyle(Color.accentColor)
             Text("Here's what you put in.")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
         }
     }
 
     // MARK: - Per-block summary
 
     private func blockSummary(_ block: GuidedRunBlock) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline) {
                 Text(block.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if let met = targetMet(block) {
                     Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(met ? Color.tempoRecoveryGreen : Color.tempoError)
+                        .foregroundStyle(met ? TideTrain.positive : Tide.danger)
                 }
             }
             Text(block.trainerText)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
             if let record = results[block.id] {
                 blockDetail(block, record: record)
             } else {
                 Text("Skipped — not started")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     @ViewBuilder
@@ -146,27 +141,27 @@ struct GuidedRunSummaryView: View {
             repTimesGrid(block, record: record)
         } else if record.roundsCompleted > 0 {
             Text("\(record.roundsCompleted) rounds completed")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
         } else if record.durationSeconds != nil || record.distanceMeters != nil {
             continuousSummary(record)
         }
         if record.skippedCount > 0 {
             Text("\(record.skippedCount) skipped")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
         if let avg = record.avgHeartRateBPM {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 Image(systemName: "heart.fill")
-                    .foregroundStyle(Color.tempoError)
+                    .foregroundStyle(Tide.danger)
                 Text("Avg \(Int(avg.rounded())) bpm")
                 if let max = record.maxHeartRateBPM {
                     Text("· Max \(Int(max.rounded())) bpm")
                 }
             }
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
         }
     }
 
@@ -178,24 +173,24 @@ struct GuidedRunSummaryView: View {
             return nil
         }()
         let checks = record.repChecks(capSeconds: capSeconds)
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s1) {
             ForEach(Array(record.repTimesSeconds.enumerated()), id: \.offset) { index, time in
                 HStack {
                     Text("Rep \(index + 1)")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                     Spacer()
                     Text(GuidedRunFormatting.repTime(time))
-                        .font(.tempoDataMedium)
+                        .font(TideTrain.figure(.headline))
                         .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(Tide.text)
                     if let check = checks[index] {
                         Image(systemName: check ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(check ? Color.tempoRecoveryGreen : Color.tempoError)
+                            .foregroundStyle(check ? TideTrain.positive : Tide.danger)
                     }
                 }
             }
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 if let best = record.bestRepSeconds {
                     Text("Best \(GuidedRunFormatting.repTime(best))")
                 }
@@ -203,9 +198,9 @@ struct GuidedRunSummaryView: View {
                     Text("Avg \(GuidedRunFormatting.repTime(avg))")
                 }
             }
-            .font(.tempoCaption1)
+            .font(Tide.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .foregroundStyle(Tide.text3)
         }
     }
 
@@ -214,7 +209,7 @@ struct GuidedRunSummaryView: View {
     }
 
     private func continuousSummary(_ record: GuidedRunBlockRecord) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             if let duration = record.durationSeconds {
                 Text(GuidedRunFormatting.clock(duration))
             }
@@ -225,8 +220,8 @@ struct GuidedRunSummaryView: View {
                 }
             }
         }
-        .font(.tempoDataMedium)
-        .foregroundStyle(Color.tempoTextPrimary)
+        .font(TideTrain.figure(.headline))
+        .foregroundStyle(Tide.text)
     }
 
     private func targetMet(_ block: GuidedRunBlock) -> Bool? {
@@ -245,46 +240,42 @@ struct GuidedRunSummaryView: View {
     // MARK: - RPE + notes
 
     private var rpeSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("EFFORT (RPE)")
-            HStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionLabel("Effort (RPE)")
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 5),
+                spacing: Tide.s2
+            ) {
                 ForEach(1 ... 10, id: \.self) { value in
                     Button {
                         HapticManager.selection()
                         rpe = value
                     } label: {
                         Text("\(value)")
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .monospacedDigit()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 36)
-                            .background(rpe == value ? Color.tempoSignal : Color.tempoBgSecondary)
-                            .foregroundStyle(rpe == value ? Color.tempoBone : Color.tempoTextPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                            .font(TideTrain.figure(.title3, weight: .semibold))
                     }
+                    .buttonStyle(.trainChoice(isSelected: rpe == value))
                 }
             }
         }
     }
 
     private var notesSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("NOTES")
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionLabel("Notes")
             TextField("How did it feel?", text: $notes, axis: .vertical)
-                .font(.tempoBody)
+                .font(Tide.body)
                 .lineLimit(2 ... 4)
-                .padding(TempoSpacing.inputHorizontal)
-                .background(Color.tempoBgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .padding(Tide.s3)
+                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
         }
     }
 
     private func sectionLabel(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption2)
+            .font(Tide.caption)
             .fontWeight(.bold)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .foregroundStyle(Tide.text3)
     }
 
     // MARK: - Save

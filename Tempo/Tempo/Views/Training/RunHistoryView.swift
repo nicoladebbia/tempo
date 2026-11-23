@@ -29,13 +29,13 @@ struct RunHistoryView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 statsHeader
 
                 if runs.isEmpty {
                     emptyState
                 } else {
-                    LazyVStack(spacing: TempoSpacing.sm) {
+                    LazyVStack(spacing: Tide.s2) {
                         ForEach(runs, id: \.id) { run in
                             NavigationLink(destination: RunDetailView(run: run)) {
                                 runRow(run)
@@ -45,8 +45,8 @@ struct RunHistoryView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Runs")
@@ -76,7 +76,7 @@ struct RunHistoryView: View {
         let paces = recentRuns.compactMap(\.avgPaceSecondsPerKm)
         let bestPace = paces.min()
 
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s2) {
             statCell(label: "RUNS · 30D", value: "\(recentRuns.count)")
             statCell(
                 label: "DISTANCE",
@@ -87,77 +87,73 @@ struct RunHistoryView: View {
                 value: GuidedRunFormatting.pace(secondsPerKm: bestPace, useMiles: useMiles) ?? "—"
             )
         }
-        .padding(.top, TempoSpacing.sm)
+        .padding(.top, Tide.s2)
     }
 
     private func statCell(label: String, value: String) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             Text(value)
-                .font(.tempoHeadline)
+                .font(Tide.headline)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(.vertical, Tide.s3).tideCard(padding: 0, radius: Tide.tileRadius)
     }
 
     // MARK: - Rows
 
     private func runRow(_ run: RunSession) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: "figure.run")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.headline)
+                .foregroundStyle(Color.accentColor)
                 .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(run.date, format: .dateTime.weekday(.wide).month().day())
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Text(
                     "\(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles)) · \(run.durationFormatted)"
                 )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
             Spacer()
 
             if let pace = GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: useMiles) {
                 Text(pace)
-                    .font(.tempoHeadline)
+                    .font(Tide.headline)
                     .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
             }
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Image(systemName: "figure.run")
-                .font(.system(size: 44))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
             Text("No runs yet")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text("Record a run with your Watch, Whoop, or any app that saves to Health — it shows up here.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
         }
-        .padding(.top, TempoSpacing.xxxl)
+        .padding(.top, Tide.s8)
     }
 
     private var useMiles: Bool {
@@ -184,23 +180,22 @@ struct RunDetailView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 // Headline stats
-                VStack(spacing: TempoSpacing.xxs) {
+                VStack(spacing: Tide.hair) {
                     Text(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles))
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .trainNumeral(44, weight: .bold)
+                        .foregroundStyle(Tide.text)
                     Text(run.date, format: .dateTime.weekday(.wide).month(.wide).day().hour().minute())
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                .padding(.top, TempoSpacing.xl)
+                .padding(.top, Tide.s5)
 
                 LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: TempoSpacing.sm),
-                    GridItem(.flexible(), spacing: TempoSpacing.sm),
-                ], spacing: TempoSpacing.sm) {
+                    GridItem(.flexible(), spacing: Tide.s2),
+                    GridItem(.flexible(), spacing: Tide.s2),
+                ], spacing: Tide.s2) {
                     detailCell(icon: "timer", label: "Duration", value: run.durationFormatted)
                     detailCell(
                         icon: "speedometer",
@@ -229,8 +224,8 @@ struct RunDetailView: View {
                     splitsSection
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Run")
@@ -238,52 +233,48 @@ struct RunDetailView: View {
     }
 
     private func detailCell(icon: String, label: String, value: String) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s1) {
             Image(systemName: icon)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             Text(value)
-                .font(.tempoTitle3)
+                .font(Tide.headline)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(.vertical, Tide.s4).tideCard(padding: 0, radius: Tide.tileRadius)
     }
 
     private var splitsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text("Splits")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
 
             let fastest = run.splits.min() ?? 0
             ForEach(Array(run.splits.enumerated()), id: \.offset) { idx, split in
                 HStack {
                     Text("KM \(idx + 1)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .frame(width: 48, alignment: .leading)
                     Text(RunHistoryView.paceLabel(split))
-                        .font(.tempoBody)
+                        .font(Tide.body)
                         .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(Tide.text)
                     if split == fastest, run.splits.count > 1 {
                         Image(systemName: "bolt.fill")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoPRGold)
+                            .font(Tide.caption)
+                            .foregroundStyle(TideTrain.record)
                     }
                     Spacer()
                 }
-                .padding(.vertical, TempoSpacing.xs)
-                .padding(.horizontal, TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .padding(.vertical, Tide.s1)
+                .padding(.horizontal, Tide.s3).tideCard(padding: 0, radius: Tide.tileRadius)
             }
         }
     }
