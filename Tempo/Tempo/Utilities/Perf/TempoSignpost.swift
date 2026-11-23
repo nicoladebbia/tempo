@@ -3,7 +3,7 @@
 // Tempo
 //
 // Launch and tab timing, visible in Instruments (os_signpost, category
-// "Speed") and printed in Debug builds.
+// "Speed") and in the unified log (same category).
 //
 //   LaunchToFirstContent  process start → Today has drawn real content
 //   TabFirstContent       tab picked → that tab has drawn its first content
@@ -18,6 +18,8 @@ enum TempoSignpost {
         subsystem: Bundle.main.bundleIdentifier ?? "app.tempo",
         category: "Speed"
     )
+
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "app.tempo", category: "Speed")
 
     private static var launchState: OSSignpostIntervalState?
     private static var launchDone = false
@@ -39,12 +41,20 @@ enum TempoSignpost {
         return Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000)
     }()
 
+    /// A named point on the launch timeline (ms since process start).
+    static func mark(_ name: StaticString) {
+        signposter.emitEvent(name)
+        let elapsed = Int(Date().timeIntervalSince(processStart) * 1000)
+        log.notice("[Speed] mark \(String(describing: name), privacy: .public): \(elapsed, privacy: .public) ms")
+    }
+
     /// Call once, as early as possible in app start.
     static func launchBegan() {
         guard launchState == nil, !launchDone else {
             return
         }
         launchState = signposter.beginInterval("LaunchToFirstContent")
+        mark("AppInitBegan")
     }
 
     /// Today drew real content (`source` says whether it was saved or fresh).
@@ -59,9 +69,7 @@ enum TempoSignpost {
         launchState = nil
         let elapsed = Date().timeIntervalSince(processStart) * 1000
         launchToContentMs = elapsed
-        #if DEBUG
-            print("[Speed] launch → Today content (\(source)): \(String(format: "%.0f", elapsed)) ms")
-        #endif
+        log.notice("[Speed] launch to Today content (\(source, privacy: .public)): \(Int(elapsed), privacy: .public) ms")
         tabContentShown(.today)
     }
 
@@ -83,9 +91,7 @@ enum TempoSignpost {
             return
         }
         signposter.endInterval("TabFirstContent", entry.state, "\(tab.title, privacy: .public)")
-        #if DEBUG
-            let elapsed = Date().timeIntervalSince(entry.started) * 1000
-            print("[Speed] \(tab.title) first content: \(String(format: "%.0f", elapsed)) ms")
-        #endif
+        let elapsed = Date().timeIntervalSince(entry.started) * 1000
+        log.notice("[Speed] \(tab.title, privacy: .public) first content: \(Int(elapsed), privacy: .public) ms")
     }
 }

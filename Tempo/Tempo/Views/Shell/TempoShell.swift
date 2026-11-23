@@ -73,9 +73,12 @@ struct TempoShell: View {
                     floatingCapture
                 }
             }
+            // The tab bar takes the mood colour, not the old accent setting.
+            .tint(TideMood(score: appState.dayScore).accent)
             .environment(\.tideMood, TideMood(score: appState.dayScore))
             .captureHost(isPresented: $appState.captureRequested, nutritionViewModel: nutritionViewModel)
             .onChange(of: appState.activeTab, initial: true) { _, tab in
+                TempoSignpost.mark("ShellBody")
                 TempoSignpost.tabPicked(tab)
             }
             .task {

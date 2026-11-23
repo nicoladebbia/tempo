@@ -76,6 +76,7 @@ struct TempoApp: App {
             // survives uninstalling the app) start from an empty in-memory one.
             let freshStore = ProcessInfo.processInfo.arguments.contains("--uitesting-empty-store")
             container = try TempoModelContainer.create(inMemory: freshStore)
+            TempoSignpost.mark("StoreOpened")
             if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
                 try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
                 try AchievementLibrary.loadIfNeeded(context: container.mainContext)
@@ -125,7 +126,9 @@ struct TempoApp: App {
         #endif
         // ServiceContainer.live builds the APIClient itself so it can wire
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
+        TempoSignpost.mark("SeedsDone")
         let serviceContainer = ServiceContainer.live()
+        TempoSignpost.mark("ServicesBuilt")
         // §22 — the watch action router needs a real ModelContext to act on
         // (mark a non-negotiable done, log a meal eaten, ...); wire it here,
         // immediately, using the SAME context `.modelContainer(container)`
@@ -180,6 +183,7 @@ struct TempoApp: App {
         UINavigationBar.appearance().standardAppearance = transparent
         UINavigationBar.appearance().scrollEdgeAppearance = transparent
         UINavigationBar.appearance().compactAppearance = transparent
+        TempoSignpost.mark("AppInitDone")
     }
 
     var body: some Scene {
