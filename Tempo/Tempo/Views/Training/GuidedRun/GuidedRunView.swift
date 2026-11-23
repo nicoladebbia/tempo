@@ -145,22 +145,21 @@ struct GuidedRunView: View {
                     Image(systemName: "xmark")
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text2)
-                        .frame(width: 44, height: 44)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
+                .accessibilityLabel("Close")
                 Spacer()
             }
             .padding(.horizontal, Tide.s2)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s6) {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text("Guided run")
-                            .font(Tide.label)
-                            .foregroundStyle(Color.accentColor)
-                        Text(heading)
-                            .font(Tide.largeTitle)
-                            .foregroundStyle(Tide.text)
-                    }
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    TrainHeader(
+                        label: "Guided run",
+                        title: heading,
+                        detail: plan.isEmpty ? nil : "\(plan.blocks.count) \(plan.blocks.count == 1 ? "block" : "blocks"), rests and cues handled for you."
+                    ) {}
 
                     VStack(alignment: .leading, spacing: Tide.s3) {
                         ForEach(plan.blocks) { block in
@@ -169,27 +168,32 @@ struct GuidedRunView: View {
                     }
 
                     if plan.isEmpty {
-                        Text("Nothing to guide here — log this one manually.")
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
+                        TrainEmptyCard(
+                            systemImage: "figure.run",
+                            title: "Nothing to guide here",
+                            message: "Log this one manually."
+                        )
                     }
                 }
-                .padding(Tide.edge)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
             }
+            .scrollBounceBehavior(.basedOnSize)
 
             startButton
                 .padding(.horizontal, Tide.edge)
-                .padding(.bottom, Tide.s5)
+                .padding(.bottom, Tide.s3)
         }
     }
 
     private func preStartBlockRow(_ block: GuidedRunBlock) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            Text(block.name).tideLabel()
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(block.name).tideLabel(Color.accentColor)
             Text(block.trainerText)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
+            TrainSessionRule()
             if block.restIsDefault {
                 Stepper(
                     "Rest between: \(Int(effectiveRest(block)))s",
@@ -200,14 +204,15 @@ struct GuidedRunView: View {
                     in: 10 ... 300,
                     step: 5
                 )
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
             } else {
                 Text("Rest: \(Int(block.restSeconds))s (trainer's)")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
@@ -238,11 +243,9 @@ struct GuidedRunView: View {
             #endif
         } label: {
             Text(plan.isEmpty ? "Nothing to run" : "Start guided run")
-                .font(Tide.headline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(minHeight: TideTrain.bigButton - Tide.s2)
         }
-        .buttonStyle(TempoPrimaryButtonStyle())
+        .buttonStyle(.tidePrimary)
         .disabled(plan.isEmpty)
         .accessibilityIdentifier("guidedRunStartSessionButton")
     }

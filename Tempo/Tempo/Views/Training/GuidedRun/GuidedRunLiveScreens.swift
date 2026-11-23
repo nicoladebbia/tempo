@@ -16,19 +16,31 @@ struct GuidedRunCountdownScreen: View {
     let secondsRemaining: Int
     let nextStepTitle: String
 
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var figure: CGFloat = TideTrainSession.countdownFigure
+
     var body: some View {
         VStack(spacing: Tide.s5) {
             Spacer()
             Text("Get ready").tideLabel()
-            Text(secondsRemaining > 0 ? "\(secondsRemaining)" : "GO")
-                .trainNumeral(140, weight: .heavy)
-                .foregroundStyle(secondsRemaining > 0 ? Tide.text : Color.accentColor)
-                .monospacedDigit()
-                .contentTransition(.numericText(countsDown: true))
-                .animation(Tide.lively, value: secondsRemaining)
+            TrainRing(
+                progress: 1,
+                tint: secondsRemaining > 0 ? nil : TideTrain.positive,
+                diameter: TideTrainSession.restRing
+            ) {
+                Text(secondsRemaining > 0 ? "\(secondsRemaining)" : "GO")
+                    .font(Tide.numeral(min(figure, TideTrainSession.restRing * 0.5), .heavy))
+                    .foregroundStyle(secondsRemaining > 0 ? Tide.text : TideTrain.positive)
+                    .contentTransition(.numericText(countsDown: true))
+                    .animation(Tide.lively, value: secondsRemaining)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
             Text(nextStepTitle)
-                .font(Tide.body)
+                .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Tide.edge)
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -53,6 +65,9 @@ struct GuidedRunWorkScreen: View {
     var maxHeartRate: Double?
     let onExit: () -> Void
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     private var step: GuidedRunStep? {
         session.steps.indices.contains(session.stepIndex) ? session.steps[session.stepIndex] : nil
     }
@@ -72,14 +87,13 @@ struct GuidedRunWorkScreen: View {
                 ScrollView {
                     VStack(spacing: Tide.s6) {
                         header(step)
-                        Spacer(minLength: Tide.s5)
                         workBody(workKind)
-                        Spacer(minLength: Tide.s5)
                     }
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s4)
-                    .frame(minHeight: 480)
+                    .containerRelativeFrame(.vertical, alignment: .center)
                 }
+                .scrollBounceBehavior(.basedOnSize)
                 controls(workKind)
             }
         }
@@ -116,33 +130,35 @@ struct GuidedRunWorkScreen: View {
     private func timedRepBody(index: Int, of: Int, capSeconds: Double?, distanceLabel: String?) -> some View {
         let elapsed = session.elapsedInCurrentStep
         let overCap = capSeconds.map { elapsed > $0 } ?? false
-        return VStack(spacing: Tide.s3) {
-            Text("Rep \(index + 1)/\(of)").tideLabel()
-            Text(GuidedRunFormatting.clock(elapsed))
-                .trainNumeral(96, weight: .bold)
-                .foregroundStyle(overCap ? Tide.danger : Tide.text)
-                .animation(Tide.snap, value: overCap)
-            if let capSeconds {
-                Text("Cap \(GuidedRunFormatting.repTime(capSeconds))")
-                    .font(Tide.headline)
-                    .foregroundStyle(overCap ? Tide.danger : TideTrain.positive)
-            }
-            if let distanceLabel {
-                Text(distanceLabel)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
+        return TrainSessionHero(
+            label: "Rep \(index + 1)/\(of)",
+            value: GuidedRunFormatting.clock(elapsed),
+            progress: capSeconds.map { $0 > 0 ? elapsed / $0 : 0 },
+            tint: overCap ? Tide.danger : nil,
+            valueColor: overCap ? Tide.danger : Tide.text
+        ) {
+            VStack(spacing: Tide.s1) {
+                if let capSeconds {
+                    Text("Cap \(GuidedRunFormatting.repTime(capSeconds))")
+                        .font(Tide.headline)
+                        .foregroundStyle(overCap ? Tide.danger : TideTrain.positive)
+                }
+                if let distanceLabel {
+                    Text(distanceLabel)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
             }
         }
+        .animation(Tide.snap, value: overCap)
     }
 
     private func roundBody(index: Int, of: Int) -> some View {
-        VStack(spacing: Tide.s3) {
-            Text("Round")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-            Text("\(index + 1)")
-                .trainNumeral(120, weight: .heavy)
-                .foregroundStyle(Tide.text)
+        TrainSessionHero(
+            label: "Round",
+            value: "\(index + 1)",
+            progress: of > 0 ? Double(index + 1) / Double(of) : nil
+        ) {
             Text("of \(of)")
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text2)
@@ -151,44 +167,47 @@ struct GuidedRunWorkScreen: View {
 
     private func continuousBody(targetSeconds: Double, targetDistanceLabel: String?) -> some View {
         let elapsed = session.elapsedInCurrentStep
-        return VStack(spacing: Tide.s3) {
-            Text(GuidedRunFormatting.clock(elapsed))
-                .trainNumeral(88, weight: .bold)
-                .foregroundStyle(Tide.text)
-            if let remaining = session.remainingInCurrentStep {
-                Text("\(GuidedRunFormatting.clock(remaining)) remaining")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text2)
+        return TrainSessionHero(
+            value: GuidedRunFormatting.clock(elapsed),
+            progress: targetSeconds > 0 ? elapsed / targetSeconds : nil
+        ) {
+            VStack(spacing: Tide.s3) {
+                if let remaining = session.remainingInCurrentStep {
+                    Text("\(GuidedRunFormatting.clock(remaining)) remaining")
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
+                }
+                distanceRow
             }
-            distanceRow
         }
     }
 
     private func continuousDistanceBody(targetMeters: Double, targetLabel: String) -> some View {
-        VStack(spacing: Tide.s3) {
-            Text(GuidedRunFormatting.distance(meters: locationTracker.distanceMeters, useMiles: useMiles))
-                .trainNumeral(72, weight: .bold)
-                .foregroundStyle(Tide.text)
-            Text("Target \(targetLabel)")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text2)
-            Text(GuidedRunFormatting.clock(session.elapsedInCurrentStep))
-                .font(TideTrain.figure(.headline))
-                .foregroundStyle(Tide.text3)
-            paceRow
+        TrainSessionHero(
+            value: GuidedRunFormatting.distance(meters: locationTracker.distanceMeters, useMiles: useMiles),
+            progress: targetMeters > 0 ? locationTracker.distanceMeters / targetMeters : nil
+        ) {
+            VStack(spacing: Tide.s2) {
+                Text("Target \(targetLabel)")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text2)
+                Text(GuidedRunFormatting.clock(session.elapsedInCurrentStep))
+                    .font(TideTrain.figure(.headline))
+                    .foregroundStyle(Tide.text3)
+                paceRow
+            }
         }
     }
 
     private func freeformBody(text: String) -> some View {
-        VStack(spacing: Tide.s3) {
-            Text(GuidedRunFormatting.clock(session.elapsedInCurrentStep))
-                .trainNumeral(88, weight: .bold)
-                .foregroundStyle(Tide.text)
-            Text(text)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            distanceRow
+        TrainSessionHero(value: GuidedRunFormatting.clock(session.elapsedInCurrentStep)) {
+            VStack(spacing: Tide.s3) {
+                Text(text)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                distanceRow
+            }
         }
     }
 
@@ -221,7 +240,7 @@ struct GuidedRunWorkScreen: View {
 
     private func controls(_ kind: GuidedRunWorkKind) -> some View {
         VStack(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
+            LazyVGrid(columns: railColumns(kind), spacing: Tide.s2) {
                 secondaryButton(title: session.isPaused ? "Resume" : "Pause", systemImage: session.isPaused ? "play.fill" : "pause.fill") {
                     session.isPaused ? session.resume() : session.pause()
                 }
@@ -243,8 +262,14 @@ struct GuidedRunWorkScreen: View {
             doneButton
         }
         .padding(.horizontal, Tide.edge)
-        .padding(.bottom, Tide.s5)
+        .padding(.bottom, Tide.s3)
         .padding(.top, Tide.s2)
+    }
+
+    /// One row of rail buttons, two columns at large text sizes.
+    private func railColumns(_ kind: GuidedRunWorkKind) -> [GridItem] {
+        let count = typeSize.isAccessibilitySize ? 2 : (isRepeatable(kind) ? 4 : 3)
+        return Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: count)
     }
 
     private func isRepeatable(_ kind: GuidedRunWorkKind) -> Bool {
@@ -261,11 +286,9 @@ struct GuidedRunWorkScreen: View {
             session.markDone(liveDistanceMeters: locationTracker.isTracking ? locationTracker.distanceMeters : nil)
         } label: {
             Text("Done")
-                .font(Tide.headline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 64)
+                .frame(minHeight: TideTrain.bigButton - Tide.s2)
         }
-        .buttonStyle(TempoPrimaryButtonStyle())
+        .buttonStyle(.tidePrimary)
         .disabled(session.isPaused)
         .accessibilityIdentifier("guidedRunDoneButton")
     }
@@ -299,64 +322,88 @@ struct GuidedRunRestScreen: View {
     var maxHeartRate: Double?
     let onExit: () -> Void
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     private var nextStep: GuidedRunStep? {
         let nextIndex = session.stepIndex + 1
         return session.steps.indices.contains(nextIndex) ? session.steps[nextIndex] : nil
     }
 
+    /// The rest the trainer (or Tempo) set for this step, for the ring.
+    private var restTotal: Double {
+        if session.steps.indices.contains(session.stepIndex), case let .rest(seconds) = session.steps[session.stepIndex].kind {
+            return seconds
+        }
+        return 0
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
+        let remaining = session.remainingInCurrentStep ?? 0
+        return VStack(spacing: 0) {
             GuidedRunTopBar(isMuted: $isMuted, onExit: onExit)
-            Spacer()
-            VStack(spacing: Tide.s4) {
-                Text("Rest").tideLabel(TideTrain.caution)
-                Text(GuidedRunFormatting.clock(session.remainingInCurrentStep ?? 0))
-                    .trainNumeral(110, weight: .heavy)
-                    .foregroundStyle(Tide.text)
-                GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
-
-                if let nextStep, case let .work(kind) = nextStep.kind {
-                    VStack(spacing: Tide.hair) {
-                        Text("Up next").tideLabel()
-                        Text(nextStep.blockName)
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-                        Text(GuidedRunFormatting.workDescription(kind))
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
+            ScrollView {
+                VStack(spacing: Tide.s5) {
+                    TrainSessionHero(
+                        label: "Rest",
+                        labelTint: TideTrain.caution,
+                        value: GuidedRunFormatting.clock(remaining),
+                        progress: restTotal > 0 ? remaining / restTotal : nil,
+                        tint: TideTrain.caution
+                    ) {
+                        GuidedRunHeartRateBadge(bpm: session.currentHeartRateBPM, maxHeartRate: maxHeartRate)
                     }
-                    .padding(.top, Tide.s5)
+
+                    if let nextStep, case let .work(kind) = nextStep.kind {
+                        VStack(spacing: Tide.hair) {
+                            Text("Up next").tideLabel()
+                            Text(nextStep.blockName)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
+                                .multilineTextAlignment(.center)
+                            Text(GuidedRunFormatting.workDescription(kind))
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s4)
+                .containerRelativeFrame(.vertical, alignment: .center)
+                .accessibilityIdentifier("guidedRunRestScreen")
             }
-            .accessibilityIdentifier("guidedRunRestScreen")
-            Spacer()
+            .scrollBounceBehavior(.basedOnSize)
 
-            HStack(spacing: Tide.s2) {
-                Button {
-                    session.isPaused ? session.resume() : session.pause()
-                } label: {
-                    Text(session.isPaused ? "Resume" : "Pause")
-                        .font(Tide.headline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                }
-                .buttonStyle(TempoSecondaryButtonStyle())
+            GlassEffectContainer(spacing: Tide.s2) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s2))
+                layout {
+                    Button {
+                        session.isPaused ? session.resume() : session.pause()
+                    } label: {
+                        Text(session.isPaused ? "Resume" : "Pause")
+                            .frame(minHeight: TideTrain.bigButton - Tide.s2)
+                    }
+                    .buttonStyle(.tideGlass)
 
-                Button {
-                    HapticManager.selection()
-                    session.skipRep()
-                } label: {
-                    Text("Skip rest")
-                        .font(Tide.headline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
+                    Button {
+                        HapticManager.selection()
+                        session.skipRep()
+                    } label: {
+                        Text("Skip rest")
+                            .frame(minHeight: TideTrain.bigButton - Tide.s2)
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(session.isPaused)
+                    .accessibilityIdentifier("guidedRunSkipRestButton")
                 }
-                .buttonStyle(TempoPrimaryButtonStyle())
-                .disabled(session.isPaused)
-                .accessibilityIdentifier("guidedRunSkipRestButton")
             }
             .padding(.horizontal, Tide.edge)
-            .padding(.bottom, Tide.s5)
+            .padding(.bottom, Tide.s3)
         }
     }
 }
@@ -405,7 +452,7 @@ private struct GuidedRunTopBar: View {
                 Image(systemName: "xmark")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text2)
-                    .frame(width: 44, height: 44)
+                    .frame(width: Tide.hit, height: Tide.hit)
             }
             .accessibilityLabel("End session")
             Spacer()
@@ -416,7 +463,7 @@ private struct GuidedRunTopBar: View {
                 Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text2)
-                    .frame(width: 44, height: 44)
+                    .frame(width: Tide.hit, height: Tide.hit)
             }
             .accessibilityLabel(isMuted ? "Unmute cues" : "Mute cues")
         }

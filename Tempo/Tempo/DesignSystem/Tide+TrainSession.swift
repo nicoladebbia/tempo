@@ -25,6 +25,8 @@ enum TideTrainSession {
     static let restClock: CGFloat = 64
     /// The most the clock grows with the text size: it has to stay inside its ring.
     static let restClockCap: CGFloat = 84
+    /// The 3-2-1 before a guided run, inside its ring.
+    static let countdownFigure: CGFloat = 120
     /// The completion ring on the summary.
     static let summaryRing: CGFloat = 176
     /// The countdown figure on a live screen, at the default text size.
@@ -499,5 +501,73 @@ struct TrainSessionDots: View {
             return TideTrain.positive
         }
         return index == current ? mood.accent : Tide.fill
+    }
+}
+
+// MARK: - TrainSessionHero
+
+/// The one big thing on a live screen: a clock, a count or a distance. With a
+/// `progress` it sits in a lit ring that fills as the step goes; without one it
+/// sits on a glass card. Anything that belongs under it (a cap, a target, the
+/// pace) goes in `below`.
+struct TrainSessionHero<Below: View>: View {
+    var label: String?
+    var labelTint: Color = Tide.text2
+    let value: String
+    var progress: Double?
+    var tint: Color?
+    var valueColor: Color = Tide.text
+    private let below: Below
+
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var ringSize: CGFloat = TideTrainSession.restClock
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var plainSize: CGFloat = TideTrainSession.bigClock
+
+    init(
+        label: String? = nil,
+        labelTint: Color = Tide.text2,
+        value: String,
+        progress: Double? = nil,
+        tint: Color? = nil,
+        valueColor: Color = Tide.text,
+        @ViewBuilder below: () -> Below
+    ) {
+        self.label = label
+        self.labelTint = labelTint
+        self.value = value
+        self.progress = progress
+        self.tint = tint
+        self.valueColor = valueColor
+        self.below = below()
+    }
+
+    var body: some View {
+        VStack(spacing: Tide.s4) {
+            if let label {
+                Text(label).tideLabel(labelTint)
+            }
+            if let progress {
+                TrainRing(progress: progress, tint: tint, diameter: TideTrainSession.restRing) {
+                    Text(value)
+                        .font(Tide.numeral(min(ringSize, TideTrainSession.restClockCap)))
+                        .foregroundStyle(valueColor)
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                }
+            } else {
+                Text(value)
+                    .font(Tide.numeral(plainSize))
+                    .foregroundStyle(valueColor)
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .frame(maxWidth: .infinity)
+                    .tideCard(padding: Tide.s5)
+            }
+            below
+        }
+        .frame(maxWidth: .infinity)
     }
 }
