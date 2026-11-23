@@ -131,9 +131,12 @@ struct MilestoneCelebrationView: View {
             }
 
             if milestone == .day30 {
-                Button("DISMISS") {
+                Button {
                     MilestoneService.markShown(milestone)
                     onDismiss()
+                } label: {
+                    Text("DISMISS")
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s2)
                 }
                 .buttonStyle(.tideGlass)
             } else {

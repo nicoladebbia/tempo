@@ -39,7 +39,7 @@ struct PaywallView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(spacing: Tide.s6) {
+            VStack(spacing: Tide.s5) {
                 // Header
                 header
 
@@ -63,7 +63,7 @@ struct PaywallView: View {
                 legalText
             }
             .padding(.horizontal, Tide.edge)
-            .padding(.top, Tide.s10 + Tide.s2)
+            .padding(.top, Tide.s8)
             .padding(.bottom, Tide.s6)
         }
         .scrollIndicators(.hidden)
@@ -130,13 +130,13 @@ struct PaywallView: View {
     // Per MONETIZATION_STRATEGY.md — Hero Pro features, ordered by Tier 1 priority.
 
     private var featureList: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             featureRow(icon: "sparkles", text: "Recovery insights from Whoop & wearables")
             featureRow(icon: "brain.head.profile", text: "AI-powered workout programming")
             featureRow(icon: "fork.knife", text: "AI nutrition coaching & meal plans")
             featureRow(icon: "chart.line.uptrend.xyaxis", text: "Progress charts & weekly reports")
         }
-        .tideCard()
+        .tideCard(padding: Tide.s4)
     }
 
     private func featureRow(icon: String, text: String) -> some View {
@@ -154,7 +154,7 @@ struct PaywallView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(minHeight: Tide.icon + Tide.s2)
+        .frame(minHeight: Tide.icon + Tide.s1)
         .accessibilityElement(children: .combine)
     }
 
