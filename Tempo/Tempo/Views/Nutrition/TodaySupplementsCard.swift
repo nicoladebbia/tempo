@@ -27,6 +27,8 @@ struct TodaySupplementsCard: View {
 
     @State
     private var reorderTarget: Supplement?
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         let board = makeBoard()
@@ -79,18 +81,17 @@ struct TodaySupplementsCard: View {
     // MARK: - Card
 
     private func card(_ board: SupplementTodayBoard) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             header(board)
             ForEach(board.sections) { section in
                 VStack(alignment: .leading, spacing: 0) {
-                    Label(section.period.title.uppercased(), systemImage: section.period.icon)
-                        .font(.tempoModuleTag)
-                        .tracking(TempoTracking.drillLabel)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .padding(.bottom, TempoSpacing.xs)
+                    Label(section.period.title, systemImage: section.period.icon)
+                        .tideLabel(Tide.text3)
+                        .padding(.bottom, Tide.s1)
                     ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
                         if index > 0 {
-                            Divider().overlay(Color.tempoDivider)
+                            Rectangle().fill(Tide.hairline).frame(height: 1)
+                                .accessibilityHidden(true)
                         }
                         rowView(row)
                     }
@@ -98,100 +99,87 @@ struct TodaySupplementsCard: View {
             }
             if !board.skipped.isEmpty {
                 Text("Skipping today: " + board.skipped.map(\.name).joined(separator: ", "))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard(padding: Tide.s4)
         .accessibilityIdentifier("today.supplements")
     }
 
     private func header(_ board: SupplementTodayBoard) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        let fraction = board.total == 0 ? 0 : Double(board.takenCount) / Double(board.total)
+        return VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline) {
-                Text("TODAY'S SUPPLEMENTS")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer(minLength: TempoSpacing.sm)
+                Text("Today's supplements").tideLabel()
+                Spacer(minLength: Tide.s2)
                 Text(board.allTaken ? "All taken" : "Taken \(board.takenCount)/\(board.total)")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(board.allTaken ? Color.tempoSuccess : Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(board.allTaken ? Tide.Kitchen.good : Tide.text2)
                     .contentTransition(.numericText())
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoDivider)
-                    Capsule()
-                        .fill(board.allTaken ? Color.tempoSuccess : Color.tempoSignal)
-                        .frame(width: geo.size.width * (board.total == 0 ? 0 : Double(board.takenCount) / Double(board.total)))
-                        .animation(TempoAnimation.springMedium, value: board.takenCount)
-                }
-            }
-            .frame(height: 4)
+            TideLevelBar(progress: fraction, color: board.allTaken ? Tide.Kitchen.good : mood.accent, height: Tide.bar)
+                .animation(Tide.lively, value: board.takenCount)
+                .accessibilityHidden(true)
         }
     }
 
     private func rowView(_ row: SupplementBoardRow) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Button {
                 viewModel.openSupplement(row.dose.supplementID)
             } label: {
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: row.dose.kind.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(row.isTaken ? Color.tempoTextTertiary : Color.tempoSignal)
-                        .frame(width: 36, height: 36)
-                        .background(Color.tempoBgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(row.isTaken ? Tide.text3 : mood.accent)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.dose.name)
-                            .font(.tempoBodyBold)
-                            .foregroundStyle(row.isTaken ? Color.tempoTextSecondary : Color.tempoTextPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .font(Tide.headline)
+                            .foregroundStyle(row.isTaken ? Tide.text2 : Tide.text)
+                            .lineLimit(2)
                         detailLine(row)
                         if let macros = row.macrosLine {
                             Text(macros)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                                 .lineLimit(1)
                         }
                     }
                     .opacity(row.isTaken ? 0.7 : 1)
                     Spacer(minLength: 0)
                 }
-                .contentShape(Rectangle())
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(row.dose.name), \(row.dose.dosePerServing), \(row.dose.timeLabel). Open details")
 
             checkButton(row)
         }
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.vertical, Tide.s2)
     }
 
     private func detailLine(_ row: SupplementBoardRow) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             Text(detailText(row))
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .lineLimit(1)
             if let days = row.lowDaysLeft {
                 Button {
                     reorderTarget = SupplementIntakeStore.supplement(id: row.dose.supplementID, name: row.dose.name, in: modelContext)
                 } label: {
-                    Text(days <= 0 ? "Out" : "\(days)d left")
-                        .font(.tempoCaption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(days <= 0 ? Color.tempoError : Color.tempoAmber)
-                        .padding(.horizontal, TempoSpacing.sm)
-                        .padding(.vertical, 2)
-                        .background((days <= 0 ? Color.tempoError : Color.tempoAmber).opacity(TempoOpacity.o15))
-                        .clipShape(Capsule())
+                    KitchenTag(
+                        text: days <= 0 ? "Out" : "\(days)d left",
+                        tint: days <= 0 ? Tide.danger : Tide.Kitchen.warn
+                    )
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(row.dose.name) running low, reorder")
@@ -209,7 +197,7 @@ struct TodaySupplementsCard: View {
 
     private func checkButton(_ row: SupplementBoardRow) -> some View {
         Button {
-            withAnimation(TempoAnimation.springMedium) {
+            withAnimation(Tide.lively) {
                 viewModel.toggleSupplementTaken(
                     supplementID: row.dose.supplementID,
                     name: row.dose.name,
@@ -220,18 +208,9 @@ struct TodaySupplementsCard: View {
                 HapticManager.success()
             }
         } label: {
-            ZStack {
-                if row.isTaken {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color.tempoTextInverse)
-                }
-            }
-            .frame(width: 44, height: 44)
-                .background(row.isTaken ? Color.tempoSuccess : Color.clear)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(row.isTaken ? Color.clear : Color.tempoBorder, lineWidth: 2))
-                .contentShape(Circle())
+            KitchenCheck(checked: row.isTaken, size: Tide.s10)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.circle)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(row.isTaken ? "\(row.dose.name) taken, tap to undo" : "Mark \(row.dose.name) taken")

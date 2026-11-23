@@ -72,33 +72,33 @@ struct PantryBarcodeFlow: View {
     }
 
     private func loadingContent(_ code: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView().controlSize(.large)
             Text("Looking up \(code)…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
     }
 
     private func messageContent(icon: String, title: String, message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
             Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xxxxl)
+                .padding(.horizontal, Tide.s10)
             Button("Scan again") {
                 scanState = .scanning
             }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.s10)
             Spacer()
         }
     }

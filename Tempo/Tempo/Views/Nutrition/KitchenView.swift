@@ -35,5 +35,8 @@ struct KitchenView: View {
                 SupplementsView(openSupplementID: $viewModel.supplementToOpen)
             }
         }
+        // Fuel's page already draws the field behind the four sections, so
+        // they must not each draw a second one.
+        .environment(\.tideInsidePage, true)
     }
 }

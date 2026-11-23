@@ -16,28 +16,35 @@ struct StaplesPeekCard: View {
     let remaining: Int
     let onTap: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 Image(systemName: "leaf.fill")
-                    .font(.title3)
-                VStack(alignment: .leading, spacing: 2) {
+                    .font(Tide.headline)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Track your staples")
-                        .font(.tempoBody.weight(.semibold))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text("\(remaining) quick yes/no taps. Salt, oil, spices.")
-                        .font(.tempoCaption1)
-                        .opacity(0.85)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 Image(systemName: "chevron.up")
-                    .font(.footnote.weight(.bold))
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .foregroundStyle(Color.tempoTextInverse)
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSignal, in: RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .shadow(color: .black.opacity(0.2), radius: 10, y: 3)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .tideCard(padding: Tide.s4)
         .accessibilityIdentifier("staplesPeekCard")
         .accessibilityHint("Opens the staples checklist")
     }
@@ -57,6 +64,8 @@ struct StaplesSheet: View {
     private var customName = ""
     @FocusState
     private var customFocused: Bool
+    @Environment(\.tideMood)
+    private var mood
 
     private var suggestions: [(canonicalName: String, displayName: String)] {
         viewModel.stapleSuggestions
@@ -78,22 +87,22 @@ struct StaplesSheet: View {
         VStack(spacing: 0) {
             header
             if detent != .height(Self.peekHeight) {
-                Divider()
-                List {
+                KitchenList {
                     Section {
                         ForEach(suggestions, id: \.canonicalName) { suggestion in
                             row(suggestion)
                         }
                     }
-                    Section("Something else?") {
+                    KitchenFormSection("Something else?") {
                         HStack {
                             TextField("Add your own staple", text: $customName)
+                                .font(Tide.body)
                                 .focused($customFocused)
                                 .submitLabel(.done)
                                 .onSubmit(addCustom)
                             Button("Add", action: addCustom)
+                                .font(Tide.bodyStrong)
                                 .disabled(customName.trimmingCharacters(in: .whitespaces).isEmpty)
-                                .fontWeight(.semibold)
                         }
                     }
                 }
@@ -103,7 +112,7 @@ struct StaplesSheet: View {
                 Spacer(minLength: 0)
             }
         }
-        .tidePage()
+        .kitchenSheet()
     }
 
     static let peekHeight: CGFloat = 140
@@ -111,75 +120,82 @@ struct StaplesSheet: View {
     // MARK: Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Track your staples")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                     Text(unanswered == 0 ? "All answered." : "\(unanswered) left. Do you have it?")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
                 Spacer()
                 Button("Done") {
                     viewModel.applyStapleEvent(.complete)
                     dismiss()
                 }
-                .font(.tempoSubheadline.weight(.semibold))
+                .buttonStyle(.tidePrimary)
+                .fixedSize()
             }
             HStack {
                 Button("Skip for now") {
                     viewModel.applyStapleEvent(.skip)
                     dismiss()
                 }
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .frame(minHeight: Tide.hit)
                 Spacer()
                 if detent == .height(Self.peekHeight) {
                     Button {
                         detent = .large
                     } label: {
                         Label("Open list", systemImage: "chevron.up")
-                            .font(.tempoCaption1.weight(.semibold))
+                            .font(Tide.caption)
+                            .frame(minHeight: Tide.hit)
                     }
-                    .foregroundStyle(Color.tempoSignal)
+                    .foregroundStyle(mood.accent)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s5)
     }
 
     // MARK: Row
 
     private func row(_ suggestion: (canonicalName: String, displayName: String)) -> some View {
         let current = answer(for: suggestion.canonicalName)
-        return HStack(spacing: TempoSpacing.md) {
+        return HStack(spacing: Tide.s2) {
             Text(suggestion.displayName)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Spacer()
-            answerButton("Yes", selected: current == true, tint: .tempoSuccess) {
+            answerButton("Yes", selected: current == true, tint: Tide.Kitchen.good) {
                 viewModel.answerStaple(suggestion, have: true)
                 HapticManager.selection()
             }
-            answerButton("No", selected: current == false, tint: .tempoTextSecondary) {
+            answerButton("No", selected: current == false, tint: Tide.text2) {
                 viewModel.answerStaple(suggestion, have: false)
                 HapticManager.selection()
             }
         }
+        .frame(minHeight: Tide.Kitchen.row - Tide.s3)
         .accessibilityElement(children: .combine)
     }
 
     private func answerButton(_ title: String, selected: Bool, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(selected ? Color.tempoBone : tint)
-                .frame(width: 48, height: 32)
-                .background(selected ? tint : tint.opacity(0.12), in: Capsule())
+                .font(Tide.bodyStrong)
+                .foregroundStyle(selected ? Tide.ink : tint)
+                .frame(minWidth: Tide.hit + Tide.s2, minHeight: Tide.hit)
+                .background(selected ? tint : tint.opacity(0.14), in: .capsule)
+                .contentShape(.capsule)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func addCustom() {

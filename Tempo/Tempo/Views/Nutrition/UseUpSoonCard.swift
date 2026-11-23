@@ -48,23 +48,23 @@ struct UseUpSoonCard: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "clock.badge.exclamationmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.tempoAmber)
-
-                Text("USE UP SOON")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.Kitchen.warn)
+                    .accessibilityHidden(true)
+                Text("Use up soon").tideLabel()
                 Spacer()
             }
 
-            VStack(spacing: TempoSpacing.sm) {
-                ForEach(urgentSuggestions, id: \.id) { suggestion in
-                    // Opens the suggested recipe — the same detail screen the
+            VStack(spacing: 0) {
+                ForEach(Array(urgentSuggestions.enumerated()), id: \.element.id) { index, suggestion in
+                    if index > 0 {
+                        Rectangle().fill(Tide.hairline).frame(height: 1)
+                            .accessibilityHidden(true)
+                    }
+                    // Opens the suggested recipe, the same detail screen the
                     // Recipes tab pushes. Today is hosted in the Nutrition
                     // tab's NavigationStack, so a plain link works here.
                     NavigationLink {
@@ -77,19 +77,11 @@ struct UseUpSoonCard: View {
                 }
             }
         }
-        .padding(TempoSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .fill(Color.tempoSurfaceCard)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoAmber.opacity(0.30), lineWidth: 1)
-        )
+        .tideCard(padding: Tide.s4)
     }
 
     private func row(for suggestion: RecipeSuggestion) -> some View {
-        // The expiring ingredients in this recipe — those whose canonicalName
+        // The expiring ingredients in this recipe: those whose canonicalName
         // appears in the expiry map. Show up to 2 in the subtitle.
         let urgentIngredients: [(name: String, days: Int)] = suggestion.presentIngredients
             .compactMap { name -> (String, Int)? in
@@ -100,38 +92,30 @@ struct UseUpSoonCard: View {
             }
             .sorted { $0.1 < $1.1 }
 
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .top) {
+        return HStack(alignment: .center, spacing: Tide.s3) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(suggestion.recipeName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.leading)
-                Spacer()
-                if let first = urgentIngredients.first {
-                    Text(urgencyLabel(days: first.days))
-                        .font(.tempoCaption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            Capsule().fill(urgencyChipColor(days: first.days).opacity(0.15))
-                        )
-                        .foregroundStyle(urgencyChipColor(days: first.days))
-                }
-            }
-            HStack {
                 if !urgentIngredients.isEmpty {
                     Text("uses: \(urgentIngredients.prefix(2).map(\.name).joined(separator: ", "))")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
             }
+            Spacer(minLength: Tide.s2)
+            if let first = urgentIngredients.first {
+                KitchenTag(text: urgencyLabel(days: first.days), tint: urgencyChipColor(days: first.days))
+            }
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
     }
 
     private func urgencyLabel(days: Int) -> String {
@@ -144,9 +128,9 @@ struct UseUpSoonCard: View {
 
     private func urgencyChipColor(days: Int) -> Color {
         switch days {
-        case 0 ... 1: Color.tempoError
-        case 2 ... 3: Color.tempoAmber
-        default: Color.tempoTextSecondary
+        case 0 ... 1: Tide.danger
+        case 2 ... 3: Tide.Kitchen.warn
+        default: Tide.text2
         }
     }
 }

@@ -25,6 +25,8 @@ struct SupplementLabelCaptureSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
 
@@ -41,14 +43,13 @@ struct SupplementLabelCaptureSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 Spacer(minLength: 0)
                 content
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, TempoSpacing.xxl)
+            .padding(.horizontal, Tide.s6)
             .frame(maxWidth: .infinity)
-            .tidePage()
             .navigationTitle("Read a label")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -78,6 +79,7 @@ struct SupplementLabelCaptureSheet: View {
                 }
             }
         }
+        .kitchenSheet()
         .interactiveDismissDisabled(model?.state == .reading)
     }
 
@@ -94,25 +96,28 @@ struct SupplementLabelCaptureSheet: View {
     }
 
     private var idleContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Image(systemName: "text.viewfinder")
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.largeTitle)
+                .foregroundStyle(mood.accent)
+                .frame(width: 96, height: 96)
+                .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
+                .accessibilityHidden(true)
             Text("Photograph the label")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("Get the Supplement Facts panel in frame — flat, lit, close. Tempo reads it and you check it before anything is saved.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            VStack(spacing: Tide.s3) {
                 Button {
                     pickerSource = .camera
                 } label: {
                     Label("Take a photo", systemImage: "camera")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .accessibilityIdentifier("supplementLabelTakePhoto")
                 Button {
                     pickerSource = .library
@@ -120,47 +125,47 @@ struct SupplementLabelCaptureSheet: View {
                     Label("Choose from library", systemImage: "photo.on.rectangle")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("supplementLabelChoosePhoto")
                 Button("Type it instead") { onTypeIt() }
-                    .buttonStyle(.tempoGhost)
+                    .buttonStyle(.tideGlass)
             }
-            .padding(.top, TempoSpacing.md)
+            .padding(.top, Tide.s3)
         }
     }
 
     private var readingContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView().controlSize(.large)
             Text("Reading your label…")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("This takes about 10 seconds. Hold tight.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
         }
         .accessibilityIdentifier("supplementLabelReading")
     }
 
     private func failureContent(_ failure: SupplementLabelPhotoModel.Failure) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Image(systemName: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
             Text(failure == .unreadable ? "Couldn't read that one" : "Couldn't read the label")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text(failure.message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             if case let .blocked(blocker) = failure {
                 AIBlockerCard(blocker: blocker, message: failure.message) {
                     model?.reset()
                 }
             }
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            VStack(spacing: Tide.s3) {
                 if failure.canRetrySamePhoto {
                     Button {
                         retry()
@@ -168,22 +173,22 @@ struct SupplementLabelCaptureSheet: View {
                         Label("Try again", systemImage: "arrow.clockwise")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tempoPrimary)
+                    .buttonStyle(.tidePrimary)
                 }
                 if failure != .busy {
                     if failure.canRetrySamePhoto {
-                        retakeButton.buttonStyle(.tempoSecondary)
+                        retakeButton.buttonStyle(.tideGlass)
                     } else {
-                        retakeButton.buttonStyle(.tempoPrimary)
+                        retakeButton.buttonStyle(.tidePrimary)
                     }
                 }
                 if failure == .busy {
-                    typeItButton.buttonStyle(.tempoPrimary)
+                    typeItButton.buttonStyle(.tidePrimary)
                 } else {
-                    typeItButton.buttonStyle(.tempoSecondary)
+                    typeItButton.buttonStyle(.tideGlass)
                 }
             }
-            .padding(.top, TempoSpacing.sm)
+            .padding(.top, Tide.s2)
         }
     }
 

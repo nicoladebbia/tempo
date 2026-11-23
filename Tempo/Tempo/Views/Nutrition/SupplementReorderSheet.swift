@@ -42,25 +42,28 @@ struct SupplementReorderSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
+            KitchenForm {
+                KitchenFormSection(
+                    footer: "Estimated from how often you've actually marked it taken over the last \(SupplementReorderService.intakeWindowDays) days."
+                ) {
                     LabeledContent("Left in container") {
                         Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings" : "Unknown")
+                            .font(Tide.bodyStrong)
                     }
                     if let daysLeft {
                         LabeledContent("Estimated time left") {
                             Text(daysLeft <= 0 ? "Out" : "~\(daysLeft) day\(daysLeft == 1 ? "" : "s")")
-                                .foregroundStyle(daysLeft <= SupplementReorderService.lowStockThresholdDays ? Color.tempoError : Color
-                                    .tempoTextPrimary)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(daysLeft <= SupplementReorderService.lowStockThresholdDays ? Tide.danger : Tide.text)
                         }
                     }
-                } footer: {
-                    Text(
-                        "Estimated from how often you've actually marked it taken over the last \(SupplementReorderService.intakeWindowDays) days."
-                    )
                 }
 
-                Section {
+                KitchenFormSection(
+                    footer: supplement.servingsPerContainer != nil
+                        ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
+                        : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
+                ) {
                     Button {
                         addToGroceryList()
                     } label: {
@@ -80,12 +83,6 @@ struct SupplementReorderSheet: View {
                         )
                     }
                     .disabled(restocked)
-                } footer: {
-                    Text(
-                        supplement.servingsPerContainer != nil
-                            ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
-                            : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
-                    )
                 }
 
                 Section {
@@ -104,6 +101,7 @@ struct SupplementReorderSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     private func addToGroceryList() {

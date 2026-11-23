@@ -65,37 +65,42 @@ struct SupplementsView: View {
         }
     }
 
+    /// Something is presented over the page: its shaders stop.
+    private var isCovered: Bool {
+        activeSheet != nil || reorderTarget != nil || showBarcodeScan
+    }
+
     var body: some View {
         let logs = fetchRecentLogs()
         let sections = shelfSections(logs: logs)
-        VStack(spacing: 0) {
-            topBar(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
-            if let catalogNote {
-                Label(catalogNote, systemImage: "checkmark.circle")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.xs)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("supplementCatalogNote")
-            }
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.lg) {
-                    SupplementReorderBanner()
-                    if supplements.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(sections) { section in
-                            sectionCard(section)
-                        }
+        return ScrollView(.vertical) {
+            VStack(spacing: Tide.s5) {
+                shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                if let catalogNote {
+                    Label(catalogNote, systemImage: "checkmark.circle")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Tide.s1)
+                        .accessibilityIdentifier("supplementCatalogNote")
+                }
+                SupplementReorderBanner()
+                if supplements.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(sections) { section in
+                        sectionCard(section)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.sm)
-                .padding(.bottom, TempoSpacing.bottomSafe)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .tidePage()
+        .tideCovered(isCovered)
         .navigationDestination(item: $detailTarget) { supplement in
             SupplementDetailView(supplement: supplement)
         }
@@ -221,31 +226,25 @@ struct SupplementsView: View {
         return SupplementShelfBoard.build(supplements: supplements, doses: doses, recentLogs: logs)
     }
 
-    // MARK: - Top bar
+    // MARK: - Header
 
-    private func topBar(lowCount: Int) -> some View {
-        HStack(alignment: .center, spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("YOUR SHELF")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Text("\(supplements.count) supplement\(supplements.count == 1 ? "" : "s")" + (lowCount > 0 ? " · \(lowCount) to reorder" : ""))
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+    private func shelfHeader(lowCount: Int) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(alignment: .top, spacing: Tide.s4) {
+                KitchenStat(value: "\(supplements.count)", label: supplements.count == 1 ? "Supplement" : "Supplements")
+                if lowCount > 0 {
+                    KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
+                }
             }
-            Spacer(minLength: TempoSpacing.sm)
             Menu {
                 addMenuItems
             } label: {
                 Label("Add", systemImage: "plus")
-                    .fixedSize()
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .accessibilityIdentifier("supplementAddMenu")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
+        .tideCard()
     }
 
     @ViewBuilder
@@ -280,125 +279,100 @@ struct SupplementsView: View {
 
     // MARK: - Empty state
 
+    @Environment(\.tideMood)
+    private var mood
+
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Image(systemName: "pills")
-                .font(.system(size: 40, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(mood.accent)
+                .accessibilityHidden(true)
             Text("No supplements yet")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(
-                "Add what you own — whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
+                "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
             )
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
             .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Tide.s3) {
                 Button {
                     showBarcodeScan = true
                 } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
-                Button {
-                    activeSheet = .search
-                } label: {
-                    Label("Search by name", systemImage: "magnifyingglass")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .readLabel
-                } label: {
-                    Label("Read a label", systemImage: "camera.viewfinder")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .quickAdd
-                } label: {
-                    Label("Quick add common", systemImage: "square.grid.2x2")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .typeIt
-                } label: {
-                    Label("Type it", systemImage: "square.and.pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoGhost)
+                .buttonStyle(.tidePrimary)
+                emptyAction("Search by name", icon: "magnifyingglass") { activeSheet = .search }
+                emptyAction("Read a label", icon: "camera.viewfinder") { activeSheet = .readLabel }
+                emptyAction("Quick add common", icon: "square.grid.2x2") { activeSheet = .quickAdd }
+                emptyAction("Type it", icon: "square.and.pencil") { activeSheet = .typeIt }
             }
-            .padding(.top, TempoSpacing.md)
+            .padding(.top, Tide.s2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        .tideCard(padding: Tide.s6)
+    }
+
+    private func emptyAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
     }
 
     // MARK: - Shelf
 
     private func sectionCard(_ section: SupplementShelfSection) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Label(section.period.title.uppercased(), systemImage: section.period.icon)
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.bottom, TempoSpacing.xs)
-            ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 {
-                    Divider().overlay(Color.tempoDivider)
-                }
+        KitchenGroup(title: section.period.title, systemImage: section.period.icon) {
+            ForEach(section.rows) { row in
                 shelfRow(row)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private func shelfRow(_ row: SupplementShelfRow) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Button {
                 detailTarget = row.supplement
             } label: {
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: row.supplement.kind.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.tempoSignal)
-                        .frame(width: 36, height: 36)
-                        .background(Color.tempoBgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.supplement.name)
-                            .font(.tempoBodyBold)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(2)
                         Text(row.brandDoseLine)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .lineLimit(1)
                         Label(row.statusLine, systemImage: "clock")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
-                    VStack(alignment: .trailing, spacing: TempoSpacing.xs) {
+                    VStack(alignment: .trailing, spacing: Tide.s1) {
                         if let stock = row.stockLine, !row.needsReorder {
                             Text(stock)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                         Image(systemName: "chevron.right")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
-                .contentShape(Rectangle())
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
@@ -409,19 +383,16 @@ struct SupplementsView: View {
                     reorderTarget = row.supplement
                 } label: {
                     Label(row.stockLine ?? "Low", systemImage: "cart")
-                        .font(.tempoCaption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber)
-                        .padding(.horizontal, TempoSpacing.sm)
-                        .padding(.vertical, TempoSpacing.xs)
-                        .background((row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber).opacity(TempoOpacity.o15))
-                        .clipShape(Capsule())
+                        .font(Tide.label)
+                        .foregroundStyle(row.daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn)
+                        .padding(.horizontal, Tide.s2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(row.supplement.name) running low, reorder")
                 .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }
         }
-        .padding(.vertical, TempoSpacing.sm)
     }
 }

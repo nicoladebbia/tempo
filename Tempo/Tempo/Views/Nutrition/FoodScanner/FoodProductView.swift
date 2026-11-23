@@ -34,6 +34,8 @@ struct FoodProductView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var grams: Double
@@ -88,7 +90,7 @@ struct FoodProductView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 header
                 if let reason = product.implausibilityReason {
                     implausibilityBanner(reason)
@@ -104,11 +106,11 @@ struct FoodProductView: View {
                 ingredientsCard
                 attribution
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.top, TempoSpacing.sm)
-            .padding(.bottom, TempoSpacing.xxxxl)
+            .padding(.horizontal, Tide.s4)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s10)
         }
-        .tidePage()
+        .kitchenPage()
         .navigationTitle(product.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -118,7 +120,7 @@ struct FoodProductView: View {
                     HapticManager.lightImpact()
                 } label: {
                     Image(systemName: isFavorite ? "star.fill" : "star")
-                        .foregroundStyle(isFavorite ? Color.tempoAmber : Color.tempoTextSecondary)
+                        .foregroundStyle(isFavorite ? Tide.Kitchen.warn : Tide.text2)
                 }
                 .accessibilityLabel(isFavorite ? "Remove from favourites" : "Add to favourites")
             }
@@ -155,45 +157,48 @@ struct FoodProductView: View {
     // MARK: - Implausible data
 
     private func implausibilityBanner(_ reason: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .top, spacing: Tide.s2) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.tempoAmber)
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text("Not scored — these numbers look wrong")
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Not scored, these numbers look wrong")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                 Text(reason)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoAmber.opacity(TempoOpacity.o15))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .strokeBorder(Tide.Kitchen.warn.opacity(0.4), lineWidth: 1)
+        )
         .accessibilityIdentifier("foodImplausibilityBanner")
     }
 
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             hero
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(product.name)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                 if let brand = product.brand, !brand.isEmpty {
                     Text(brand)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
                 if let quantity = product.quantityLabel {
                     Text(quantity)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
                 if !hasAnyHeroImage {
                     addPhotoMenu
@@ -265,15 +270,15 @@ struct FoodProductView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: heroHeight)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .background(Tide.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
         .overlay {
             if isRenderingPhoto {
                 ZStack {
-                    Color.black.opacity(TempoOpacity.o40)
-                    ProgressView().tint(.white)
+                    Tide.ink.opacity(0.55)
+                    ProgressView().tint(Tide.text)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
             }
         }
         .fullScreenCover(isPresented: $showGalleryViewer) {
@@ -293,12 +298,12 @@ struct FoodProductView: View {
                         .scaledToFill()
                         .blur(radius: 24)
                 }
-                .overlay(Color.black.opacity(TempoOpacity.o40))
+                .overlay(Tide.ink.opacity(0.55))
                 .clipped()
             image
                 .resizable()
                 .scaledToFit()
-                .padding(TempoSpacing.lg)
+                .padding(Tide.s4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -319,11 +324,12 @@ struct FoodProductView: View {
             }
         } label: {
             Label(photo == nil ? "Add a photo" : "Change photo", systemImage: "camera")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(minHeight: Tide.hit)
         }
         .disabled(isRenderingPhoto)
-        .padding(.top, TempoSpacing.xxs)
+        .padding(.top, Tide.hair)
         .accessibilityIdentifier("foodAddPhoto")
     }
 
@@ -346,11 +352,11 @@ struct FoodProductView: View {
     @ViewBuilder
     private var scoreCard: some View {
         if let score {
-            HStack(spacing: TempoSpacing.xl) {
+            HStack(spacing: Tide.s5) {
                 FoodScoreRing(score: score)
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text(score.rating.label.uppercased())
-                        .font(.tempoHeadline)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text(score.rating.label)
+                        .font(Tide.title2)
                         .foregroundStyle(score.rating.color)
                         .accessibilityIdentifier("foodScoreRating")
                     scorePart("Nutrition", score.nutritionPoints, of: 60)
@@ -358,24 +364,24 @@ struct FoodProductView: View {
                     scorePart("Organic", score.organicPoints, of: 10)
                     if score.cappedByAdditive {
                         Text("Capped: contains a high-risk additive")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoError)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.danger)
                     }
                 }
                 Spacer(minLength: 0)
             }
-            .tempoCard()
+            .tideCard()
         } else {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text("Not enough data to score")
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                 Text(missingForScore)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
@@ -391,18 +397,22 @@ struct FoodProductView: View {
     }
 
     private func scorePart(_ label: String, _ points: Int, of max: Int) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Text(label)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .frame(width: 72, alignment: .leading)
-            ProgressView(value: Double(points), total: Double(max))
-                .tint(score?.rating.color ?? Color.tempoSignal)
+            TideLevelBar(
+                progress: max > 0 ? Double(points) / Double(max) : 0,
+                color: score?.rating.color ?? mood.accent,
+                height: Tide.bar
+            )
+            .accessibilityHidden(true)
             Text("\(points)/\(max)")
-                .font(.tempoCaption2)
+                .font(Tide.caption)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(width: 36, alignment: .trailing)
+                .foregroundStyle(Tide.text3)
+                .frame(width: 40, alignment: .trailing)
         }
     }
 
@@ -412,9 +422,9 @@ struct FoodProductView: View {
     private var macroCard: some View {
         let portion = product.nutrients(forGrams: grams)
         if let split = FoodMacroSplit.compute(proteinGrams: portion.protein, carbsGrams: portion.carbs, fatGrams: portion.fat) {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                sectionTitle("MACROS · \(Self.format(grams)) \(product.unit)")
-                HStack(spacing: TempoSpacing.xl) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                sectionTitle("Macros · \(Self.format(grams)) \(product.unit)")
+                HStack(spacing: Tide.s5) {
                     Chart(split.slices) { slice in
                         SectorMark(angle: .value("Calories", slice.kcal), innerRadius: .ratio(0.62), angularInset: 1.5)
                             .foregroundStyle(slice.color)
@@ -429,18 +439,19 @@ struct FoodProductView: View {
                             // kcal — the same figure as the nutrition table and
                             // the add bar — so the two never disagree (picky-QA
                             // item 2).
-                            Text("\(Int((portion.kcal ?? split.totalKcal).rounded()))")
-                                .font(.tempoHeadline)
-                                .monospacedDigit()
-                                .foregroundStyle(Color.tempoTextPrimary)
+                            TideNumber(
+                                "\(Int((portion.kcal ?? split.totalKcal).rounded()))",
+                                size: Tide.numeralS,
+                                relativeTo: .title3
+                            )
                             Text("kcal")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
                         ForEach(split.slices) { slice in
                             macroLegendRow(slice)
                         }
@@ -449,27 +460,27 @@ struct FoodProductView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
     private func macroLegendRow(_ slice: FoodMacroSplit.Slice) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Circle()
                 .fill(slice.color)
                 .frame(width: 8, height: 8)
             Text(slice.label)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .frame(width: 52, alignment: .leading)
             Text("\(Int(slice.grams.rounded()))g")
-                .font(.tempoBodyBold)
+                .font(Tide.bodyStrong)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
             Text("· \(Int((slice.percent * 100).rounded()))%")
-                .font(.tempoCaption2)
+                .font(Tide.caption)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextTertiary)
+                .foregroundStyle(Tide.text3)
         }
     }
 
@@ -487,21 +498,21 @@ struct FoodProductView: View {
     private var forYouCard: some View {
         let checks = FoodFit.checks(for: product.mergingAllergenData(from: enrichedAllergenSource), grams: grams, context: fitContext)
         if !checks.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                sectionTitle("FOR YOU · \(Self.format(grams)) \(product.unit)")
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                sectionTitle("For you · \(Self.format(grams)) \(product.unit)")
                 ForEach(checks) { check in
-                    HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                    HStack(alignment: .top, spacing: Tide.s2) {
                         Image(systemName: check.kind.icon)
                             .foregroundStyle(check.kind.color)
                         Text(check.text)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
@@ -510,19 +521,19 @@ struct FoodProductView: View {
     @ViewBuilder
     private var gradesCard: some View {
         if score != nil || product.novaGroup != nil {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 if let score {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                        sectionTitle(score.nutriScoreEstimated ? "NUTRI-SCORE · ESTIMATED" : "NUTRI-SCORE")
-                        HStack(spacing: TempoSpacing.xs) {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        sectionTitle(score.nutriScoreEstimated ? "Nutri-Score · estimated" : "Nutri-Score")
+                        HStack(spacing: Tide.s1) {
                             ForEach(NutriScore.grades, id: \.self) { grade in
                                 let selected = grade == score.nutriScoreGrade
                                 Text(grade.uppercased())
-                                    .font(selected ? .tempoHeadline : .tempoCaption1)
-                                    .foregroundStyle(selected ? Color.tempoTextInverse : Color.tempoTextTertiary)
-                                    .frame(width: selected ? 40 : 30, height: selected ? 40 : 30)
-                                    .background(selected ? Self.gradeColor(grade) : Color.tempoBgTertiary)
-                                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                                    .font(selected ? Tide.headline : Tide.caption)
+                                    .foregroundStyle(selected ? Tide.ink : Tide.text3)
+                                    .frame(width: selected ? Tide.s10 : Tide.s8, height: selected ? Tide.s10 : Tide.s8)
+                                    .background(selected ? Self.gradeColor(grade) : Tide.fill)
+                                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                             }
                         }
                         .accessibilityElement(children: .ignore)
@@ -530,16 +541,16 @@ struct FoodProductView: View {
                     }
                 }
                 if let nova = product.novaGroup {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                        sectionTitle("PROCESSING · NOVA \(nova)")
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        sectionTitle("Processing · NOVA \(nova)")
                         Text(Self.novaText(nova))
-                            .font(.tempoBody)
-                            .foregroundStyle(nova == 4 ? Color.tempoAmber : Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(nova == 4 ? Tide.Kitchen.warn : Tide.text)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
@@ -548,26 +559,26 @@ struct FoodProductView: View {
     @ViewBuilder
     private var additivesCard: some View {
         if let score, product.source == .openFoodFacts || product.source == .userAdded {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                sectionTitle("ADDITIVES · \(score.additives.count)")
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                sectionTitle("Additives · \(score.additives.count)")
                 if score.additives.isEmpty {
                     Label("No additives", systemImage: "checkmark.circle.fill")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSuccess)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.Kitchen.good)
                 } else {
                     ForEach(score.additives) { additive in
-                        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                        HStack(alignment: .top, spacing: Tide.s2) {
                             Circle()
                                 .fill(additive.risk.color)
                                 .frame(width: 10, height: 10)
-                                .padding(.top, TempoSpacing.xs)
-                            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                                .padding(.top, Tide.s1)
+                            VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text("\(additive.displayCode) · \(additive.name)")
-                                    .font(.tempoBodyBold)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.text)
                                 Text(additive.note.map { "\(additive.risk.label) — \($0)" } ?? additive.risk.label)
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(additive.risk == .unknown ? Color.tempoTextSecondary : additive.risk.color)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(additive.risk == .unknown ? Tide.text2 : additive.risk.color)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -575,7 +586,7 @@ struct FoodProductView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
@@ -588,10 +599,10 @@ struct FoodProductView: View {
     private var nutritionCard: some View {
         let per100 = product.per100g
         let portion = product.nutrients(forGrams: grams)
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionTitle("NUTRITION")
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            sectionTitle("Nutrition")
             portionPicker
-            Grid(alignment: .leading, horizontalSpacing: TempoSpacing.md, verticalSpacing: TempoSpacing.sm) {
+            Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s2) {
                 GridRow {
                     Text("")
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -603,9 +614,10 @@ struct FoodProductView: View {
                             .gridColumnAlignment(.trailing)
                     }
                 }
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                Divider()
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                Rectangle().fill(Tide.hairline).frame(height: 1)
+                    .accessibilityHidden(true)
                 nutrientRow("Calories", per100.kcal, portion.kcal, unit: "kcal", level: nil)
                 nutrientRow("Protein", per100.protein, portion.protein, unit: "g", level: nil)
                 nutrientRow("Carbs", per100.carbs, portion.carbs, unit: "g", level: nil)
@@ -623,21 +635,21 @@ struct FoodProductView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard()
     }
 
     private var portionPicker: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             if let serving = product.servingGrams, serving > 0, serving != 100 {
                 portionChip(product.servingLabel.map { "Serving · \($0)" } ?? "Serving", grams: serving)
             }
             portionChip("100 \(product.unit)", grams: 100)
             Spacer(minLength: 0)
-            HStack(spacing: TempoSpacing.xxs) {
+            HStack(spacing: Tide.hair) {
                 TextField("g", text: $gramsText)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
-                    .font(.tempoBodyBold)
+                    .font(Tide.bodyStrong)
                     .frame(width: 56)
                     .accessibilityIdentifier("foodPortionGrams")
                     .onChange(of: gramsText) { _, text in
@@ -646,13 +658,13 @@ struct FoodProductView: View {
                         }
                     }
                 Text(product.unit)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoBgTertiary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         }
     }
 
@@ -663,41 +675,42 @@ struct FoodProductView: View {
             gramsText = Self.format(value)
         } label: {
             Text(label)
-                .font(.tempoCaption1)
-                .foregroundStyle(selected ? Color.tempoTextInverse : Color.tempoTextPrimary)
+                .font(Tide.caption)
+                .foregroundStyle(selected ? Tide.ink : Tide.text)
                 .lineLimit(1)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-                .clipShape(Capsule())
+                .padding(.horizontal, Tide.s3)
+                .frame(minHeight: Tide.hit)
+                .background(selected ? mood.accent : Tide.fill, in: .capsule)
+                .contentShape(.capsule)
         }
         .buttonStyle(.plain)
+        .sensoryFeedback(.selection, trigger: selected)
     }
 
     private func nutrientRow(_ label: String, _ per100: Double?, _ portion: Double?, unit: String, level: Color?) -> some View {
         GridRow {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 if let level {
                     Circle().fill(level).frame(width: 8, height: 8)
                 }
                 Text(label)
             }
-            .font(.tempoBody)
-            .foregroundStyle(Color.tempoTextPrimary)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
             .frame(maxWidth: .infinity, alignment: .leading)
             if showsPortionColumn {
                 Text(Self.amount(per100, unit: unit))
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .foregroundStyle(Tide.text2)
                 Text(Self.amount(portion, unit: unit))
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
             } else {
                 Text(Self.amount(per100, unit: unit))
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
             }
         }
-        .font(.tempoBody)
+        .font(Tide.body)
         .monospacedDigit()
     }
 
@@ -707,14 +720,14 @@ struct FoodProductView: View {
     /// otherwise. Never disappears: skeleton while loading, a friendly line
     /// if truly nothing turned up.
     private var suggestionsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionTitle(isLoadingSuggestions ? "SUGGESTIONS" : suggestions.kind.sectionTitle.uppercased())
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionTitle(isLoadingSuggestions ? "Suggestions" : suggestions.kind.sectionTitle)
             if isLoadingSuggestions {
                 suggestionsSkeleton
             } else if suggestions.items.isEmpty {
                 Text("Nothing else on the shelf right now — check back after your next scan.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else if suggestions.items.count == 1, let item = suggestions.items.first {
                 // A single tile in a horizontal scroller reads as an orphaned
                 // left-aligned card with dead space beside it — give it the
@@ -727,7 +740,7 @@ struct FoodProductView: View {
                 .buttonStyle(.plain)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TempoSpacing.md) {
+                    HStack(spacing: Tide.s3) {
                         ForEach(suggestions.items) { item in
                             NavigationLink {
                                 FoodProductView(product: item, mode: mode, catalog: catalog)
@@ -744,17 +757,17 @@ struct FoodProductView: View {
     }
 
     private var suggestionsSkeleton: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             ForEach(0 ..< 3, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    RoundedRectangle(cornerRadius: TempoRadius.md)
-                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.text3.opacity(0.3))
                         .frame(width: 112, height: 112)
-                    RoundedRectangle(cornerRadius: TempoRadius.sm)
-                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.text3.opacity(0.3))
                         .frame(width: 90, height: 12)
-                    RoundedRectangle(cornerRadius: TempoRadius.sm)
-                        .fill(Color.tempoTextDisabled.opacity(0.3))
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.text3.opacity(0.3))
                         .frame(width: 60, height: 10)
                 }
             }
@@ -763,21 +776,22 @@ struct FoodProductView: View {
     }
 
     private func suggestionCard(_ item: FoodProduct) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             ZStack(alignment: .topTrailing) {
                 FoodProductThumbnail(product: item, size: 112)
                 FoodScoreBadge(product: item)
-                    .padding(TempoSpacing.xs)
+                    .padding(Tide.s1)
             }
             Text(item.name)
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
                 .lineLimit(2)
+                .multilineTextAlignment(.leading)
             if let brand = item.brand {
                 Text(brand)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .lineLimit(1)
             }
         }
@@ -785,31 +799,31 @@ struct FoodProductView: View {
     }
 
     private func suggestionCardWide(_ item: FoodProduct) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             ZStack(alignment: .topTrailing) {
                 FoodProductThumbnail(product: item, size: 72)
                 FoodScoreBadge(product: item)
-                    .padding(TempoSpacing.xxs)
+                    .padding(Tide.hair)
             }
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(item.name)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                 if let brand = item.brand {
                     Text(brand)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .lineLimit(1)
                 }
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard()
     }
 
     private func loadSuggestions() async {
@@ -842,19 +856,19 @@ struct FoodProductView: View {
         let traces = source.displayTraces
         let ingredients = source.ingredientsText ?? product.ingredientsText
         if claimsAllergenData || ingredients != nil {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 if claimsAllergenData {
-                    sectionTitle("ALLERGENS")
+                    sectionTitle("Allergens")
                     if allergens.isEmpty, traces.isEmpty, ingredients == nil {
                         // Never silently omit the section — say plainly that
                         // the maker gave us nothing to go on (picky-QA item 3).
                         Text("No allergen info from the maker — check the pack.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     } else {
                         if !allergens.isEmpty {
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: TempoSpacing.xs) {
+                                HStack(spacing: Tide.s1) {
                                     ForEach(allergens, id: \.self) { allergen in
                                         allergenChip(allergen)
                                     }
@@ -862,12 +876,10 @@ struct FoodProductView: View {
                             }
                         }
                         if !traces.isEmpty {
-                            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                                Text("MAY CONTAIN")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                            VStack(alignment: .leading, spacing: Tide.hair) {
+                                Text("May contain").tideLabel(Tide.text3)
                                 ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: TempoSpacing.xs) {
+                                    HStack(spacing: Tide.s1) {
                                         ForEach(traces, id: \.self) { trace in
                                             traceChip(trace)
                                         }
@@ -877,38 +889,38 @@ struct FoodProductView: View {
                         }
                         if allergens.isEmpty, traces.isEmpty {
                             Text("No allergens declared by the maker.")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                     }
                 }
                 if let ingredients {
                     DisclosureGroup(isExpanded: $showIngredients) {
                         Text(ingredients)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, TempoSpacing.xs)
+                            .padding(.top, Tide.s1)
                     } label: {
-                        sectionTitle("INGREDIENTS")
+                        sectionTitle("Ingredients")
                     }
-                    .tint(Color.tempoTextSecondary)
+                    .tint(Tide.text2)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
             .accessibilityIdentifier("foodAllergensCard")
         }
     }
 
     private func allergenChip(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption1)
+            .font(Tide.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoError)
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoError.opacity(TempoOpacity.o15))
+            .foregroundStyle(Tide.danger)
+            .padding(.horizontal, Tide.s3)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.danger.opacity(0.15))
             .clipShape(Capsule())
     }
 
@@ -916,12 +928,12 @@ struct FoodProductView: View {
     /// confirmed allergen: same shape, amber instead of red.
     private func traceChip(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption1)
+            .font(Tide.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoAmber)
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoAmber.opacity(TempoOpacity.o15))
+            .foregroundStyle(Tide.Kitchen.warn)
+            .padding(.horizontal, Tide.s3)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.Kitchen.warn.opacity(0.15))
             .clipShape(Capsule())
     }
 
@@ -934,8 +946,8 @@ struct FoodProductView: View {
             if let code = product.barcode, let url = URL(string: "https://world.openfoodfacts.org/product/\(code)") {
                 Link(destination: url) {
                     Text("Data: Open Food Facts contributors (ODbL) — view or fix this product")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .multilineTextAlignment(.center)
                 }
             }
@@ -950,8 +962,8 @@ struct FoodProductView: View {
 
     private func footnote(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
     }
 
     // MARK: - Add bar
@@ -967,22 +979,18 @@ struct FoodProductView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .buttonStyle(.tempoPrimary)
+        .buttonStyle(.tidePrimary)
         .disabled(!product.per100g.hasCoreMacros || grams <= 0)
         .accessibilityIdentifier("foodProductAdd")
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .padding(.bottom, TempoSpacing.sm)
-        .tidePage()
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Helpers
 
     private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoCaption1)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoTextTertiary)
+        Text(text).tideLabel()
     }
 
     static func format(_ grams: Double) -> String {
@@ -1005,18 +1013,18 @@ struct FoodProductView: View {
             return nil
         }
         if value > high {
-            return .tempoError
+            return Tide.danger
         }
-        return value > medium ? .tempoAmber : .tempoSuccess
+        return value > medium ? Tide.Kitchen.warn : Tide.Kitchen.good
     }
 
     static func gradeColor(_ grade: String) -> Color {
         switch grade {
-        case "a": .tempoSuccess
-        case "b": .tempoRecoveryGreen
-        case "c": .tempoWarning
-        case "d": .tempoAmber
-        default: .tempoError
+        case "a": Tide.Kitchen.good
+        case "b": Tide.Kitchen.good
+        case "c": Tide.Kitchen.warn
+        case "d": Tide.Kitchen.warn
+        default: Tide.danger
         }
     }
 
@@ -1087,7 +1095,7 @@ struct FoodMacroSplit: Equatable {
                 kcal: proteinKcal,
                 grams: proteinKcal / 4,
                 percent: proteinKcal / totalKcal,
-                color: .tempoMacroProtein,
+                color: Tide.protein,
                 label: "Protein"
             ),
             Slice(
@@ -1095,10 +1103,10 @@ struct FoodMacroSplit: Equatable {
                 kcal: carbsKcal,
                 grams: carbsKcal / 4,
                 percent: carbsKcal / totalKcal,
-                color: .tempoMacroCarbs,
+                color: Tide.carbs,
                 label: "Carbs"
             ),
-            Slice(macro: .fat, kcal: fatKcal, grams: fatKcal / 9, percent: fatKcal / totalKcal, color: .tempoMacroFat, label: "Fat"),
+            Slice(macro: .fat, kcal: fatKcal, grams: fatKcal / 9, percent: fatKcal / totalKcal, color: Tide.fat, label: "Fat"),
         ]
     }
 

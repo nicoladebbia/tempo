@@ -19,26 +19,29 @@ struct GroceryWeeklySpendView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     if viewModel.groceryStoreModeState.weeklySpend.isEmpty {
-                        Text("No purchases recorded yet.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .padding(.top, TempoSpacing.xxxl)
+                        KitchenEmpty(
+                            systemImage: "dollarsign.circle",
+                            title: "No purchases yet",
+                            message: "Finish a shop and your weekly spend shows up here."
+                        )
                     } else {
                         ForEach(viewModel.groceryStoreModeState.weeklySpend.reversed()) { week in
                             weekRow(week)
                         }
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
-            .tidePage()
+            .scrollIndicators(.hidden)
             .navigationTitle("Spend History")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -47,6 +50,7 @@ struct GroceryWeeklySpendView: View {
                 }
             }
         }
+        .kitchenSheet()
         .onAppear {
             viewModel.loadGroceryWeeklySpendHistory()
         }
@@ -55,42 +59,40 @@ struct GroceryWeeklySpendView: View {
     private func weekRow(_ week: GroceryWeeklySpend) -> some View {
         let cap = week.budgetCapUSD.map(Double.init)
         let fraction = cap.map { min(1, week.totalUSD / max(1, $0)) } ?? 0
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(week.weekStartDate.formatted(date: .abbreviated, time: .omitted))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                Text("$" + String(format: "%.2f", week.totalUSD))
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(week.isOverBudget ? Color.tempoError : Color.tempoTextPrimary)
+        let date = week.weekStartDate.formatted(date: .abbreviated, time: .omitted)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Week of \(date)").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    "$" + String(format: "%.2f", week.totalUSD),
+                    size: Tide.numeralM,
+                    relativeTo: .title,
+                    color: week.isOverBudget ? Tide.danger : Tide.text
+                )
                 if let cap = week.budgetCapUSD {
-                    Text("/ $\(cap)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("of $\(cap)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
+                Spacer(minLength: 0)
+                if week.isOverBudget {
+                    KitchenTag(text: "Over", tint: Tide.danger)
                 }
             }
             if cap != nil {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoBorder.opacity(0.5)).frame(height: 8)
-                        Capsule()
-                            .fill(week.isOverBudget ? Color.tempoError : Color.tempoSignal)
-                            .frame(width: geo.size.width * fraction, height: 8)
-                    }
-                }
-                .frame(height: 8)
+                TideLevelBar(progress: fraction, color: week.isOverBudget ? Tide.danger : mood.accent, height: Tide.bar)
+                    .accessibilityLabel("Share of budget spent")
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4)
+        .accessibilityElement(children: .combine)
     }
 }
 
 // MARK: - CheaperSwapsSheet
 
-/// Simple bullet-list sheet for the "Cheaper swaps" suggestions surfaced
+/// Simple list sheet for the "Cheaper swaps" suggestions surfaced
 /// when the list is over budget.
 struct CheaperSwapsSheet: View {
     @Bindable
@@ -98,42 +100,51 @@ struct CheaperSwapsSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     if viewModel.groceryStoreModeState.isFetchingSwaps {
                         ProgressView("Thinking of cheaper swaps…")
-                            .padding(.top, TempoSpacing.xxxl)
+                            .tint(mood.accent)
+                            .foregroundStyle(Tide.text2)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, Tide.s10)
                     } else if let error = viewModel.groceryStoreModeState.swapsError {
                         Text(error)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoError)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.danger)
+                            .tideCard(padding: Tide.s4)
                     } else if viewModel.groceryStoreModeState.cheaperSwaps.isEmpty {
-                        Text("No swaps to suggest — the list is lean already.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        KitchenEmpty(
+                            systemImage: "checkmark.seal",
+                            title: "Nothing to swap",
+                            message: "The list is lean already."
+                        )
                     } else {
                         ForEach(viewModel.groceryStoreModeState.cheaperSwaps, id: \.self) { swap in
-                            HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                            HStack(alignment: .top, spacing: Tide.s3) {
                                 Image(systemName: "arrow.triangle.swap")
-                                    .foregroundStyle(Color.tempoSignal)
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(mood.accent)
+                                    .accessibilityHidden(true)
                                 Text(swap)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .padding(TempoSpacing.cardPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                            .tideCard(padding: Tide.s4)
                         }
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
-            .tidePage()
+            .scrollIndicators(.hidden)
             .navigationTitle("Cheaper Swaps")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -142,5 +153,6 @@ struct CheaperSwapsSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 }

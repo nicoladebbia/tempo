@@ -295,6 +295,13 @@ struct KitchenEmpty: View {
 // MARK: - Page, sheet and form chrome
 
 extension View {
+    /// The root of a full-screen cover or a pushed page. It always draws its
+    /// own field, even when the page that presents it sits inside one (a page
+    /// nested in a page draws nothing, and a cover would be left empty).
+    func kitchenPage(energy: Double = Tide.sheetEnergy) -> some View {
+        tidePage(energy: energy).environment(\.tideInsidePage, false)
+    }
+
     /// The field behind a sheet, a calm drag handle, and no second field for
     /// anything nested inside. Goes on the sheet's root view.
     func kitchenSheet() -> some View {
@@ -335,6 +342,70 @@ extension View {
     /// stays readable on any scene.
     func kitchenCameraPanel(radius: CGFloat = Tide.cardRadius) -> some View {
         glassEffect(.regular.tint(Tide.Kitchen.cameraTint), in: .rect(cornerRadius: radius))
+    }
+}
+
+// MARK: - KitchenForm
+
+/// A Form whose rows sit on Tide fill and let the field show between them.
+struct KitchenForm<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        Form {
+            content.listRowBackground(Tide.fill)
+        }
+        .scrollContentBackground(.hidden)
+    }
+}
+
+// MARK: - KitchenList
+
+/// A List whose rows sit on Tide fill and let the field show between them.
+struct KitchenList<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        List {
+            content.listRowBackground(Tide.fill)
+        }
+        .scrollContentBackground(.hidden)
+    }
+}
+
+// MARK: - KitchenFormSection
+
+/// A Form section with a tracked label above it and rows on Tide fill.
+struct KitchenFormSection<Content: View>: View {
+    let title: String
+    var footer: String?
+    @ViewBuilder var content: Content
+
+    init(_ title: String, footer: String? = nil, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.footer = footer
+        self.content = content()
+    }
+
+    /// A section with no title, only a footnote underneath.
+    init(footer: String, @ViewBuilder content: () -> Content) {
+        title = ""
+        self.footer = footer
+        self.content = content()
+    }
+
+    var body: some View {
+        Section {
+            content.listRowBackground(Tide.fill)
+        } header: {
+            if !title.isEmpty {
+                Text(title).tideLabel()
+            }
+        } footer: {
+            if let footer {
+                Text(footer).font(Tide.caption).foregroundStyle(Tide.text3)
+            }
+        }
     }
 }
 

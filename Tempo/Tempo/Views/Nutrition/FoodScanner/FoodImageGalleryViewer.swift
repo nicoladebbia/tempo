@@ -21,7 +21,7 @@ struct FoodImageGalleryViewer: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Tide.ink.ignoresSafeArea()
             TabView(selection: $page) {
                 ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
                     ZoomableImage {
@@ -37,11 +37,13 @@ struct FoodImageGalleryViewer: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.white, Color.black.opacity(TempoOpacity.o40))
+                        Image(systemName: "xmark")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .glassEffect(.regular.interactive(), in: .circle)
                     }
-                    .padding(TempoSpacing.lg)
+                    .padding(Tide.s4)
                     .accessibilityLabel("Close")
                 }
                 Spacer()

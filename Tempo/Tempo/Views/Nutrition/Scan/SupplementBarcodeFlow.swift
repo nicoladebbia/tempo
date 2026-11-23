@@ -40,6 +40,8 @@ struct SupplementBarcodeFlow: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var scanState: ScanState = .scanning
     @State private var network = NetworkStatus()
@@ -223,70 +225,68 @@ struct SupplementBarcodeFlow: View {
     }
 
     private func loadingContent(_ text: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView().controlSize(.large)
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
     }
 
     // MARK: - Confirm card
 
     private func foundContent(_ dto: SupplementLookupDTO) -> some View {
-        VStack(spacing: TempoSpacing.xxl) {
+        VStack(spacing: Tide.s6) {
             Spacer()
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 Image(systemName: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(Color.tempoSignal)
-                    .padding(.bottom, TempoSpacing.xs)
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(mood.accent)
+                    .padding(.bottom, Tide.s1)
+                    .accessibilityHidden(true)
                 if let brand = dto.brand, !brand.isEmpty {
-                    Text(brand.uppercased())
-                        .font(.tempoModuleTag)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text(brand)
+                        .tideLabel(Tide.text3)
                 }
                 Text(dto.name)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
                 Text(detailLine(dto))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 if !dto.certifications.isEmpty {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         ForEach(dto.certifications, id: \.self) { cert in
                             certBadge(cert)
                         }
                     }
-                    .padding(.top, TempoSpacing.xs)
+                    .padding(.top, Tide.s1)
                 }
                 if let source = Self.sourceName(dto) {
                     Text(source)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
                 if dto.source == "tempo", let catalogID = dto.catalogID {
                     SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
                 }
                 Text("UPC \(dto.upc)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xs)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.top, Tide.s1)
             }
-            .padding(TempoSpacing.cardPadding)
             .frame(maxWidth: .infinity)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .tideCard(padding: Tide.s4)
+            .padding(.horizontal, Tide.edge)
 
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            VStack(spacing: Tide.s3) {
                 Button("Add to Shelf") { add(dto) }
-                    .buttonStyle(.tempoPrimary)
+                    .buttonStyle(.tidePrimary)
                 Button("Scan again") { resetScanner() }
-                    .buttonStyle(.tempoGhost)
+                    .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
+            .padding(.horizontal, Tide.s10)
             Spacer()
         }
     }
@@ -305,14 +305,7 @@ struct SupplementBarcodeFlow: View {
     }
 
     private func certBadge(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoSuccess)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xxs)
-            .background(Color.tempoSuccess.opacity(0.15))
-            .clipShape(Capsule())
+        KitchenTag(text: text, tint: Tide.Kitchen.good)
     }
 
     private func detailLine(_ dto: SupplementLookupDTO) -> String {
@@ -329,28 +322,29 @@ struct SupplementBarcodeFlow: View {
     // MARK: - Duplicate
 
     private func duplicateContent(dto: SupplementLookupDTO, existing: Supplement) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
             Text("Already on your shelf")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("You already have \(existing.name). Restocked instead of adding a new item?")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xxxxl)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+                .padding(.horizontal, Tide.s10)
+            VStack(spacing: Tide.s3) {
                 Button("Restocked") { restock(dto: dto, existing: existing) }
-                    .buttonStyle(.tempoPrimary)
+                    .buttonStyle(.tidePrimary)
                 Button("Add as new anyway") { scanState = .found(dto) }
-                    .buttonStyle(.tempoSecondary)
+                    .buttonStyle(.tideGlass)
                 Button("Scan again") { resetScanner() }
-                    .buttonStyle(.tempoGhost)
+                    .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
+            .padding(.horizontal, Tide.s10)
             Spacer()
         }
     }
@@ -366,20 +360,21 @@ struct SupplementBarcodeFlow: View {
         canRetry: Bool = false
     ) -> some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 Image(systemName: icon)
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.tempoAsh)
-                    .padding(.top, TempoSpacing.xxxl)
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.top, Tide.s8)
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                 Text(message)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xxl)
-                VStack(spacing: TempoSpacing.buttonStackVertical) {
+                    .padding(.horizontal, Tide.s6)
+                VStack(spacing: Tide.s3) {
                     if canRetry, let upc {
                         Button {
                             lookUp(upc)
@@ -387,13 +382,13 @@ struct SupplementBarcodeFlow: View {
                             Label("Try again", systemImage: "arrow.clockwise")
                                 .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.tempoPrimary)
+                        .buttonStyle(.tidePrimary)
                         .accessibilityIdentifier("supplementRetryLookup")
                     }
                     if canRetry {
-                        photographButton(upc: upc).buttonStyle(.tempoSecondary)
+                        photographButton(upc: upc).buttonStyle(.tideGlass)
                     } else {
-                        photographButton(upc: upc).buttonStyle(.tempoPrimary)
+                        photographButton(upc: upc).buttonStyle(.tidePrimary)
                     }
                     Button {
                         flowSheet = .search(upc: upc)
@@ -401,7 +396,7 @@ struct SupplementBarcodeFlow: View {
                         Label("Search by name", systemImage: "magnifyingglass")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tempoSecondary)
+                    .buttonStyle(.tideGlass)
                     .accessibilityIdentifier("supplementSearchByName")
                     Button {
                         flowSheet = .manual(upc: upc)
@@ -409,7 +404,7 @@ struct SupplementBarcodeFlow: View {
                         Label("Type it", systemImage: "square.and.pencil")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tempoSecondary)
+                    .buttonStyle(.tideGlass)
                     .accessibilityIdentifier("supplementTypeIt")
                     Button {
                         resetScanner()
@@ -417,10 +412,10 @@ struct SupplementBarcodeFlow: View {
                         Label("Scan again", systemImage: "barcode.viewfinder")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tempoGhost)
+                    .buttonStyle(.tideGlass)
                 }
-                .padding(.horizontal, TempoSpacing.xxxxl)
-                .padding(.bottom, TempoSpacing.xxxl)
+                .padding(.horizontal, Tide.s10)
+                .padding(.bottom, Tide.s8)
             }
         }
     }

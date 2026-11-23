@@ -19,6 +19,8 @@ struct FoodCheckView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @Query(sort: \ScannedFood.lastViewedAt, order: .reverse)
     private var saved: [ScannedFood]
@@ -43,21 +45,24 @@ struct FoodCheckView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            KitchenList {
                 Section {
-                    HStack(spacing: TempoSpacing.md) {
-                        actionCard(icon: "barcode.viewfinder", title: "Scan a product", id: "checkScan") {
-                            showScanner = true
-                        }
-                        actionCard(icon: "magnifyingglass", title: "Search", id: "checkSearch") {
-                            showSearch = true
+                    GlassEffectContainer(spacing: Tide.s3) {
+                        HStack(spacing: Tide.s3) {
+                            actionCard(icon: "barcode.viewfinder", title: "Scan a product", id: "checkScan") {
+                                showScanner = true
+                            }
+                            actionCard(icon: "magnifyingglass", title: "Search", id: "checkSearch") {
+                                showSearch = true
+                            }
                         }
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } footer: {
                     Text("Scan or search for the score, then log it, stock it or list it. Nothing happens until you tap.")
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
 
                 Section {
@@ -73,8 +78,8 @@ struct FoodCheckView: View {
 
                 if rows.isEmpty {
                     Text(tab == .history ? "Products you scan or open show up here." : "Tap the star on a product to keep it here.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .listRowBackground(Color.clear)
                 } else if let catalog {
                     Section {
@@ -85,7 +90,7 @@ struct FoodCheckView: View {
                                 } label: {
                                     FoodProductRow(product: product, photo: row.photoData, subtitle: subtitle(row))
                                 }
-                                .listRowBackground(Color.tempoSurfaceCard)
+                                .listRowBackground(Tide.fill)
                             }
                         }
                         .onDelete { offsets in
@@ -98,8 +103,7 @@ struct FoodCheckView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .tidePage()
+            .scrollIndicators(.hidden)
             .navigationTitle("Check Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -107,8 +111,8 @@ struct FoodCheckView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
                 }
             }
             .sheet(isPresented: $showScanner) {
@@ -123,6 +127,7 @@ struct FoodCheckView: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     private var rows: [ScannedFood] {
@@ -149,18 +154,19 @@ struct FoodCheckView: View {
             HapticManager.lightImpact()
             action()
         } label: {
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 Image(systemName: icon)
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.title2)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.xl)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+            .padding(.vertical, Tide.s5)
+            .glassEffect(.regular.tint(Tide.glassCard).interactive(), in: .rect(cornerRadius: Tide.tileRadius))
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)

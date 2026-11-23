@@ -21,6 +21,8 @@ struct PantryVoiceEditView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var transcriber = VoiceTranscriber()
 
@@ -37,7 +39,7 @@ struct PantryVoiceEditView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 switch phase {
                 case .idle,
                      .recording:
@@ -51,8 +53,8 @@ struct PantryVoiceEditView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(TempoSpacing.screenEdge)
-            .tidePage()
+            .padding(Tide.edge)
+            .kitchenPage()
             .navigationTitle("Pantry Voice Edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -78,42 +80,45 @@ struct PantryVoiceEditView: View {
     // MARK: - Mic
 
     private var micSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
             Text(transcriber.isListening
                 ? "Listening… say what changed, then tap stop"
                 : "\"I'm out of rice\", \"I used half the chicken\", \"move the salmon to the freezer\"")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
 
             Button {
                 Task { await toggleRecording() }
             } label: {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
-                    .clipShape(Circle())
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.ink)
+                    .frame(width: 112, height: 112)
+                    .glassEffect(
+                        .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
+                        in: .circle
+                    )
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
+            .sensoryFeedback(.impact, trigger: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
-                    .padding(TempoSpacing.cardPadding)
                     .frame(maxWidth: .infinity)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .tideCard(padding: Tide.s4)
             }
 
             if let err = transcriber.error {
                 Text(err)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
             }
             Spacer()
         }
@@ -149,34 +154,33 @@ struct PantryVoiceEditView: View {
     // MARK: - Confirm (shown BEFORE anything is applied)
 
     private var confirmSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Confirm these changes")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("Nothing has been changed yet.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     ForEach(Array(intents.enumerated()), id: \.offset) { _, intent in
                         Text(describe(intent))
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .padding(TempoSpacing.cardPadding)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                     }
                 }
             }
+            .scrollIndicators(.hidden)
 
             Button {
                 applyIntents()
             } label: {
                 Text("Apply \(intents.count) change\(intents.count == 1 ? "" : "s")")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
         }
     }
 
@@ -208,22 +212,23 @@ struct PantryVoiceEditView: View {
     @State private var appliedSummaries: [String] = []
 
     private var appliedSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.Kitchen.good)
+                .accessibilityHidden(true)
             ForEach(appliedSummaries, id: \.self) { summary in
                 Text(summary)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
             }
             Button("Done") {
                 transcriber.stop()
                 dismiss()
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             Spacer()
         }
     }
@@ -231,19 +236,20 @@ struct PantryVoiceEditView: View {
     // MARK: - Failure
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoWarning)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .accessibilityHidden(true)
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             Button("Try again") {
                 phase = .idle
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             Spacer()
         }
     }

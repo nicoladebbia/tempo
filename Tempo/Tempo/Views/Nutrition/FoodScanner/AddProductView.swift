@@ -25,6 +25,8 @@ struct AddProductView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var name = ""
@@ -86,13 +88,12 @@ struct AddProductView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        KitchenForm {
+            KitchenFormSection(
+                "Product photo",
+                footer: "Tempo cuts the product out and puts it on a clean white background. Done on your phone."
+            ) {
                 photoRow
-            } header: {
-                Text("Product photo")
-            } footer: {
-                Text("Tempo cuts the product out and puts it on a clean white background. Done on your phone.")
             }
 
             Section {
@@ -111,17 +112,20 @@ struct AddProductView: View {
                     .listRowInsets(EdgeInsets())
                 }
             } header: {
-                Text("Nutrition label")
+                Text("Nutrition label").tideLabel()
             } footer: {
                 if let labelMessage {
                     Text(labelMessage)
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.Kitchen.warn)
                 } else {
-                    Text("Snap the table — AI fills in the values below. You can always type them.")
+                    Text("Snap the table and AI fills in the values below. You can always type them.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
 
-            Section("Product") {
+            KitchenFormSection("Product") {
                 TextField("Name", text: $name)
                     .accessibilityIdentifier("addProductName")
                 TextField("Brand (optional)", text: $brand)
@@ -132,7 +136,10 @@ struct AddProductView: View {
                 numberField("Serving size (optional)", text: $servingText, unit: isBeverage ? "ml" : "g", id: "addProductServing")
             }
 
-            Section {
+            KitchenFormSection(
+                "Per 100 \(isBeverage ? "ml" : "g")",
+                footer: "Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score."
+            ) {
                 numberField("Calories", text: $kcal, unit: "kcal", id: "addProductKcal")
                 numberField("Protein", text: $protein, unit: "g", id: "addProductProtein")
                 numberField("Carbs", text: $carbs, unit: "g", id: "addProductCarbs")
@@ -141,23 +148,14 @@ struct AddProductView: View {
                 numberField("of which saturated", text: $saturatedFat, unit: "g", id: "addProductSatFat")
                 numberField("Fiber", text: $fiber, unit: "g", id: "addProductFiber")
                 numberField("Salt", text: $salt, unit: "g", id: "addProductSalt")
-            } header: {
-                Text("Per 100 \(isBeverage ? "ml" : "g")")
-            } footer: {
-                Text("Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score.")
             }
 
-            Section {
+            KitchenFormSection("Ingredients", footer: "E-numbers in the ingredients are used to rate additives.") {
                 TextField("Ingredients (optional)", text: $ingredients, axis: .vertical)
                     .lineLimit(3 ... 8)
-            } header: {
-                Text("Ingredients")
-            } footer: {
-                Text("E-numbers in the ingredients are used to rate additives.")
             }
         }
-        .scrollContentBackground(.hidden)
-        .tidePage()
+        .kitchenPage()
         .onAppear(perform: applyPrefill)
         .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)
@@ -214,7 +212,7 @@ struct AddProductView: View {
     // MARK: - Photo
 
     private var photoRow: some View {
-        HStack(spacing: TempoSpacing.lg) {
+        HStack(spacing: Tide.s4) {
             ZStack {
                 if let photo, let image = UIImage(data: photo) {
                     Image(uiImage: image)
@@ -222,27 +220,28 @@ struct AddProductView: View {
                         .scaledToFit()
                 } else {
                     Image(systemName: "photo")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text3)
                 }
                 if isRenderingPhoto {
                     ProgressView()
                 }
             }
             .frame(width: 88, height: 88)
-            .background(photo == nil ? Color.tempoBgTertiary : Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            // White on purpose: the studio shot is a cut-out on white.
+            .background(photo == nil ? Tide.fill : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 if photo != nil {
-                    Text(photoIsCutOut ? "Studio photo ready" : "Couldn't cut it out — cropped instead")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(photoIsCutOut ? Color.tempoSuccess : Color.tempoTextSecondary)
+                    Text(photoIsCutOut ? "Studio photo ready" : "Couldn't cut it out, cropped instead")
+                        .font(Tide.caption)
+                        .foregroundStyle(photoIsCutOut ? Tide.Kitchen.good : Tide.text2)
                 }
                 captureButtons(camera: { picker = .front(.camera) }, library: { picker = .front(.photoLibrary) })
             }
         }
-        .padding(.vertical, TempoSpacing.xs)
+        .padding(.vertical, Tide.s1)
     }
 
     private func renderPhoto(_ image: UIImage) {
@@ -265,50 +264,51 @@ struct AddProductView: View {
         if let labelImage {
             // Captured: the capture buttons are gone; the label is a card and
             // the only control left is a small Retake.
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 Image(uiImage: labelImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                     .overlay {
                         if isReadingLabel {
                             ZStack {
-                                Color.black.opacity(0.45)
-                                VStack(spacing: TempoSpacing.sm) {
-                                    ProgressView().tint(Color.tempoBone)
+                                Tide.ink.opacity(0.55)
+                                VStack(spacing: Tide.s2) {
+                                    ProgressView().tint(Tide.text)
                                     Text("Reading the label…")
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoBone)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text)
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                         }
                     }
                     .accessibilityLabel("Photo of the nutrition label")
                     .accessibilityIdentifier("addProductLabelCard")
                 if !isReadingLabel {
                     Button("Retake") { picker = .label(.camera) }
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit)
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("addProductLabelRetake")
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.xs)
+            .padding(.vertical, Tide.s1)
         } else if isReadingLabel {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 ProgressView()
                 Text("Reading the label…")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                 Spacer()
             }
-            .padding(.vertical, TempoSpacing.xs)
+            .padding(.vertical, Tide.s1)
         } else {
             captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
-                .padding(.vertical, TempoSpacing.xs)
+                .padding(.vertical, Tide.s1)
         }
     }
 
@@ -406,32 +406,34 @@ struct AddProductView: View {
     // MARK: - Helpers
 
     private func captureButtons(camera: @escaping () -> Void, library: @escaping () -> Void) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Button(action: camera) {
-                Label("Camera", systemImage: "camera")
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                Button(action: camera) {
+                    Label("Camera", systemImage: "camera")
+                }
+                Button(action: library) {
+                    Label("Library", systemImage: "photo.on.rectangle")
+                }
             }
-            Button(action: library) {
-                Label("Library", systemImage: "photo.on.rectangle")
-            }
+            .buttonStyle(.tideGlass)
         }
-        .buttonStyle(.bordered)
-        .tint(Color.tempoSignal)
-        .font(.tempoCaption1)
     }
 
     private func numberField(_ label: String, text: Binding<String>, unit: String, id: String) -> some View {
         HStack {
             Text(label)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
             Spacer()
             TextField("—", text: text)
+                .font(Tide.bodyStrong)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 80)
                 .accessibilityIdentifier(id)
             Text(unit)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .frame(width: 32, alignment: .leading)
         }
     }

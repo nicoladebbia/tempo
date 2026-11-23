@@ -50,13 +50,16 @@ struct SupplementSearchSheet: View {
         injectedService ?? LiveSupplementLookupService(apiClient: services.apiClient)
     }
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         NavigationStack {
-            List {
+            KitchenList {
                 Section {
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .foregroundStyle(Tide.text3)
                         TextField("Brand + product, e.g. Thorne magnesium", text: $query)
                             .textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
@@ -70,7 +73,7 @@ struct SupplementSearchSheet: View {
                 }
 
                 if !commonMatches.isEmpty {
-                    Section("Common supplements") {
+                    KitchenFormSection("Common supplements") {
                         ForEach(commonMatches) { item in
                             Button {
                                 onPick(Self.dto(from: item))
@@ -85,7 +88,7 @@ struct SupplementSearchSheet: View {
                 }
 
                 if !hits.isEmpty {
-                    Section("Supplements") {
+                    KitchenFormSection("Supplements") {
                         ForEach(hits) { hit in
                             Button {
                                 open(hit)
@@ -106,12 +109,12 @@ struct SupplementSearchSheet: View {
                 Section {
                     if let message {
                         Label(message, systemImage: "info.circle")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     } else if trimmed.count >= 2, !isSearching, hits.isEmpty, commonMatches.isEmpty {
                         Label("Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label.", systemImage: "magnifyingglass")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
                     if let onReadLabel {
                         Button {
@@ -141,32 +144,28 @@ struct SupplementSearchSheet: View {
             }
             .onAppear { focused = true }
         }
+        .kitchenSheet()
     }
 
     private func resultRow(icon: String, title: String, subtitle: String, busy: Bool = false, badge: String? = nil) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: icon)
-                .foregroundStyle(Color.tempoSignal)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.s6)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.leading)
                 if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 if let badge {
-                    Text(badge)
-                        .font(.tempoCaption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .padding(.horizontal, TempoSpacing.xs)
-                        .padding(.vertical, 1)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(Capsule())
+                    KitchenTag(text: badge, tint: Tide.text3)
                 }
             }
             Spacer()
@@ -174,10 +173,12 @@ struct SupplementSearchSheet: View {
                 ProgressView()
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
         }
+        .frame(minHeight: Tide.hit)
     }
 
     private func search() async {

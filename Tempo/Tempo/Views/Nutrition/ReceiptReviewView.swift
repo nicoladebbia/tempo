@@ -25,6 +25,8 @@ struct ReceiptReviewView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var model: ReceiptReviewModel
     @State
@@ -52,7 +54,7 @@ struct ReceiptReviewView: View {
     }
 
     var body: some View {
-        List {
+        KitchenList {
             Section {
                 headerCard
                     .listRowInsets(EdgeInsets())
@@ -83,10 +85,10 @@ struct ReceiptReviewView: View {
                 Section {
                     ForEach(group.lines, id: \.id) { line in
                         row(line)
-                            .listRowBackground(Color.tempoSurfaceCard)
+                            .listRowBackground(Tide.fill)
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
-                                    withAnimation(.easeOut(duration: TempoAnimation.smallDuration)) {
+                                    withAnimation(Tide.snap) {
                                         model.remove(line)
                                     }
                                     HapticManager.lightImpact()
@@ -102,8 +104,8 @@ struct ReceiptReviewView: View {
             if let ingestError {
                 Section {
                     Text(ingestError)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                         .listRowBackground(Color.clear)
                 }
             }
@@ -112,8 +114,8 @@ struct ReceiptReviewView: View {
                 .listRowSeparator(.hidden)
         }
         .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .tidePage()
+        .scrollIndicators(.hidden)
+        .kitchenPage()
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
@@ -135,61 +137,53 @@ struct ReceiptReviewView: View {
     // MARK: - Header
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline) {
                 Text(receipt.store.isEmpty ? "Receipt" : receipt.store)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(2)
                 Spacer()
-                Text(String(format: "$%.2f", receipt.totalAmount))
-                    .font(.tempoTitle3.monospacedDigit())
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TideNumber(String(format: "$%.2f", receipt.totalAmount), size: Tide.numeralM, relativeTo: .title)
             }
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 Text(receipt.purchaseDate, format: .dateTime.month().day().year())
                 Text("·")
                 Text("\(receipt.lineItemCount) items")
                 if let savings = receipt.savingsAmount, savings > 0 {
                     Text("·")
                     Text("Saved \(String(format: "$%.2f", savings))")
-                        .foregroundStyle(Color.tempoSuccess)
+                        .foregroundStyle(Tide.Kitchen.good)
                 }
             }
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
             if model.needsLookCount > 0 {
                 Label("\(model.needsLookCount) need a look", systemImage: "exclamationmark.circle.fill")
-                    .font(.tempoCaption1.weight(.semibold))
-                    .foregroundStyle(Color.tempoWarning)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 4)
-                    .background(Color.tempoWarning.opacity(0.14), in: Capsule())
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.Kitchen.warn)
+                    .padding(.horizontal, Tide.s3)
+                    .padding(.vertical, Tide.s1)
+                    .background(Tide.Kitchen.warn.opacity(0.14), in: .capsule)
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
         .accessibilityElement(children: .combine)
     }
 
     private func sectionHeader(_ section: ReceiptReviewSection, count: Int) -> some View {
         Label("\(section.title) · \(count)", systemImage: section.icon)
-            .font(.tempoModuleTag)
-            .foregroundStyle(section == .needsLook ? Color.tempoWarning : Color.tempoTextSecondary)
-            .textCase(nil)
+            .tideLabel(section == .needsLook ? Tide.Kitchen.warn : Tide.text2)
     }
 
     private func banner(text: String, icon: String) -> some View {
         Label(text, systemImage: icon)
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoWarning)
-            .padding(TempoSpacing.cardPadding)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.Kitchen.warn)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoWarning.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            .padding(.bottom, TempoSpacing.xs)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .padding(.bottom, Tide.s1)
     }
 
     // MARK: - Row
@@ -201,36 +195,37 @@ struct ReceiptReviewView: View {
         return Button {
             editingLine = line
         } label: {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 ProductImageView(
                     url: model.photoURL(for: line),
                     fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood)
                 )
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(line.displayName.isEmpty ? line.rawText : line.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(2)
                     Text(detailText(line))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .lineLimit(1)
                 }
-                Spacer(minLength: TempoSpacing.sm)
-                VStack(alignment: .trailing, spacing: 4) {
+                Spacer(minLength: Tide.s2)
+                VStack(alignment: .trailing, spacing: Tide.s1) {
                     Text(line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—")
-                        .font(.tempoBody.monospacedDigit())
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong.monospacedDigit())
+                        .foregroundStyle(Tide.text)
                     if notFood && !included {
-                        chip("Excluded", icon: "minus.circle", color: .tempoTextTertiary)
+                        chip("Excluded", icon: "minus.circle", color: Tide.text3)
                     } else {
-                        chip(storage.displayName, icon: storage.icon, color: .tempoTextSecondary)
+                        chip(storage.displayName, icon: storage.icon, color: Tide.text2)
                     }
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, Tide.s1)
+            .frame(minHeight: Tide.hit)
             .opacity(included ? 1 : 0.55)
-            .contentShape(Rectangle())
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the editor")
@@ -249,51 +244,51 @@ struct ReceiptReviewView: View {
 
     private func chip(_ text: String, icon: String, color: Color) -> some View {
         Label(text, systemImage: icon)
-            .font(.tempoCaption2.weight(.medium))
+            .font(Tide.label)
             .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(Color.tempoBgSecondary, in: Capsule())
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.fill, in: .capsule)
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.title2)
-                .foregroundStyle(Color.tempoWarning)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.Kitchen.warn)
             Text("No line items detected")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
             Text("Try rescanning with a clearer photo.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        .padding(.vertical, Tide.s8)
     }
 
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             if let removed = model.lastRemoved {
                 HStack {
                     Text("Removed \(removed.displayName.isEmpty ? "item" : removed.displayName)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
                     Spacer()
                     Button("Undo") {
-                        withAnimation(.easeOut(duration: TempoAnimation.smallDuration)) { model.undoRemove() }
+                        withAnimation(Tide.snap) { model.undoRemove() }
                         HapticManager.selection()
                     }
-                    .font(.tempoCaption1.weight(.bold))
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+                    .frame(minHeight: Tide.hit)
                 }
-                .padding(.horizontal, TempoSpacing.cardPadding)
-                .padding(.vertical, TempoSpacing.md)
-                .background(Color.tempoSurfaceCard, in: RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
+                .padding(.horizontal, Tide.s4)
+                .padding(.vertical, Tide.s1)
+                .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .task(id: removed.id) {
                     try? await Task.sleep(for: .seconds(5))
@@ -305,19 +300,18 @@ struct ReceiptReviewView: View {
             } label: {
                 HStack {
                     if isIngesting {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(Tide.ink)
                     }
                     Text(addButtonTitle)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(isIngesting || model.includedCount == 0)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.sm)
-        .padding(.bottom, TempoSpacing.sm)
-        .background(.bar)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s2)
     }
 
     private var addButtonTitle: String {

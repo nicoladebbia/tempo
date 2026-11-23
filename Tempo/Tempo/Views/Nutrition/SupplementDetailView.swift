@@ -25,6 +25,8 @@ struct SupplementDetailView: View {
     @State private var showEdit = false
     @State private var showReorder = false
     @State private var confirmDelete = false
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         let dose = todayDose()
@@ -34,7 +36,7 @@ struct SupplementDetailView: View {
         let daysLeft = SupplementReorderService.daysLeft(for: supplement, recentLogs: logs)
         let low = SupplementReorderService.needsReorder(for: supplement, recentLogs: logs)
 
-        Form {
+        KitchenForm {
             hero
             tookItSection(takenToday: takenToday, dose: dose)
             scheduleSection(dose: dose)
@@ -51,8 +53,8 @@ struct SupplementDetailView: View {
                 }
             }
             if let notes = supplement.userNotes, !notes.isEmpty {
-                Section("Notes") {
-                    Text(notes).font(.tempoBody)
+                KitchenFormSection("Notes") {
+                    Text(notes).font(Tide.body)
                 }
             }
             Section {
@@ -65,8 +67,7 @@ struct SupplementDetailView: View {
                 .accessibilityIdentifier("supplementDelete")
             }
         }
-        .scrollContentBackground(.hidden)
-        .tidePage()
+        .kitchenPage()
         .navigationTitle(supplement.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -79,6 +80,7 @@ struct SupplementDetailView: View {
                 .accessibilityIdentifier("supplementEdit")
             }
         }
+        .tideCovered(showEdit || showReorder)
         .sheet(isPresented: $showEdit) {
             SupplementEditSheet(existing: supplement, prefillUPC: nil) { _ in
                 try? modelContext.save()
@@ -108,26 +110,24 @@ struct SupplementDetailView: View {
 
     private var hero: some View {
         Section {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s4) {
                 Image(systemName: supplement.kind.icon)
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 52, height: 52)
-                    .background(Color.tempoBgTertiary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
+                    .font(Tide.title2)
+                    .foregroundStyle(mood.accent)
+                    .frame(width: Tide.s10 + Tide.s3, height: Tide.s10 + Tide.s3)
+                    .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     if let brand = supplement.brand, !brand.isEmpty {
-                        Text(brand.uppercased())
-                            .font(.tempoModuleTag)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                        Text(brand).tideLabel(Tide.text3)
                     }
                     Text(supplement.name)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                     Text([supplement.kind.displayName, supplement.dosePerServing.isEmpty ? nil : supplement.dosePerServing]
                         .compactMap { $0 }.joined(separator: " · "))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
             .listRowBackground(Color.clear)
@@ -145,7 +145,7 @@ struct SupplementDetailView: View {
                 Label(takenToday ? "Taken today. Tap to undo" : "Took it", systemImage: takenToday ? "checkmark.circle.fill" : "circle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("supplementTookIt")
@@ -157,7 +157,7 @@ struct SupplementDetailView: View {
     }
 
     private func scheduleSection(dose: SupplementDose) -> some View {
-        Section("Schedule") {
+        KitchenFormSection("Schedule") {
             LabeledContent("Today", value: dose.take ? "\(dose.timeLabel) · \(dose.timingLabel)" : "Skip today")
             LabeledContent("Why", value: dose.reason)
             LabeledContent("Dose", value: supplement.dosePerServing.isEmpty ? "Not set" : supplement.dosePerServing)
@@ -165,14 +165,14 @@ struct SupplementDetailView: View {
     }
 
     private func stockSection(daysLeft: Int?, low: Bool) -> some View {
-        Section("Stock") {
+        KitchenFormSection("Stock") {
             LabeledContent("Left in container") {
                 Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings" : "Not tracked")
             }
             if let daysLeft {
                 LabeledContent("Lasts about") {
                     Text(daysLeft <= 0 ? "Out" : "\(daysLeft) days")
-                        .foregroundStyle(low ? Color.tempoAmber : Color.tempoTextPrimary)
+                        .foregroundStyle(low ? Tide.Kitchen.warn : Tide.text)
                 }
             }
             if let per = supplement.servingsPerContainer, per > 0 {
@@ -183,7 +183,7 @@ struct SupplementDetailView: View {
             } label: {
                 Label(low ? "Reorder now" : "Reorder or restock", systemImage: "cart")
             }
-            .foregroundStyle(low ? Color.tempoAmber : Color.tempoSignal)
+            .foregroundStyle(low ? Tide.Kitchen.warn : mood.accent)
             .accessibilityIdentifier("supplementReorder")
         }
     }
@@ -199,11 +199,11 @@ struct SupplementDetailView: View {
                 LabeledContent("Fat", value: "\(Int(m.fat.rounded())) g")
             } else {
                 Text("No calories or macros. Taking it adds nothing to your day.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         } header: {
-            Text("Per serving")
+            Text("Per serving").tideLabel()
         } footer: {
             if supplement.hasMacros {
                 Text("Tick a dose and these count in today's totals.")
@@ -214,9 +214,9 @@ struct SupplementDetailView: View {
     @ViewBuilder
     private var ingredientsSection: some View {
         if let text = supplement.ingredientsSummary, !text.isEmpty {
-            Section("What's in it") {
+            KitchenFormSection("What's in it") {
                 ForEach(Array(text.split(separator: "\n").map(String.init).enumerated()), id: \.offset) { _, line in
-                    Text(line).font(.tempoCaption1)
+                    Text(line).font(Tide.caption)
                 }
             }
         }
@@ -226,18 +226,18 @@ struct SupplementDetailView: View {
         Section {
             if history.recent.isEmpty {
                 Text("Not taken in the last \(history.windowDays) days.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
                 ForEach(history.recent.prefix(10), id: \.self) { date in
                     Label(date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()), systemImage: "checkmark.circle.fill")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text)
                         .symbolRenderingMode(.hierarchical)
                 }
             }
         } header: {
-            Text("Took it · \(history.takenDays) of last \(history.windowDays) days")
+            Text("Took it · \(history.takenDays) of last \(history.windowDays) days").tideLabel()
         }
     }
 

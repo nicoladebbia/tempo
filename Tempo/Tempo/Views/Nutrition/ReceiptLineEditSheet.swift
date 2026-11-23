@@ -38,6 +38,8 @@ struct ReceiptLineEditSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var name: String
     @State
@@ -88,9 +90,9 @@ struct ReceiptLineEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
                 Section {
-                    HStack(spacing: TempoSpacing.md) {
+                    HStack(spacing: Tide.s3) {
                         ProductImageView(
                             url: ReceiptProductPhoto.url(
                                 imageURL: line.imageURL,
@@ -105,47 +107,49 @@ struct ReceiptLineEditSheet: View {
                             size: 56
                         )
                         TextField("Item name", text: $name)
-                            .font(.tempoBody)
+                            .font(Tide.headline)
                     }
                     Text("On receipt: \(line.rawText)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
 
                 if !candidates.isEmpty {
-                    Section("Is it this one?") {
+                    KitchenFormSection("Is it this one?") {
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: TempoSpacing.md) {
+                            HStack(spacing: Tide.s3) {
                                 ForEach(Array(candidates.enumerated()), id: \.offset) { _, entry in
                                     candidateCard(entry.product, score: entry.score)
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .padding(.vertical, Tide.s1)
                         }
                         Button("Find another product") { showFullPicker = true }
-                            .font(.tempoCaption1)
+                            .font(Tide.bodyStrong)
+                            .frame(minHeight: Tide.hit)
                     }
                 } else if isLoadingCandidates {
-                    Section("Is it this one?") { ProgressView() }
+                    KitchenFormSection("Is it this one?") { ProgressView() }
                 } else {
                     Section {
                         Button("Find exact product") { showFullPicker = true }
+                            .frame(minHeight: Tide.hit)
                     }
                 }
 
-                Section("Amount") {
+                KitchenFormSection("Amount") {
                     HStack {
                         TextField("Qty", text: $quantityText)
                             .keyboardType(.decimalPad)
                             .frame(maxWidth: 80)
                         Picker("Unit", selection: $unit) {
                             ForEach(ReceiptLineUnit.allCases, id: \.self) { value in
-                                Text(value.rawValue.uppercased()).tag(value)
+                                Text(value.rawValue).tag(value)
                             }
                         }
                         .pickerStyle(.menu)
                         Spacer()
-                        Text("$").foregroundStyle(Color.tempoTextSecondary)
+                        Text("$").foregroundStyle(Tide.text2)
                         TextField("Price", text: $priceText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
@@ -153,7 +157,7 @@ struct ReceiptLineEditSheet: View {
                     }
                 }
 
-                Section("Where does it go?") {
+                KitchenFormSection("Where does it go?") {
                     Picker("Storage", selection: $storage) {
                         ForEach([PantryStorageLocation.fridge, .freezer, .pantry], id: \.self) { location in
                             Text(location.displayName).tag(location)
@@ -202,6 +206,7 @@ struct ReceiptLineEditSheet: View {
             }
             .task { await loadCandidates() }
         }
+        .kitchenSheet()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
@@ -220,25 +225,25 @@ struct ReceiptLineEditSheet: View {
             name = item.displayName
             HapticManager.selection()
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: Tide.s2) {
                 ProductImageView(url: item.imageURL, fallbackIcon: "bag.fill", size: 72)
                 Text(item.displayName)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .frame(width: 92)
                 if let brand = item.brand, !brand.isEmpty {
                     Text(brand)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .lineLimit(1)
                 }
             }
-            .padding(6)
+            .padding(Tide.s2)
             .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .strokeBorder(isPicked ? Color.tempoSignal : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .strokeBorder(isPicked ? mood.accent : Color.clear, lineWidth: 2)
             )
         }
         .buttonStyle(.plain)

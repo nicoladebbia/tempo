@@ -44,6 +44,8 @@ struct ScanBarcodeSurface: View {
     private var showManualEntry = false
     @State
     private var manualBarcode = ""
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         Group {
@@ -51,15 +53,17 @@ struct ScanBarcodeSurface: View {
             case .authorized:
                 scanner
             case .notDetermined:
-                VStack(spacing: TempoSpacing.lg) {
-                    ProgressView().controlSize(.large)
+                VStack(spacing: Tide.s4) {
+                    ProgressView().controlSize(.large).tint(mood.accent)
                     Text("Allow the camera to scan.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                     Button("Allow camera") { Task { await ask() } }
-                        .buttonStyle(.tempoPrimary)
-                        .padding(.horizontal, TempoSpacing.xxxxl)
+                        .buttonStyle(.tidePrimary)
                 }
+                .padding(Tide.s6)
+                .kitchenCameraPanel()
+                .padding(.horizontal, Tide.edge)
             case .denied,
                  .restricted,
                  .unsupported:
@@ -114,54 +118,57 @@ struct ScanBarcodeSurface: View {
                     offlineBanner
                 }
                 Spacer()
-                RoundedRectangle(cornerRadius: TempoRadius.xxxxl, style: .continuous)
-                    .strokeBorder(Color.tempoSignal, lineWidth: 3)
-                    .frame(width: 280, height: 180)
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                    .strokeBorder(mood.accent, lineWidth: 3)
+                    .frame(width: Tide.Kitchen.viewfinderWidth, height: Tide.Kitchen.viewfinderHeight)
+                    .accessibilityHidden(true)
                 Spacer()
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     Text(prompt)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoBone)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
                     if let detail {
                         Text(detail)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoBone.opacity(0.7))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .multilineTextAlignment(.center)
                     }
                     Button("Type the barcode instead") { showManualEntry = true }
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
-                        .padding(.top, TempoSpacing.xs)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit)
                         .accessibilityIdentifier("scanTypeBarcode")
                 }
-                .padding(.horizontal, TempoSpacing.xxl)
-                .padding(.vertical, TempoSpacing.lg)
-                .background(Color.tempoInk.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                .padding(.horizontal, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxxxl)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Tide.s5)
+                .padding(.vertical, Tide.s4)
+                .kitchenCameraPanel()
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s10)
             }
         }
     }
 
     /// Inline, not an alert: it must never cover a product you're reading.
     private var offlineBanner: some View {
-        VStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s1) {
             Text("You're offline. Products you've checked before still open from your history.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoBone)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
             if let onSearchOffline {
                 Button("Search basic foods", action: onSearchOffline)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+                    .frame(minHeight: Tide.hit)
             }
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoInk.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.top, TempoSpacing.sm)
+        .frame(maxWidth: .infinity)
+        .padding(Tide.s3)
+        .kitchenCameraPanel(radius: Tide.tileRadius)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
         .accessibilityIdentifier("scanOfflineBanner")
     }
 
@@ -169,47 +176,54 @@ struct ScanBarcodeSurface: View {
 
     private var blocked: some View {
         let isUnsupported = permission == .unsupported
-        return VStack(spacing: TempoSpacing.lg) {
+        return VStack(spacing: Tide.s4) {
             Spacer()
-            Image(systemName: isUnsupported ? "camera.metering.unknown" : "camera.fill")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
-            Text(Self.title(for: permission))
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(Self.message(for: permission))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                if permission == .denied {
-                    Button("Open Settings") {
-                        if let info = resumeInfo {
-                            ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
+            VStack(spacing: Tide.s4) {
+                Image(systemName: isUnsupported ? "camera.metering.unknown" : "camera.fill")
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+                Text(Self.title(for: permission))
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                Text(Self.message(for: permission))
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: Tide.s3) {
+                    if permission == .denied {
+                        Button("Open Settings") {
+                            if let info = resumeInfo {
+                                ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
+                            }
+                            CameraPermission.openSettings()
                         }
-                        CameraPermission.openSettings()
-                    }
-                        .buttonStyle(.tempoPrimary)
+                        .buttonStyle(.tidePrimary)
                         .accessibilityIdentifier("scanOpenSettings")
+                    }
+                    if permission == .denied {
+                        Button("Type the barcode") { showManualEntry = true }
+                            .buttonStyle(.tideGlass)
+                            .accessibilityIdentifier("scanTypeBarcode")
+                    } else {
+                        Button("Type the barcode") { showManualEntry = true }
+                            .buttonStyle(.tidePrimary)
+                            .accessibilityIdentifier("scanTypeBarcode")
+                    }
+                    ForEach(fallbackActions) { fallback in
+                        Button(fallback.title, action: fallback.action)
+                            .buttonStyle(.tideGlass)
+                    }
                 }
-                if permission == .denied {
-                    Button("Type the barcode") { showManualEntry = true }
-                        .buttonStyle(.tempoSecondary)
-                        .accessibilityIdentifier("scanTypeBarcode")
-                } else {
-                    Button("Type the barcode") { showManualEntry = true }
-                        .buttonStyle(.tempoPrimary)
-                        .accessibilityIdentifier("scanTypeBarcode")
-                }
-                ForEach(fallbackActions) { fallback in
-                    Button(fallback.title, action: fallback.action)
-                        .buttonStyle(.tempoGhost)
-                }
+                .padding(.top, Tide.s2)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
             Spacer()
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
         .accessibilityIdentifier(isUnsupported ? "scanUnsupported" : "scanPermissionBlocked")
     }
 

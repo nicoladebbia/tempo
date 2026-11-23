@@ -39,12 +39,12 @@ struct GroceryDoneShoppingView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
                 if rows.isEmpty {
                     Section {
-                        Text("Nothing checked off yet — tick items on the list or in Store Mode first.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        Text("Nothing checked off yet. Tick items on the list or in Store Mode first.")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
                 } else {
                     ForEach($rows) { $row in
@@ -66,6 +66,7 @@ struct GroceryDoneShoppingView: View {
                 }
             }
         }
+        .kitchenSheet()
         .onAppear(perform: loadRows)
     }
 
@@ -86,7 +87,7 @@ struct GroceryDoneShoppingView: View {
     private func rowSection(row: Binding<Row>) -> some View {
         Section {
             Toggle(row.wrappedValue.item.displayName, isOn: row.include)
-                .font(.tempoBodyBold)
+                .font(Tide.headline)
             if row.wrappedValue.include {
                 HStack {
                     TextField("Amount", text: row.quantityText)
@@ -109,7 +110,7 @@ struct GroceryDoneShoppingView: View {
                     Text("Paid (optional)")
                     Spacer()
                     Text("$")
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .foregroundStyle(Tide.text2)
                     TextField("0.00", text: row.priceText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)

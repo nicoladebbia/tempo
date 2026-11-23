@@ -22,6 +22,8 @@ struct ReceiptCaptureView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var selectedImage: UIImage?
     @State
@@ -108,27 +110,30 @@ struct ReceiptCaptureView: View {
     // MARK: - Sections
 
     private var captureOptions: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
             Image(systemName: "receipt")
-                .font(.system(size: 64))
-                .foregroundStyle(Color.tempoViolet)
+                .font(Tide.largeTitle).imageScale(.large)
+                .foregroundStyle(mood.accent)
+                .frame(width: 96, height: 96)
+                .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
+                .accessibilityHidden(true)
 
             Text("Snap your receipt")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("On-device OCR plus AI structuring. Review each line before it goes in your pantry.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xl)
+                .padding(.horizontal, Tide.s5)
 
             if documentScannerAvailable {
                 Text("Long receipt? Tap + after the first page to add more — they're stitched together automatically.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xl)
+                    .padding(.horizontal, Tide.s5)
             }
 
             if let scanBlocker {
@@ -141,16 +146,16 @@ struct ReceiptCaptureView: View {
                     self.scanBlocker = nil
                     scanError = nil
                 }
-                .padding(.horizontal, TempoSpacing.xl)
+                .padding(.horizontal, Tide.s5)
             } else if let scanError {
                 Text(scanError)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xl)
+                    .padding(.horizontal, Tide.s5)
             }
 
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 Button {
                     if documentScannerAvailable {
                         isShowingDocumentScanner = true
@@ -162,7 +167,7 @@ struct ReceiptCaptureView: View {
                     Label("Take Photo", systemImage: "camera.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
 
                 Button {
                     pickerSource = .library
@@ -171,9 +176,9 @@ struct ReceiptCaptureView: View {
                     Label("Choose from Library", systemImage: "photo.on.rectangle")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.horizontal, Tide.edge)
             Spacer()
         }
     }

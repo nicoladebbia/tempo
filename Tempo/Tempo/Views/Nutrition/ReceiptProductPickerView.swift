@@ -67,6 +67,8 @@ struct ReceiptProductPickerView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var query: String
     @State
@@ -100,24 +102,24 @@ struct ReceiptProductPickerView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let searchError {
                     Text(searchError)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if results.isEmpty {
                     Text("No matching products found. You can keep the name as typed below.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .multilineTextAlignment(.center)
-                        .padding(TempoSpacing.lg)
+                        .padding(Tide.s4)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: TempoSpacing.sm) {
+                        LazyVStack(spacing: Tide.s2) {
                             ForEach(Array(results.enumerated()), id: \.offset) { _, entry in
                                 candidateRow(entry.product, score: entry.score)
                             }
                         }
-                        .padding(TempoSpacing.screenEdge)
+                        .padding(Tide.edge)
                     }
                 }
 
@@ -127,10 +129,10 @@ struct ReceiptProductPickerView: View {
                     Text("Keep \"\(line.displayName.isEmpty ? line.rawText : line.displayName)\" as typed")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
-                .padding(TempoSpacing.screenEdge)
+                .buttonStyle(.tideGlass)
+                .padding(Tide.edge)
             }
-            .tidePage()
+            .kitchenSheet()
             .navigationTitle("Find Product")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -145,11 +147,12 @@ struct ReceiptProductPickerView: View {
     }
 
     private var searchField: some View {
-        HStack {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.tempoTextTertiary)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
             TextField("Search food or brand", text: $query)
-                .font(.tempoBody)
+                .font(Tide.body)
                 .onSubmit {
                     Task { await search() }
                 }
@@ -158,53 +161,58 @@ struct ReceiptProductPickerView: View {
                     Task { await search() }
                 } label: {
                     Text("Search")
-                        .font(.tempoCaption1.weight(.semibold))
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
+        .padding(.horizontal, Tide.s4)
+        .frame(minHeight: Tide.hit)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
     }
 
     private func candidateRow(_ product: FoodProduct, score: Double?) -> some View {
         Button {
             onPick(.from(product, matchScore: score), false)
         } label: {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 candidateThumbnail(product)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(product.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(2)
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         if let brand = product.brand, !brand.isEmpty {
                             Text(brand)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                         if let size = product.quantityLabel {
                             Text(size)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                 }
                 Spacer()
                 if let score {
                     Text("\(Int(score * 100))%")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(score >= 0.6 ? Color.tempoSuccess : Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .frame(minHeight: Tide.hit)
+            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         }
         .buttonStyle(.plain)
     }
 
     private func candidateThumbnail(_ product: FoodProduct) -> some View {
-        let shape = RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
         return Group {
             if let url = product.imageURL {
                 AsyncImage(url: url) { phase in
@@ -212,16 +220,16 @@ struct ReceiptProductPickerView: View {
                     case let .success(image):
                         image.resizable().scaledToFill()
                     default:
-                        Color.tempoBgSecondary
+                        Tide.fill
                     }
                 }
             } else {
-                Color.tempoBgSecondary
+                Tide.fill
             }
         }
         .frame(width: 52, height: 52)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
+        .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
     }
 
     private func search() async {

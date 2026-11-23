@@ -82,6 +82,7 @@ struct GroceryShareMenu: View {
                 Image(systemName: "square.and.arrow.up")
             }
         }
+        .accessibilityLabel("Share or order this list")
         .disabled(isWorking)
         .task {
             let svc = SharedGroceryListService(apiClient: services.apiClient)
@@ -224,42 +225,42 @@ struct ShareLiveLinkSheet: View {
     private var dismiss
     @State private var showSystemShareSheet = false
     @State private var showStopConfirmation = false
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s5) {
                 Image(systemName: "link.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.tempoSignal)
-                Text("Anyone with this link can check off items while you shop — no Tempo account needed.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
+                Text("Anyone with this link can check off items while you shop. No Tempo account needed.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
                 Text(share.url)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity)
-                    .padding(TempoSpacing.cardPadding)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 Spacer()
                 Button {
                     showSystemShareSheet = true
                 } label: {
                     Label("Share Link", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 Button(role: .destructive) {
                     showStopConfirmation = true
                 } label: {
                     Text("Stop Sharing")
-                        .frame(maxWidth: .infinity)
+                        .foregroundStyle(Tide.danger)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
             }
-            .padding(TempoSpacing.screenEdge)
+            .padding(Tide.edge)
             .navigationTitle("Live Shared List")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -286,6 +287,7 @@ struct ShareLiveLinkSheet: View {
                 Text("The link will stop working immediately.")
             }
         }
+        .kitchenSheet()
     }
 }
 
@@ -305,28 +307,34 @@ struct GroceryOrderLinksSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            KitchenList {
                 Section {
                     Text("Instacart ordering isn't set up yet, or the request failed. Search for each item instead:")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                ForEach(GroceryOrderLinks.fallbackLinks(for: itemNames)) { link in
-                    Button {
-                        openURL(link.url)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(link.itemName)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Text(link.storeName)
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                Section {
+                    ForEach(GroceryOrderLinks.fallbackLinks(for: itemNames)) { link in
+                        Button {
+                            openURL(link.url)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: Tide.hair) {
+                                    Text(link.itemName)
+                                        .font(Tide.headline)
+                                        .foregroundStyle(Tide.text)
+                                    Text(link.storeName)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text3)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
+                                    .accessibilityHidden(true)
                             }
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
                         }
                     }
                 }
@@ -339,5 +347,6 @@ struct GroceryOrderLinksSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 }

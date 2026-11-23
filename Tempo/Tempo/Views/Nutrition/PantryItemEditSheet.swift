@@ -39,14 +39,14 @@ struct PantryItemEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Item") {
+            KitchenForm {
+                KitchenFormSection("Item") {
                     LabeledContent("Name", value: item.displayName)
                     TextField("Brand (optional)", text: $brand)
                         .textInputAutocapitalization(.words)
                 }
 
-                Section("Quantity") {
+                KitchenFormSection("Quantity") {
                     HStack {
                         TextField("Quantity", text: $quantityText)
                             .keyboardType(.decimalPad)
@@ -59,7 +59,7 @@ struct PantryItemEditSheet: View {
                     }
                 }
 
-                Section("Storage") {
+                KitchenFormSection("Storage") {
                     Picker("Location", selection: $storageLocation) {
                         ForEach(PantryStorageLocation.allCases, id: \.self) { loc in
                             Text(loc.displayName).tag(loc)
@@ -68,12 +68,12 @@ struct PantryItemEditSheet: View {
                     .pickerStyle(.segmented)
                     if storageLocation != item.storageLocation {
                         Text("Moving locations recomputes the use-by date, unless you set one below.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
 
-                Section("Use by") {
+                KitchenFormSection("Use by") {
                     Toggle("Track a use-by date", isOn: $hasUseBy)
                     if hasUseBy {
                         DatePicker("Use by", selection: $useBy, displayedComponents: .date)
@@ -93,6 +93,7 @@ struct PantryItemEditSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     private func save() {

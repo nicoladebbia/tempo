@@ -26,6 +26,8 @@ struct VoicePantryView: View {
     private var services
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var transcriber = VoiceTranscriber()
     @State private var service: VoicePantryService?
@@ -64,7 +66,7 @@ struct VoicePantryView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 switch phase {
                 case .idle, .recording:
                     micSection
@@ -79,8 +81,8 @@ struct VoicePantryView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(TempoSpacing.screenEdge)
-            .tidePage()
+            .padding(Tide.edge)
+            .kitchenPage()
             .navigationTitle("Add to Pantry by Voice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -118,43 +120,46 @@ struct VoicePantryView: View {
     // MARK: - Mic
 
     private var micSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
 
             Text(transcriber.isListening
                 ? "Listening… name everything, then tap stop"
                 : "Tap the mic and list what's in your pantry, one after another")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
 
             Button {
                 Task { await toggleRecording() }
             } label: {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
-                    .clipShape(Circle())
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.ink)
+                    .frame(width: 112, height: 112)
+                    .glassEffect(
+                        .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
+                        in: .circle
+                    )
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
+            .sensoryFeedback(.impact, trigger: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
-                    .padding(TempoSpacing.cardPadding)
                     .frame(maxWidth: .infinity)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .tideCard(padding: Tide.s4)
             }
 
             if let err = transcriber.error {
                 Text(err)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
             }
 
             Spacer()
@@ -185,13 +190,13 @@ struct VoicePantryView: View {
     // MARK: - Thinking
 
     private var thinkingSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             ProgressView()
                 .controlSize(.large)
             Text("Reading your pantry…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Spacer()
         }
     }
@@ -241,29 +246,30 @@ struct VoicePantryView: View {
     }
 
     private var confirmationSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Confirm your pantry")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text("Edit anything, remove what's wrong, then save.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             ScrollView {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s3) {
                     // Bind by id so a per-row remove can't desync indices.
                     ForEach($editable) { $row in
                         editableRow($row)
                     }
                 }
             }
+            .scrollIndicators(.hidden)
 
             Button {
                 saveEditableItems()
             } label: {
                 Text(editable.isEmpty ? "Nothing to save" : "Save \(editable.count) to Pantry")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(editable.isEmpty)
         }
     }
@@ -271,24 +277,24 @@ struct VoicePantryView: View {
     @ViewBuilder
     private func editableRow(_ row: Binding<EditableItem>) -> some View {
         let item = row.wrappedValue
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             HStack {
                 Text(item.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if item.isLowConfidence {
-                    Text("Low confidence")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoWarning)
+                    KitchenTag(text: "Low confidence", tint: Tide.Kitchen.warn)
                 }
                 // Per-row remove — drops just this item, never the whole flow.
                 Button {
                     editable.removeAll { $0.id == item.id }
                 } label: {
                     Image(systemName: "trash")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.danger)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(item.name)")
@@ -299,27 +305,27 @@ struct VoicePantryView: View {
             // shown but not yet persisted — wiring it into the saved row is the
             // merge-key step (so two brands of the same food stay separate).
             TextField("Brand / description (optional)", text: row.brand)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .textInputAutocapitalization(.words)
 
             // Component breakdown the AI used to reach the aggregated total.
             if !item.components.isEmpty {
                 Text(item.components.joined(separator: " + "))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
             // Editable quantity + unit.
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 TextField("Qty", text: row.quantityText)
                     .keyboardType(.decimalPad)
-                    .font(.tempoBody)
-                    .frame(maxWidth: 90)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.tempoBorder, lineWidth: 1))
+                    .font(Tide.body)
+                    .frame(maxWidth: 90, minHeight: Tide.hit - Tide.s4)
+                    .padding(Tide.s2)
+                    .background(Tide.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous).stroke(Tide.hairline, lineWidth: 1))
 
                 Picker("Unit", selection: row.unit) {
                     ForEach(PantryUnit.allCases, id: \.self) { u in
@@ -334,20 +340,20 @@ struct VoicePantryView: View {
             // Storage location on its own row so it's unmissable — the AI
             // assigns it from the spoken section ("in the fridge…"); the user
             // can correct it here. Shown as a labeled menu, not just an icon.
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 Image(systemName: storageIcon(item.storage))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 Text("Location")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                 Picker("Location", selection: row.storage) {
                     ForEach(PantryStorageLocation.allCases, id: \.self) { loc in
                         Text(loc.displayName).tag(loc)
                     }
                 }
                 .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
+                .tint(mood.accent)
                 Spacer()
             }
 
@@ -357,12 +363,12 @@ struct VoicePantryView: View {
                 let oldText = currentQuantity(name: item.name, unit: item.unit)
                     .map { "\(formatQuantity($0)) \(item.unit.displayName)" } ?? "—"
                 Text("\(oldText) → \(formatQuantity(item.quantity)) \(item.unit.displayName)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
                 Text("+\(formatQuantity(item.quantity)) \(item.unit.displayName)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
             // Per-item SET/ADD toggle. SET hidden for low-confidence items so an
@@ -376,10 +382,8 @@ struct VoicePantryView: View {
             .pickerStyle(.segmented)
             .disabled(item.isLowConfidence)
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     /// Current quantity of the existing pantry row that `setOrCreate` would
@@ -434,7 +438,7 @@ struct VoicePantryView: View {
     // MARK: - Failure
 
     private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             AIBlockerCard(blocker: blocker, onConsentGranted: retry)
             Spacer()
@@ -442,14 +446,15 @@ struct VoicePantryView: View {
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoWarning)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .accessibilityHidden(true)
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             Button {
                 // transcriber.start() clears transcribedText itself.
@@ -457,7 +462,7 @@ struct VoicePantryView: View {
             } label: {
                 Text("Try again")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             Spacer()
         }
     }

@@ -19,21 +19,24 @@ struct ReceiptProcessingView: View {
     private var scanLineUp = false
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 thumbnail
                 summaryCard
                 stagesCard
                 Text("Matching and price checks keep running while you review.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s4)
         }
+        .scrollIndicators(.hidden)
         .onAppear {
             startedAt = Date()
             guard !reduceMotion else {
@@ -49,20 +52,20 @@ struct ReceiptProcessingView: View {
     // MARK: - Thumbnail
 
     private var thumbnail: some View {
-        let shape = RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
         return ZStack {
             if let image = images.first {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
             } else {
-                Color.tempoBgSecondary
+                Tide.fill
             }
             GeometryReader { proxy in
                 Rectangle()
                     .fill(
                         LinearGradient(
-                            colors: [Color.tempoSignal.opacity(0), Color.tempoSignal.opacity(0.55), Color.tempoSignal.opacity(0)],
+                            colors: [mood.accent.opacity(0), mood.accent.opacity(0.55), mood.accent.opacity(0)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -73,16 +76,16 @@ struct ReceiptProcessingView: View {
         }
         .frame(width: 150, height: 190)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
+        .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
         .overlay(alignment: .topTrailing) {
             if images.count > 1 {
                 Text("\(images.count) pages")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoBone)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 3)
-                    .background(.black.opacity(0.55), in: Capsule())
-                    .padding(TempoSpacing.sm)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text)
+                    .padding(.horizontal, Tide.s2)
+                    .padding(.vertical, Tide.s1)
+                    .glassEffect(.regular.tint(Tide.Kitchen.cameraTint), in: .capsule)
+                    .padding(Tide.s2)
             }
         }
         .accessibilityLabel("Photo of your receipt")
@@ -91,89 +94,83 @@ struct ReceiptProcessingView: View {
     // MARK: - Summary
 
     private var summaryCard: some View {
-        HStack(spacing: TempoSpacing.md) {
-            summaryCell(title: "STORE", value: progress.storeName)
+        HStack(spacing: Tide.s3) {
+            summaryCell(title: "Store", value: progress.storeName)
             summaryCell(
-                title: "TOTAL",
+                title: "Total",
                 value: progress.totalAmount.map { String(format: "$%.2f", $0) }
             )
-            summaryCell(title: "ITEMS", value: progress.itemCandidateCount.map { "~\($0)" })
+            summaryCell(title: "Items", value: progress.itemCandidateCount.map { "~\($0)" })
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func summaryCell(title: String, value: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(title).tideLabel(Tide.text3)
             if let value {
                 Text(value)
-                    .font(.tempoBody.weight(.semibold))
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .transition(.opacity)
             } else {
-                RoundedRectangle(cornerRadius: TempoRadius.sm)
-                    .fill(Color.tempoBgSecondary)
+                RoundedRectangle(cornerRadius: Tide.controlRadius)
+                    .fill(Tide.fill)
                     .frame(width: 54, height: 16)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.easeOut(duration: TempoAnimation.smallDuration), value: value)
+        .animation(Tide.snap, value: value)
     }
 
     // MARK: - Stages
 
     private var stagesCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             ForEach(ReceiptScanProgress.Stage.allCases, id: \.self) { stage in
                 stageRow(stage)
             }
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 Text("\(Int(context.date.timeIntervalSince(startedAt)))s")
-                    .font(.tempoCaption2.monospacedDigit())
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption.monospacedDigit())
+                    .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func stageRow(_ stage: ReceiptScanProgress.Stage) -> some View {
         let state = progress.state(of: stage)
-        return HStack(spacing: TempoSpacing.md) {
+        return HStack(spacing: Tide.s3) {
             ZStack {
                 switch state {
                 case .done:
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.tempoSuccess)
+                        .foregroundStyle(Tide.Kitchen.good)
                 case .active:
                     ProgressView()
                 case .upcoming:
                     Image(systemName: "circle")
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .foregroundStyle(Tide.text3)
                 }
             }
             .frame(width: 24, height: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(stage.title)
-                    .font(.tempoBody.weight(state == .active ? .semibold : .regular))
-                    .foregroundStyle(state == .upcoming ? Color.tempoTextTertiary : Color.tempoTextPrimary)
+                    .font(state == .active ? Tide.bodyStrong : Tide.body)
+                    .foregroundStyle(state == .upcoming ? Tide.text3 : Tide.text)
                 if state == .active {
                     Text(stage.detail)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
             Spacer()
         }
-        .animation(.easeOut(duration: TempoAnimation.smallDuration), value: state == .done)
+        .animation(Tide.snap, value: state == .done)
         .accessibilityElement(children: .combine)
     }
 }

@@ -75,7 +75,7 @@ struct SupplementTimingSection: View {
     }
 
     var body: some View {
-        Section {
+        KitchenFormSection("Timing", footer: footerText) {
             Picker("When", selection: $mode) {
                 ForEach(SupplementTimingMode.allCases) { option in
                     Text(option.rawValue).tag(option)
@@ -111,10 +111,6 @@ struct SupplementTimingSection: View {
             }
 
             Toggle("Remind me", isOn: remindersEnabled)
-        } header: {
-            Text("Timing")
-        } footer: {
-            Text(footerText)
         }
     }
 

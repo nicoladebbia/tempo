@@ -64,7 +64,7 @@ struct GroceryStoreModeView: View {
             }
             .scrollIndicators(.hidden)
             .scrollEdgeEffectStyle(.soft, for: .all)
-            .tidePage(energy: 1)
+            .kitchenPage(energy: 1)
             .kitchenBottomBar {
                 doneShoppingButton
             }

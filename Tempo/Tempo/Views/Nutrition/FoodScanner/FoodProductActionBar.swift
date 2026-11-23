@@ -38,11 +38,14 @@ struct FoodProductActionBar: View {
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.buttonStackVertical) {
+        VStack(spacing: Tide.s3) {
             if let inventory {
                 Text(inventory.line)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(inventory.atHome != nil || inventory.onList ? Color.tempoTextPrimary : Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(inventory.atHome != nil || inventory.onList ? Tide.text : Tide.text2)
+                    .padding(.horizontal, Tide.s3)
+                    .padding(.vertical, Tide.s2)
+                    .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("foodInventoryLine")
             }
@@ -55,38 +58,39 @@ struct FoodProductActionBar: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(!product.per100g.hasCoreMacros || grams <= 0)
             .accessibilityIdentifier("foodCheckLog")
 
             // Two equal secondary buttons under the primary: same width, same
             // height (the style's 52 pt), centred inside the screen gutters.
-            HStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button {
-                    addToPantry()
-                } label: {
-                    Label("Pantry", systemImage: "refrigerator")
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
-                }
-                .buttonStyle(.tempoSecondary)
-                .accessibilityIdentifier("foodCheckPantry")
+            GlassEffectContainer(spacing: Tide.s3) {
+                HStack(spacing: Tide.s3) {
+                    Button {
+                        addToPantry()
+                    } label: {
+                        Label("Pantry", systemImage: "refrigerator")
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.tideGlass)
+                    .accessibilityIdentifier("foodCheckPantry")
 
-                Button {
-                    addToList()
-                } label: {
-                    Label("List", systemImage: "cart.badge.plus")
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
+                    Button {
+                        addToList()
+                    } label: {
+                        Label("List", systemImage: "cart.badge.plus")
+                            .labelStyle(.titleAndIcon)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.tideGlass)
+                    .accessibilityIdentifier("foodCheckList")
                 }
-                .buttonStyle(.tempoSecondary)
-                .accessibilityIdentifier("foodCheckList")
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .padding(.bottom, TempoSpacing.sm)
-        .tidePage()
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s2)
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {
             logSheet
@@ -98,16 +102,16 @@ struct FoodProductActionBar: View {
     // MARK: - Log sheet
 
     private var logSheet: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.s4) {
+            VStack(spacing: Tide.hair) {
                 Text("Log \(FoodProductView.format(grams)) \(product.unit) of \(product.name)")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                 Text("\(portionKcal) kcal. Pick the meal. Change the grams on the page first.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
             }
             Picker("Meal", selection: $mealType) {
@@ -127,12 +131,12 @@ struct FoodProductActionBar: View {
             } label: {
                 Text("Log it").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .accessibilityIdentifier("foodCheckLogConfirm")
         }
-        .padding(TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .tidePage()
+        .padding(Tide.edge)
+        .padding(.top, Tide.s3)
+        .kitchenSheet()
     }
 
     // MARK: - Actions

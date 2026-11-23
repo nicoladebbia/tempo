@@ -14,11 +14,12 @@ struct ReceiptsHistoryView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
 
+    @Environment(\.tideMood) private var mood
     @State private var retryingReceiptID: UUID?
     @State private var errorMessage: String?
 
     var body: some View {
-        List {
+        KitchenList {
             if !viewModel.receiptState.receipts.isEmpty {
                 ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
                     // A scanned receipt opens its review screen — "Needs review"
@@ -48,18 +49,18 @@ struct ReceiptsHistoryView: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        // Insets rows to the same 20pt gutter as every other Fuel screen.
-        .contentMargins(.horizontal, TempoSpacing.screenEdge, for: .scrollContent)
+        .listStyle(.insetGrouped)
+        .scrollIndicators(.hidden)
         .tidePage()
         .overlay {
             // Outside the List so the empty state isn't wrapped in a list row.
             if viewModel.receiptState.receipts.isEmpty {
-                EmptyStateView(
-                    icon: "receipt",
+                KitchenEmpty(
+                    systemImage: "receipt",
                     title: "No receipts yet",
                     message: "Scan a grocery receipt from the Pantry tab to see it here."
                 )
+                .padding(.horizontal, Tide.edge)
             }
         }
         .alert("Couldn't retry", isPresented: .init(
@@ -80,27 +81,28 @@ struct ReceiptsHistoryView: View {
     }
 
     private func receiptRow(_ receipt: Receipt) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: Tide.s3) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(receipt.store.isEmpty ? "Unknown store" : receipt.store)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(receipt.purchaseDate.formatted(date: .abbreviated, time: .omitted))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                 statusBadge(receipt.ocrStatus)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: Tide.hair) {
                 Text(String(format: "$%.2f", receipt.totalAmount))
-                    .font(.tempoBody.monospacedDigit())
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.numeral(Tide.numeralS, .semibold))
+                    .foregroundStyle(Tide.text)
                 Text("\(receipt.lineItemCount) item\(receipt.lineItemCount == 1 ? "" : "s")")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, Tide.s1)
+        .frame(minHeight: Tide.hit)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 delete(receipt)
@@ -113,7 +115,7 @@ struct ReceiptsHistoryView: View {
                 } label: {
                     Label("Retry", systemImage: "arrow.clockwise")
                 }
-                .tint(Color.tempoSignal)
+                .tint(mood.accent)
             }
         }
     }
@@ -133,13 +135,7 @@ struct ReceiptsHistoryView: View {
     }
 
     private func statusBadge(_ status: ReceiptOCRStatus) -> some View {
-        Text(statusLabel(status).uppercased())
-            .font(.tempoCaption2.weight(.semibold))
-            .foregroundStyle(statusColor(status))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(statusColor(status).opacity(0.12))
-            .clipShape(Capsule())
+        KitchenTag(text: statusLabel(status), tint: statusColor(status))
     }
 
     private func statusLabel(_ status: ReceiptOCRStatus) -> String {
@@ -155,10 +151,10 @@ struct ReceiptsHistoryView: View {
     private func statusColor(_ status: ReceiptOCRStatus) -> Color {
         switch status {
         case .pending,
-             .processing: Color.tempoTextTertiary
-        case .awaitingReview: Color.tempoWarning
-        case .confirmed: Color.tempoSuccess
-        case .failed: Color.tempoError
+             .processing: Tide.text3
+        case .awaitingReview: Tide.Kitchen.warn
+        case .confirmed: Tide.Kitchen.good
+        case .failed: Tide.danger
         }
     }
 

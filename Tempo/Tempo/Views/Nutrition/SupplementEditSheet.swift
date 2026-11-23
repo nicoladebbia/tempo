@@ -102,18 +102,18 @@ struct SupplementEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
                 if let prefill, existing == nil, let line = Self.sourceLine(prefill) {
                     Section {
                         Label(line, systemImage: "sparkles")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                         if prefill.source == "tempo", let catalogID = prefill.catalogID {
                             SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
                         }
                     }
                 }
-                Section("Supplement") {
+                KitchenFormSection("Supplement") {
                     TextField("Name (e.g. Whey Isolate)", text: $name)
                     TextField("Brand (optional)", text: $brand)
                     Picker("Type", selection: $kind) {
@@ -122,26 +122,22 @@ struct SupplementEditSheet: View {
                         }
                     }
                 }
-                Section {
+                KitchenFormSection(
+                    "Macros per serving",
+                    footer: "Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories."
+                ) {
                     SupplementFieldRow(label: "Calories", unit: "kcal", placeholder: "0", text: $caloriesPerServingText, keyboard: .decimalPad)
                     SupplementFieldRow(label: "Protein", unit: "g", placeholder: "0", text: $proteinPerServingText, keyboard: .decimalPad)
                     SupplementFieldRow(label: "Carbs", unit: "g", placeholder: "0", text: $carbsPerServingText, keyboard: .decimalPad)
                     SupplementFieldRow(label: "Fat", unit: "g", placeholder: "0", text: $fatPerServingText, keyboard: .decimalPad)
-                } header: {
-                    Text("Macros per serving")
-                } footer: {
-                    Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
                 }
-                Section {
+                KitchenFormSection(
+                    "Details (optional)",
+                    footer: "Your plan decides each day whether to take this and when. You don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
+                ) {
                     SupplementFieldRow(label: "Dose per serving", unit: nil, placeholder: "e.g. 25 g, 1000 mg", text: $dose, keyboard: .default)
                     SupplementFieldRow(label: "Servings left", unit: nil, placeholder: "optional", text: $servingsText, keyboard: .numberPad)
                     SupplementFieldRow(label: "Servings/container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
-                } header: {
-                    Text("Details (optional)")
-                } footer: {
-                    Text(
-                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
-                    )
                 }
                 if let existing {
                     SupplementTimingSection(supplement: existing)
@@ -153,14 +149,14 @@ struct SupplementEditSheet: View {
                         }
                     }
                 }
-                Section("Notes (optional)") {
+                KitchenFormSection("Notes (optional)") {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }
                 if SupplementCatalogSubmitter.willShare(isNew: existing == nil, prefill: prefill, prefillUPC: prefillUPC) {
                     Section {
                         Label(SupplementCatalogSubmitter.disclosure, systemImage: "person.2")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .accessibilityIdentifier("supplementShareDisclosure")
                     }
                 }
@@ -178,6 +174,7 @@ struct SupplementEditSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     private func save() {
@@ -248,17 +245,17 @@ struct SupplementFieldRow: View {
     let keyboard: UIKeyboardType
 
     var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Text(label)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer(minLength: TempoSpacing.sm)
+                .foregroundStyle(Tide.text)
+            Spacer(minLength: Tide.s2)
             TextField(placeholder, text: $text)
                 .keyboardType(keyboard)
                 .multilineTextAlignment(.trailing)
                 .accessibilityLabel(unit.map { "\(label) (\($0))" } ?? label)
             if let unit {
                 Text(unit)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .foregroundStyle(Tide.text2)
                     .frame(minWidth: 28, alignment: .leading)
             }
         }
@@ -276,17 +273,17 @@ struct SupplementReportButton: View {
     var body: some View {
         if sent {
             Text(SupplementCatalogSubmitter.reportThanks)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         } else {
             Button {
                 sent = true
                 Task { try? await service.reportCatalogEntry(id: catalogID) }
             } label: {
                 Text("Report wrong info")
-                    .font(.tempoCaption2)
+                    .font(Tide.caption)
                     .underline()
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .foregroundStyle(Tide.text3)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("supplementReportButton")

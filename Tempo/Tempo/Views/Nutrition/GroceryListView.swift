@@ -454,13 +454,12 @@ private struct AddGroceryItemSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Item") {
+            KitchenForm {
+                KitchenFormSection("Item") {
                     TextField("Name (e.g. olive oil)", text: $name)
                         .textInputAutocapitalization(.never)
                 }
-                .kitchenSection()
-                Section("Quantity") {
+                KitchenFormSection("Quantity") {
                     HStack {
                         TextField("Amount", text: $quantityText)
                             .keyboardType(.decimalPad)
@@ -472,9 +471,7 @@ private struct AddGroceryItemSheet: View {
                         .pickerStyle(.menu)
                     }
                 }
-                .kitchenSection()
             }
-            .kitchenForm()
             .navigationTitle("Add to Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

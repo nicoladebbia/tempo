@@ -23,6 +23,8 @@ struct ScannedProductLabelView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var showEditor = false
@@ -53,7 +55,7 @@ struct ScannedProductLabelView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 header
                 if let reason = product.implausibilityReason {
                     warning(reason + " Check the label and fix it if it's wrong.")
@@ -71,12 +73,12 @@ struct ScannedProductLabelView: View {
                 ingredientsCard
                 secondaryActions
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.sm)
-            .padding(.bottom, TempoSpacing.xl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s5)
             .frame(maxWidth: .infinity)
         }
-        .tidePage()
+        .kitchenPage()
         .accessibilityIdentifier("scannedProductLabel")
         .safeAreaInset(edge: .bottom) {
             FoodProductActionBar(product: product, grams: grams, toast: $toast) {
@@ -105,43 +107,44 @@ struct ScannedProductLabelView: View {
                     }
                 }
             }
+            .kitchenSheet()
         }
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: TempoSpacing.md) {
+        HStack(alignment: .top, spacing: Tide.s3) {
             FoodRemoteImage(url: product.imageURL ?? product.imageSmallURL, product: product, contentMode: .fit)
                 .frame(width: 96, height: 96)
-                .background(Color.tempoBgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .background(Tide.fill)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(product.name)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                 if let brand = product.brand, !brand.isEmpty {
                     Text(brand)
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .lineLimit(1)
                 }
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(spacing: Tide.s1) {
                     if let barcode = product.barcode {
                         Label(barcode, systemImage: "barcode")
-                            .font(.tempoCaption1)
+                            .font(Tide.caption)
                             .monospacedDigit()
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .foregroundStyle(Tide.text3)
                             .lineLimit(1)
                     }
                     if let quantity = product.quantityLabel {
                         Text("· \(quantity)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .lineLimit(1)
                     }
                 }
@@ -155,7 +158,7 @@ struct ScannedProductLabelView: View {
     private var gradeBadges: some View {
         let score = FoodScore.evaluate(product)
         if score != nil || product.novaGroup != nil {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 if let score {
                     badge(
                         "Nutri-Score \(score.nutriScoreGrade.uppercased())\(score.nutriScoreEstimated ? "*" : "")",
@@ -163,22 +166,15 @@ struct ScannedProductLabelView: View {
                     )
                 }
                 if let nova = product.novaGroup {
-                    badge("NOVA \(nova)", color: nova >= 4 ? .tempoAmber : (nova == 3 ? .tempoWarning : .tempoSuccess))
+                    badge("NOVA \(nova)", color: nova >= 4 ? Tide.Kitchen.warn : (nova == 3 ? Tide.Kitchen.warn : Tide.Kitchen.good))
                 }
             }
-            .padding(.top, 2)
+            .padding(.top, Tide.hair)
         }
     }
 
     private func badge(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
-            .lineLimit(1)
+        KitchenTag(text: text, tint: color)
             .fixedSize()
     }
 
@@ -197,44 +193,43 @@ struct ScannedProductLabelView: View {
 
     private var caloriesCard: some View {
         let split = FoodMacroSplit.compute(proteinGrams: shown.protein, carbsGrams: shown.carbs, fatGrams: shown.fat)
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionTitle("NUTRITION · \(basisLabel.uppercased())")
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            sectionTitle("Nutrition · \(basisLabel)")
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(Color.tempoAmber)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.Kitchen.warn)
                     .accessibilityHidden(true)
-                Text(FoodProductView.amount(shown.kcal, unit: "kcal"))
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .contentTransition(.numericText())
-                Text("kcal")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                TideNumber(
+                    FoodProductView.amount(shown.kcal, unit: "kcal"),
+                    unit: "kcal",
+                    size: Tide.numeralL,
+                    relativeTo: .largeTitle
+                )
+                .contentTransition(.numericText())
             }
             if let split {
                 splitBar(split)
-                HStack(spacing: TempoSpacing.sm) {
-                    macroTile("Protein", "dumbbell.fill", shown.protein, .tempoMacroProtein)
-                    macroTile("Carbs", "bolt.fill", shown.carbs, .tempoMacroCarbs)
-                    macroTile("Fat", "drop.fill", shown.fat, .tempoMacroFat)
+                HStack(spacing: Tide.s2) {
+                    macroTile("Protein", "dumbbell.fill", shown.protein, Tide.protein)
+                    macroTile("Carbs", "bolt.fill", shown.carbs, Tide.carbs)
+                    macroTile("Fat", "drop.fill", shown.fat, Tide.fat)
                 }
             }
-            HStack(spacing: TempoSpacing.lg) {
+            HStack(spacing: Tide.s4) {
                 detail("Sugars", "cube.fill", shown.sugars)
                 detail("Fiber", "leaf.fill", shown.fiber)
                 detail("Salt", "circle.dotted", shown.salt)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
-        .animation(.snappy(duration: 0.25), value: basis)
+        .tideCard()
+        .animation(Tide.snap, value: basis)
     }
 
     private func splitBar(_ split: FoodMacroSplit) -> some View {
         GeometryReader { proxy in
-            HStack(spacing: 2) {
+            HStack(spacing: Tide.hair) {
                 ForEach(split.slices) { slice in
                     Capsule()
                         .fill(slice.color)
@@ -249,38 +244,38 @@ struct ScannedProductLabelView: View {
     }
 
     private func macroTile(_ name: String, _ icon: String, _ value: Double?, _ color: Color) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Image(systemName: icon)
-                .font(.system(size: 14, weight: .semibold))
+                .font(Tide.bodyStrong)
                 .foregroundStyle(color)
                 .accessibilityHidden(true)
             Text(FoodProductView.amount(value, unit: "g"))
-                .font(.tempoBodyBold)
+                .font(Tide.bodyStrong)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Text(name)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(color.opacity(TempoOpacity.o15))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .padding(.vertical, Tide.s2)
+        .background(color.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
     private func detail(_ name: String, _ icon: String, _ value: Double?) -> some View {
-        HStack(spacing: TempoSpacing.xxs) {
+        HStack(spacing: Tide.hair) {
             Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
                 .accessibilityHidden(true)
             Text("\(name) \(FoodProductView.amount(value, unit: "g"))")
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextSecondary)
+                .foregroundStyle(Tide.text2)
                 .lineLimit(1)
         }
     }
@@ -288,45 +283,44 @@ struct ScannedProductLabelView: View {
     // MARK: - Traffic lights
 
     private var levelsCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionTitle("TRAFFIC LIGHTS · \(basisLabel.uppercased())")
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionTitle("Traffic lights · \(basisLabel)")
             levelRow("Fat", "drop.fill", .fat, shown.fat)
             levelRow("Saturates", "drop.halffull", .saturatedFat, shown.saturatedFat)
             levelRow("Sugars", "cube.fill", .sugars, shown.sugars)
             levelRow("Salt", "circle.dotted", .salt, shown.salt)
             Text("Colours follow the UK traffic-light thresholds per 100 \(product.unit), whatever the view above.")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard()
     }
 
     private func levelRow(_ name: String, _ icon: String, _ nutrient: LabelFacts.Nutrient, _ value: Double?) -> some View {
         let level = LabelFacts.level(of: nutrient, in: product)
         let color = Self.color(for: level)
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s2) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(Tide.body)
                 .foregroundStyle(color)
                 .frame(width: 22)
                 .accessibilityHidden(true)
             Text(name)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer(minLength: TempoSpacing.sm)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+            Spacer(minLength: Tide.s2)
             Text(FoodProductView.amount(value, unit: "g"))
-                .font(.tempoBodyBold)
+                .font(Tide.bodyStrong)
                 .monospacedDigit()
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
             Text(level?.label ?? "n/a")
-                .font(.system(size: 11, weight: .bold))
+                .font(Tide.label)
                 .foregroundStyle(color)
                 .frame(width: 64)
-                .padding(.vertical, 4)
-                .background(color.opacity(TempoOpacity.o15))
-                .clipShape(Capsule())
+                .padding(.vertical, Tide.s1)
+                .background(color.opacity(0.15), in: .capsule)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? "unknown") level")
@@ -334,10 +328,10 @@ struct ScannedProductLabelView: View {
 
     private static func color(for level: LabelFacts.Level?) -> Color {
         switch level {
-        case .low: .tempoSuccess
-        case .medium: .tempoAmber
-        case .high: .tempoError
-        case nil: .tempoTextTertiary
+        case .low: Tide.Kitchen.good
+        case .medium: Tide.Kitchen.warn
+        case .high: Tide.danger
+        case nil: Tide.text3
         }
     }
 
@@ -350,34 +344,34 @@ struct ScannedProductLabelView: View {
         let checks = FoodFit.checks(for: product, grams: grams, context: fitContext)
             .filter { !$0.text.hasPrefix("High protein") && !$0.text.hasPrefix("Low protein") }
         if !checks.isEmpty || density != nil {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                sectionTitle("FITS YOUR PLAN? · \(FoodProductView.format(grams)) \(product.unit)")
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                sectionTitle("Fits your plan? · \(FoodProductView.format(grams)) \(product.unit)")
                 if let density {
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Image(systemName: "dumbbell.fill")
-                            .foregroundStyle(Color.tempoMacroProtein)
+                            .foregroundStyle(Tide.protein)
                             .frame(width: 22)
                             .accessibilityHidden(true)
                         Text("\(FoodProductView.format((density * 10).rounded() / 10)) g protein per 100 kcal")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                     }
                 }
                 ForEach(checks.prefix(4)) { check in
-                    HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                    HStack(alignment: .top, spacing: Tide.s2) {
                         Image(systemName: check.kind.icon)
                             .foregroundStyle(check.kind.color)
                             .frame(width: 22)
                             .accessibilityHidden(true)
                         Text(check.text)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
             .accessibilityIdentifier("labelFitCard")
         }
     }
@@ -390,42 +384,42 @@ struct ScannedProductLabelView: View {
         let traces = product.displayTraces
         let text = product.ingredientsText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !allergens.isEmpty || !traces.isEmpty || !text.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 if !allergens.isEmpty {
-                    sectionTitle("ALLERGENS")
+                    sectionTitle("Allergens")
                     FlowChips(items: allergens.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? "\(name) · your allergy" : name, flagged ? Color.tempoError : Color.tempoAmber, flagged)
+                        return (flagged ? "\(name) · your allergy" : name, flagged ? Tide.danger : Tide.Kitchen.warn, flagged)
                     })
                 }
                 if !traces.isEmpty {
-                    sectionTitle("MAY CONTAIN")
-                        .padding(.top, allergens.isEmpty ? 0 : TempoSpacing.xs)
+                    sectionTitle("May contain")
+                        .padding(.top, allergens.isEmpty ? 0 : Tide.s1)
                     FlowChips(items: traces.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? "\(name) · your allergy" : name, flagged ? Color.tempoError : Color.tempoTextSecondary, flagged)
+                        return (flagged ? "\(name) · your allergy" : name, flagged ? Tide.danger : Tide.text2, flagged)
                     })
                 }
                 if !text.isEmpty {
                     DisclosureGroup(isExpanded: $showIngredients) {
                         Text(highlighted(text))
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, TempoSpacing.xs)
+                            .padding(.top, Tide.s1)
                     } label: {
                         Label("Ingredients", systemImage: "list.bullet")
-                            .font(.tempoBodyBold)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
                     }
-                    .tint(Color.tempoTextSecondary)
-                    .padding(.top, allergens.isEmpty && traces.isEmpty ? 0 : TempoSpacing.xs)
+                    .tint(Tide.text2)
+                    .padding(.top, allergens.isEmpty && traces.isEmpty ? 0 : Tide.s1)
                     .accessibilityIdentifier("labelIngredients")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
+            .tideCard()
         }
     }
 
@@ -440,7 +434,7 @@ struct ScannedProductLabelView: View {
         for word in words {
             var searchStart = out.startIndex
             while let range = out[searchStart...].range(of: word, options: .caseInsensitive) {
-                out[range].foregroundColor = Color.tempoError
+                out[range].foregroundColor = Tide.danger
                 out[range].font = .body.bold()
                 searchStart = range.upperBound
             }
@@ -459,55 +453,58 @@ struct ScannedProductLabelView: View {
     // MARK: - Missing + warnings + actions
 
     private var missingCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Label("No label data yet", systemImage: "doc.text.magnifyingglass")
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
             Text("We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
             Button("Photograph the label") { showEditor = true }
-                .buttonStyle(.tempoPrimary)
-                .padding(.top, TempoSpacing.xs)
+                .buttonStyle(.tidePrimary)
+                .padding(.top, Tide.s1)
                 .accessibilityIdentifier("labelPhotograph")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
+        .tideCard()
     }
 
     private func warning(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .top, spacing: Tide.s2) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(Color.tempoAmber)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .accessibilityHidden(true)
             Text(text)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoAmber.opacity(TempoOpacity.o15))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .strokeBorder(Tide.Kitchen.warn.opacity(0.4), lineWidth: 1)
+        )
     }
 
     private var secondaryActions: some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             if hasLabel {
                 Button {
                     showEditor = true
                 } label: {
                     Label("Label looks wrong? Photograph it", systemImage: "camera.viewfinder")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .foregroundStyle(Color.tempoSignal)
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
                 }
                 .accessibilityIdentifier("labelPhotograph")
             }
             Button(action: onScanAnother) {
                 Label("Scan another", systemImage: "barcode.viewfinder")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit)
             }
             .accessibilityIdentifier("labelScanAnother")
         }
@@ -515,9 +512,7 @@ struct ScannedProductLabelView: View {
 
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption1)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .tideLabel()
             .lineLimit(1)
             .minimumScaleFactor(0.8)
     }
@@ -530,20 +525,20 @@ private struct FlowChips: View {
     let items: [(text: String, color: Color, strong: Bool)]
 
     var body: some View {
-        WrapLayout(spacing: TempoSpacing.xs) {
+        WrapLayout(spacing: Tide.s1) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 4) {
+                HStack(spacing: Tide.s1) {
                     if item.strong {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 10))
+                            .font(Tide.label)
                     }
                     Text(item.text)
                 }
-                .font(.tempoCaption1.weight(.semibold))
+                .font(Tide.caption.weight(.semibold))
                 .foregroundStyle(item.color)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(item.color.opacity(TempoOpacity.o15))
+                .padding(.horizontal, Tide.s3)
+                .padding(.vertical, Tide.s1)
+                .background(item.color.opacity(0.15))
                 .clipShape(Capsule())
                 .overlay { item.strong ? Capsule().stroke(item.color, lineWidth: 1) : nil }
             }

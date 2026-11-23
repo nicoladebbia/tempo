@@ -23,6 +23,8 @@ struct SupplementQuickAddSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var selectedIDs: Set<String> = []
     @State private var step: Step = .picking
@@ -71,6 +73,7 @@ struct SupplementQuickAddSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     // MARK: - Picking
@@ -82,55 +85,53 @@ struct SupplementQuickAddSheet: View {
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
                     Text("Tap what you already own. Your plan will decide each day whether to take it.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.top, TempoSpacing.md)
-                        .padding(.bottom, TempoSpacing.lg)
+                        .padding(.horizontal, Tide.edge)
+                        .padding(.top, Tide.s3)
+                        .padding(.bottom, Tide.s4)
 
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 96), spacing: TempoSpacing.sm)],
-                        spacing: TempoSpacing.sm
+                        columns: [GridItem(.adaptive(minimum: 96), spacing: Tide.s2)],
+                        spacing: Tide.s2
                     ) {
                         ForEach(available) { item in
                             quickAddChip(item)
                         }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.xxxxl)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s10)
                 }
 
                 Button("Add \(selectedIDs.count)") {
                     step = .details
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(selectedIDs.isEmpty)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.md)
-                .tidePage()
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
             }
         }
-        .tidePage()
     }
 
     private var emptyAllOnShelf: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Spacer()
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 40, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
             Text("You've already got every common one")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text("Add anything else manually or by scanning its barcode.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     private func quickAddChip(_ item: SupplementQuickAddItem) -> some View {
@@ -143,31 +144,31 @@ struct SupplementQuickAddSheet: View {
                 selectedIDs.insert(item.id)
             }
         } label: {
-            VStack(spacing: TempoSpacing.xs) {
+            VStack(spacing: Tide.s1) {
                 Image(systemName: item.icon)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(isSelected ? Color.tempoTextInverse : Color.tempoSignal)
+                    .font(Tide.headline)
+                    .foregroundStyle(isSelected ? Tide.ink : mood.accent)
                 Text(item.name)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(isSelected ? Color.tempoTextInverse : Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(isSelected ? Tide.ink : Tide.text)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 if let macros = item.macroSummary {
                     Text(macros)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(isSelected ? Color.tempoTextInverse.opacity(0.8) : Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(isSelected ? Tide.ink.opacity(0.8) : Tide.text2)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 88)
-            .padding(TempoSpacing.sm)
-            .background(isSelected ? Color.tempoSignal : Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .padding(Tide.s2)
+            .background(isSelected ? mood.accent : Tide.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .strokeBorder(isSelected ? Color.clear : Color.tempoBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .strokeBorder(isSelected ? Color.clear : Tide.hairline, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -177,14 +178,14 @@ struct SupplementQuickAddSheet: View {
     // MARK: - Details
 
     private var detailsContent: some View {
-        Form {
+        KitchenForm {
             Section {
                 Text("Optional — skip this if you don't know it yet. Your plan doesn't need it.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
             ForEach(chosenItems) { item in
-                Section(item.name) {
+                KitchenFormSection(item.name) {
                     TextField("Brand (optional)", text: bindingBrand(item.id))
                     TextField("Servings in the container (optional)", text: bindingServings(item.id))
                         .keyboardType(.numberPad)
@@ -195,10 +196,9 @@ struct SupplementQuickAddSheet: View {
             Button("Add \(chosenItems.count) to Shelf") {
                 finish()
             }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.md)
-            .tidePage()
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
     }
 

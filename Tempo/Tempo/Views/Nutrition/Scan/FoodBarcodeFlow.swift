@@ -170,12 +170,12 @@ struct FoodBarcodeFlow: View {
     // MARK: - Loading
 
     private var loadingContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView()
                 .controlSize(.large)
             Text("Looking up product…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
     }
 
@@ -186,72 +186,72 @@ struct FoodBarcodeFlow: View {
             Spacer()
 
             Image(systemName: "barcode.viewfinder")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
 
             Text("Not in the database yet")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .padding(.top, Tide.s4)
 
             Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.sm)
+                .padding(.top, Tide.s2)
 
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            VStack(spacing: Tide.s3) {
                 Button("Add this product") {
                     showAddProduct = true
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .accessibilityIdentifier("addMissingProduct")
 
                 Button("Search by name") {
                     showSearch = true
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
 
                 Button("Scan again") {
                     scanState = .scanning
                 }
-                .buttonStyle(.tempoGhost)
+                .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
+            .padding(.horizontal, Tide.s10)
+            .padding(.top, Tide.s6)
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Failed
 
     private func failedContent(barcode: String, message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "wifi.exclamationmark")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+            VStack(spacing: Tide.s3) {
                 Button("Try again") {
                     lookUp(barcode)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 Button("Scan again") {
                     scanState = .scanning
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
+            .padding(.horizontal, Tide.s10)
             Spacer()
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Actions

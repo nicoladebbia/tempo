@@ -528,13 +528,12 @@ struct PantryManualAddSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
                 currentRowSection
                 if !staged.isEmpty {
                     stagedSection
                 }
             }
-            .kitchenForm()
             .navigationTitle(stagedTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -568,7 +567,7 @@ struct PantryManualAddSheet: View {
     // MARK: - Sections
 
     private var currentRowSection: some View {
-        Section("New item") {
+        KitchenFormSection("New item") {
             HStack(spacing: Tide.s2) {
                 TextField("Name (e.g. Chicken Breast)", text: $name)
                     .submitLabel(.next)
@@ -609,11 +608,10 @@ struct PantryManualAddSheet: View {
             }
             .disabled(!canAddCurrent)
         }
-        .kitchenSection()
     }
 
     private var stagedSection: some View {
-        Section("Staged (\(staged.count))") {
+        KitchenFormSection("Staged (\(staged.count))") {
             ForEach(staged) { item in
                 stagedRow(item)
             }
@@ -622,7 +620,6 @@ struct PantryManualAddSheet: View {
                 HapticManager.lightImpact()
             }
         }
-        .kitchenSection()
     }
 
     private func stagedRow(_ item: StagedPantryItem) -> some View {

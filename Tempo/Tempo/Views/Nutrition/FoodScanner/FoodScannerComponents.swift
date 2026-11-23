@@ -16,10 +16,10 @@ import UIKit
 extension FoodScore.Rating {
     var color: Color {
         switch self {
-        case .excellent: .tempoSuccess
-        case .good: .tempoRecoveryGreen
-        case .poor: .tempoAmber
-        case .bad: .tempoError
+        case .excellent: Tide.Kitchen.good
+        case .good: Tide.Kitchen.good
+        case .poor: Tide.Kitchen.warn
+        case .bad: Tide.danger
         }
     }
 }
@@ -27,10 +27,10 @@ extension FoodScore.Rating {
 extension FoodAdditive.Risk {
     var color: Color {
         switch self {
-        case .high: .tempoError
-        case .moderate: .tempoAmber
-        case .low: .tempoWarning
-        case .unknown: .tempoSuccess
+        case .high: Tide.danger
+        case .moderate: Tide.Kitchen.warn
+        case .low: Tide.Kitchen.warn
+        case .unknown: Tide.Kitchen.good
         }
     }
 }
@@ -38,9 +38,9 @@ extension FoodAdditive.Risk {
 extension FoodFitCheck.Kind {
     var color: Color {
         switch self {
-        case .conflict: .tempoError
-        case .warning: .tempoAmber
-        case .good: .tempoSuccess
+        case .conflict: Tide.danger
+        case .warning: Tide.Kitchen.warn
+        case .good: Tide.Kitchen.good
         }
     }
 
@@ -116,13 +116,11 @@ struct FoodScoreBadge: View {
     var body: some View {
         let score = FoodScore.evaluate(product)
         Text(score.map { "\($0.total)" } ?? "–")
-            .font(.tempoCaption1)
-            .fontWeight(.bold)
-            .monospacedDigit()
-            .foregroundStyle(score == nil ? Color.tempoTextTertiary : Color.tempoTextInverse)
+            .font(Tide.numeral(15))
+            .foregroundStyle(score == nil ? Tide.text3 : Tide.ink)
             .frame(minWidth: 34)
-            .padding(.vertical, TempoSpacing.xxs)
-            .background(score?.rating.color ?? Color.tempoBgTertiary)
+            .padding(.vertical, Tide.hair)
+            .background(score?.rating.color ?? Tide.fill)
             .clipShape(Capsule())
             .accessibilityLabel(score.map { "Tempo score \($0.total), \($0.rating.label)" } ?? "Not scored")
     }
@@ -136,22 +134,22 @@ struct FoodScoreRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.tempoBgTertiary, lineWidth: 10)
+                .stroke(Tide.fill, lineWidth: 12)
             Circle()
                 .trim(from: 0, to: CGFloat(score.total) / 100)
-                .stroke(score.rating.color, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                .stroke(score.rating.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .shadow(color: score.rating.color.opacity(0.5), radius: 8)
+                .animation(Tide.settle, value: score.total)
             VStack(spacing: 0) {
-                Text("\(score.total)")
-                    .font(.tempoTitle1)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TideNumber("\(score.total)", size: Tide.numeralM, relativeTo: .title)
+                    .contentTransition(.numericText())
                 Text("/100")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .frame(width: 96, height: 96)
+        .frame(width: 112, height: 112)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Tempo score \(score.total) out of 100")
     }
@@ -182,7 +180,7 @@ struct FoodProductThumbnail: View {
                     .background(url == nil ? Color.clear : Color.white)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
     }
 }
 
@@ -194,23 +192,23 @@ struct FoodProductRow: View {
     var subtitle: String?
 
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             FoodProductThumbnail(product: product, photo: photo)
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(product.name)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .lineLimit(1)
                 } else {
                     detailLine
                 }
             }
-            Spacer(minLength: TempoSpacing.sm)
+            Spacer(minLength: Tide.s2)
             FoodScoreBadge(product: product)
         }
         .contentShape(Rectangle())
@@ -223,7 +221,7 @@ struct FoodProductRow: View {
     private var detailLine: some View {
         let brand = product.brand?.isEmpty == false ? product.brand : nil
         let kcalText = product.per100g.kcal.map { "\(Int($0.rounded())) kcal / 100 \(product.unit)" }
-        HStack(spacing: TempoSpacing.xxs) {
+        HStack(spacing: Tide.hair) {
             if let brand {
                 Text(brand)
                     .lineLimit(1)
@@ -240,8 +238,8 @@ struct FoodProductRow: View {
                     .layoutPriority(1)
             }
         }
-        .font(.tempoCaption1)
-        .foregroundStyle(Color.tempoTextSecondary)
+        .font(Tide.caption)
+        .foregroundStyle(Tide.text2)
     }
 }
 

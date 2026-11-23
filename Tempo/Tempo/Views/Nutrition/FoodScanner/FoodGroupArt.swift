@@ -40,24 +40,24 @@ extension FoodGroup {
     /// Tint driving the gradient + symbol colour.
     var artTint: Color {
         switch self {
-        case .dairy: .tempoInfo
-        case .meat: .tempoError
-        case .fish: .tempoElectric
-        case .eggs: .tempoAmber
-        case .grains: .tempoMacroCarbs
-        case .bread: .tempoWarning
-        case .pasta: .tempoMacroCarbs
-        case .legumes: .tempoRecoveryGreen
-        case .nuts: .tempoMacroFat
-        case .fruit: .tempoSuccess
-        case .vegetables: .tempoRecoveryGreen
-        case .snacks: .tempoViolet
-        case .sweets: .tempoSignal
-        case .drinks: .tempoElectric
-        case .oils: .tempoMacroFat
-        case .sauces: .tempoAmber
-        case .meals: .tempoSteel
-        case .other: .tempoConcrete
+        case .dairy: Tide.fat
+        case .meat: Tide.danger
+        case .fish: Tide.fat
+        case .eggs: Tide.Kitchen.warn
+        case .grains: Tide.carbs
+        case .bread: Tide.Kitchen.warn
+        case .pasta: Tide.carbs
+        case .legumes: Tide.Kitchen.good
+        case .nuts: Tide.fat
+        case .fruit: Tide.Kitchen.good
+        case .vegetables: Tide.Kitchen.good
+        case .snacks: Tide.protein
+        case .sweets: Tide.protein
+        case .drinks: Tide.fat
+        case .oils: Tide.fat
+        case .sauces: Tide.Kitchen.warn
+        case .meals: Tide.text2
+        case .other: Tide.text3
         }
     }
 }
@@ -104,25 +104,27 @@ struct FoodGroupArt: View {
             let side = min(geometry.size.width, geometry.size.height)
             ZStack {
                 LinearGradient(
-                    colors: [group.artTint.opacity(TempoOpacity.o40), group.artTint.opacity(TempoOpacity.o10)],
+                    colors: [group.artTint.opacity(0.40), group.artTint.opacity(0.10)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
                 .hueRotation(hueShift)
                 VStack(spacing: side * 0.05) {
                     Image(systemName: group.artSymbol)
-                        .font(.system(size: side * 0.34, weight: .light))
-                        .foregroundStyle(group.artTint.opacity(TempoOpacity.o70))
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: side * 0.34, height: side * 0.34)
+                        .foregroundStyle(group.artTint.opacity(0.70))
                     if side > 56, let initial {
                         Text(initial)
-                            .font(.system(size: max(side * 0.13, 10), weight: .semibold, design: .rounded))
-                            .foregroundStyle(group.artTint.opacity(TempoOpacity.o50))
+                            .font(side > 96 ? Tide.bodyStrong : Tide.label)
+                            .foregroundStyle(group.artTint.opacity(0.50))
                     }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .background(Color.tempoBgTertiary)
+        .background(Tide.fill)
         .accessibilityHidden(true)
     }
 }
@@ -132,7 +134,7 @@ struct FoodGroupArt: View {
         ForEach(FoodGroup.allCases, id: \.self) { group in
             FoodGroupArt(group: group)
                 .frame(width: 80, height: 80)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         }
     }
     .padding()
