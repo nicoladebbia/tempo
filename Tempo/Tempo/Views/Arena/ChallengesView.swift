@@ -155,7 +155,7 @@ struct ChallengesView: View {
         } label: {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack {
-                    TideIconTile(systemName: template.iconName, tint: template.color)
+                    TideAreaIconTile(systemName: template.iconName, tint: template.color)
                     Spacer(minLength: Tide.s2)
                     TideStatusPill(text: "\(template.durationDays) days", tint: template.color)
                 }
@@ -255,7 +255,7 @@ struct ChallengesView: View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             // Header
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
+                TideAreaIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(challenge.name)
                         .font(Tide.headline)
@@ -499,7 +499,7 @@ struct ChallengeCreationSheet: View {
                 optionRow(selected: selectedMetric == key) {
                     selectedMetric = key
                 } content: {
-                    TideIconTile(systemName: iconName, tint: mood.accent)
+                    TideAreaIconTile(systemName: iconName, tint: mood.accent)
                     Text(title)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
@@ -548,7 +548,7 @@ struct ChallengeCreationSheet: View {
                     selectedFriends.removeAll()
                 }
             } content: {
-                TideIconTile(systemName: "person.fill", tint: mood.accent)
+                TideAreaIconTile(systemName: "person.fill", tint: mood.accent)
                 Text("Solo challenge")
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)

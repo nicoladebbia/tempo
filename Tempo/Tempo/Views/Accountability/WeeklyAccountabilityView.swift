@@ -128,7 +128,7 @@ struct WeeklyAccountabilityView: View {
 
     private func categoryRow(_ category: CategoryGrade) -> some View {
         HStack(spacing: Tide.s3) {
-            TideIconTile(systemName: category.icon, tint: gradeColor(category.grade))
+            TideAreaIconTile(systemName: category.icon, tint: gradeColor(category.grade))
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(category.name)

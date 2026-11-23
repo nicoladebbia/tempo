@@ -935,7 +935,7 @@ struct FocusTimerView: View {
 
     private func reviewStatCard(title: String, value: String, icon: String) -> some View {
         HStack(spacing: Tide.s3) {
-            TideIconTile(systemName: icon, tint: mood.accent)
+            TideAreaIconTile(systemName: icon, tint: mood.accent)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title).tideLabel(Tide.text3)

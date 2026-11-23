@@ -162,7 +162,7 @@ struct MindQuadrantDetailView: View {
 
     private func sessionRow(_ session: StudySession) -> some View {
         HStack(spacing: Tide.s3) {
-            TideIconTile(systemName: "book.fill", tint: mood.accent)
+            TideAreaIconTile(systemName: "book.fill", tint: mood.accent)
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(session.subject ?? "Focus Session")

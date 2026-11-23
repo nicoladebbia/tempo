@@ -488,7 +488,7 @@ struct ArenaMainView: View {
 
     private func achievementBadge(_ achievement: Achievement) -> some View {
         VStack(spacing: Tide.s2) {
-            TideIconTile(
+            TideAreaIconTile(
                 systemName: achievement.rarity.tideSymbol, tint: achievement.rarity.tideTint,
                 size: Tide.avatarLarge
             )

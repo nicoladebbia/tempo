@@ -311,7 +311,7 @@ struct RecoveryTodayView: View {
 
     private func insightCard(icon: String, title: String, detail: String) -> some View {
         HStack(spacing: Tide.s3) {
-            TideIconTile(systemName: icon, tint: zoneColor)
+            TideAreaIconTile(systemName: icon, tint: zoneColor)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
@@ -511,7 +511,7 @@ struct MetricTrendSheet: View {
         TideScrollPage(spacing: Tide.s5, spacer: Tide.s6) {
             // Header
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: metric.icon, tint: sparklineColor)
+                TideAreaIconTile(systemName: metric.icon, tint: sparklineColor)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(metric.rawValue)
                         .font(Tide.title2)

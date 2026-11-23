@@ -267,7 +267,7 @@ struct StreakCalendarView: View {
         let isNext = milestone == nextMilestone
 
         return HStack(spacing: Tide.s3) {
-            TideIconTile(
+            TideAreaIconTile(
                 systemName: achieved ? "trophy.fill" : "trophy",
                 tint: achieved ? TideTone.gold : Tide.text3
             )

@@ -48,7 +48,7 @@ struct ActivityFeedView: View {
 
     private func activityRow(_ event: ActivityEvent) -> some View {
         HStack(alignment: .top, spacing: Tide.s3) {
-            TideIconTile(systemName: event.iconName, tint: iconColor(for: event.eventType))
+            TideAreaIconTile(systemName: event.iconName, tint: iconColor(for: event.eventType))
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(event.title)

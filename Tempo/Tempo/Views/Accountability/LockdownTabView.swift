@@ -217,7 +217,7 @@ private struct OverrideSelectionView: View {
             showOverrideConfirmation = true
         } label: {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: option.icon, tint: isActive ? TideTone.mint : mood.accent)
+                TideAreaIconTile(systemName: option.icon, tint: isActive ? TideTone.mint : mood.accent)
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(option.title)

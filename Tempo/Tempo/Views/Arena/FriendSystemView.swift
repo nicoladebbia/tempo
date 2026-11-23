@@ -251,7 +251,7 @@ struct FriendSystemView: View {
             }
         } label: {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: icon, tint: mood.accent)
+                TideAreaIconTile(systemName: icon, tint: mood.accent)
                 Text(title)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)

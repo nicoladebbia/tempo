@@ -103,15 +103,6 @@ extension Tide {
 
 // MARK: - TideCardPressStyle
 
-/// Cards that open something dip slightly under the finger.
-struct TideCardPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? Tide.pressCard : 1)
-            .animation(Tide.snap, value: configuration.isPressed)
-    }
-}
-
 // MARK: - TideScrollPage
 
 /// The standard page: a scrolling column of glass cards over the Tide field.
@@ -248,7 +239,7 @@ struct TideInitialAvatar: View {
 // MARK: - TideIconTile
 
 /// A symbol in a softly tinted rounded square.
-struct TideIconTile: View {
+struct TideAreaIconTile: View {
     let systemName: String
     var tint: Color = Tide.text
     var size: CGFloat = Tide.avatar
@@ -513,7 +504,7 @@ struct TideOrdersCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Tide.s3) {
-            TideIconTile(systemName: intensity.icon, tint: tint)
+            TideAreaIconTile(systemName: intensity.icon, tint: tint)
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(intensity.label).tideLabel(tint)
                 Text(message)

@@ -883,7 +883,7 @@ struct NonNegotiableCardView: View {
 
         return layout {
             // Icon
-            TideIconTile(systemName: nn?.icon ?? "star.fill", tint: iconColor)
+            TideAreaIconTile(systemName: nn?.icon ?? "star.fill", tint: iconColor)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 HStack(spacing: Tide.s2) {

@@ -167,7 +167,7 @@ struct NonNegotiableSetupView: View {
             editingItem = nn
         } label: {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: nn.icon, tint: nn.isActive ? mood.accent : Tide.text3)
+                TideAreaIconTile(systemName: nn.icon, tint: nn.isActive ? mood.accent : Tide.text3)
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(nn.name)
@@ -263,7 +263,7 @@ struct NonNegotiableSetupView: View {
                 addDefaultTemplates()
             } label: {
                 HStack(spacing: Tide.s3) {
-                    TideIconTile(systemName: "wand.and.stars", tint: mood.accent)
+                    TideAreaIconTile(systemName: "wand.and.stars", tint: mood.accent)
 
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Add Default Templates")

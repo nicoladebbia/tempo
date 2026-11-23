@@ -217,7 +217,7 @@ struct RecoveryTrendsView: View {
             WeeklyRecoverySummaryView(viewModel: viewModel)
         } label: {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: "calendar.badge.clock", tint: zoneColor)
+                TideAreaIconTile(systemName: "calendar.badge.clock", tint: zoneColor)
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Weekly recovery report")
