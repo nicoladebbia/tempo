@@ -26,6 +26,10 @@ struct FocusTimerView: View {
     private var dismiss
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var numeralScale: CGFloat = 1
 
     @State
     private var showStopConfirmation = false
@@ -54,91 +58,26 @@ struct FocusTimerView: View {
 
     var body: some View {
         ZStack {
-            // Background
-            TidePageBackground()
-            // Phase-tinted background
+            // Phase-tinted glow behind the dial
             phaseBackground
                 .ignoresSafeArea()
+                .allowsHitTesting(false)
 
-            VStack(spacing: 0) {
-                // Navigation bar
-                navigationBar
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Smart recommendation banner
-                if case .idle = viewModel.focusState {
-                    focusRecommendationBanner
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.top, TempoSpacing.sm)
-                } else if case .configuring = viewModel.focusState {
-                    focusRecommendationBanner
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.top, TempoSpacing.sm)
-                }
-
-                Spacer()
-
-                // Session label
-                sessionLabel
-                    .padding(.bottom, TempoSpacing.sm)
-
-                // Subject pill
-                if let subject = viewModel.focusSubject {
-                    subjectPill(subject)
-                        .padding(.bottom, TempoSpacing.lg)
-                }
-
-                // Timer ring
-                timerRing
-                    .padding(.bottom, TempoSpacing.sm)
-
-                // Phase label
-                phaseLabel
-                    .padding(.bottom, TempoSpacing.md)
-
-                // Accumulated time
-                accumulatedTime
-                    .padding(.bottom, TempoSpacing.xs)
-
-                // Focus score (only during focusing)
-                if case .focusing = viewModel.focusState {
-                    focusScoreDisplay
-                        .padding(.bottom, TempoSpacing.lg)
-                } else {
-                    Spacer().frame(height: TempoSpacing.lg)
-                }
-
-                // Break message
-                if isBreakState {
-                    breakMessageView
-                        .padding(.bottom, TempoSpacing.lg)
-                }
-
-                Spacer()
-
-                // Secondary buttons (distraction + ambient)
-                if viewModel.focusState.isActive {
-                    secondaryButtons
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.bottom, TempoSpacing.lg)
-                }
-
-                // Primary controls
-                primaryControls
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.bottomSafe)
+            if isReview {
+                // Review overlay
+                reviewOverlay
+            } else {
+                timerScreen
             }
 
             // Completion overlay
             if case let .completed(totalSessions) = viewModel.focusState {
                 completionOverlay(totalSessions: totalSessions)
             }
-
-            // Review overlay
-            if case .review = viewModel.focusState {
-                reviewOverlay
-            }
         }
+        .tidePage(energy: 1)
+        // The field rests while a sheet is over the timer.
+        .tideCovered(showSettings || showSubjectPicker)
         .confirmationDialog(
             "Stop this session?",
             isPresented: $showStopConfirmation,
@@ -165,6 +104,9 @@ struct FocusTimerView: View {
         }
         .sheet(isPresented: $showSettings) {
             focusSettingsSheet
+        }
+        .sheet(isPresented: $showSubjectPicker) {
+            subjectPickerSheet
         }
         .onChange(of: viewModel.focusState) { _, newState in
             handleStateChange(newState)
@@ -193,6 +135,88 @@ struct FocusTimerView: View {
         }
     }
 
+    // MARK: - Timer Screen
+
+    private var timerScreen: some View {
+        GeometryReader { proxy in
+            let diameter = dialDiameter(in: proxy.size)
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Navigation bar
+                    navigationBar
+                        .padding(.horizontal, Tide.edge)
+
+                    // Smart recommendation banner
+                    if isIdleOrConfiguring {
+                        focusRecommendationBanner
+                            .padding(.horizontal, Tide.edge)
+                            .padding(.top, Tide.s2)
+                    }
+
+                    Spacer(minLength: Tide.s4)
+
+                    // Session label
+                    sessionLabel
+                        .padding(.bottom, Tide.s2)
+
+                    // Subject pill
+                    if let subject = viewModel.focusSubject {
+                        subjectPill(subject)
+                            .padding(.bottom, Tide.s4)
+                    }
+
+                    // Timer dial
+                    timerDial(diameter: diameter)
+                        .padding(.bottom, Tide.s3)
+
+                    // Phase label
+                    phaseLabel
+                        .padding(.bottom, Tide.s3)
+
+                    // Accumulated time
+                    accumulatedTime
+                        .padding(.bottom, Tide.s1)
+
+                    // Focus score (only during focusing)
+                    if case .focusing = viewModel.focusState {
+                        focusScoreDisplay
+                            .padding(.bottom, Tide.s4)
+                    } else {
+                        Spacer().frame(height: Tide.s4)
+                    }
+
+                    // Break message
+                    if isBreakState {
+                        breakMessageView
+                            .padding(.bottom, Tide.s4)
+                    }
+
+                    Spacer(minLength: Tide.s4)
+
+                    // Secondary buttons (distraction + ambient)
+                    if viewModel.focusState.isActive {
+                        secondaryButtons
+                            .padding(.horizontal, Tide.edge)
+                            .padding(.bottom, Tide.s4)
+                    }
+
+                    // Primary controls
+                    primaryControls
+                        .padding(.horizontal, Tide.edge)
+                        .padding(.bottom, Tide.s4)
+                }
+                .frame(minHeight: proxy.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    /// The dial grows to 300pt on a roomy phone and shrinks on a short or narrow one.
+    private func dialDiameter(in size: CGSize) -> CGFloat {
+        min(Tide.dialTimer, size.width - Tide.edge * 2, size.height * 0.38)
+    }
+
     // MARK: - Smart Focus Recommendation Banner
 
     // Shows context-aware timer recommendation based on study progress today.
@@ -200,22 +224,25 @@ struct FocusTimerView: View {
     private var focusRecommendationBanner: some View {
         let recommendation = focusRecommendation
 
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s3) {
             Image(systemName: recommendation.icon)
-                .font(.system(size: 16, weight: .bold))
+                .font(Tide.headline)
                 .foregroundStyle(recommendation.color)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(recommendation.title)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(recommendation.subtitle)
-                    .font(.tempoFootnote)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             if let suggestedMinutes = recommendation.suggestedDuration {
                 Button {
@@ -223,22 +250,19 @@ struct FocusTimerView: View {
                     HapticManager.impact(.light)
                 } label: {
                     Text("\(suggestedMinutes)m")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, TempoSpacing.md)
-                        .frame(height: 28)
-                        .background(recommendation.color)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                        .font(Tide.numeral(Tide.numeralS - Tide.s1, .bold))
+                        .foregroundStyle(Tide.ink)
+                        .padding(.horizontal, Tide.s3)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                        .background(recommendation.color, in: .capsule)
+                        .contentShape(.capsule)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Set timer to \(suggestedMinutes) minutes")
             }
         }
-        .padding(TempoSpacing.md)
-        .background(recommendation.color.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                .stroke(recommendation.color.opacity(0.25), lineWidth: 1)
-        )
+        .tideTintedCard(recommendation.color, padding: Tide.s3, radius: Tide.tileRadius)
+        .accessibilityElement(children: .contain)
     }
 
     private struct FocusRecommendation {
@@ -261,7 +285,7 @@ struct FocusTimerView: View {
                 title: "Target reached! Extra credit time.",
                 subtitle: "You've hit \(totalMinutes)m / \(target)m. Any session now is bonus.",
                 icon: "star.fill",
-                color: .tempoSuccess,
+                color: TideTone.mint,
                 suggestedDuration: 25
             )
         }
@@ -272,7 +296,7 @@ struct FocusTimerView: View {
                 title: "Just \(remaining)m left. Finish strong.",
                 subtitle: "One short sprint to complete your study goal.",
                 icon: "flag.checkered",
-                color: .tempoSuccess,
+                color: TideTone.mint,
                 suggestedDuration: remaining
             )
         }
@@ -299,7 +323,7 @@ struct FocusTimerView: View {
                     title: "\(remaining)m needed. Only \(Int(timeToPS5 / 60))m until PS5 time.",
                     subtitle: "Start NOW. Every minute counts.",
                     icon: "exclamationmark.triangle.fill",
-                    color: .tempoSignal,
+                    color: Tide.danger,
                     suggestedDuration: min(remaining, 50)
                 )
             }
@@ -308,7 +332,7 @@ struct FocusTimerView: View {
                 title: "You need \(remaining)m today. Let's go.",
                 subtitle: subtitle,
                 icon: "play.circle.fill",
-                color: .tempoElectric,
+                color: mood.accent,
                 suggestedDuration: suggestedDuration
             )
         }
@@ -328,7 +352,7 @@ struct FocusTimerView: View {
                 title: "\(remaining)m remaining. Clock's ticking.",
                 subtitle: "Less than \(Int(timeToPS5 / 60))m until PS5 time. Buckle down.",
                 icon: "exclamationmark.triangle.fill",
-                color: .tempoAmber,
+                color: TideTone.amber,
                 suggestedDuration: min(remaining, 50)
             )
         }
@@ -337,7 +361,7 @@ struct FocusTimerView: View {
             title: "\(remaining)m remaining. Time for \(suggestedDuration >= 45 ? "a deep work session" : "a sprint").",
             subtitle: "\(totalMinutes)m done so far. Keep the momentum.",
             icon: "bolt.fill",
-            color: .tempoElectric,
+            color: mood.accent,
             suggestedDuration: suggestedDuration
         )
     }
@@ -354,10 +378,14 @@ struct FocusTimerView: View {
                 }
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(width: 44, height: 44)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .contentShape(.circle)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close timer")
 
             Spacer()
 
@@ -365,26 +393,27 @@ struct FocusTimerView: View {
                 showSettings = true
             } label: {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(width: 44, height: 44)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .glassEffect(.regular.interactive(), in: .circle)
+                    .contentShape(.circle)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Timer settings")
         }
     }
 
     // MARK: - Session Label
 
+    @ViewBuilder
     private var sessionLabel: some View {
-        Group {
-            if viewModel.currentSessionCount >= viewModel.sessionsBeforeLongBreak {
-                Text("Bonus Session")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoAmber)
-            } else {
-                Text("Session \(viewModel.currentSessionCount + 1) of \(viewModel.sessionsBeforeLongBreak)")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+        if viewModel.currentSessionCount >= viewModel.sessionsBeforeLongBreak {
+            Text("Bonus session")
+                .tideLabel(TideTone.amber)
+        } else {
+            Text("Session \(viewModel.currentSessionCount + 1) of \(viewModel.sessionsBeforeLongBreak)")
+                .tideLabel()
         }
     }
 
@@ -394,27 +423,24 @@ struct FocusTimerView: View {
         Button {
             showSubjectPicker = true
         } label: {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 Text(subject)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .frame(height: 32)
-            .background(Color.tempoSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 1)
-            )
+            .padding(.horizontal, Tide.s4)
+            .frame(minHeight: Tide.hit)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .contentShape(.capsule)
         }
-        .sheet(isPresented: $showSubjectPicker) {
-            subjectPickerSheet
-        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Subject: \(subject)")
+        .accessibilityHint("Choose a different subject")
     }
 
     // MARK: - Subject Picker
@@ -426,28 +452,38 @@ struct FocusTimerView: View {
 
     private var subjectPickerSheet: some View {
         NavigationStack {
-            List {
-                ForEach(Self.studySubjects, id: \.self) { subject in
-                    Button {
-                        viewModel.focusSubject = subject
-                        viewModel.currentStudySession?.subject = subject
-                        showSubjectPicker = false
-                    } label: {
-                        HStack {
-                            Text(subject)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            if viewModel.focusSubject == subject {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(Color.tempoElectric)
-                            }
+            TideScrollPage {
+                VStack(spacing: 0) {
+                    ForEach(Array(Self.studySubjects.enumerated()), id: \.element) { index, subject in
+                        if index > 0 {
+                            TideDivider()
                         }
+                        Button {
+                            viewModel.focusSubject = subject
+                            viewModel.currentStudySession?.subject = subject
+                            showSubjectPicker = false
+                        } label: {
+                            HStack {
+                                Text(subject)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text)
+                                Spacer()
+                                if viewModel.focusSubject == subject {
+                                    Image(systemName: "checkmark")
+                                        .font(Tide.bodyStrong)
+                                        .foregroundStyle(mood.accent)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(viewModel.focusSubject == subject ? .isSelected : [])
                     }
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
-            .scrollContentBackground(.hidden)
-            .tidePage()
             .navigationTitle("Study Subject")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -456,105 +492,109 @@ struct FocusTimerView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
-    // MARK: - Timer Ring
+    // MARK: - Timer Dial
 
-    // Per MODULE_ACCOUNTABILITY.md — 260pt ring, 8pt stroke.
+    // Per MODULE_ACCOUNTABILITY.md — the timer is the screen: a large
+    // shader-lit dial, lit tick by tick, with the time in condensed numerals.
 
-    private var timerRing: some View {
-        ZStack {
-            // Track
-            Circle()
-                .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                .frame(width: 260, height: 260)
-
-            // Fill
-            Circle()
-                .trim(from: 0, to: viewModel.focusTimerProgress)
-                .stroke(
-                    ringColor,
-                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .frame(width: 260, height: 260)
-                .animation(.linear(duration: 1), value: viewModel.focusTimerProgress)
-
-            // Timer display
-            timerText
+    private func timerDial(diameter: CGFloat) -> some View {
+        TideTimerDial(
+            progress: viewModel.focusTimerProgress,
+            accent: ringColor,
+            diameter: diameter
+        ) {
+            timerText(diameter: diameter)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(phaseLabelText)
+        .accessibilityValue(spokenTime)
+        .accessibilityAddTraits(.updatesFrequently)
     }
 
-    private var timerText: some View {
+    private var timerParts: (minutes: String, seconds: String) {
         let parts = viewModel.formattedFocusTimer.split(separator: ":")
-        let minutes = parts.first ?? "0"
-        let seconds = parts.count > 1 ? parts[1] : "00"
+        let minutes = parts.first.map(String.init) ?? "0"
+        let seconds = parts.count > 1 ? String(parts[1]) : "00"
+        return (minutes, seconds)
+    }
+
+    private var spokenTime: String {
+        let parts = timerParts
+        return "\(Int(parts.minutes) ?? 0) minutes \(Int(parts.seconds) ?? 0) seconds"
+    }
+
+    private func timerText(diameter: CGFloat) -> some View {
+        let parts = timerParts
+        let font = Tide.numeral(diameter * 0.27 * min(numeralScale, 1.25), .bold)
 
         return HStack(spacing: 0) {
-            Text(String(minutes))
-                .font(.tempoTimerDisplay)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .monospacedDigit()
+            Text(parts.minutes)
+                .font(font)
+                .foregroundStyle(Tide.text)
+                .contentTransition(.numericText(countsDown: true))
 
             Text(":")
-                .font(.tempoTimerDisplay)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(font)
+                .foregroundStyle(Tide.text)
                 .opacity(isPaused ? (colonVisible ? 1 : 0.3) : 1)
 
-            Text(String(seconds))
-                .font(.tempoTimerDisplay)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .monospacedDigit()
+            Text(parts.seconds)
+                .font(font)
+                .foregroundStyle(Tide.text)
+                .contentTransition(.numericText(countsDown: true))
         }
+        .lineLimit(1)
+        .minimumScaleFactor(Tide.labelShrink)
+        .animation(Tide.snap, value: viewModel.formattedFocusTimer)
     }
 
     private var ringColor: Color {
         if isPaused {
-            return .tempoAmber
+            return TideTone.amber
         }
         if isBreakState {
-            return .tempoSuccess
+            return TideTone.mint
         }
-        return .tempoElectric
+        return mood.accent
     }
 
     // MARK: - Phase Label
 
-    // Per MODULE_ACCOUNTABILITY.md — phase label below ring.
+    // Per MODULE_ACCOUNTABILITY.md — phase label below the dial.
 
     private var phaseLabel: some View {
         Text(phaseLabelText)
-            .font(.tempoZoneLabel)
-            .tracking(TempoTracking.zoneLabel)
-            .foregroundStyle(phaseLabelColor)
+            .tideLabel(phaseLabelColor)
     }
 
     private var phaseLabelText: String {
         switch viewModel.focusState {
         case .idle,
-             .configuring: "READY"
-        case .focusing: "FOCUS TIME"
+             .configuring: "Ready"
+        case .focusing: "Focus time"
         case .onBreak,
-             .longBreak: "BREAK TIME"
-        case .paused: "PAUSED"
-        case .sessionDone: "SESSION DONE"
-        case .breakDone: "BREAK DONE"
-        case .completed: "COMPLETE"
-        case .review: "REVIEW"
-        case .cancelled: "CANCELLED"
+             .longBreak: "Break time"
+        case .paused: "Paused"
+        case .sessionDone: "Session done"
+        case .breakDone: "Break done"
+        case .completed: "Complete"
+        case .review: "Review"
+        case .cancelled: "Cancelled"
         }
     }
 
     private var phaseLabelColor: Color {
         switch viewModel.focusState {
-        case .focusing: .tempoElectric
+        case .focusing: mood.accent
         case .onBreak,
              .longBreak,
-             .breakDone: .tempoSuccess
-        case .paused: .tempoAmber
-        case .completed: .tempoSuccess
-        default: .tempoTextSecondary
+             .breakDone: TideTone.mint
+        case .paused: TideTone.amber
+        case .completed: TideTone.mint
+        default: Tide.text2
         }
     }
 
@@ -572,8 +612,10 @@ struct FocusTimerView: View {
         let targetText = targetH > 0 ? "\(targetH)h \(targetM)m" : "\(targetM)m"
 
         return Text("Today's total: \(currentText) / \(targetText)")
-            .font(.tempoCallout)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.bodyStrong)
+            .monospacedDigit()
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.center)
     }
 
     private var studyTargetMinutes: Int {
@@ -588,174 +630,156 @@ struct FocusTimerView: View {
     private var focusScoreDisplay: some View {
         let score = max(0, 100 - (viewModel.distractionCount * 10))
         return Text("Focus Score: \(score)")
-            .font(.tempoCallout)
-            .foregroundStyle(Color.tempoTextPrimary)
+            .font(Tide.bodyStrong)
+            .monospacedDigit()
+            .foregroundStyle(Tide.text)
     }
 
     // MARK: - Break Message
 
     private var breakMessageView: some View {
         Text(breakMessages[breakMessageIndex % breakMessages.count])
-            .font(.tempoBody)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
             .multilineTextAlignment(.center)
-            .padding(.horizontal, TempoSpacing.xxxl)
+            .padding(.horizontal, Tide.s8)
     }
 
     // MARK: - Secondary Buttons
 
     private var secondaryButtons: some View {
-        HStack {
-            // Distraction button
-            Button {
-                HapticManager.impact(.light)
-                viewModel.distractionCount += 1
-            } label: {
-                VStack(spacing: TempoSpacing.xs) {
-                    ZStack(alignment: .topTrailing) {
+        GlassEffectContainer(spacing: Tide.s3) {
+            HStack(spacing: Tide.s3) {
+                // Distraction button
+                Button {
+                    HapticManager.impact(.light)
+                    viewModel.distractionCount += 1
+                } label: {
+                    HStack(spacing: Tide.s2) {
                         Image(systemName: "hand.raised.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .accessibilityHidden(true)
+
+                        Text("Distracted")
 
                         if viewModel.distractionCount > 0 {
                             Text("\(viewModel.distractionCount)")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Color.tempoTextInverse)
-                                .frame(width: 16, height: 16)
-                                .background(Color.tempoSignal)
-                                .clipShape(Circle())
-                                .offset(x: 6, y: -6)
+                                .font(Tide.numeral(Tide.numeralS - Tide.s2, .bold))
+                                .foregroundStyle(Tide.ink)
+                                .frame(minWidth: Tide.s5, minHeight: Tide.s5)
+                                .background(Tide.danger, in: .circle)
+                                .accessibilityHidden(true)
                         }
                     }
-
-                    Text("Distracted")
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    .frame(maxWidth: .infinity)
                 }
-            }
+                .buttonStyle(.tideGlass)
+                .accessibilityValue(
+                    viewModel.distractionCount > 0 ? "\(viewModel.distractionCount) so far" : ""
+                )
 
-            Spacer()
+                // Ambient button (placeholder)
+                Button {
+                    HapticManager.impact(.light)
+                } label: {
+                    HStack(spacing: Tide.s2) {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .accessibilityHidden(true)
 
-            // Ambient button (placeholder)
-            Button {
-                HapticManager.impact(.light)
-            } label: {
-                VStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    Text("Ambient")
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        Text("Ambient")
+                    }
+                    .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.tideGlass)
             }
         }
     }
 
     // MARK: - Primary Controls
 
-    // Per MODULE_ACCOUNTABILITY.md — Stop (48pt), Main (160x64pt), Skip (48pt).
+    // Per MODULE_ACCOUNTABILITY.md — Stop, Main, Skip.
 
     private var primaryControls: some View {
-        HStack(spacing: TempoSpacing.md) {
-            // Stop button
-            if viewModel.focusState.isActive || isPaused {
-                Button {
-                    HapticManager.impact(.light)
-                    showStopConfirmation = true
-                } label: {
-                    Image(systemName: isPaused ? "xmark.circle" : "square.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .frame(width: 48, height: 48)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle().stroke(Color.tempoBorder, lineWidth: 1)
-                        )
+        GlassEffectContainer(spacing: Tide.s3) {
+            HStack(spacing: Tide.s3) {
+                // Stop button
+                if viewModel.focusState.isActive || isPaused {
+                    Button {
+                        HapticManager.impact(.light)
+                        showStopConfirmation = true
+                    } label: {
+                        Image(systemName: isPaused ? "xmark.circle" : "square.fill")
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .frame(width: Tide.hit + Tide.s2, height: Tide.hit + Tide.s2)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                            .contentShape(.circle)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Stop")
                 }
-                .accessibilityLabel("Stop")
-            }
 
-            // Main button
-            mainButton
+                // Main button
+                mainButton
 
-            // Skip button
-            if viewModel.focusState.isActive {
-                Button {
-                    HapticManager.impact(.light)
-                    skipAction()
-                } label: {
-                    Image(systemName: isBreakState ? "arrow.right.circle.fill" : "forward.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(isBreakState ? .white : Color.tempoTextPrimary)
-                        .frame(width: 48, height: 48)
-                        .background(isBreakState ? Color.tempoSuccess : Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
-                        .overlay(
-                            isBreakState
-                                ? nil
-                                : Circle().stroke(Color.tempoBorder, lineWidth: 1)
-                        )
+                // Skip button
+                if viewModel.focusState.isActive {
+                    Button {
+                        HapticManager.impact(.light)
+                        skipAction()
+                    } label: {
+                        Image(systemName: isBreakState ? "arrow.right.circle.fill" : "forward.fill")
+                            .font(Tide.headline)
+                            .foregroundStyle(isBreakState ? Tide.ink : Tide.text)
+                            .frame(width: Tide.hit + Tide.s2, height: Tide.hit + Tide.s2)
+                            .background {
+                                if isBreakState {
+                                    Circle().fill(TideTone.mint)
+                                }
+                            }
+                            .glassEffect(isBreakState ? .identity : .regular.interactive(), in: .circle)
+                            .contentShape(.circle)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Skip")
                 }
-                .accessibilityLabel("Skip")
             }
         }
     }
 
+    @ViewBuilder
     private var mainButton: some View {
-        Button {
-            HapticManager.impact(.heavy)
-            mainButtonAction()
-        } label: {
-            Text(mainButtonTitle)
-                .font(.tempoHeadline)
-                .foregroundStyle(mainButtonTextColor)
-                .frame(width: 160, height: 64)
-                .background(mainButtonBackground)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-                .overlay(mainButtonBorder)
+        if isBreakState {
+            Button(action: performMainButton) { mainButtonLabel.foregroundStyle(TideTone.mint) }
+                .buttonStyle(.tideGlass)
+        } else {
+            Button(action: performMainButton) { mainButtonLabel }
+                .buttonStyle(.tidePrimary)
         }
+    }
+
+    private var mainButtonLabel: some View {
+        Text(mainButtonTitle)
+            .frame(maxWidth: .infinity)
+    }
+
+    private func performMainButton() {
+        HapticManager.impact(.heavy)
+        mainButtonAction()
     }
 
     private var mainButtonTitle: String {
         switch viewModel.focusState {
         case .idle,
-             .configuring: "START"
-        case .focusing: "PAUSE"
-        case .paused: "RESUME"
+             .configuring: "Start"
+        case .focusing: "Pause"
+        case .paused: "Resume"
         case .onBreak,
-             .longBreak: "SKIP BREAK"
-        case .sessionDone: "START BREAK"
-        case .breakDone: "START FOCUS"
-        case .completed: "REVIEW"
-        case .review: "DONE"
-        case .cancelled: "START"
-        }
-    }
-
-    private var mainButtonTextColor: Color {
-        if isBreakState {
-            return .tempoSuccess
-        }
-        return .white
-    }
-
-    @ViewBuilder
-    private var mainButtonBackground: some View {
-        if isBreakState {
-            Color.clear
-        } else {
-            Color.tempoElectric
-        }
-    }
-
-    @ViewBuilder
-    private var mainButtonBorder: some View {
-        if isBreakState {
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoSuccess, lineWidth: 2)
+             .longBreak: "Skip break"
+        case .sessionDone: "Start break"
+        case .breakDone: "Start focus"
+        case .completed: "Review"
+        case .review: "Done"
+        case .cancelled: "Start"
         }
     }
 
@@ -819,34 +843,35 @@ struct FocusTimerView: View {
 
     private func completionOverlay(totalSessions: Int) -> some View {
         ZStack {
-            Color.tempoInk.opacity(0.8)
+            Tide.ink.opacity(0.8)
                 .ignoresSafeArea()
 
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s5) {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 80, weight: .light))
-                    .foregroundStyle(Color.tempoSuccess)
+                    .font(Tide.numeral(Tide.numeralHero, .light))
+                    .foregroundStyle(TideTone.mint)
+                    .shadow(color: TideTone.mint.opacity(0.5), radius: Tide.s6)
+                    .accessibilityHidden(true)
 
-                Text("All Sessions Complete!")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("All sessions complete!")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
 
                 Text("\(totalSessions) sessions of focused study")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
 
-                Button {
+                Button("Done") {
                     viewModel.focusState = .review
-                } label: {
-                    Text("DONE")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .frame(width: 160, height: 52)
-                        .background(Color.tempoElectric)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
-                .padding(.top, TempoSpacing.lg)
+                .buttonStyle(.tidePrimary)
+                .frame(maxWidth: Tide.s10 * 6)
+                .padding(.top, Tide.s4)
             }
+            .padding(.horizontal, Tide.edge)
+            .accessibilityElement(children: .contain)
         }
         .transition(.opacity)
     }
@@ -854,103 +879,86 @@ struct FocusTimerView: View {
     // MARK: - Review Overlay
 
     private var reviewOverlay: some View {
-        ZStack {
-            TidePageBackground()
-            ScrollView {
-                VStack(spacing: TempoSpacing.lg) {
-                    Text("Session Review")
-                        .font(.tempoTitle1)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .padding(.top, TempoSpacing.xxxl)
+        let score = max(0, 100 - (viewModel.distractionCount * 10))
 
-                    // Focus score ring
-                    let score = max(0, 100 - (viewModel.distractionCount * 10))
-                    CircularRingView(
-                        progress: Double(score) / 100.0,
-                        color: scoreColor(score),
-                        ringSize: .large,
-                        label: scoreLabel(score),
-                        valueText: "\(score)"
+        return ScrollView {
+            VStack(spacing: Tide.s5) {
+                Text("Session review")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .padding(.top, Tide.s10)
+
+                // Focus score dial
+                VStack(spacing: Tide.s2) {
+                    TideDial(score: score, caption: "Focus score", diameter: Tide.dialDetail)
+
+                    Text(scoreLabel(score))
+                        .font(Tide.headline)
+                        .foregroundStyle(scoreColor(score))
+                }
+
+                // Stats cards
+                VStack(spacing: Tide.s3) {
+                    reviewStatCard(
+                        title: "Total Focus Time",
+                        value: "\(viewModel.currentSessionCount * Int(viewModel.focusDuration / 60))m",
+                        icon: "clock.fill"
                     )
 
-                    // Stats cards
-                    VStack(spacing: TempoSpacing.md) {
-                        reviewStatCard(
-                            title: "Total Focus Time",
-                            value: "\(viewModel.currentSessionCount * Int(viewModel.focusDuration / 60))m",
-                            icon: "clock.fill"
-                        )
+                    reviewStatCard(
+                        title: "Sessions Completed",
+                        value: "\(viewModel.currentSessionCount)",
+                        icon: "checkmark.circle.fill"
+                    )
 
-                        reviewStatCard(
-                            title: "Sessions Completed",
-                            value: "\(viewModel.currentSessionCount)",
-                            icon: "checkmark.circle.fill"
-                        )
-
-                        reviewStatCard(
-                            title: "Distractions",
-                            value: "\(viewModel.distractionCount)",
-                            icon: "hand.raised.fill"
-                        )
-                    }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                    // Done button
-                    Button {
-                        viewModel.finishFocusReview(modelContext: modelContext)
-                        dismiss()
-                    } label: {
-                        Text("DONE")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextInverse)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(Color.tempoElectric)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                    }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
-                    .padding(.bottom, TempoSpacing.bottomSafe)
+                    reviewStatCard(
+                        title: "Distractions",
+                        value: "\(viewModel.distractionCount)",
+                        icon: "hand.raised.fill"
+                    )
                 }
+
+                // Done button
+                Button("Done") {
+                    viewModel.finishFocusReview(modelContext: modelContext)
+                    dismiss()
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.top, Tide.s4)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollIndicators(.hidden)
     }
 
     private func reviewStatCard(title: String, value: String, icon: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundStyle(Color.tempoElectric)
-                .frame(width: 40)
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: icon, tint: mood.accent)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(title)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title).tideLabel(Tide.text3)
 
-                Text(value)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TideNumber(value, size: Tide.numeralM, relativeTo: .title)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     private func scoreColor(_ score: Int) -> Color {
         if score >= 90 {
-            return .tempoSuccess
+            return TideTone.mint
         }
         if score >= 75 {
-            return .tempoElectric
+            return mood.accent
         }
         if score >= 50 {
-            return .tempoAmber
+            return TideTone.amber
         }
-        return .tempoSignal
+        return Tide.danger
     }
 
     private func scoreLabel(_ score: Int) -> String {
@@ -972,120 +980,85 @@ struct FocusTimerView: View {
         Group {
             switch viewModel.focusState {
             case .focusing:
-                RadialGradient(
-                    colors: [Color.tempoElectric.opacity(0.03), .clear],
-                    center: .center,
-                    startRadius: 50,
-                    endRadius: 300
-                )
+                phaseGlow(mood.accent)
             case .onBreak,
                  .longBreak:
-                RadialGradient(
-                    colors: [Color.tempoSuccess.opacity(0.03), .clear],
-                    center: .center,
-                    startRadius: 50,
-                    endRadius: 300
-                )
+                phaseGlow(TideTone.mint)
             case .paused:
-                RadialGradient(
-                    colors: [Color.tempoAmber.opacity(0.03), .clear],
-                    center: .center,
-                    startRadius: 50,
-                    endRadius: 300
-                )
+                phaseGlow(TideTone.amber)
             default:
                 Color.clear
             }
         }
+        .animation(Tide.settle, value: ringColor)
+    }
+
+    private func phaseGlow(_ color: Color) -> some View {
+        RadialGradient(
+            colors: [color.opacity(0.14), .clear],
+            center: .center,
+            startRadius: Tide.s10,
+            endRadius: Tide.dialTimer * 1.2
+        )
     }
 
     // MARK: - Settings Sheet
 
     private var focusSettingsSheet: some View {
         NavigationStack {
-            List {
-                Section {
-                    Stepper(
+            TideScrollPage {
+                TideSectionLabel(title: "Timer")
+
+                VStack(spacing: 0) {
+                    settingsStepper(
+                        title: "Focus Duration",
                         value: Binding(
                             get: { Int(viewModel.focusDuration / 60) },
                             set: { viewModel.focusDuration = TimeInterval($0 * 60) }
                         ),
-                        in: 15 ... 60,
-                        step: 5
-                    ) {
-                        HStack {
-                            Text("Focus Duration")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Text("\(Int(viewModel.focusDuration / 60)) min")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
+                        range: 15 ... 60,
+                        step: 5,
+                        unit: " min"
+                    )
 
-                    Stepper(
+                    TideDivider()
+
+                    settingsStepper(
+                        title: "Short Break",
                         value: Binding(
                             get: { Int(viewModel.breakDuration / 60) },
                             set: { viewModel.breakDuration = TimeInterval($0 * 60) }
                         ),
-                        in: 3 ... 15,
-                        step: 1
-                    ) {
-                        HStack {
-                            Text("Short Break")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Text("\(Int(viewModel.breakDuration / 60)) min")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
+                        range: 3 ... 15,
+                        step: 1,
+                        unit: " min"
+                    )
 
-                    Stepper(
+                    TideDivider()
+
+                    settingsStepper(
+                        title: "Long Break",
                         value: Binding(
                             get: { Int(viewModel.longBreakDuration / 60) },
                             set: { viewModel.longBreakDuration = TimeInterval($0 * 60) }
                         ),
-                        in: 15 ... 30,
-                        step: 5
-                    ) {
-                        HStack {
-                            Text("Long Break")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Text("\(Int(viewModel.longBreakDuration / 60)) min")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
+                        range: 15 ... 30,
+                        step: 5,
+                        unit: " min"
+                    )
 
-                    Stepper(
+                    TideDivider()
+
+                    settingsStepper(
+                        title: "Sessions Before Long Break",
                         value: $viewModel.sessionsBeforeLongBreak,
-                        in: 2 ... 6,
-                        step: 1
-                    ) {
-                        HStack {
-                            Text("Sessions Before Long Break")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Text("\(viewModel.sessionsBeforeLongBreak)")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                    }
-                } header: {
-                    Text("TIMER")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        range: 2 ... 6,
+                        step: 1,
+                        unit: ""
+                    )
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
-            .scrollContentBackground(.hidden)
-            .tidePage()
             .navigationTitle("Focus Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1094,7 +1067,32 @@ struct FocusTimerView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    private func settingsStepper(
+        title: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        step: Int,
+        unit: String
+    ) -> some View {
+        Stepper(value: value, in: range, step: step) {
+            HStack(spacing: Tide.s2) {
+                Text(title)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Tide.s2)
+                Text("\(value.wrappedValue)\(unit)")
+                    .font(Tide.bodyStrong)
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text2)
+            }
+        }
+        .frame(minHeight: Tide.hit)
+        .accessibilityLabel(title)
+        .accessibilityValue("\(value.wrappedValue)\(unit)")
     }
 
     // MARK: - Helpers
@@ -1104,6 +1102,21 @@ struct FocusTimerView: View {
             return true
         }
         return false
+    }
+
+    private var isReview: Bool {
+        if case .review = viewModel.focusState {
+            return true
+        }
+        return false
+    }
+
+    private var isIdleOrConfiguring: Bool {
+        switch viewModel.focusState {
+        case .idle,
+             .configuring: true
+        default: false
+        }
     }
 
     private var isBreakState: Bool {
@@ -1155,7 +1168,7 @@ struct FocusTimerView: View {
                     return
                 }
                 if isPaused {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(Tide.snap) {
                         colonVisible.toggle()
                     }
                 } else {

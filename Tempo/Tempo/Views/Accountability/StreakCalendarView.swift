@@ -21,6 +21,10 @@ struct StreakCalendarView: View {
     var viewModel: AccountabilityViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
 
     @Query(sort: \DailyAccountability.date)
     private var allAccountability: [DailyAccountability]
@@ -29,33 +33,13 @@ struct StreakCalendarView: View {
     private var shareImage: StreakShareImage?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.xxl) {
-                // Streak stats header
-                streakStatsHeader
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // 7-day streak dots
-                currentWeekDots
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // 365-day heatmap
-                heatmapSection
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Streak freeze info
-                freezeSection
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Milestones
-                milestonesSection
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                Spacer().frame(height: TempoSpacing.bottomSafe + 60)
-            }
-            .padding(.top, TempoSpacing.lg)
+        TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
+            streakHero
+            currentWeekDots
+            heatmapSection
+            freezeSection
+            milestonesSection
         }
-        .tidePage()
         .navigationTitle("Streak")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
@@ -68,73 +52,96 @@ struct StreakCalendarView: View {
                 .accessibilityLabel("Share streak")
             }
         }
+        .tideCovered(shareImage != nil)
         .sheet(item: $shareImage) { image in
             StreakShareSheet(items: [image.uiImage])
         }
     }
 
-    // MARK: - Streak Stats Header
+    // MARK: - Streak Hero
 
-    private var streakStatsHeader: some View {
-        HStack(spacing: TempoSpacing.lg) {
-            // Current streak
-            VStack(spacing: TempoSpacing.xs) {
-                Text("\(viewModel.streakCount)")
-                    .font(.tempoScoreDisplaySmall)
-                    .foregroundStyle(Color.tempoSuccess)
+    private var nextMilestone: StreakMilestone? {
+        StreakMilestone.allCases.first { $0.rawValue > viewModel.streakCount }
+    }
 
-                Text("Current Streak")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+    private var streakHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Current streak").tideLabel()
+                Spacer(minLength: Tide.s2)
+                if viewModel.isStreakAtRisk {
+                    TideStatusPill(text: "At risk", tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
+                }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
 
-            // Longest streak
-            VStack(spacing: TempoSpacing.xs) {
-                Text("\(viewModel.longestStreak)")
-                    .font(.tempoScoreDisplaySmall)
-                    .foregroundStyle(Color.tempoAmber)
-
-                Text("Longest Streak")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                Image(systemName: "flame.fill")
+                    .font(Tide.title)
+                    .foregroundStyle(viewModel.streakCount > 0 ? Tide.streak : Tide.text3)
+                    .accessibilityHidden(true)
+                TideNumber(
+                    "\(viewModel.streakCount)",
+                    unit: viewModel.streakCount == 1 ? "day" : "days",
+                    size: Tide.numeralHero,
+                    relativeTo: .largeTitle,
+                    color: viewModel.streakCount > 0 ? Tide.text : Tide.text2
+                )
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Current streak, \(viewModel.streakCount) \(viewModel.streakCount == 1 ? "day" : "days")")
+
+            if let next = nextMilestone {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    TideLevelBar(progress: progress(toward: next), color: Tide.streak)
+                    HStack {
+                        Text(next.title).font(Tide.caption).foregroundStyle(Tide.text2)
+                        Spacer(minLength: Tide.s2)
+                        Text("\(next.rawValue - viewModel.streakCount) to go")
+                            .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                            .foregroundStyle(Tide.text)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                Text("Every milestone cleared.").font(Tide.caption).foregroundStyle(Tide.text2)
+            }
+
+            TideDivider()
+
+            HStack(alignment: .firstTextBaseline) {
+                Text("Longest streak").font(Tide.body).foregroundStyle(Tide.text2)
+                Spacer(minLength: Tide.s2)
+                TideNumber(
+                    "\(viewModel.longestStreak)",
+                    unit: viewModel.longestStreak == 1 ? "day" : "days",
+                    size: Tide.numeralM,
+                    relativeTo: .title,
+                    color: TideTone.amber
+                )
+            }
+            .accessibilityElement(children: .combine)
         }
+        .tideCard()
+    }
+
+    /// How far the streak has come between the last milestone reached and the next one.
+    private func progress(toward next: StreakMilestone) -> Double {
+        let previous = StreakMilestone.allCases.last { $0.rawValue <= viewModel.streakCount }?.rawValue ?? 0
+        let span = Double(next.rawValue - previous)
+        guard span > 0 else {
+            return 0
+        }
+        return min(1, max(0, Double(viewModel.streakCount - previous) / span))
     }
 
     // MARK: - Current Week Dots
 
     private var currentWeekDots: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("THIS WEEK")
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.caption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "This week")
 
-            HStack(spacing: TempoSpacing.md) {
-                StreakDotsView(days: currentWeekStatuses)
-                Spacer()
-                if viewModel.isStreakAtRisk {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoAmber)
-                        Text("AT RISK")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoAmber)
-                    }
-                }
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            TideStreakDots(days: currentWeekStatuses)
+                .tideCard(padding: Tide.s4)
         }
     }
 
@@ -175,16 +182,11 @@ struct StreakCalendarView: View {
     // MARK: - Heatmap Section
 
     private var heatmapSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("365-DAY HISTORY")
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.caption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "365-day history")
 
-            HeatmapCalendarView(data: heatmapData)
-                .padding(TempoSpacing.cardPadding)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            TideHeatmap(data: heatmapData)
+                .tideCard(padding: Tide.s4)
         }
     }
 
@@ -206,44 +208,36 @@ struct StreakCalendarView: View {
     // Per STATE_MACHINES.md Section 7 — freeze mechanics.
 
     private var freezeSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("STREAK FREEZES")
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.caption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        let available = viewModel.overallStreak?.freezesAvailable ?? 2
+        let remaining = max(0, available - (viewModel.overallStreak?.freezesUsed ?? 0))
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s4))
 
-            HStack(spacing: TempoSpacing.lg) {
-                let freezesRemaining = (viewModel.overallStreak?.freezesAvailable ?? 2)
-                    - (viewModel.overallStreak?.freezesUsed ?? 0)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Streak freezes")
 
-                // Freeze icons
-                HStack(spacing: TempoSpacing.sm) {
-                    ForEach(0 ..< (viewModel.overallStreak?.freezesAvailable ?? 2), id: \.self) { index in
-                        Image(systemName: index < freezesRemaining ? "snowflake" : "snowflake")
-                            .font(.system(size: 24))
-                            .foregroundStyle(
-                                index < freezesRemaining
-                                    ? Color.tempoElectric
-                                    : Color.tempoTextTertiary.opacity(0.3)
-                            )
+            layout {
+                HStack(spacing: Tide.s2) {
+                    ForEach(0 ..< available, id: \.self) { index in
+                        Image(systemName: "snowflake")
+                            .font(Tide.title2)
+                            .foregroundStyle(index < remaining ? TideTone.sky : Tide.text3.opacity(0.4))
                     }
                 }
+                .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text("\(max(0, freezesRemaining)) freezes remaining")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("\(remaining) freezes remaining")
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text("Freezes protect your streak on missed days. Resets monthly.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-
-                Spacer()
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tideCard(padding: Tide.s4)
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -252,77 +246,66 @@ struct StreakCalendarView: View {
     // Per STATE_MACHINES.md Section 7 — milestone system.
 
     private var milestonesSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("MILESTONES")
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.caption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Milestones")
 
             VStack(spacing: 0) {
                 ForEach(StreakMilestone.allCases, id: \.rawValue) { milestone in
                     milestoneRow(milestone)
 
                     if milestone != StreakMilestone.allCases.last {
-                        Divider()
-                            .padding(.leading, 56)
+                        TideDivider().padding(.leading, Tide.s4)
                     }
                 }
             }
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .tideCard(padding: 0)
         }
     }
 
     private func milestoneRow(_ milestone: StreakMilestone) -> some View {
         let achieved = viewModel.streakCount >= milestone.rawValue
-        let isNext = !achieved && (
-            StreakMilestone.allCases.first(where: { $0.rawValue > viewModel.streakCount })
-                == milestone
-        )
+        let isNext = milestone == nextMilestone
 
-        return HStack(spacing: TempoSpacing.md) {
-            // Icon
-            Image(systemName: achieved ? "trophy.fill" : "trophy")
-                .font(.system(size: 20))
-                .foregroundStyle(achieved ? Color.tempoAmber : Color.tempoTextTertiary)
-                .frame(width: 40)
+        return HStack(spacing: Tide.s3) {
+            TideIconTile(
+                systemName: achieved ? "trophy.fill" : "trophy",
+                tint: achieved ? TideTone.gold : Tide.text3
+            )
 
-            // Text
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(milestone.title)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(achieved ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+                    .font(Tide.headline)
+                    .foregroundStyle(achieved ? Tide.text : Tide.text2)
 
                 if milestone.xpBonus > 0 {
                     Text("+\(milestone.xpBonus) XP")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(achieved ? Color.tempoElectric : Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(achieved ? mood.accent : Tide.text3)
                 }
 
                 if milestone.grantsBonusHour {
                     Text("Grants bonus hour (PS5 time 1h earlier)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(achieved ? Color.tempoSuccess : Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(achieved ? TideTone.mint : Tide.text3)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            // Status
             if achieved {
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.tempoSuccess)
+                    .font(Tide.title2)
+                    .foregroundStyle(TideTone.mint)
+                    .accessibilityLabel("Reached")
             } else if isNext {
-                Text("\(milestone.rawValue - viewModel.streakCount) to go")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                TideStatusPill(text: "\(milestone.rawValue - viewModel.streakCount) to go", tint: mood.accent)
             }
         }
-        .padding(.horizontal, TempoSpacing.cardPadding)
-        .padding(.vertical, TempoSpacing.md)
-        .opacity(achieved ? 1.0 : 0.6)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .opacity(achieved || isNext ? 1 : 0.6)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Share Image
@@ -398,6 +381,9 @@ struct StreakShareSheet: UIViewControllerRepresentable {
 
 // MARK: - StreakShareCard
 
+/// The picture people post. It is drawn offscreen at a fixed 1080×1350, so its
+/// sizes are export pixels rather than layout tokens: a fixed palette (no mood,
+/// no Dynamic Type) on the Tide ink, with the same condensed numerals as the app.
 private struct StreakShareCard: View {
     let currentStreak: Int
     let longestStreak: Int
@@ -405,21 +391,21 @@ private struct StreakShareCard: View {
     let weeklyConsistency: Double
 
     var body: some View {
-        VStack(spacing: 48) {
-            VStack(spacing: 16) {
+        VStack(spacing: 56) {
+            VStack(spacing: 8) {
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 120, weight: .bold))
-                    .foregroundStyle(Color.orange)
+                    .font(Tide.numeral(120, .bold))
+                    .foregroundStyle(Tide.streak)
                 Text("\(currentStreak)")
-                    .font(.system(size: 200, weight: .black, design: .rounded))
-                    .foregroundStyle(.white)
+                    .font(Tide.numeral(280, .heavy))
+                    .foregroundStyle(Tide.text)
                 Text("DAY STREAK")
-                    .font(.system(size: 44, weight: .bold))
-                    .tracking(8)
-                    .foregroundStyle(.white.opacity(0.8))
+                    .font(Tide.numeral(44, .bold))
+                    .tracking(10)
+                    .foregroundStyle(Tide.text2)
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: 24) {
                 HStack(spacing: 24) {
                     statTile(label: "LONGEST", value: "\(longestStreak)d")
                     statTile(label: "THIS WEEK", value: "\(Int(weeklyConsistency * 100))%")
@@ -427,37 +413,51 @@ private struct StreakShareCard: View {
                 monthHeatmap
             }
             .padding(40)
-            .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .background(Tide.fill, in: .rect(cornerRadius: 40, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 40, style: .continuous)
+                    .strokeBorder(Tide.hairline, lineWidth: 2)
+            )
 
-            Text("Tracked with Tempo")
-                .font(.system(size: 28, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
+            Text("TRACKED WITH TEMPO")
+                .font(Tide.numeral(26, .semibold))
+                .tracking(6)
+                .foregroundStyle(Tide.text3)
         }
         .padding(64)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
+        .background(
+            ZStack {
+                Tide.ink
+                RadialGradient(
+                    colors: [Tide.streak.opacity(0.32), .clear],
+                    center: .init(x: 0.5, y: 0.18),
+                    startRadius: 0,
+                    endRadius: 760
+                )
+            }
+        )
     }
 
     private func statTile(label: String, value: String) -> some View {
         VStack(spacing: 8) {
             Text(label)
-                .font(.system(size: 24, weight: .semibold))
-                .tracking(4)
-                .foregroundStyle(.white.opacity(0.5))
+                .font(Tide.numeral(24, .semibold))
+                .tracking(5)
+                .foregroundStyle(Tide.text3)
             Text(value)
-                .font(.system(size: 64, weight: .bold))
-                .foregroundStyle(.white)
+                .font(Tide.numeral(88, .bold))
+                .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
     }
 
     private var monthHeatmap: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
-        return LazyVGrid(columns: columns, spacing: 8) {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 7)
+        return LazyVGrid(columns: columns, spacing: 10) {
             ForEach(month, id: \.day) { item in
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 8)
                     .fill(cellColor(item.completion))
                     .frame(height: 56)
             }
@@ -466,14 +466,14 @@ private struct StreakShareCard: View {
 
     private func cellColor(_ completion: Double) -> Color {
         if completion >= 0.99 {
-            return Color.green
+            return TideTone.mint
         }
         if completion >= 0.5 {
-            return Color.green.opacity(0.6)
+            return TideTone.mint.opacity(0.55)
         }
         if completion > 0 {
-            return Color.orange.opacity(0.5)
+            return TideTone.amber.opacity(0.5)
         }
-        return Color.white.opacity(0.08)
+        return Tide.fill
     }
 }

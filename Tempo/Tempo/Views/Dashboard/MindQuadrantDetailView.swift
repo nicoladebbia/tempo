@@ -6,7 +6,6 @@
 //
 //
 
-import Charts
 import SwiftData
 import SwiftUI
 
@@ -20,6 +19,10 @@ struct MindQuadrantDetailView: View {
     let data: MindQuadrantData
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var showFocusTimer = false
     @State
@@ -59,18 +62,13 @@ struct MindQuadrantDetailView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                progressHeroSection
-                todaySessionsSection
-                startSessionButton
-                upcomingExamsSection
-                studyTrendSection
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+        TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
+            progressHeroSection
+            todaySessionsSection
+            startSessionButton
+            upcomingExamsSection
+            studyTrendSection
         }
-        .tidePage()
         .navigationTitle("Mind")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -80,54 +78,46 @@ struct MindQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.4 — Progress Hero
 
     private var progressHeroSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            // Study time + target
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
-                Text(data.formattedStudyTime)
-                    .font(.tempoScoreDisplay)
-                    .foregroundStyle(Color.tempoTextPrimary)
+        let percent = Int((min(data.studyProgress, 1.0) * 100).rounded())
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
 
-                Text("/ \(data.formattedStudyTarget) target")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-
-            // Full-width progress bar
-            HStack(spacing: TempoSpacing.sm) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoBorder).frame(height: 8)
-                        Capsule().fill(Color.tempoElectric)
-                            .frame(width: geo.size.width * min(data.studyProgress, 1.0), height: 8)
-                    }
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            layout {
+                // Study time + target
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Studied today").tideLabel()
+                    TideNumber(data.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
+                    Text("of \(data.formattedStudyTarget) target")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
-                .frame(height: 8)
+                .accessibilityElement(children: .combine)
 
-                Text("\(Int(min(data.studyProgress, 1.0) * 100))%")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(width: 40, alignment: .trailing)
+                Spacer(minLength: Tide.s2)
+
+                TideDial(score: percent, caption: "Target", diameter: Tide.dialSheet)
+                    .accessibilityLabel("Study target")
+                    .accessibilityValue("\(percent) percent")
             }
 
             // Drill sergeant quip
             Text(studyQuip)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .italic()
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             // Streak badge
             if data.currentStreakDays >= 2 {
-                HStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.tempoAmber)
-                    Text("\(data.currentStreakDays)-day streak")
-                        .font(.tempoCallout)
-                        .foregroundStyle(data.currentStreakDays >= 7 ? Color.tempoAmber : Color.tempoTextSecondary)
-                }
+                TideStatusPill(
+                    text: "\(data.currentStreakDays)-day streak",
+                    tint: data.currentStreakDays >= 7 ? Tide.streak : Tide.text2,
+                    systemImage: "flame.fill"
+                )
             }
         }
-        .padding(.top, TempoSpacing.lg)
+        .tideCard()
     }
 
     // MARK: - Today's Sessions
@@ -135,57 +125,52 @@ struct MindQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.4 — Today's Sessions
 
     private var todaySessionsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("TODAY'S SESSIONS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.bottom, TempoSpacing.md)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Today's sessions")
 
-            if todaysSessions.isEmpty {
-                Text("No study sessions yet")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, TempoSpacing.lg)
+            let sessions = todaysSessions
+            if sessions.isEmpty {
+                TideEmptyPanel(systemImage: "book.closed", title: "No study sessions yet")
+                    .tideCard()
             } else {
-                ForEach(Array(todaysSessions.enumerated()), id: \.element.id) { index, session in
-                    sessionRow(session)
-                    if index < todaysSessions.count - 1 {
-                        Divider()
-                            .background(Color.tempoDivider)
+                VStack(spacing: 0) {
+                    ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
+                        sessionRow(session)
+                        if index < sessions.count - 1 {
+                            TideDivider().padding(.leading, Tide.s4)
+                        }
                     }
                 }
+                .tideCard(padding: 0)
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
     private func sessionRow(_ session: StudySession) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: "book.fill")
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoElectric)
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: "book.fill", tint: mood.accent)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(session.subject ?? "Focus Session")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(2)
                 Text(rangeText(session))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            Text("\(session.durationMinutes)m")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
+            TideNumber(
+                "\(session.durationMinutes)", unit: "m", size: Tide.numeralS, relativeTo: .headline,
+                weight: .semibold
+            )
         }
-        .frame(minHeight: 52)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .combine)
     }
 
     private func rangeText(_ session: StudySession) -> String {
@@ -206,18 +191,10 @@ struct MindQuadrantDetailView: View {
         Button {
             showFocusTimer = true
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 14))
-                Text("Start Study Session")
-                    .font(.tempoCallout)
-            }
-            .foregroundStyle(Color.tempoTextInverse)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(Color.tempoElectric)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            Label("Start Study Session", systemImage: "play.fill")
         }
+        .buttonStyle(.tidePrimary)
+        .tideCovered(showFocusTimer)
         .sheet(isPresented: $showFocusTimer) {
             NavigationStack {
                 FocusTimerView(viewModel: AccountabilityViewModel(engine: services.accountabilityEngine))
@@ -230,64 +207,60 @@ struct MindQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.4 — Upcoming Exams
 
     private var upcomingExamsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("UPCOMING EXAMS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.bottom, TempoSpacing.md)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Upcoming exams")
 
-            if data.exams.isEmpty {
-                Text("No upcoming exams")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.vertical, TempoSpacing.sm)
-            } else {
-                ForEach(data.exams) { exam in
-                    examRow(exam)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                if data.exams.isEmpty {
+                    Text("No upcoming exams")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                } else {
+                    ForEach(data.exams) { exam in
+                        examRow(exam)
+                    }
                 }
-            }
 
-            // Add exam button
-            Button {
-                showAddExam = true
-            } label: {
-                Text("+ Add Exam")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoElectric)
+                // Add exam button
+                Button {
+                    showAddExam = true
+                } label: {
+                    Label("Add exam", systemImage: "plus")
+                }
+                .buttonStyle(.tideGlass)
             }
-            .padding(.top, TempoSpacing.sm)
-        }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-        .sheet(isPresented: $showAddExam) {
-            NavigationStack {
-                AddExamSheet(calendar: services.calendar)
+            .tideCard()
+            .tideCovered(showAddExam)
+            .sheet(isPresented: $showAddExam) {
+                NavigationStack {
+                    AddExamSheet(calendar: services.calendar)
+                }
             }
         }
     }
 
     private func examRow(_ exam: ExamData) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Circle()
                 .fill(examDotColor(exam.daysUntil))
-                .frame(width: 12, height: 12)
+                .frame(width: Tide.s3, height: Tide.s3)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(exam.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
 
                 Text("\(TempoDateFormatters.dateOnly.string(from: exam.date)) (\(exam.formattedCountdown))")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
         }
-        .frame(minHeight: 44)
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Study Trend Chart
@@ -295,47 +268,40 @@ struct MindQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.4 — Study Trend Chart
 
     private var studyTrendSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("STUDY TREND")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Chart(studyTrend) { point in
-                BarMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Minutes", point.minutes)
-                )
-                .foregroundStyle(Color.tempoElectric)
-                .cornerRadius(4)
-
-                RuleMark(y: .value("Target", data.studyTargetMinutes))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-            }
-            .frame(height: 160)
-
-            // Weekly total
-            let weekTotal = studyTrend.reduce(0) { $0 + $1.minutes }
-            Text("Weekly total: \(formatMinutes(weekTotal))")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+        let trend = studyTrend
+        let weekTotal = trend.reduce(0) { $0 + $1.minutes }
+        let bars = trend.map {
+            TempoBarChartSeries<String>.Bar(
+                label: TempoDateFormatters.shortDayOfWeek.string(from: $0.date), value: Double($0.minutes)
+            )
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        let series = TempoBarChartSeries(id: "study", label: "Study", color: mood.accent, bars: bars)
+
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Study trend", trailing: "Weekly total \(formatMinutes(weekTotal))")
+
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideBarChart(
+                    series: [series],
+                    height: Tide.chartHeight,
+                    emphasis: bars.last?.label,
+                    target: Double(data.studyTargetMinutes)
+                )
+                .accessibilityLabel("Study minutes, last 7 days")
+                .accessibilityValue(bars.map { "\($0.label) \(Int($0.value))" }.joined(separator: ", "))
+
+                HStack(spacing: Tide.s2) {
+                    RoundedRectangle(cornerRadius: Tide.hair)
+                        .fill(Tide.text3)
+                        .frame(width: Tide.s4, height: Tide.rule)
+                    Text("Daily target \(data.formattedStudyTarget)")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                }
+                .accessibilityHidden(true)
+            }
+            .tideCard()
+        }
     }
 
     // MARK: - Helpers
@@ -353,9 +319,9 @@ struct MindQuadrantDetailView: View {
 
     private func examDotColor(_ daysUntil: Int) -> Color {
         switch daysUntil {
-        case ...7: Color.tempoError
-        case 8 ... 14: Color.tempoWarning
-        default: Color.tempoTextTertiary
+        case ...7: Tide.danger
+        case 8 ... 14: TideTone.amber
+        default: Tide.text3
         }
     }
 
@@ -398,18 +364,29 @@ struct AddExamSheet: View {
 
     var body: some View {
         Form {
-            Section("Exam Details") {
+            Section {
                 TextField("Exam name", text: $examName)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit)
                 DatePicker("Date", selection: $examDate, in: Date()..., displayedComponents: .date)
+                    .font(Tide.body)
+                    .frame(minHeight: Tide.hit)
+            } header: {
+                Text("Exam details").tideLabel(Tide.text3)
             }
+            .tideListRow()
+
             if let error = saveError {
                 Section {
                     Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                 }
+                .tideListRow()
             }
         }
+        .tidePage()
         .navigationTitle("Add Exam")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
