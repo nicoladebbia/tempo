@@ -156,6 +156,27 @@ final class TodaySnapshotTests: XCTestCase {
         XCTAssertEqual(TodayNextAction.choose(for: snapshot(workout: .none), hour: 9), .setUpTasks)
     }
 
+    func testDayOneWithNoTrackerStartsWithAMealNotRecovery() {
+        var fresh = snapshot(workout: .rest, recovery: nil)
+        fresh.recovery.hasSource = false
+        fresh.fuel.calories = 0
+        XCTAssertEqual(TodayNextAction.choose(for: fresh, hour: 21), .firstMeal)
+        fresh.workout.status = .none
+        XCTAssertEqual(TodayNextAction.choose(for: fresh, hour: 9), .firstMeal)
+        // Once something is eaten, a rest day with no tracker moves on to
+        // what is left; it never offers a recovery page with nothing in it.
+        fresh.workout.status = .rest
+        fresh.fuel.calories = 600
+        XCTAssertEqual(TodayNextAction.choose(for: fresh, hour: 21), .setUpTasks)
+    }
+
+    func testFirstDayIsTheDayTheProfileWasCreated() {
+        let now = Date()
+        XCTAssertTrue(DashboardViewModel.isFirstDay(createdAt: now, now: now))
+        XCTAssertFalse(DashboardViewModel.isFirstDay(createdAt: now.addingTimeInterval(-3 * 86400), now: now))
+        XCTAssertFalse(DashboardViewModel.isFirstDay(createdAt: nil, now: now))
+    }
+
     // MARK: Cache and first frame
 
     private func temporaryCache() -> TodayCache {

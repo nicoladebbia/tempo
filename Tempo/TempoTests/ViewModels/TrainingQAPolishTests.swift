@@ -71,9 +71,4 @@ final class TrainingQAPolishTests: XCTestCase {
         try context.save()
         XCTAssertEqual(vm.monthlyReviewDue(modelContext: context, now: now), "2026-09")
     }
-
-    func testDashboardSaysResumeForInProgressWorkout() {
-        XCTAssertEqual(DashboardViewModel.workoutActionTitle(name: "Pull", inProgress: true), "Resume Pull Workout")
-        XCTAssertEqual(DashboardViewModel.workoutActionTitle(name: "Pull", inProgress: false), "Start Pull Workout")
-    }
 }

@@ -32,96 +32,6 @@ final class DashboardViewModel {
     private(set) var mind: MindQuadrantData = .empty
     private(set) var move: MoveQuadrantData = .empty
 
-    // MARK: - Quick Actions
-
-    // Context-aware action buttons shown below the quadrant grid.
-    // Maximum 2 visible at a time. Priority-ordered by what's most actionable now.
-
-    struct QuickAction: Identifiable {
-        let id = UUID()
-        let title: String
-        let icon: String
-        let target: Target
-        let color: Color
-
-        /// Where the button goes.
-        enum Target: Equatable {
-            case tab(AppTab)
-            case today(TodayRoute)
-            case logMeal
-        }
-    }
-
-    /// "Resume" for a session that was started and not finished, else "Start".
-    static func workoutActionTitle(name: String, inProgress: Bool) -> String {
-        "\(inProgress ? "Resume" : "Start") \(name) Workout"
-    }
-
-    var quickActions: [QuickAction] {
-        var actions: [QuickAction] = []
-
-        // Workout planned but not done
-        if move.workoutStatus == .planned, let name = move.workoutName {
-            actions.append(QuickAction(
-                title: Self.workoutActionTitle(name: name, inProgress: move.workoutInProgress),
-                icon: "dumbbell.fill",
-                target: .tab(.train),
-                color: .tempoAmber
-            ))
-        }
-
-        // Study target not met
-        if mind.studyMinutesToday < mind.studyTargetMinutes, mind.studyTargetMinutes > 0 {
-            let remaining = mind.studyTargetMinutes - mind.studyMinutesToday
-            actions.append(QuickAction(
-                title: "Start Study Timer (\(remaining)m left)",
-                icon: "timer",
-                target: .today(.lockdown),
-                color: .tempoElectric
-            ))
-        }
-
-        // No meals logged
-        if let logged = fuel.mealsLogged, logged == 0, fuel.isConnected {
-            actions.append(QuickAction(
-                title: "Log a Meal",
-                icon: "fork.knife",
-                target: .logMeal,
-                color: .tempoViolet
-            ))
-        } else if !fuel.isConnected {
-            actions.append(QuickAction(
-                title: "Log a Meal",
-                icon: "fork.knife",
-                target: .logMeal,
-                color: .tempoViolet
-            ))
-        }
-
-        // Non-negotiables incomplete
-        if nonNegotiablesDone < nonNegotiablesTotal, nonNegotiablesTotal > 0 {
-            let remaining = nonNegotiablesTotal - nonNegotiablesDone
-            actions.append(QuickAction(
-                title: "\(remaining) Non-Negotiable\(remaining > 1 ? "s" : "") Left",
-                icon: "lock.fill",
-                target: .today(.lockdown),
-                color: .tempoSignal
-            ))
-        }
-
-        // Recovery check when low
-        if let recovery = body.recoveryScore, recovery < 40 {
-            actions.append(QuickAction(
-                title: "View Recovery Plan",
-                icon: "heart.fill",
-                target: .today(.recovery),
-                color: .tempoRecoveryRed
-            ))
-        }
-
-        return Array(actions.prefix(2))
-    }
-
     // MARK: - Weather Data
 
     // Lightweight weather info for hydration/workout recommendations.
@@ -1182,6 +1092,21 @@ final class DashboardViewModel {
     // Generates all applicable insights based on current data.
     // Insights are ordered by priority — urgent warnings first, patterns second, celebrations last.
 
+    /// True on the day the profile was created.
+    nonisolated static func isFirstDay(createdAt: Date?, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let createdAt else {
+            return false
+        }
+        return calendar.isDate(createdAt, inSameDayAs: now)
+    }
+
+    private func isFirstDay() -> Bool {
+        let profile = try? fuelContext?.fetch(FetchDescriptor<UserProfile>(
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
+        )).first
+        return Self.isFirstDay(createdAt: profile?.createdAt)
+    }
+
     private func generateAllInsights() -> [DashboardInsight] {
         var result: [DashboardInsight] = []
 
@@ -1266,8 +1191,20 @@ final class DashboardViewModel {
             ))
         }
 
-        // 7. Nutrition deficit warning
-        if let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
+        // 7. Nutrition deficit warning. Not on a person's first day: with
+        // nothing logged yet, "Only 0 of 2,040 kcal" is a scolding for not
+        // having started, so day one gets a way in instead.
+        let firstDay = isFirstDay()
+        if firstDay, (fuel.caloriesConsumed ?? 0) == 0 {
+            result.append(DashboardInsight(
+                text: "Day one. Log your first meal and your numbers start filling in.",
+                icon: "sparkles",
+                detailTitle: "Getting Started",
+                detailFinding: "Nothing is logged yet, so there is nothing to judge. Your score, targets and insights build from what you log and what your tracker measures.",
+                detailRecommendation: "Log your next meal, then set up training and your daily tasks. Tomorrow this page will have something to say."
+            ))
+        }
+        if !firstDay, let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
             let ratio = Double(consumed) / Double(target)
             let hour = Calendar.current.component(.hour, from: Date())
             if ratio < 0.4, hour >= 16 {
@@ -1282,7 +1219,7 @@ final class DashboardViewModel {
         }
 
         // 8. Protein behind target
-        if let protein = fuel.proteinGrams, let target = fuel.proteinTarget, target > 0 {
+        if !firstDay, let protein = fuel.proteinGrams, let target = fuel.proteinTarget, target > 0 {
             let remaining = target - protein
             if remaining > 40 {
                 let hour = Calendar.current.component(.hour, from: Date())

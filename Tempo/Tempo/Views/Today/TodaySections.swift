@@ -63,7 +63,7 @@ struct TodayHeader: View {
                 }
                 .padding(.horizontal, Tide.s4)
                 .frame(minHeight: Tide.hit)
-                .glassEffect(.regular.tint(Tide.ink.opacity(0.3)), in: .capsule)
+                .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(snapshot.streakDays) day streak")
                 .accessibilityIdentifier("today.streak")
@@ -73,7 +73,7 @@ struct TodayHeader: View {
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .frame(width: Tide.hit, height: Tide.hit)
-                    .glassEffect(.regular.tint(Tide.ink.opacity(0.3)).interactive(), in: .circle)
+                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Settings")
@@ -176,6 +176,7 @@ struct TodayNextCard: View {
         case let .workout(name, _): name
         case let .meal(meal): meal.name
         case .rest: "Rest day"
+        case .firstMeal: "Log today's first meal"
         case .focus: "Study block"
         case let .tasks(left): left == 1 ? "1 task left" : "\(left) tasks left"
         case .setUpTasks: "Set your daily tasks"
@@ -191,6 +192,8 @@ struct TodayNextCard: View {
             "\(meal.calories.formatted()) kcal · \(meal.protein) g protein"
         case .rest:
             "No session today. Recovery sets up tomorrow."
+        case .firstMeal:
+            "Nothing logged yet today. One meal starts your score and your targets."
         case let .focus(left):
             "\(left) min left to reach today's study target."
         case .tasks:
@@ -207,6 +210,7 @@ struct TodayNextCard: View {
         case let .workout(_, resume): (resume ? "Resume session" : "Start session", "play.fill")
         case .meal: ("Open meal", "fork.knife")
         case .rest: ("Open recovery", "heart.fill")
+        case .firstMeal: ("Log a meal", "fork.knife")
         case .focus: ("Start focus timer", "timer")
         case .tasks: ("Open tasks", "checklist")
         case .setUpTasks: ("Choose tasks", "plus")
@@ -219,6 +223,7 @@ struct TodayNextCard: View {
         case .workout: actions.startWorkout()
         case let .meal(meal): actions.openMeal(meal)
         case .rest: actions.open(.recovery)
+        case .firstMeal: actions.logMeal()
         case .focus: actions.startFocus()
         case .tasks: actions.open(.lockdown)
         case .setUpTasks: actions.setUpTasks()
@@ -246,6 +251,8 @@ struct TodayBodyRow: View {
                 recovery
                 sleep
             }
+            // The row is as tall as its taller tile; both tiles fill it.
+            .fixedSize(horizontal: false, vertical: true)
             if !snapshot.recovery.hasSource {
                 Button(action: actions.connectWearable) {
                     Label("Connect Whoop", systemImage: "waveform.path.ecg").frame(maxWidth: .infinity)
@@ -327,7 +334,8 @@ struct TodayTile<Content: View>: View {
                 }
                 content
             }
-            .frame(maxWidth: .infinity, minHeight: Tide.hit * 2, alignment: .topLeading)
+            // Fills the row's height, so two tiles side by side always match.
+            .frame(maxWidth: .infinity, minHeight: Tide.hit * 2, maxHeight: .infinity, alignment: .topLeading)
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
@@ -343,7 +351,7 @@ struct TodayTile<Content: View>: View {
 struct TodayPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? Tide.pressCard : 1)
             .animation(Tide.snap, value: configuration.isPressed)
     }
 }
@@ -569,6 +577,7 @@ struct TodayMindMoveRow: View {
             study
             move
         }
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var study: some View {

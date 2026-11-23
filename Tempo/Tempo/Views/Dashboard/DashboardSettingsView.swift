@@ -177,18 +177,6 @@ struct DashboardSettingsView: View {
 
                 AIFeaturesSettingsCard()
 
-                SettingsGroupCard(title: "Appearance") {
-                    NavigationLink {
-                        AppearanceSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "paintbrush.fill", iconTint: .tempoAmber,
-                            title: "Accent Color", subtitle: accentSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
                 SettingsGroupCard(title: "Your data") {
                     NavigationLink {
                         DataExportView()
@@ -455,19 +443,12 @@ struct DashboardSettingsView: View {
         }
     }
 
-    private var accentSubtitle: String {
-        AccentColorOption(rawValue: accentColorChoice)?.displayName ?? "Signal Red"
-    }
-
     private var profileStatsLine: String {
         let level = profile?.currentLevel ?? 1
         let xp = profile?.totalXP ?? 0
         let xpStr = xp >= 1000 ? String(format: "%.1fk XP", Double(xp) / 1000) : "\(xp) XP"
         return "Lvl \(level) · \(xpStr)"
     }
-
-    @AppStorage("accentColorChoice")
-    private var accentColorChoice: String = AccentColorOption.signalRed.rawValue
 
     private func openSystemSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) {

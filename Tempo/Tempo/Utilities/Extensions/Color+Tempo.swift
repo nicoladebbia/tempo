@@ -40,21 +40,10 @@ extension Color {
     static let tempoElectric = Color("tempo-electric")
     static let tempoViolet = Color("tempo-violet")
 
-    /// The user-selected accent color (Appearance settings). Resolves the
-    /// `accentColorChoice` UserDefaults key written by the accent picker.
-    /// Falls back to Signal Red. NOTE: this is a static read — SwiftUI views
-    /// that must re-tint live when the choice changes should observe it via
-    /// `@AppStorage("accentColorChoice")` and pass the resolved color into
-    /// `.tint(...)`, since a `static let`/computed `Color` won't trigger a
-    /// re-render on its own. See `ContentView.accentColor`.
-    static var tempoAccent: Color {
-        let raw = UserDefaults.standard.string(forKey: "accentColorChoice")
-        switch raw {
-        case "electric_blue": return .tempoElectric
-        case "success_green": return .tempoSuccess
-        default: return .tempoSignal
-        }
-    }
+    /// The accent of the screens that have not been rebuilt yet. It was a
+    /// user setting (Appearance, removed 2026-11-22); the rebuilt screens take
+    /// their accent from the day's mood (`TideMood`).
+    static let tempoAccent = Color.tempoSignal
 
     // MARK: - Semantic
 

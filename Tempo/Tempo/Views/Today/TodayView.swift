@@ -167,7 +167,8 @@ struct TodayView: View {
                     onDismiss: { showMilestoneCelebration = false },
                     onShowProgress: milestone == .day30 ? {
                         showMilestoneCelebration = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        Task {
+                            try? await Task.sleep(for: Tide.sheetHandoff)
                             showProgressReport = true
                         }
                     } : nil
@@ -275,18 +276,9 @@ struct TodayView: View {
             .animation(Tide.snap, value: snapshot)
         }
         .scrollIndicators(.hidden)
-        // No bar on this page: fade content out under the status bar instead
-        // of letting cards slide behind the clock.
-        .mask {
-            GeometryReader { proxy in
-                VStack(spacing: 0) {
-                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                        .frame(height: proxy.safeAreaInsets.top)
-                    Color.black
-                }
-                .ignoresSafeArea()
-            }
-        }
+        // The system's own fade where content passes under the status bar and
+        // the glass tab bar, so text behind the bar never fights its labels.
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .refreshable {
             // Pull-to-refresh is the user asking for fresh data: skip the
             // in-memory Whoop response cache.
@@ -401,7 +393,7 @@ struct TodayView: View {
     @ViewBuilder
     private var prompts: some View {
         if showSignInNudge {
-            SignInPromptCard(onDismiss: { signInNudgeDismissedAt = Date().timeIntervalSince1970 })
+            SignInPromptCard(style: .tide, onDismiss: { signInNudgeDismissedAt = Date().timeIntervalSince1970 })
                 .transition(.opacity)
         }
         if !hasCompletedSetup {

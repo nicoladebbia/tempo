@@ -40,7 +40,7 @@ extension View {
     func tideCard(padding: CGFloat = Tide.s5, radius: CGFloat = Tide.cardRadius) -> some View {
         self.padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular.tint(Tide.ink.opacity(0.34)), in: .rect(cornerRadius: radius))
+            .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: radius))
     }
 
     /// Small tracked capitals for section and field labels.
@@ -217,7 +217,7 @@ struct TidePrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, Tide.s5)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(mood.accent.opacity(isEnabled ? 1 : 0.4), in: .capsule)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
             .animation(Tide.snap, value: configuration.isPressed)
             .contentShape(.capsule)
@@ -233,7 +233,7 @@ struct TideGlassButtonStyle: ButtonStyle {
             .padding(.horizontal, Tide.s4)
             .frame(minWidth: Tide.hit, minHeight: Tide.hit)
             .glassEffect(.regular.interactive(), in: .capsule)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
             .animation(Tide.snap, value: configuration.isPressed)
     }
 }

@@ -24,6 +24,10 @@ enum Tide {
     static let text2 = Color.white.opacity(secondaryOpacity)
     static let text3 = Color.white.opacity(tertiaryOpacity)
     static let hairline = Color.white.opacity(0.14)
+    /// Ink tints laid into glass so text on it stays readable: cards, and
+    /// the lighter one for small controls.
+    static let glassCard = ink.opacity(0.34)
+    static let glassControl = ink.opacity(0.3)
     static let fill = Color.white.opacity(0.09)
 
     // Data colours that keep their meaning whatever the mood is.
@@ -36,6 +40,8 @@ enum Tide {
 
     // MARK: Layout (4 pt grid)
 
+    /// Between two lines that read as one (a label and its value).
+    static let hair: CGFloat = 2
     static let s1: CGFloat = 4
     static let s2: CGFloat = 8
     static let s3: CGFloat = 12
@@ -56,10 +62,18 @@ enum Tide {
 
     /// The hero dial on Today.
     static let dialHero: CGFloat = 164
+    /// The dial inside a sheet.
+    static let dialSheet: CGFloat = 120
     /// Numeral sizes at the default text size: hero figure, tile figure, inline figure.
     static let numeralL: CGFloat = 44
     static let numeralM: CGFloat = 34
     static let numeralS: CGFloat = 20
+    /// A figure inside a sheet row: between tile and inline.
+    static let numeralSheet: CGFloat = 30
+    /// How lively the background field is behind a sheet (1 = a full page).
+    static let sheetEnergy: Double = 0.6
+    /// The "+" sheet at rest.
+    static let captureHeight: CGFloat = 430
     /// Leading symbol in a card or row.
     static let icon: CGFloat = 28
     /// Level bars: standard and slim.
@@ -88,6 +102,12 @@ enum Tide {
 
     /// Taps and state changes: quick, no bounce, interruptible.
     static let snap = Animation.spring(duration: 0.28, bounce: 0.0)
+    /// How far a pressed card and a pressed button dip.
+    static let pressCard: CGFloat = 0.98
+    static let pressButton: CGFloat = 0.97
+    /// Wait for one sheet to finish leaving before the next one comes up.
+    static let sheetHandoff: Duration = .milliseconds(500)
+
     /// Things that arrive or celebrate.
     static let lively = Animation.spring(duration: 0.38, bounce: 0.22)
     /// Values settling (dial sweep, bars).

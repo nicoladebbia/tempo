@@ -100,9 +100,9 @@ struct CaptureSheet: View {
                 .font(.title2)
                 .foregroundStyle(Tide.water)
                 .frame(width: Tide.hit, height: Tide.hit)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text("Water today").tideLabel()
-                TideNumber(waterTotal.formatted(), unit: "ml", size: 30)
+                TideNumber(waterTotal.formatted(), unit: "ml", size: Tide.numeralSheet)
             }
             Spacer(minLength: Tide.s2)
             Button {
@@ -147,8 +147,8 @@ struct CaptureSheet: View {
                 Image(systemName: action.icon)
                     .font(.title2)
                     .foregroundStyle(mood.accent)
-                    .frame(height: 28, alignment: .leading)
-                VStack(alignment: .leading, spacing: 2) {
+                    .frame(height: Tide.icon, alignment: .leading)
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(action.title).font(Tide.headline).foregroundStyle(Tide.text)
                     Text(action.detail).font(Tide.caption).foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -197,12 +197,12 @@ private struct CaptureHost: ViewModifier {
                     isPresented = false
                 }
                 .environment(\.tideMood, mood)
-                .presentationDetents([.height(430), .large])
+                .presentationDetents([.height(Tide.captureHeight), .large])
                 .presentationDragIndicator(.visible)
                 // Opaque field: plain glass let the page's colours (tab bar,
                 // buttons) bleed through as a glow along the bottom edge.
                 .presentationBackground {
-                    TideBackground(energy: 0.6).environment(\.tideMood, mood)
+                    TideBackground(energy: Tide.sheetEnergy).environment(\.tideMood, mood)
                 }
                 .preferredColorScheme(.dark)
             }

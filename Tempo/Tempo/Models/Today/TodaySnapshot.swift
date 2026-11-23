@@ -241,6 +241,8 @@ enum TodayNextAction: Equatable {
     case workout(name: String, resume: Bool)
     case meal(TodaySnapshot.Meal)
     case rest
+    /// Nothing logged and nothing measured yet (a first day): start with a meal.
+    case firstMeal
     case focus(minutesLeft: Int)
     case tasks(left: Int)
     case setUpTasks
@@ -261,7 +263,14 @@ enum TodayNextAction: Equatable {
         if let meal = snapshot.nextMeal, meal.imminent || workout.status != .rest {
             return .meal(meal)
         }
-        if workout.status == .rest {
+        // "Open recovery" needs a recovery reading to open. With no tracker
+        // and nothing eaten yet (day one), logging a meal is the useful start.
+        if !snapshot.recovery.hasSource, workout.status == .rest || workout.status == .none,
+           (snapshot.fuel.calories ?? 0) == 0
+        {
+            return .firstMeal
+        }
+        if workout.status == .rest, snapshot.recovery.hasSource {
             return .rest
         }
         if snapshot.studyLeft > 0 {
