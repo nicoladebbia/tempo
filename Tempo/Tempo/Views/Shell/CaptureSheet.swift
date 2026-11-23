@@ -199,6 +199,11 @@ private struct CaptureHost: ViewModifier {
                 .environment(\.tideMood, mood)
                 .presentationDetents([.height(430), .large])
                 .presentationDragIndicator(.visible)
+                // Opaque field: plain glass let the page's colours (tab bar,
+                // buttons) bleed through as a glow along the bottom edge.
+                .presentationBackground {
+                    TideBackground(energy: 0.6).environment(\.tideMood, mood)
+                }
                 .preferredColorScheme(.dark)
             }
             .sheet(isPresented: $showMeal, onDismiss: reloadFuel) {
