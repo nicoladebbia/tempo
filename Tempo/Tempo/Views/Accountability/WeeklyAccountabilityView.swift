@@ -17,13 +17,19 @@ import SwiftUI
 struct WeeklyAccountabilityView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .body)
+    private var dayDisc: CGFloat = 32
     @State
     private var weekData: WeeklyAccountabilityData?
     @State
     private var isLoading = true
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
             if isLoading {
                 loadingState
             } else if let data = weekData {
@@ -32,406 +38,356 @@ struct WeeklyAccountabilityView: View {
                 emptyState
             }
         }
-        .tidePage()
-        .navigationTitle("WEEKLY REPORT CARD")
+        .navigationTitle("Weekly Report Card")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadWeekData() }
     }
 
     // MARK: - Report Content
 
+    @ViewBuilder
     private func reportContent(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            // Period header
-            Text(data.periodText)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.top, TempoSpacing.sm)
+        // Overall grade and completion
+        overallGradeSection(data)
 
-            // Overall grade
-            overallGradeSection(data)
+        // Per-category grades
+        categoryGradesSection(data)
 
-            // Completion rate ring
-            completionRateSection(data)
+        // Daily breakdown
+        dailyBreakdownSection(data)
 
-            // Per-category grades
-            categoryGradesSection(data)
+        // Study time chart
+        studyTimeSection(data)
 
-            // Daily breakdown
-            dailyBreakdownSection(data)
+        // Streak history
+        streakSection(data)
 
-            // Study time chart
-            studyTimeSection(data)
-
-            // Streak history
-            streakSection(data)
-
-            // Best/worst days
-            highlightsSection(data)
-
-            Spacer().frame(height: TempoSpacing.xxxl)
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        // Best/worst days
+        highlightsSection(data)
     }
 
     // MARK: - Overall Grade
 
     private func overallGradeSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Text(data.overallGrade.letter)
-                .font(.system(size: 72, weight: .bold, design: .monospaced))
-                .foregroundStyle(gradeColor(data.overallGrade))
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
+        let percent = Int((data.overallCompletionRate * 100).rounded())
 
-            Text("Overall Accountability Grade")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            Text(data.periodText).tideLabel()
+
+            layout {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(data.overallGrade.letter)
+                        .font(Tide.numeral(Tide.numeralHero, .heavy))
+                        .foregroundStyle(gradeColor(data.overallGrade))
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .lineLimit(1)
+                    Text("Overall grade").tideLabel()
+                }
+                .accessibilityElement(children: .combine)
+
+                Spacer(minLength: Tide.s2)
+
+                TideDial(score: percent, caption: "Done", diameter: Tide.dialSheet)
+                    .accessibilityLabel("Completion")
+                    .accessibilityValue("\(percent) percent")
+            }
 
             Text(data.overallGrade.description)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-        }
-        .padding(.vertical, TempoSpacing.lg)
-    }
-
-    // MARK: - Completion Rate
-
-    private func completionRateSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            CircularRingView(
-                progress: data.overallCompletionRate,
-                color: completionColor(data.overallCompletionRate),
-                ringSize: .large,
-                label: "Completion",
-                valueText: "\(Int(data.overallCompletionRate * 100))%"
-            )
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("\(data.totalCompleted)/\(data.totalTasks) non-negotiables completed this week")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 1)
-        )
+        .tideCard()
     }
 
     // MARK: - Category Grades
 
     private func categoryGradesSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("CATEGORY GRADES")
-                .font(.tempoCaption2)
-                .tracking(1)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Category grades")
 
-            ForEach(data.categoryGrades, id: \.name) { category in
-                HStack(spacing: TempoSpacing.md) {
-                    Image(systemName: category.icon)
-                        .font(.system(size: 20))
-                        .foregroundStyle(gradeColor(category.grade))
-                        .frame(width: 28)
+            VStack(spacing: 0) {
+                ForEach(Array(data.categoryGrades.enumerated()), id: \.element.name) { index, category in
+                    categoryRow(category)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(category.name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        Text("\(category.daysCompleted)/7 days completed")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    if index < data.categoryGrades.count - 1 {
+                        TideDivider().padding(.leading, Tide.s4)
                     }
-
-                    Spacer()
-
-                    Text(category.grade.letter)
-                        .font(.system(size: 28, weight: .bold, design: .monospaced))
-                        .foregroundStyle(gradeColor(category.grade))
-
-                    // Mini progress bar
-                    LinearProgressBar(
-                        progress: Double(category.daysCompleted) / 7.0,
-                        color: gradeColor(category.grade),
-                        height: 4,
-                        showPercentage: false
-                    )
-                    .frame(width: 40)
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                        .stroke(Color.tempoBorder, lineWidth: 1)
-                )
             }
+            .tideCard(padding: 0)
         }
+    }
+
+    private func categoryRow(_ category: CategoryGrade) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: category.icon, tint: gradeColor(category.grade))
+
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(category.name)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+
+                Text("\(category.daysCompleted)/7 days completed")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+
+                TideLevelBar(
+                    progress: Double(category.daysCompleted) / 7.0,
+                    color: gradeColor(category.grade),
+                    height: Tide.barSlim
+                )
+                .padding(.top, Tide.s1)
+            }
+
+            Spacer(minLength: Tide.s2)
+
+            Text(category.grade.letter)
+                .font(Tide.numeral(Tide.numeralM, .bold))
+                .foregroundStyle(gradeColor(category.grade))
+        }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Daily Breakdown
 
     private func dailyBreakdownSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("DAILY BREAKDOWN")
-                .font(.tempoCaption2)
-                .tracking(1)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Daily breakdown")
 
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 ForEach(data.dailyResults, id: \.dayName) { day in
-                    VStack(spacing: TempoSpacing.xs) {
+                    VStack(spacing: Tide.s2) {
                         Text(day.dayName)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .tideLabel(Tide.text3)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
 
-                        ZStack {
-                            Circle()
-                                .fill(day.allComplete ? Color
-                                    .tempoSuccess : (day.completionRate > 0 ? Color.tempoAmber : Color.tempoBorder))
-                                .frame(width: 36, height: 36)
-
-                            if day.allComplete {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
-                            } else if day.completionRate > 0 {
-                                Text("\(Int(day.completionRate * 100))")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(.white)
-                            } else {
-                                Text("--")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                            }
-                        }
+                        dayMark(day)
 
                         Text("\(day.studyMinutes)m")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.axisFont)
+                            .foregroundStyle(Tide.text3)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
                     }
                     .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(dayDescription(day))
                 }
             }
-            .padding(TempoSpacing.md)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 1)
-            )
+            .tideCard(padding: Tide.s3)
         }
+    }
+
+    @ViewBuilder
+    private func dayMark(_ day: DailyResult) -> some View {
+        if day.allComplete {
+            Circle()
+                .fill(TideTone.mint)
+                .overlay(Image(systemName: "checkmark").font(Tide.label).foregroundStyle(Tide.ink))
+                .frame(width: dayDisc, height: dayDisc)
+        } else if day.completionRate > 0 {
+            Circle()
+                .fill(TideTone.amber.opacity(0.18))
+                .overlay(Circle().strokeBorder(TideTone.amber, lineWidth: Tide.rule))
+                .overlay(
+                    Text("\(Int(day.completionRate * 100))")
+                        .font(Tide.numeral(Tide.axisSize, .bold))
+                        .foregroundStyle(TideTone.amber)
+                )
+                .frame(width: dayDisc, height: dayDisc)
+        } else {
+            Circle()
+                .strokeBorder(Tide.hairline, lineWidth: Tide.rule)
+                .overlay(Text("--").font(Tide.numeral(Tide.axisSize, .bold)).foregroundStyle(Tide.text3))
+                .frame(width: dayDisc, height: dayDisc)
+        }
+    }
+
+    private func dayDescription(_ day: DailyResult) -> String {
+        let state = if day.allComplete {
+            "all done"
+        } else if day.completionRate > 0 {
+            "\(Int(day.completionRate * 100)) percent done"
+        } else {
+            "nothing logged"
+        }
+        return "\(day.dayFullName), \(state), \(day.studyMinutes) minutes studied"
     }
 
     // MARK: - Study Time
 
     private func studyTimeSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("STUDY TIME")
-                .font(.tempoCaption2)
-                .tracking(1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            VStack(spacing: TempoSpacing.md) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Total")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text(formatStudyTime(data.totalStudyMinutes))
-                            .font(.tempoTitle3)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("Daily Average")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Text(formatStudyTime(data.averageStudyMinutes))
-                            .font(.tempoTitle3)
-                            .foregroundStyle(Color.tempoElectric)
-                    }
-                }
-
-                // Mini bar chart for daily study
-                HStack(alignment: .bottom, spacing: TempoSpacing.xs) {
-                    ForEach(data.dailyResults, id: \.dayName) { day in
-                        VStack(spacing: 2) {
-                            let maxMinutes = max(1, data.dailyResults.map(\.studyMinutes).max() ?? 1)
-                            let height = max(4, CGFloat(day.studyMinutes) / CGFloat(maxMinutes) * 60)
-
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(day.studyMinutes > 0 ? Color.tempoElectric : Color.tempoBorder)
-                                .frame(height: height)
-
-                            Text(day.dayName)
-                                .font(.system(size: 9))
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(height: 80)
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 1)
-            )
+        let bars = data.dailyResults.map {
+            TempoBarChartSeries<String>.Bar(label: $0.dayName, value: Double($0.studyMinutes))
         }
+        let series = TempoBarChartSeries(id: "study", label: "Study", color: mood.accent, bars: bars)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s4))
+
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Study time")
+
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                layout {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text("Total").tideLabel()
+                        TideNumber(
+                            formatStudyTime(data.totalStudyMinutes), size: Tide.numeralM, relativeTo: .title
+                        )
+                    }
+                    .accessibilityElement(children: .combine)
+
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
+                    }
+
+                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s1) {
+                        Text("Daily average").tideLabel()
+                        TideNumber(
+                            formatStudyTime(data.averageStudyMinutes),
+                            size: Tide.numeralM, relativeTo: .title, color: mood.accent
+                        )
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
+                TideBarChart(
+                    series: [series],
+                    height: Tide.chartHeightCompact,
+                    emphasis: todayDayName
+                )
+                .accessibilityLabel("Study minutes per day")
+                .accessibilityValue(data.dailyResults.map { "\($0.dayName) \($0.studyMinutes)" }.joined(separator: ", "))
+            }
+            .tideCard()
+        }
+    }
+
+    /// The short name of today's weekday, matching `DailyResult.dayName` (Monday first, English).
+    private var todayDayName: String {
+        let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        return names[(weekday + 5) % 7]
     }
 
     // MARK: - Streak Section
 
     private func streakSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("STREAK")
-                .font(.tempoCaption2)
-                .tracking(1)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Streak")
 
-            HStack(spacing: TempoSpacing.lg) {
-                VStack(spacing: TempoSpacing.xs) {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.tempoAmber)
-                        Text("\(data.currentStreak)")
-                            .font(.system(size: 32, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    Text("Current")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
 
-                Divider().frame(height: 50)
-
-                VStack(spacing: TempoSpacing.xs) {
-                    Text("\(data.longestStreak)")
-                        .font(.system(size: 32, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text("Longest")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-
-                Divider().frame(height: 50)
-
-                VStack(spacing: TempoSpacing.xs) {
-                    Text("\(data.perfectDays)")
-                        .font(.system(size: 32, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoSuccess)
-                    Text("Perfect Days")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
+            layout {
+                streakStat(
+                    label: "Current", value: data.currentStreak, color: Tide.streak, systemImage: "flame.fill"
+                )
+                streakStat(label: "Longest", value: data.longestStreak, color: Tide.text, systemImage: nil)
+                streakStat(label: "Perfect days", value: data.perfectDays, color: TideTone.mint, systemImage: nil)
             }
-            .frame(maxWidth: .infinity)
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 1)
-            )
+            .tideCard()
         }
+    }
+
+    private func streakStat(label: String, value: Int, color: Color, systemImage: String?) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(spacing: Tide.s1 + Tide.hair) {
+                if let systemImage {
+                    Image(systemName: systemImage).font(Tide.label).foregroundStyle(color)
+                        .accessibilityHidden(true)
+                }
+                Text(label).tideLabel().lineLimit(1).minimumScaleFactor(Tide.labelShrink)
+            }
+            TideNumber("\(value)", size: Tide.numeralM, relativeTo: .title, color: color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Highlights
 
     private func highlightsSection(_ data: WeeklyAccountabilityData) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("HIGHLIGHTS")
-                .font(.tempoCaption2)
-                .tracking(1)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Highlights")
 
             if let best = data.bestDay {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.tempoSuccess)
-
-                    Text("Best Day: \(best.dayFullName)")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    Spacer()
-
-                    Text("\(Int(best.completionRate * 100))%")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSuccess)
-                }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSuccess.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                highlightRow(
+                    systemImage: "star.fill",
+                    text: "Best day: \(best.dayFullName)",
+                    rate: best.completionRate,
+                    tint: TideTone.mint
+                )
             }
 
             if let worst = data.worstDay {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(Color.tempoSignal)
-
-                    Text("Weakest Day: \(worst.dayFullName)")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    Spacer()
-
-                    Text("\(Int(worst.completionRate * 100))%")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSignal)
-                }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSignal.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                highlightRow(
+                    systemImage: "exclamationmark.triangle.fill",
+                    text: "Weakest day: \(worst.dayFullName)",
+                    rate: worst.completionRate,
+                    tint: Tide.danger
+                )
             }
         }
+    }
+
+    private func highlightRow(systemImage: String, text: String, rate: Double, tint: Color) -> some View {
+        HStack(spacing: Tide.s3) {
+            Image(systemName: systemImage)
+                .font(Tide.headline)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+
+            Text(text)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+
+            Spacer(minLength: Tide.s2)
+
+            TideNumber(
+                "\(Int(rate * 100))", unit: "%", size: Tide.numeralS, relativeTo: .headline, color: tint
+            )
+        }
+        .tideTintedCard(tint, padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Loading & Empty States
 
     private var loadingState: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
+        VStack(spacing: Tide.s4) {
             ProgressView()
+                .tint(Tide.text2)
             Text("Crunching your week...")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
         .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s10)
+        .accessibilityElement(children: .combine)
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Spacer()
-            Image(systemName: "chart.bar.doc.horizontal")
-                .font(.system(size: 44, weight: .ultraLight))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text("No data yet")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Complete at least one full day of non-negotiables to see your weekly report card.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-
-            Spacer()
-        }
+        TideEmptyPanel(
+            systemImage: "chart.bar.doc.horizontal",
+            title: "No data yet",
+            message: "Complete at least one full day of non-negotiables to see your weekly report card."
+        )
+        .tideCard()
     }
 
     // MARK: - Data Loading
@@ -592,28 +548,15 @@ struct WeeklyAccountabilityView: View {
         switch grade {
         case .aPlus,
              .a,
-             .aMinus: .tempoSuccess
+             .aMinus: TideTone.mint
         case .bPlus,
              .b,
-             .bMinus: .tempoElectric
+             .bMinus: TideTone.sky
         case .cPlus,
-             .c: .tempoAmber
-        case .d: .tempoSignal
-        case .f: .tempoSignal
+             .c: TideTone.amber
+        case .d,
+             .f: Tide.danger
         }
-    }
-
-    private func completionColor(_ rate: Double) -> Color {
-        if rate >= 0.9 {
-            return .tempoSuccess
-        }
-        if rate >= 0.7 {
-            return .tempoElectric
-        }
-        if rate >= 0.5 {
-            return .tempoAmber
-        }
-        return .tempoSignal
     }
 
     private func formatStudyTime(_ minutes: Int) -> String {

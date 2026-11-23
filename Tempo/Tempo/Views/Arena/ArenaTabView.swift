@@ -24,22 +24,32 @@ enum ArenaDestination: Hashable {
 // MARK: - ArenaTabView
 
 struct ArenaTabView: View {
+    @State
+    private var path: [ArenaDestination] = []
+    @Namespace
+    private var zoom
+
     var body: some View {
-        NavigationStack {
-            ArenaMainView()
+        NavigationStack(path: $path) {
+            ArenaMainView(zoom: zoom)
+                // The home's shaders rest while a page covers it.
+                .tideCovered(!path.isEmpty)
                 .navigationDestination(for: ArenaDestination.self) { destination in
-                    switch destination {
-                    case .leaderboard:
-                        LeaderboardView()
-                    case .friends:
-                        FriendSystemView()
-                    case .challenges:
-                        ChallengesView()
-                    case .achievements:
-                        AchievementsView()
-                    case .activityFeed:
-                        ActivityFeedView()
+                    Group {
+                        switch destination {
+                        case .leaderboard:
+                            LeaderboardView()
+                        case .friends:
+                            FriendSystemView()
+                        case .challenges:
+                            ChallengesView()
+                        case .achievements:
+                            AchievementsView()
+                        case .activityFeed:
+                            ActivityFeedView()
+                        }
                     }
+                    .navigationTransition(.zoom(sourceID: destination, in: zoom))
                 }
         }
     }

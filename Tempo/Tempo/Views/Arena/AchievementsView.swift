@@ -17,6 +17,8 @@ import SwiftUI
 struct AchievementsView: View {
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
     @Query
     private var achievements: [Achievement]
 
@@ -36,52 +38,51 @@ struct AchievementsView: View {
         return achievements.filter { $0.category == category }
     }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 3)
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header count
-            headerCount
-
-            // Category filter
+        TideScrollPage {
+            summary
             categoryFilter
-
-            // Grid
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(filteredAchievements, id: \.id) { achievement in
+            LazyVGrid(columns: columns, spacing: Tide.s4) {
+                ForEach(filteredAchievements, id: \.id) { achievement in
+                    Button {
+                        selectedAchievement = achievement
+                    } label: {
                         achievementCell(achievement)
-                            .onTapGesture {
-                                selectedAchievement = achievement
-                            }
                     }
+                    .buttonStyle(TideCardPressStyle())
                 }
-                .padding(.horizontal, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxxl)
             }
         }
-        .tidePage()
-        .navigationTitle("ACHIEVEMENTS")
+        .navigationTitle("Achievements")
         .navigationBarTitleDisplayMode(.inline)
+        .sensoryFeedback(.selection, trigger: selectedAchievement?.id)
+        .tideCovered(selectedAchievement != nil)
         .sheet(item: $selectedAchievement) { achievement in
             achievementDetail(achievement)
         }
     }
 
-    // MARK: - Header Count
+    // MARK: - Summary
 
-    private var headerCount: some View {
-        Text("\(earnedCount) / \(achievements.count) UNLOCKED")
-            .font(.system(size: 13, weight: .semibold))
-            .tracking(1.2)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.vertical, TempoSpacing.sm)
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Unlocked").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(earnedCount)", size: Tide.numeralL, color: mood.accent)
+                Text("of \(achievements.count)")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+            }
+            TideLevelBar(
+                progress: achievements.isEmpty ? 0 : Double(earnedCount) / Double(achievements.count),
+                height: Tide.bar
+            )
+        }
+        .tideCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(earnedCount) of \(achievements.count) unlocked")
     }
 
     // MARK: - Category Filter
@@ -89,120 +90,87 @@ struct AchievementsView: View {
     // Per WIREFRAMES.md Screen 40 — Horizontal scroll pills.
 
     private var categoryFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TempoSpacing.sm) {
-                filterPill(title: "All", isSelected: selectedCategory == nil) {
+        ScrollView(.horizontal) {
+            HStack(spacing: Tide.s2) {
+                TideFilterChip(title: "All", isSelected: selectedCategory == nil) {
                     selectedCategory = nil
                 }
                 ForEach(AchievementCategory.allCases.filter { $0 != .hidden }, id: \.self) { category in
-                    filterPill(title: category.rawValue.capitalized, isSelected: selectedCategory == category) {
+                    TideFilterChip(title: category.rawValue.capitalized, isSelected: selectedCategory == category) {
                         selectedCategory = category
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
         }
-        .padding(.bottom, TempoSpacing.md)
-    }
-
-    private func filterPill(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isSelected ? .white : Color.tempoTextSecondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.tempoSignal : Color.tempoSurfaceCard)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(isSelected ? Color.clear : Color.tempoBorder, lineWidth: 0.5)
-                )
-        }
+        .scrollIndicators(.hidden)
+        // Chips run to the screen edge; the page's own padding is undone.
+        .padding(.horizontal, -Tide.edge)
+        .animation(Tide.snap, value: selectedCategory)
     }
 
     // MARK: - Achievement Cell
 
-    // Per WIREFRAMES.md Screen 40 — 80x100pt each, 3-column grid.
-    // Earned: full color + checkmark. Locked: gray tint + lock icon.
+    // Per WIREFRAMES.md Screen 40 — 3-column grid.
+    // Earned: full colour. Locked: muted, with a progress bar when it has a target.
 
     private func achievementCell(_ achievement: Achievement) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
+        let tint = achievement.rarity.tideTint
+        let hiddenLocked = achievement.isHidden && !achievement.isEarned
+        let showsProgress = !achievement.isEarned && !achievement.isHidden && achievement.targetValue > 0
+        return VStack(spacing: Tide.s2) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(achievement.isEarned ? rarityColor(achievement.rarity).opacity(0.15) : Color.tempoSteel.opacity(0.1))
-                    .frame(width: 80, height: 80)
-
-                if achievement.isEarned {
-                    Image(systemName: rarityIcon(achievement.rarity))
-                        .font(.system(size: 28))
-                        .foregroundStyle(rarityColor(achievement.rarity))
-                } else if achievement.isHidden, !achievement.isEarned {
-                    Image(systemName: "questionmark")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(Color.tempoSteel.opacity(0.4))
-                } else {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoSteel.opacity(0.4))
-                }
-
-                // Earned checkmark
-                if achievement.isEarned {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(Color.tempoSuccess)
-                                .background(Circle().fill(Color.tempoBgPrimary).frame(width: 18, height: 18))
-                        }
-                        Spacer()
-                    }
-                    .frame(width: 80, height: 80)
-                    .padding(4)
-                }
-
-                // Progress bar for locked achievements with a target
-                if !achievement.isEarned, !achievement.isHidden, achievement.targetValue > 0 {
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .fill(achievement.isEarned ? tint.opacity(0.18) : Tide.fill)
+                Image(systemName: cellSymbol(achievement))
+                    .font(Tide.title)
+                    .foregroundStyle(achievement.isEarned ? tint : Tide.text3)
+                if showsProgress {
                     VStack {
                         Spacer()
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(Color.tempoSteel.opacity(0.2))
-                                    .frame(height: 4)
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(rarityColor(achievement.rarity).opacity(0.7))
-                                    .frame(width: geo.size.width * achievement.progressFraction, height: 4)
-                            }
-                        }
-                        .frame(height: 4)
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 6)
+                        TideLevelBar(progress: achievement.progressFraction, color: tint, height: Tide.barSlim)
+                            .padding(.horizontal, Tide.s3)
+                            .padding(.bottom, Tide.s2)
                     }
-                    .frame(width: 80, height: 80)
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(alignment: .topTrailing) {
+                if achievement.isEarned {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(TideTone.mint)
+                        .padding(Tide.s2)
                 }
             }
 
-            VStack(spacing: 2) {
-                Text(achievement.isHidden && !achievement.isEarned ? "???" : achievement.name)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(achievement.isEarned ? Color.tempoTextPrimary : Color.tempoTextTertiary)
+            VStack(spacing: Tide.hair) {
+                Text(hiddenLocked ? "???" : achievement.name)
+                    .font(Tide.caption)
+                    .foregroundStyle(achievement.isEarned ? Tide.text : Tide.text2)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
-                    .frame(width: 80)
-
-                // Progress label for locked achievements
-                if !achievement.isEarned, !achievement.isHidden, achievement.targetValue > 0 {
+                if showsProgress {
                     Text("\(achievement.progressValue)/\(achievement.targetValue)")
-                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.numeral(Tide.numeralS - Tide.s2, .medium))
+                        .foregroundStyle(Tide.text3)
                 }
             }
-            .frame(height: 28)
         }
-        .frame(height: 120)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            hiddenLocked ? "Hidden achievement"
+                : "\(achievement.name), \(achievement.rarity.tideName), \(achievement.isEarned ? "unlocked" : "locked")"
+        )
+        .accessibilityHint("Shows details")
+    }
+
+    private func cellSymbol(_ achievement: Achievement) -> String {
+        if achievement.isEarned {
+            return achievement.rarity.tideSymbol
+        }
+        return achievement.isHidden ? "questionmark" : "lock.fill"
     }
 
     // MARK: - Achievement Detail
@@ -210,104 +178,63 @@ struct AchievementsView: View {
     // Per MODULE_ARENA.md Section 11.4 — Achievement unlock detail.
 
     private func achievementDetail(_ achievement: Achievement) -> some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        let tint = achievement.rarity.tideTint
+        return TideScrollPage(spacing: Tide.s5) {
+            VStack(spacing: Tide.s4) {
+                Image(systemName: achievement.isEarned ? achievement.rarity.tideSymbol : "lock.fill")
+                    .font(Tide.numeral(Tide.numeralM))
+                    .foregroundStyle(achievement.isEarned ? tint : Tide.text2)
+                    .frame(width: Tide.dialSheet, height: Tide.dialSheet)
+                    .glassEffect(.regular.tint(tint.opacity(0.25)), in: .circle)
+                    .accessibilityHidden(true)
 
-            // Badge
-            ZStack {
-                Circle()
-                    .fill(rarityColor(achievement.rarity).opacity(0.15))
-                    .frame(width: 120, height: 120)
-
-                if achievement.isEarned {
-                    Image(systemName: rarityIcon(achievement.rarity))
-                        .font(.system(size: 48))
-                        .foregroundStyle(rarityColor(achievement.rarity))
-                } else {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(Color.tempoSteel)
+                VStack(spacing: Tide.s2) {
+                    Text(achievement.name)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                    Text(achievement.achievementDescription)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            // Info
-            VStack(spacing: TempoSpacing.sm) {
-                Text(achievement.name)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text(achievement.achievementDescription)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .multilineTextAlignment(.center)
-
-                // Rarity
-                Text(achievement.rarity.rawValue.uppercased())
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(1.5)
-                    .foregroundStyle(rarityColor(achievement.rarity))
+                TideStatusPill(text: achievement.rarity.tideName, tint: tint, systemImage: achievement.rarity.tideSymbol)
 
                 if achievement.isEarned {
-                    Text("+\(achievement.effectiveXPReward) XP")
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoSignal)
-
-                    if let earnedAt = achievement.earnedAt {
-                        Text("Earned \(earnedAt.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                } else {
-                    Text("XP Reward: \(achievement.xpReward)")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.tempoTextTertiary)
-
-                    // Progress toward unlocking
-                    if achievement.targetValue > 0 {
-                        VStack(spacing: TempoSpacing.xs) {
-                            LinearProgressBar(
-                                progress: achievement.progressFraction,
-                                label: "Progress",
-                                color: rarityColor(achievement.rarity),
-                                height: 8,
-                                showPercentage: false
-                            )
-                            Text("\(achievement.progressValue) / \(achievement.targetValue)")
-                                .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(Color.tempoTextSecondary)
+                    VStack(spacing: Tide.s1) {
+                        TideNumber("+\(achievement.effectiveXPReward)", unit: "XP", size: Tide.numeralL, color: mood.accent)
+                        if let earnedAt = achievement.earnedAt {
+                            Text("Earned \(earnedAt.formatted(date: .abbreviated, time: .omitted))")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
-                        .padding(.horizontal, TempoSpacing.lg)
                     }
+                } else {
+                    VStack(spacing: Tide.s3) {
+                        Text("Reward: \(achievement.xpReward) XP")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                        // Progress toward unlocking
+                        if achievement.targetValue > 0 {
+                            VStack(spacing: Tide.s2) {
+                                TideLevelBar(progress: achievement.progressFraction, color: tint, height: Tide.bar)
+                                TideNumber(
+                                    "\(achievement.progressValue)", unit: "of \(achievement.targetValue)",
+                                    size: Tide.numeralS, relativeTo: .headline, weight: .semibold
+                                )
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity)
+            .padding(.top, Tide.s6)
         }
-        .padding(.horizontal, TempoSpacing.xxl)
-        .tidePage()
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-    }
-
-    // MARK: - Rarity Helpers
-
-    private func rarityColor(_ rarity: AchievementRarity) -> Color {
-        switch rarity {
-        case .common: Color.tempoSteel
-        case .uncommon: Color.tempoSuccess
-        case .rare: Color.tempoSignal
-        case .epic: Color.tempoViolet
-        case .legendary: Color.tempoAmber
-        }
-    }
-
-    private func rarityIcon(_ rarity: AchievementRarity) -> String {
-        switch rarity {
-        case .common: "star.fill"
-        case .uncommon: "star.fill"
-        case .rare: "star.circle.fill"
-        case .epic: "shield.checkered"
-        case .legendary: "crown.fill"
-        }
     }
 }

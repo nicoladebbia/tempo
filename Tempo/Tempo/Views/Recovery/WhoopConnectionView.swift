@@ -44,61 +44,51 @@ struct WhoopConnectionView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                // Status section
-                statusSection
+        TideScrollPage(spacing: Tide.s5) {
+            // Status section
+            statusSection
 
-                if isConnected {
-                    // Data preview
-                    dataPreviewSection
+            if isConnected {
+                // Data preview
+                dataPreviewSection
 
-                    // Sync button
-                    syncButton
+                // Sync button
+                syncButton
 
-                    // Disconnect button
-                    disconnectButton
-                } else if showCredentialSetup || !whoop.hasCredentials {
-                    // Credential setup
-                    credentialSetupSection
-                } else {
-                    // Connect CTA
-                    connectSection
-                }
-
-                // Error message
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.lg)
-                }
-
-                // Footnote
-                if isConnected {
-                    Text("Whoop data refreshes every 15 min in the background via BGAppRefresh.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, TempoSpacing.sm)
-                }
+                // Disconnect button
+                disconnectButton
+            } else if showCredentialSetup || !whoop.hasCredentials {
+                // Credential setup
+                credentialSetupSection
+            } else {
+                // Connect CTA
+                connectSection
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+
+            // Error message
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.danger)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+
+            // Footnote
+            if isConnected {
+                Text("Whoop data refreshes every 15 min in the background via BGAppRefresh.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, Tide.s2)
+            }
         }
-        .tidePage()
         .navigationTitle("Whoop Connection")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
+                TideCloseButton { dismiss() }
             }
         }
         .confirmationDialog(
@@ -118,222 +108,191 @@ struct WhoopConnectionView: View {
     // MARK: - Status Section
 
     private var statusSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("WHOOP INTEGRATION")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Whoop integration")
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 // Connection status row
-                HStack(spacing: TempoSpacing.sm) {
-                    Text("Status:")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                HStack(spacing: Tide.s2) {
+                    Text("Status")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+
+                    Spacer(minLength: Tide.s2)
 
                     Circle()
                         .fill(statusDotColor)
-                        .frame(width: 8, height: 8)
+                        .frame(width: Tide.s2, height: Tide.s2)
+                        .accessibilityHidden(true)
 
                     Text(statusText)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
 
                     if whoop.isDemoMode, isConnected {
-                        Text("DEMO")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(Color.tempoTextInverse)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoAmber)
-                            .clipShape(Capsule())
+                        TideStatusPill(text: "Demo", tint: TideTone.amber)
                     }
                 }
+                .accessibilityElement(children: .combine)
 
                 if isConnected {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Text("Last sync:")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    TideDivider()
+                    HStack(spacing: Tide.s2) {
+                        Text("Last sync")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                        Spacer(minLength: Tide.s2)
                         Text(lastSyncText)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            .padding(TempoSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard()
         }
-        .padding(.top, TempoSpacing.lg)
+        .padding(.top, Tide.s2)
     }
 
     // MARK: - Data Preview Section
 
     private var dataPreviewSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("LATEST DATA")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Latest data")
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(spacing: 0) {
                 dataRow(icon: "heart.fill", label: "Recovery", value: "Available")
+                TideDivider()
                 dataRow(icon: "bed.double.fill", label: "Sleep", value: "Available")
+                TideDivider()
                 dataRow(icon: "flame.fill", label: "Strain", value: "Available")
+                TideDivider()
                 dataRow(icon: "waveform.path.ecg", label: "HRV", value: "Available")
+                TideDivider()
                 dataRow(icon: "drop.fill", label: "SpO2", value: "Available")
+                TideDivider()
                 dataRow(icon: "thermometer.medium", label: "Skin Temp", value: "Available")
             }
-            .padding(TempoSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
     private func dataRow(icon: String, label: String, value: String) -> some View {
-        HStack {
+        HStack(spacing: Tide.s3) {
             Image(systemName: icon)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 24)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text2)
+                .frame(width: Tide.icon)
+                .accessibilityHidden(true)
 
-            Text("\(label):")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+            Text(label)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             Image(systemName: "checkmark")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.label)
+                .foregroundStyle(TideTone.mint)
+                .accessibilityHidden(true)
 
             Text(value)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
         }
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Credential Setup Section
 
     private var credentialSetupSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
-            Image(systemName: "key.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(spacing: Tide.s5) {
+            VStack(spacing: Tide.s3) {
+                Image(systemName: "key.fill")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
 
-            VStack(spacing: TempoSpacing.sm) {
-                Text("Whoop Developer Setup")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Whoop developer setup")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
 
                 Text("To connect your Whoop, you need API credentials from the Whoop Developer Portal.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 300)
             }
+            .padding(.top, Tide.s2)
 
             // Instructions
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 instructionRow(number: "1", text: "Go to developer.whoop.com")
                 instructionRow(number: "2", text: "Create an application")
                 instructionRow(number: "3", text: "Set redirect URI to:\ntempo://whoop/callback")
                 instructionRow(number: "4", text: "Copy the Client ID and Client Secret below")
             }
-            .padding(TempoSpacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard()
 
             // Input fields
-            VStack(spacing: TempoSpacing.md) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("Client ID")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+            VStack(spacing: Tide.s4) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Client ID").tideLabel()
                     TextField("Paste your Client ID", text: $clientIDInput)
-                        .font(.tempoBody)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .padding(TempoSpacing.md)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                                .stroke(Color.tempoTextTertiary.opacity(0.3), lineWidth: 1)
-                        )
+                        .tideField()
                 }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("Client Secret")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Client secret").tideLabel()
                     SecureField("Paste your Client Secret", text: $clientSecretInput)
-                        .font(.tempoBody)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                        .padding(TempoSpacing.md)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                                .stroke(Color.tempoTextTertiary.opacity(0.3), lineWidth: 1)
-                        )
+                        .tideField()
                 }
             }
 
             // Save credentials button
-            Button {
+            Button("Save & continue") {
                 saveCredentials()
-            } label: {
-                Text("Save & Continue")
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(canSave ? Color.tempoSignal : Color.tempoTextTertiary.opacity(0.3))
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
+            .buttonStyle(.tidePrimary)
             .disabled(!canSave)
 
             // Demo mode fallback — DEBUG only: demo numbers are mock data and
             // must never reach App Store users (display-only; see
             // WhoopServiceProtocol.providesRealData).
             #if DEBUG
-                Button {
+                Button("Skip — use demo data") {
                     Task {
                         await whoop.connectDemo()
                         dismiss()
                     }
-                } label: {
-                    Text("Skip — Use Demo Data")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
                 }
+                .buttonStyle(.tideGlass)
             #endif
         }
-        .padding(.top, TempoSpacing.lg)
+        .padding(.top, Tide.s2)
     }
 
     private func instructionRow(number: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .top, spacing: Tide.s3) {
             Text(number)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.tempoTextInverse)
-                .frame(width: 24, height: 24)
-                .background(Color.tempoSignal)
-                .clipShape(Circle())
+                .font(Tide.numeral(Tide.numeralS - Tide.s1, .bold))
+                .foregroundStyle(Tide.ink)
+                .frame(width: Tide.s6, height: Tide.s6)
+                .background(Tide.text, in: .circle)
+                .accessibilityHidden(true)
 
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Step \(number): \(text)")
     }
 
     private var canSave: Bool {
@@ -356,104 +315,82 @@ struct WhoopConnectionView: View {
     // MARK: - Connect Section
 
     private var connectSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
-            Image(systemName: "sensor.tag.radiowaves.forward.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(spacing: Tide.s5) {
+            VStack(spacing: Tide.s3) {
+                Image(systemName: "sensor.tag.radiowaves.forward.fill")
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
 
-            VStack(spacing: TempoSpacing.sm) {
-                Text("Connect Your Whoop")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Connect your Whoop")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
 
                 Text("Tap Connect to log in to your Whoop account. Tempo will access your recovery, sleep, strain, and HRV data.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 280)
             }
+            .padding(.top, Tide.s6)
 
             Button {
                 Task { await performConnect() }
             } label: {
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     if isConnecting {
                         ProgressView()
-                            .tint(Color.tempoTextInverse)
+                            .tint(Tide.ink)
                     }
                     Text(isConnecting ? "Connecting..." : "Connect Whoop")
-                        .font(.tempoHeadline)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(Color.tempoSignal)
-                .foregroundStyle(Color.tempoTextInverse)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
+            .buttonStyle(.tidePrimary)
             .disabled(isConnecting)
 
             // Change credentials
-            Button {
+            Button("Change API credentials") {
                 showCredentialSetup = true
-            } label: {
-                Text("Change API Credentials")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
             }
+            .buttonStyle(.tideGlass)
 
             // Demo mode fallback — DEBUG only: demo numbers are mock data and
             // must never reach App Store users (display-only; see
             // WhoopServiceProtocol.providesRealData).
             #if DEBUG
-                Button {
+                Button("Use demo data instead") {
                     Task {
                         await whoop.connectDemo()
                         dismiss()
                     }
-                } label: {
-                    Text("Use Demo Data Instead")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
                 }
+                .buttonStyle(.tideGlass)
             #endif
         }
-        .padding(.top, TempoSpacing.xxxl)
     }
 
     // MARK: - Sync Button
 
     private var syncButton: some View {
-        Button {
+        Button("Sync now") {
             Task {
                 try? await whoop.syncAll()
             }
-        } label: {
-            Text("Sync Now")
-                .font(.tempoHeadline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(Color.tempoSignal)
-                .foregroundStyle(Color.tempoTextInverse)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
+        .buttonStyle(.tidePrimary)
     }
 
     // MARK: - Disconnect Button
 
     private var disconnectButton: some View {
-        Button {
+        Button(role: .destructive) {
             showDisconnectConfirmation = true
         } label: {
             Text(isDisconnecting ? "Disconnecting..." : "Disconnect Whoop")
-                .font(.tempoHeadline)
+                .foregroundStyle(Tide.danger)
                 .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .foregroundStyle(Color.tempoError)
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .stroke(Color.tempoError, lineWidth: 1)
-                )
         }
+        .buttonStyle(.tideGlass)
         .disabled(isDisconnecting)
     }
 
@@ -493,10 +430,10 @@ struct WhoopConnectionView: View {
 
     private var statusDotColor: Color {
         switch whoop.connectionState {
-        case .connected: Color.tempoSuccess
-        case .connecting: Color.tempoWarning
-        case .disconnected: Color.tempoTextTertiary
-        case .error: Color.tempoError
+        case .connected: TideTone.mint
+        case .connecting: TideTone.amber
+        case .disconnected: Tide.text3
+        case .error: Tide.danger
         }
     }
 

@@ -19,29 +19,26 @@ struct SleepDetailView: View {
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                // Sleep Score Ring
-                sleepScoreSection
+        TideScrollPage(energy: 1) {
+            // Sleep Score Dial
+            sleepScoreSection
 
-                // Sleep Stages
-                sleepStagesSection
+            // Sleep Stages
+            sleepStagesSection
 
-                // Sleep Debt Section (Task 3)
-                sleepDebtSection
+            // Sleep Debt Section
+            sleepDebtSection
 
-                // Sleep Metrics Grid
-                sleepMetricsGrid
+            // Sleep Metrics Grid
+            sleepMetricsGrid
 
-                // Sleep Trend Chart
-                sleepTrendSection
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            // Sleep Trend Chart
+            sleepTrendSection
         }
-        .tidePage()
         .navigationTitle("Sleep")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
@@ -54,33 +51,27 @@ struct SleepDetailView: View {
     // Per MODULE_RECOVERY.md Section 5.1
 
     private var sleepScoreSection: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            ScoreRingView(
-                score: viewModel.todayRecovery?.sleepScore ?? 0,
-                maxScore: 100,
-                label: "SLEEP",
-                size: 200,
-                strokeWidth: 14
+        VStack(spacing: Tide.s3) {
+            TideDial(
+                score: viewModel.todayRecovery?.sleepScore.map { Int($0.rounded()) },
+                caption: "Sleep",
+                diameter: Tide.dialDetail
             )
 
             // Duration line
-            HStack(spacing: TempoSpacing.xs) {
-                Text(viewModel.formattedSleepHours)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text("asleep")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+            TideNumber(viewModel.formattedSleepHours, unit: "asleep", size: Tide.numeralM, relativeTo: .title2)
 
             // Efficiency
             if let efficiency = viewModel.todayRecovery?.sleepEfficiency {
-                Text("Sleep Efficiency: \(String(format: "%.1f", efficiency))%")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(sleepEfficiencyColor(efficiency))
+                TideStatusPill(
+                    text: "Efficiency \(String(format: "%.1f", efficiency))%",
+                    tint: sleepEfficiencyColor(efficiency)
+                )
             }
         }
-        .padding(.top, TempoSpacing.lg)
+        .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s2)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Sleep Stages Section
@@ -88,255 +79,177 @@ struct SleepDetailView: View {
     // Per MODULE_RECOVERY.md Section 5.2
 
     private var sleepStagesSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Sleep Stages")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Sleep stages")
 
-            // Stacked horizontal bar
-            if viewModel.totalSleepStageMinutes > 0 {
-                sleepStagesBar
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                if viewModel.totalSleepStageMinutes > 0 {
+                    // Stacked horizontal bar
+                    sleepStagesBar
 
-                // Stage tiles
-                HStack(spacing: TempoSpacing.sm) {
-                    stageTile(
-                        name: "Awake",
-                        minutes: viewModel.awakeMinutes,
-                        color: Color.sleepAwake,
-                        percentage: stagePercent(viewModel.awakeMinutes)
-                    )
-                    stageTile(
-                        name: "Light",
-                        minutes: viewModel.lightSleepMinutes,
-                        color: Color.sleepLight,
-                        percentage: stagePercent(viewModel.lightSleepMinutes)
-                    )
-                    stageTile(
-                        name: "Deep",
-                        minutes: viewModel.deepSleepMinutes,
-                        color: Color.sleepDeep,
-                        percentage: stagePercent(viewModel.deepSleepMinutes)
-                    )
-                    stageTile(
-                        name: "REM",
-                        minutes: viewModel.remSleepMinutes,
-                        color: Color.sleepREM,
-                        percentage: stagePercent(viewModel.remSleepMinutes)
-                    )
-                }
-            } else {
-                Text("No sleep stage data available")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, TempoSpacing.lg)
-            }
-        }
-    }
-
-    /// Per MODULE_RECOVERY.md Section 5.2 — Stacked horizontal bar with labels
-    private var sleepStagesBar: some View {
-        VStack(spacing: TempoSpacing.xs) {
-            GeometryReader { geo in
-                let total = Double(viewModel.awakeMinutes + viewModel.lightSleepMinutes + viewModel.deepSleepMinutes + viewModel
-                    .remSleepMinutes)
-                let width = geo.size.width
-
-                HStack(spacing: 2) {
-                    if total > 0 {
-                        barSegment(
-                            label: "Awake",
-                            minutes: viewModel.awakeMinutes,
-                            fraction: Double(viewModel.awakeMinutes) / total,
-                            color: Color.sleepAwake,
-                            totalWidth: width
-                        )
-                        barSegment(
-                            label: "Light",
-                            minutes: viewModel.lightSleepMinutes,
-                            fraction: Double(viewModel.lightSleepMinutes) / total,
-                            color: Color.sleepLight,
-                            totalWidth: width
-                        )
-                        barSegment(
-                            label: "Deep",
-                            minutes: viewModel.deepSleepMinutes,
-                            fraction: Double(viewModel.deepSleepMinutes) / total,
-                            color: Color.sleepDeep,
-                            totalWidth: width
-                        )
-                        barSegment(
-                            label: "REM",
-                            minutes: viewModel.remSleepMinutes,
-                            fraction: Double(viewModel.remSleepMinutes) / total,
-                            color: Color.sleepREM,
-                            totalWidth: width
-                        )
+                    // Stage tiles
+                    LazyVGrid(columns: stageColumns, spacing: Tide.s3) {
+                        stageTile(name: "Awake", minutes: viewModel.awakeMinutes, color: TideSleepStage.awake)
+                        stageTile(name: "Light", minutes: viewModel.lightSleepMinutes, color: TideSleepStage.light)
+                        stageTile(name: "Deep", minutes: viewModel.deepSleepMinutes, color: TideSleepStage.deep)
+                        stageTile(name: "REM", minutes: viewModel.remSleepMinutes, color: TideSleepStage.rem)
                     }
+                } else {
+                    Text("No sleep stage data available")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, Tide.s4)
                 }
             }
-            .frame(height: 36)
-
-            // Inline minute labels below bar
-            HStack(spacing: 2) {
-                let total = Double(viewModel.awakeMinutes + viewModel.lightSleepMinutes + viewModel.deepSleepMinutes + viewModel
-                    .remSleepMinutes)
-                if total > 0 {
-                    stageLabel(formatMinutes(viewModel.awakeMinutes), fraction: Double(viewModel.awakeMinutes) / total)
-                    stageLabel(formatMinutes(viewModel.lightSleepMinutes), fraction: Double(viewModel.lightSleepMinutes) / total)
-                    stageLabel(formatMinutes(viewModel.deepSleepMinutes), fraction: Double(viewModel.deepSleepMinutes) / total)
-                    stageLabel(formatMinutes(viewModel.remSleepMinutes), fraction: Double(viewModel.remSleepMinutes) / total)
-                }
-            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
-    private func barSegment(label: String, minutes: Int, fraction: Double, color: Color, totalWidth: CGFloat) -> some View {
-        let minWidth: CGFloat = 8
-        let gapTotal: CGFloat = 6 // 3 gaps of 2pt
-        let segmentWidth = max(minWidth, (totalWidth - gapTotal) * fraction)
-        return RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(color)
-            .frame(width: segmentWidth, height: 36)
+    private var stageColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: typeSize.isAccessibilitySize ? 2 : 4)
     }
 
-    private func stageLabel(_ text: String, fraction: Double) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(Color.tempoTextTertiary)
-            .frame(maxWidth: fraction > 0.08 ? .infinity : 0)
-            .opacity(fraction > 0.08 ? 1 : 0)
+    private var stageMinutes: [(minutes: Int, color: Color)] {
+        [
+            (viewModel.awakeMinutes, TideSleepStage.awake),
+            (viewModel.lightSleepMinutes, TideSleepStage.light),
+            (viewModel.deepSleepMinutes, TideSleepStage.deep),
+            (viewModel.remSleepMinutes, TideSleepStage.rem),
+        ]
     }
 
-    private func stageTile(name: String, minutes: Int, color: Color, percentage: Int) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
+    /// Per MODULE_RECOVERY.md Section 5.2 — Stacked horizontal bar
+    private var sleepStagesBar: some View {
+        let total = Double(stageMinutes.reduce(0) { $0 + $1.minutes })
+        return GeometryReader { geo in
+            let gaps = Tide.hair * 3
+            HStack(spacing: Tide.hair) {
+                ForEach(Array(stageMinutes.enumerated()), id: \.offset) { _, stage in
+                    RoundedRectangle(cornerRadius: Tide.s1 + Tide.hair, style: .continuous)
+                        .fill(stage.color)
+                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * (total > 0 ? Double(stage.minutes) / total : 0)))
+                }
+            }
+        }
+        .frame(height: Tide.s8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sleep stages")
+        .accessibilityValue(
+            "Awake \(formatMinutes(viewModel.awakeMinutes)), light \(formatMinutes(viewModel.lightSleepMinutes)), "
+                + "deep \(formatMinutes(viewModel.deepSleepMinutes)), REM \(formatMinutes(viewModel.remSleepMinutes))"
+        )
+    }
 
-            Text(name)
-                .font(.tempoCaption2)
-                .foregroundStyle(color)
-
+    private func stageTile(name: String, minutes: Int, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            HStack(spacing: Tide.s1 + Tide.hair) {
+                Circle()
+                    .fill(color)
+                    .frame(width: Tide.s2, height: Tide.s2)
+                    .accessibilityHidden(true)
+                Text(name).tideLabel(color)
+            }
             Text(formatMinutes(minutes))
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("\(percentage)%")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.numeral(Tide.numeralS, .bold))
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            Text("\(stagePercent(minutes))%")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Sleep Debt Section (Task 3)
+    // MARK: - Sleep Debt Section
 
     private var sleepDebtSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Sleep Debt")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Sleep debt")
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                // Debt amount with severity color
-                HStack(spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                // Debt amount with severity colour
+                HStack(spacing: Tide.s3) {
                     Image(systemName: debtSeverityIcon)
-                        .font(.tempoTitle3)
+                        .font(Tide.title2)
                         .foregroundStyle(debtSeverityColor)
+                        .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: TempoSpacing.xs) {
-                            Text(String(format: "%.1f", viewModel.calculatedSleepDebt))
-                                .font(.tempoLargeTitle)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Text("hours")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        TideNumber(
+                            String(format: "%.1f", viewModel.calculatedSleepDebt), unit: "hours",
+                            size: Tide.numeralL, relativeTo: .largeTitle
+                        )
                         Text("accumulated over 7 days")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
 
-                    Spacer()
+                    Spacer(minLength: Tide.s2)
 
                     // Severity badge
-                    Text(viewModel.sleepDebtSeverity.rawValue)
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(debtSeverityColor)
-                        .padding(.horizontal, TempoSpacing.sm)
-                        .padding(.vertical, TempoSpacing.xxs)
-                        .background(debtSeverityColor.opacity(0.15))
-                        .clipShape(Capsule())
+                    TideStatusPill(text: viewModel.sleepDebtSeverity.rawValue, tint: debtSeverityColor)
                 }
 
-                // Severity progress bar
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.tempoSurfaceCard)
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(debtSeverityColor)
-                            .frame(
-                                width: min(geo.size.width, geo.size.width * min(viewModel.calculatedSleepDebt / 10.0, 1.0)),
-                                height: 8
-                            )
+                // Severity bar and its scale
+                VStack(spacing: Tide.s1) {
+                    TideLevelBar(
+                        progress: min(viewModel.calculatedSleepDebt / 10.0, 1.0),
+                        color: debtSeverityColor,
+                        height: Tide.bar
+                    )
+                    HStack {
+                        scaleLabel("0h")
+                        Spacer()
+                        scaleLabel("5h")
+                        Spacer()
+                        scaleLabel("10h+")
                     }
-                }
-                .frame(height: 8)
-
-                // Scale labels
-                HStack {
-                    Text("0h")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Spacer()
-                    Text("5h")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Spacer()
-                    Text("10h+")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    .accessibilityHidden(true)
                 }
 
                 // Payback plan
                 if let paybackPlan = viewModel.sleepDebtPaybackPlan {
-                    Divider()
-                        .background(Color.tempoBorder)
+                    TideDivider()
 
-                    HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
                         Image(systemName: "arrow.uturn.backward.circle.fill")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.sleepDeep)
+                            .font(Tide.headline)
+                            .foregroundStyle(TideSleepStage.deep)
+                            .accessibilityHidden(true)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Payback Plan")
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text("Payback plan")
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
                             Text(paybackPlan)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                                .lineSpacing(2)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .lineSpacing(Tide.hair)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard()
         }
+    }
+
+    private func scaleLabel(_ text: String) -> some View {
+        Text(text)
+            .font(Tide.numeral(Tide.axisSize, .medium))
+            .foregroundStyle(Tide.text3)
     }
 
     private var debtSeverityColor: Color {
         switch viewModel.sleepDebtSeverity {
-        case .minimal: Color.tempoRecoveryGreen
-        case .moderate: Color.tempoRecoveryYellow
-        case .significant: Color(red: 1.0, green: 0.6, blue: 0.2) // orange
-        case .critical: Color.tempoRecoveryRed
+        case .minimal: TideTone.mint
+        case .moderate: TideTone.amber
+        case .significant: Tide.streak
+        case .critical: Tide.danger
         }
     }
 
@@ -354,68 +267,39 @@ struct SleepDetailView: View {
     // Per MODULE_RECOVERY.md Section 5.4
 
     private var sleepMetricsGrid: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Sleep Metrics")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Sleep metrics")
 
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-            ], spacing: TempoSpacing.sm) {
-                sleepMetricCell(
-                    icon: "clock.arrow.2.circlepath",
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2),
+                spacing: Tide.s3
+            ) {
+                TideMetricTile(
                     label: "Consistency",
-                    value: viewModel.todayRecovery?.sleepConsistency.map { "\(Int($0))%" } ?? "--",
-                    unit: ""
+                    value: viewModel.todayRecovery?.sleepConsistency.map { "\(Int($0))" } ?? "--",
+                    unit: viewModel.todayRecovery?.sleepConsistency == nil ? nil : "%",
+                    systemImage: "clock.arrow.2.circlepath"
                 )
-                sleepMetricCell(
-                    icon: "lungs",
-                    label: "Respiratory Rate",
+                TideMetricTile(
+                    label: "Respiratory rate",
                     value: viewModel.todayRecovery?.respiratoryRate.map { String(format: "%.1f", $0) } ?? "--",
-                    unit: "br/min"
+                    unit: "br/min",
+                    systemImage: "lungs"
                 )
-                sleepMetricCell(
-                    icon: "bed.double.fill",
+                TideMetricTile(
                     label: "Efficiency",
                     value: viewModel.todayRecovery?.sleepEfficiency.map { String(format: "%.1f", $0) } ?? "--",
-                    unit: "%"
+                    unit: "%",
+                    systemImage: "bed.double.fill"
                 )
-                sleepMetricCell(
-                    icon: "moon.zzz.fill",
-                    label: "Sleep Debt",
+                TideMetricTile(
+                    label: "Sleep debt",
                     value: viewModel.todayRecovery?.sleepDebt.map { String(format: "%.1f", $0) } ?? "--",
-                    unit: "h"
+                    unit: "h",
+                    systemImage: "moon.zzz.fill"
                 )
             }
         }
-    }
-
-    private func sleepMetricCell(icon: String, label: String, value: String, unit: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack(spacing: TempoSpacing.xs) {
-                Image(systemName: icon)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text(label)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-
-            HStack(spacing: 2) {
-                Text(value)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-        }
-        .padding(TempoSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 76)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Sleep Trend Section
@@ -423,32 +307,36 @@ struct SleepDetailView: View {
     // Per MODULE_RECOVERY.md Section 5.5
 
     private var sleepTrendSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Sleep Trends")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Sleep trends")
 
-            if viewModel.sleepChartData.count >= 3 {
-                TempoLineChart(
-                    data: [
-                        TempoLineChartData(
-                            id: "sleep",
-                            label: "Sleep",
-                            color: Color.sleepDeep,
-                            points: viewModel.sleepChartData.map {
-                                TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
-                            }
-                        ),
-                    ],
-                    height: 200
-                )
-            } else {
-                Text(
-                    "Need \(3 - viewModel.sleepChartData.count) more day\(3 - viewModel.sleepChartData.count == 1 ? "" : "s") of data to show trends."
-                )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, TempoSpacing.xxxl)
+            Group {
+                if viewModel.sleepChartData.count >= 3 {
+                    TideLineChart(
+                        data: [
+                            TempoLineChartData(
+                                id: "sleep",
+                                label: "Sleep",
+                                color: TideSleepStage.deep,
+                                points: viewModel.sleepChartData.map {
+                                    TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
+                                }
+                            ),
+                        ],
+                        height: Tide.chartHeight
+                    )
+                } else {
+                    Text(
+                        "Need \(3 - viewModel.sleepChartData.count) more day\(3 - viewModel.sleepChartData.count == 1 ? "" : "s") of data to show trends."
+                    )
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, Tide.s8)
+                }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -473,21 +361,21 @@ struct SleepDetailView: View {
 
     private func sleepEfficiencyColor(_ value: Double) -> Color {
         switch value {
-        case 90...: Color.tempoRecoveryGreen
-        case 80 ..< 90: Color.tempoRecoveryYellow
-        default: Color.tempoRecoveryRed
+        case 90...: TideTone.mint
+        case 80 ..< 90: TideTone.amber
+        default: Tide.danger
         }
     }
 }
 
 // MARK: - Sleep Stage Colors
 
-// Per MODULE_RECOVERY.md Section 3 — Sleep Stage Colors
-// Now centralized in Color+Tempo.swift as .tempoSleepAwake, .tempoSleepLight, .tempoSleepDeep, .tempoSleepREM
+// Per MODULE_RECOVERY.md Section 3 — Sleep Stage Colors, on the Tide palette
+// (TideSleepStage in Tide+Recovery.swift).
 
 extension Color {
-    static let sleepAwake = Color.tempoSleepAwake
-    static let sleepLight = Color.tempoSleepLight
-    static let sleepDeep = Color.tempoSleepDeep
-    static let sleepREM = Color.tempoSleepREM
+    static let sleepAwake = TideSleepStage.awake
+    static let sleepLight = TideSleepStage.light
+    static let sleepDeep = TideSleepStage.deep
+    static let sleepREM = TideSleepStage.rem
 }

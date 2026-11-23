@@ -19,6 +19,8 @@ struct NonNegotiableSetupView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Query(sort: \NonNegotiable.order)
     private var nonNegotiables: [NonNegotiable]
 
@@ -35,14 +37,14 @@ struct NonNegotiableSetupView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                TidePageBackground()
+            Group {
                 if nonNegotiables.isEmpty {
                     emptyState
                 } else {
                     nonNegotiableList
                 }
             }
+            .tidePage()
             .navigationTitle("Non-Negotiables")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -54,6 +56,8 @@ struct NonNegotiableSetupView: View {
                     addButton
                 }
             }
+            // The field rests while the edit sheet is over this page.
+            .tideCovered(showAddSheet || editingItem != nil)
             .sheet(isPresented: $showAddSheet) {
                 NonNegotiableEditSheet(
                     existingCount: nonNegotiables.count,
@@ -92,6 +96,8 @@ struct NonNegotiableSetupView: View {
 
     // MARK: - List
 
+    // A native List on purpose: swipe-to-delete and drag-to-reorder stay.
+
     private var nonNegotiableList: some View {
         List {
             // Active items
@@ -111,22 +117,20 @@ struct NonNegotiableSetupView: View {
                 }
             } header: {
                 HStack {
-                    Text("ACTIVE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Active").tideLabel(Tide.text3)
                     Spacer()
                     Text("\(nonNegotiables.filter(\.isActive).count) / \(maxNonNegotiables)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tideLabel(Tide.text3)
+                        .monospacedDigit()
                 }
             } footer: {
                 if nonNegotiables.count >= maxNonNegotiables {
                     Text("Maximum \(maxNonNegotiables) non-negotiables. Keep it focused — too many dilutes accountability.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.caption)
+                        .foregroundStyle(TideTone.amber)
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .tideListRow()
 
             // Inactive items
             let inactive = nonNegotiables.filter { !$0.isActive }
@@ -143,11 +147,9 @@ struct NonNegotiableSetupView: View {
                         }
                     }
                 } header: {
-                    Text("INACTIVE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Inactive").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
             }
 
             // Default templates
@@ -155,8 +157,6 @@ struct NonNegotiableSetupView: View {
                 templatesSection
             }
         }
-        .scrollContentBackground(.hidden)
-        .tidePage()
         .environment(\.editMode, .constant(.active))
     }
 
@@ -166,45 +166,41 @@ struct NonNegotiableSetupView: View {
         Button {
             editingItem = nn
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: nn.icon)
-                    .font(.system(size: 24))
-                    .foregroundStyle(nn.isActive ? Color.tempoElectric : Color.tempoTextTertiary)
-                    .frame(width: 32)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: nn.icon, tint: nn.isActive ? mood.accent : Tide.text3)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(nn.name)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
 
-                    HStack(spacing: TempoSpacing.sm) {
-                        Text(nn.type.displayName)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-
-                        if let source = nn.integrationSourceName {
-                            Text("·")
-                                .foregroundStyle(Color.tempoTextTertiary)
-                            Text(source)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoElectric)
-                        }
-
-                        Text("·")
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(targetDescription(nn))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                    rowSubtitle(nn)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: Tide.s2)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Edit")
+    }
+
+    private func rowSubtitle(_ nn: NonNegotiable) -> Text {
+        let type = Text(nn.type.displayName)
+        let target = Text(targetDescription(nn)).foregroundStyle(Tide.text2)
+        if let source = nn.integrationSourceName {
+            return Text("\(type) · \(Text(source).foregroundStyle(mood.accent)) · \(target)")
+        }
+        return Text("\(type) · \(target)")
     }
 
     private func targetDescription(_ nn: NonNegotiable) -> String {
@@ -237,42 +233,26 @@ struct NonNegotiableSetupView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        TideScrollPage(spacing: Tide.s4, spacer: Tide.s8) {
+            VStack(spacing: Tide.s4) {
+                TideEmptyPanel(
+                    systemImage: "checklist",
+                    title: "Set your non-negotiables",
+                    message: "These are the things you MUST do every day. No excuses. No exceptions."
+                )
 
-            Image(systemName: "checklist")
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
+                Button("Use default templates") {
+                    addDefaultTemplates()
+                }
+                .buttonStyle(.tidePrimary)
 
-            Text("Set your non-negotiables")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
-
-            Text("These are the things you MUST do every day. No excuses. No exceptions.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            Button("USE DEFAULT TEMPLATES") {
-                addDefaultTemplates()
+                Button("Create from scratch") {
+                    showAddSheet = true
+                }
+                .buttonStyle(.tideGlass)
             }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
-
-            Button("CREATE FROM SCRATCH") {
-                showAddSheet = true
-            }
-            .font(.tempoHeadline)
-            .foregroundStyle(Color.tempoElectric)
-            .padding(.top, TempoSpacing.md)
-
-            Spacer()
+            .tideCard()
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Templates Section
@@ -282,27 +262,29 @@ struct NonNegotiableSetupView: View {
             Button {
                 addDefaultTemplates()
             } label: {
-                HStack(spacing: TempoSpacing.md) {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoElectric)
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: "wand.and.stars", tint: mood.accent)
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Add Default Templates")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                         Text("Study 2h · Train · 3 Meals · Sleep 7h")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    Spacer(minLength: Tide.s2)
                 }
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
+            .buttonStyle(.plain)
         } header: {
-            Text("QUICK START")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Quick start").tideLabel(Tide.text3)
         }
-        .listRowBackground(Color.tempoSurfaceCard)
+        .tideListRow()
     }
 
     // MARK: - Add Button
@@ -315,6 +297,7 @@ struct NonNegotiableSetupView: View {
             } label: {
                 Image(systemName: "plus")
             }
+            .accessibilityLabel("Add non-negotiable")
         }
     }
 
@@ -376,6 +359,8 @@ struct NonNegotiableSetupView: View {
 struct NonNegotiableEditSheet: View {
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     let editing: NonNegotiable?
     let existingCount: Int
@@ -424,13 +409,13 @@ struct NonNegotiableEditSheet: View {
                 // Name
                 Section {
                     TextField("Name", text: $name)
-                        .font(.tempoBody)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .frame(minHeight: Tide.hit)
                 } header: {
-                    Text("NAME")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Name").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Type
                 Section {
@@ -440,13 +425,12 @@ struct NonNegotiableEditSheet: View {
                                 .tag(type)
                         }
                     }
-                    .font(.tempoBody)
+                    .font(Tide.body)
+                    .frame(minHeight: Tide.hit)
                 } header: {
-                    Text("TYPE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Type").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Icon
                 Section {
@@ -455,37 +439,39 @@ struct NonNegotiableEditSheet: View {
                     } label: {
                         HStack {
                             Text("Icon")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                             Spacer()
                             Image(systemName: icon)
-                                .font(.system(size: 24))
-                                .foregroundStyle(Color.tempoElectric)
+                                .font(Tide.title2)
+                                .foregroundStyle(mood.accent)
+                                .accessibilityHidden(true)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
+                                .accessibilityHidden(true)
                         }
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Choose an icon")
                 } header: {
-                    Text("ICON")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Icon").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Target
                 Section {
                     targetEditor
                 } header: {
-                    Text("TARGET")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Target").tideLabel(Tide.text3)
                 } footer: {
                     Text(targetHelpText)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Tracking
                 Section {
@@ -495,38 +481,35 @@ struct NonNegotiableEditSheet: View {
                         Text("Whoop (Auto)").tag(TrackingMethod.autoWhoop)
                         Text("HealthKit (Auto)").tag(TrackingMethod.autoHealthkit)
                     }
-                    .font(.tempoBody)
+                    .font(Tide.body)
+                    .frame(minHeight: Tide.hit)
                 } header: {
-                    Text("TRACKING METHOD")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Tracking method").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Active days
                 Section {
                     activeDaysPicker
                 } header: {
-                    Text("ACTIVE DAYS")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Active days").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
                 // Active toggle (edit only)
                 if editing != nil {
                     Section {
                         Toggle(isOn: $isActive) {
                             Text("Active")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                         }
-                        .tint(Color.tempoElectric)
+                        .tint(mood.accent)
+                        .frame(minHeight: Tide.hit)
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .tideListRow()
                 }
             }
-            .scrollContentBackground(.hidden)
             .tidePage()
             .navigationTitle(editing != nil ? "Edit Non-Negotiable" : "Add Non-Negotiable")
             .navigationBarTitleDisplayMode(.inline)
@@ -543,6 +526,7 @@ struct NonNegotiableEditSheet: View {
                 icon = newType.defaultIcon
                 applyTypeDefaults(newType)
             }
+            .tideCovered(showIconPicker)
             .sheet(isPresented: $showIconPicker) {
                 IconPickerSheet(selectedIcon: $icon)
             }
@@ -555,64 +539,39 @@ struct NonNegotiableEditSheet: View {
     private var targetEditor: some View {
         switch selectedType {
         case .study:
-            Stepper(
-                "Duration: \(Int(targetValue)) min",
-                value: $targetValue,
-                in: 15 ... 480,
-                step: 15
-            )
-            .font(.tempoBody)
+            targetStepper("Duration: \(Int(targetValue)) min", range: 15 ... 480, step: 15)
         case .meals:
-            Stepper(
-                "Meals: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 6,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Meals: \(Int(targetValue))", range: 1 ... 6, step: 1)
         case .train:
             HStack {
                 Text("Sessions per day")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Text("\(Int(targetValue))")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text2)
             }
+            .frame(minHeight: Tide.hit)
+            .accessibilityElement(children: .combine)
         case .sleep:
-            Stepper(
-                "Hours: \(Int(targetValue))",
-                value: $targetValue,
-                in: 4 ... 12,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Hours: \(Int(targetValue))", range: 4 ... 12, step: 1)
         case .steps:
-            Stepper(
-                "Steps: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1000 ... 30000,
-                step: 1000
-            )
-            .font(.tempoBody)
+            targetStepper("Steps: \(Int(targetValue))", range: 1000 ... 30000, step: 1000)
         case .hydration:
-            Stepper(
-                "Glasses: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 20,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Glasses: \(Int(targetValue))", range: 1 ... 20, step: 1)
         case .custom:
-            Stepper(
-                "Target: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 1000,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Target: \(Int(targetValue))", range: 1 ... 1000, step: 1)
         }
+    }
+
+    private func targetStepper(_ title: String, range: ClosedRange<Double>, step: Double) -> some View {
+        Stepper(title, value: $targetValue, in: range, step: step)
+            .font(Tide.body)
+            .monospacedDigit()
+            .foregroundStyle(Tide.text)
+            .frame(minHeight: Tide.hit)
     }
 
     private var targetHelpText: String {
@@ -633,7 +592,7 @@ struct NonNegotiableEditSheet: View {
         let dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         let dayValues: [ActiveDays] = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
 
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s1) {
             ForEach(0 ..< 7, id: \.self) { index in
                 let day = dayValues[index]
                 let isOn = (activeDays.rawValue & day.rawValue) != 0
@@ -642,14 +601,23 @@ struct NonNegotiableEditSheet: View {
                     activeDays.toggle(day)
                 } label: {
                     Text(dayLabels[index])
-                        .font(.tempoCaption1)
-                        .foregroundStyle(isOn ? .white : Color.tempoTextSecondary)
-                        .frame(width: 36, height: 36)
-                        .background(isOn ? Color.tempoElectric : Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
+                        .font(Tide.label)
+                        .foregroundStyle(isOn ? Tide.ink : Tide.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .background(
+                            isOn ? mood.accent : Tide.fill,
+                            in: .rect(cornerRadius: Tide.controlRadius)
+                        )
+                        .contentShape(.rect(cornerRadius: Tide.controlRadius))
                 }
+                // Several buttons share one list row: plain keeps each tap separate.
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
+        .animation(Tide.snap, value: activeDays.rawValue)
     }
 
     // MARK: - Type Defaults
@@ -720,6 +688,8 @@ struct IconPickerSheet: View {
     var selectedIcon: String
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     private let categories: [(name: String, icons: [String])] = [
         ("Fitness", [
@@ -749,63 +719,24 @@ struct IconPickerSheet: View {
         ]),
     ]
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: TempoSpacing.md), count: 6)
+    private let columns = [GridItem(.adaptive(minimum: Tide.hit + Tide.s2), spacing: Tide.s3)]
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                    ForEach(categories, id: \.name) { category in
-                        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                            Text(category.name.uppercased())
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                                .padding(.horizontal, TempoSpacing.screenEdge)
+            TideScrollPage(spacing: Tide.s5) {
+                ForEach(categories, id: \.name) { category in
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        TideSectionLabel(title: category.name)
 
-                            LazyVGrid(columns: columns, spacing: TempoSpacing.md) {
-                                ForEach(category.icons, id: \.self) { iconName in
-                                    let isSelected = iconName == selectedIcon
-                                    Button {
-                                        HapticManager.selection()
-                                        selectedIcon = iconName
-                                        dismiss()
-                                    } label: {
-                                        Image(systemName: iconName)
-                                            .font(.system(size: 22))
-                                            .foregroundStyle(
-                                                isSelected ? Color.tempoElectric : Color.tempoTextSecondary
-                                            )
-                                            .frame(width: 44, height: 44)
-                                            .background(
-                                                isSelected
-                                                    ? Color.tempoElectric.opacity(0.12)
-                                                    : Color.tempoSurfaceElevated
-                                            )
-                                            .clipShape(
-                                                RoundedRectangle(
-                                                    cornerRadius: TempoRadius.xl,
-                                                    style: .continuous
-                                                )
-                                            )
-                                            .overlay(
-                                                isSelected
-                                                    ? RoundedRectangle(
-                                                        cornerRadius: TempoRadius.xl,
-                                                        style: .continuous
-                                                    )
-                                                    .stroke(Color.tempoElectric, lineWidth: 2)
-                                                    : nil
-                                            )
-                                    }
-                                }
+                        LazyVGrid(columns: columns, spacing: Tide.s3) {
+                            ForEach(category.icons, id: \.self) { iconName in
+                                iconButton(iconName)
                             }
-                            .padding(.horizontal, TempoSpacing.screenEdge)
                         }
+                        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                     }
                 }
-                .padding(.vertical, TempoSpacing.lg)
             }
-            .tidePage()
             .navigationTitle("Choose Icon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -814,6 +745,34 @@ struct IconPickerSheet: View {
                 }
             }
         }
+    }
+
+    private func iconButton(_ iconName: String) -> some View {
+        let isSelected = iconName == selectedIcon
+        return Button {
+            HapticManager.selection()
+            selectedIcon = iconName
+            dismiss()
+        } label: {
+            Image(systemName: iconName)
+                .font(Tide.headline)
+                .foregroundStyle(isSelected ? mood.accent : Tide.text2)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .background(
+                    isSelected ? mood.accent.opacity(0.2) : Tide.fill,
+                    in: .rect(cornerRadius: Tide.controlRadius)
+                )
+                .overlay {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Tide.controlRadius)
+                            .strokeBorder(mood.accent, lineWidth: Tide.hair)
+                    }
+                }
+                .contentShape(.rect(cornerRadius: Tide.controlRadius))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(iconName.replacingOccurrences(of: ".", with: " "))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

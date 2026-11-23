@@ -29,7 +29,7 @@ struct ChallengeTemplate: Identifiable {
             templateDescription: "Complete all non-negotiables for 7 days straight",
             metric: "non_negotiable_streak",
             durationDays: 7,
-            color: Color.tempoAmber
+            color: Tide.streak
         ),
         ChallengeTemplate(
             iconName: "dumbbell.fill",
@@ -37,7 +37,7 @@ struct ChallengeTemplate: Identifiable {
             templateDescription: "Highest total training volume in a week",
             metric: "training_volume",
             durationDays: 7,
-            color: Color.tempoSuccess
+            color: TideTone.mint
         ),
         ChallengeTemplate(
             iconName: "moon.fill",
@@ -45,7 +45,7 @@ struct ChallengeTemplate: Identifiable {
             templateDescription: "Highest average sleep score over 7 days",
             metric: "sleep_score",
             durationDays: 7,
-            color: Color.tempoViolet
+            color: TideTone.violet
         ),
         ChallengeTemplate(
             iconName: "book.fill",
@@ -53,7 +53,7 @@ struct ChallengeTemplate: Identifiable {
             templateDescription: "Most study minutes in a week",
             metric: "study_minutes",
             durationDays: 7,
-            color: Color.tempoSignal
+            color: Tide.water
         ),
         ChallengeTemplate(
             iconName: "figure.walk",
@@ -61,7 +61,7 @@ struct ChallengeTemplate: Identifiable {
             templateDescription: "Most steps in a week",
             metric: "steps",
             durationDays: 7,
-            color: Color.tempoInfo
+            color: TideTone.sky
         ),
     ]
 }
@@ -77,6 +77,8 @@ struct ChallengesView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
     @Query(filter: #Predicate<ChallengeLocal> { $0.isActive })
     private var activeChallenges: [ChallengeLocal]
 
@@ -84,37 +86,29 @@ struct ChallengesView: View {
     private var selectedTab: ChallengeTab = .active
     @State
     private var showCreateChallenge = false
+    @State
+    private var startedCount = 0
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Tab picker
-            Picker("Tab", selection: $selectedTab) {
-                ForEach(ChallengeTab.allCases, id: \.self) { tab in
-                    Text(tab.label).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.vertical, TempoSpacing.sm)
+        TideScrollPage {
+            TidePillPicker(
+                options: ChallengeTab.allCases,
+                selection: $selectedTab,
+                title: \.label,
+                label: "Challenges"
+            )
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.lg) {
-                    switch selectedTab {
-                    case .active:
-                        quickStartSection
-                        activeSection
-                    case .pending:
-                        pendingSection
-                    case .completed:
-                        completedSection
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxxl)
+            switch selectedTab {
+            case .active:
+                quickStartSection
+                activeSection
+            case .pending:
+                pendingSection
+            case .completed:
+                completedSection
             }
         }
-        .tidePage()
-        .navigationTitle("CHALLENGES")
+        .navigationTitle("Challenges")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -122,10 +116,12 @@ struct ChallengesView: View {
                     showCreateChallenge = true
                 } label: {
                     Image(systemName: "plus")
-                        .foregroundStyle(Color.tempoSignal)
                 }
+                .accessibilityLabel("New challenge")
             }
         }
+        .sensoryFeedback(.success, trigger: startedCount)
+        .tideCovered(showCreateChallenge)
         .sheet(isPresented: $showCreateChallenge) {
             ChallengeCreationSheet(isPresented: $showCreateChallenge)
         }
@@ -134,24 +130,22 @@ struct ChallengesView: View {
     // MARK: - Quick Start Section
 
     private var quickStartSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: 4) {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.tempoAmber)
-                Text("QUICK START")
-                    .font(.system(size: 13, weight: .semibold))
-                    .tracking(1.5)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Quick start")
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TempoSpacing.md) {
-                    ForEach(ChallengeTemplate.templates) { template in
-                        quickStartCard(template)
+            ScrollView(.horizontal) {
+                GlassEffectContainer(spacing: Tide.s3) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
+                        ForEach(ChallengeTemplate.templates) { template in
+                            quickStartCard(template)
+                        }
                     }
                 }
+                .padding(.horizontal, Tide.edge)
             }
+            .scrollIndicators(.hidden)
+            // Cards run to the screen edge; the page's own padding is undone.
+            .padding(.horizontal, -Tide.edge)
         }
     }
 
@@ -159,57 +153,41 @@ struct ChallengesView: View {
         Button {
             startQuickChallenge(template)
         } label: {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack {
-                    Image(systemName: template.iconName)
-                        .font(.tempoTitle1)
-                        .foregroundStyle(template.color)
-                    Spacer()
-                    Text("\(template.durationDays)d")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(template.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(template.color.opacity(0.15))
-                        .clipShape(Capsule())
+                    TideIconTile(systemName: template.iconName, tint: template.color)
+                    Spacer(minLength: Tide.s2)
+                    TideStatusPill(text: "\(template.durationDays) days", tint: template.color)
                 }
 
-                Text(template.name)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(template.name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
 
-                Text(template.templateDescription)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+                    Text(template.templateDescription)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                }
 
-                Text("START")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 28)
-                    .background(
-                        LinearGradient(
-                            colors: [template.color, template.color.opacity(0.8)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                Spacer(minLength: 0)
+
+                Label("Start", systemImage: "play.fill")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(template.color)
+                    .frame(minHeight: Tide.hit - Tide.s3, alignment: .leading)
             }
-            .padding(TempoSpacing.md)
-            .frame(width: 160)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 0.5)
-            )
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .frame(width: Tide.s10 * 4.5)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TideCardPressStyle())
+        .accessibilityLabel("Start \(template.name), \(template.durationDays) days")
+        .accessibilityHint(template.templateDescription)
     }
 
     private func startQuickChallenge(_ template: ChallengeTemplate) {
@@ -225,25 +203,26 @@ struct ChallengesView: View {
         )
         modelContext.insert(challenge)
         try? modelContext.save()
+        startedCount += 1
     }
 
     // MARK: - Active Section
 
+    @ViewBuilder
     private var activeSection: some View {
-        Group {
-            if activeChallenges.isEmpty {
-                emptyState(
-                    icon: "trophy",
-                    title: "No active challenges",
-                    message: "No active challenges. Start one!",
-                    ctaTitle: "Start a Challenge"
-                ) {
-                    showCreateChallenge = true
-                }
-            } else {
-                ForEach(activeChallenges, id: \.id) { challenge in
-                    challengeCard(challenge)
-                }
+        if activeChallenges.isEmpty {
+            TideEmptyPanel(
+                systemImage: "trophy",
+                title: "No active challenges",
+                message: "Pick a quick start above, or set up your own.",
+                actionTitle: "Start a challenge"
+            ) {
+                showCreateChallenge = true
+            }
+            .tideCard()
+        } else {
+            ForEach(activeChallenges, id: \.id) { challenge in
+                challengeCard(challenge)
             }
         }
     }
@@ -251,136 +230,82 @@ struct ChallengesView: View {
     // MARK: - Pending Section
 
     private var pendingSection: some View {
-        emptyState(
-            icon: "envelope.badge",
+        TideEmptyPanel(
+            systemImage: "envelope.badge",
             title: "No pending invites",
-            message: "Challenge invites from friends will appear here.",
-            ctaTitle: nil,
-            action: {}
+            message: "Challenge invites from friends will appear here."
         )
+        .tideCard()
     }
 
     // MARK: - Completed Section
 
     private var completedSection: some View {
-        emptyState(
-            icon: "checkmark.circle",
+        TideEmptyPanel(
+            systemImage: "checkmark.circle",
             title: "No completed challenges yet",
-            message: "Complete a challenge to see your history.",
-            ctaTitle: nil,
-            action: {}
+            message: "Finish a challenge to see your history."
         )
+        .tideCard()
     }
 
     // MARK: - Challenge Card
 
     private func challengeCard(_ challenge: ChallengeLocal) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             // Header
-            HStack {
-                Image(systemName: "flag.2.crossed.fill")
-                    .font(.tempoTitle3)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(challenge.name.uppercased())
-                        .font(.system(size: 14, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(Color.tempoTextPrimary)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(challenge.name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(2)
                     Text("\(challenge.daysRemaining) days left")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                Spacer()
-                // Status badge
-                Text(challenge.hasStarted ? "ACTIVE" : "UPCOMING")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(challenge.hasStarted ? Color.tempoSuccess : Color.tempoWarning)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background((challenge.hasStarted ? Color.tempoSuccess : Color.tempoWarning).opacity(0.15))
-                    .clipShape(Capsule())
+                Spacer(minLength: Tide.s2)
+                TideStatusPill(
+                    text: challenge.hasStarted ? "Active" : "Upcoming",
+                    tint: challenge.hasStarted ? TideTone.mint : TideTone.amber
+                )
             }
 
             // Score
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("YOUR SCORE")
-                        .font(.system(size: 11, weight: .semibold))
-                        .tracking(1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text(String(format: "%.0f", challenge.myScore))
-                        .font(.system(size: 28, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.tempoSignal)
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("Your score").tideLabel()
+                    TideNumber(
+                        challenge.myScore.formatted(.number.precision(.fractionLength(0))),
+                        size: Tide.numeralL, color: mood.accent
+                    )
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 if let rank = challenge.myRank {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text("RANK")
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("#\(rank)")
-                            .font(.system(size: 28, weight: .bold, design: .monospaced))
-                            .foregroundStyle(rank == 1 ? Color.tempoAmber : Color.tempoTextPrimary)
+                    VStack(alignment: .trailing, spacing: Tide.s1) {
+                        Text("Rank").tideLabel()
+                        TideNumber("#\(rank)", size: Tide.numeralL, color: rank == 1 ? TideTone.gold : Tide.text)
                     }
                 }
             }
 
             // Progress bar
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.tempoBorder)
-                            .frame(height: 6)
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.tempoSignal)
-                            .frame(width: geo.size.width * challenge.timelineProgress, height: 6)
-                    }
-                }
-                .frame(height: 6)
-
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                TideLevelBar(progress: challenge.timelineProgress, height: Tide.bar)
                 HStack {
                     Text("Day \(Int(challenge.timelineProgress * Double(challenge.totalDays)) + 1) of \(challenge.totalDays)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                     Spacer()
                     Text("\(Int(challenge.timelineProgress * 100))%")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.numeral(Tide.numeralS - Tide.s2, .semibold))
+                        .foregroundStyle(Tide.text2)
                 }
             }
         }
-        .tempoCard()
-    }
-
-    // MARK: - Empty State
-
-    private func emptyState(icon: String, title: String, message: String, ctaTitle: String?, action: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.md) {
-            Spacer().frame(height: TempoSpacing.xxxxl)
-            Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(message)
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            if let ctaTitle {
-                Button(action: action) {
-                    Text(ctaTitle)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .padding(.horizontal, TempoSpacing.xxl)
-                        .padding(.vertical, TempoSpacing.md)
-                        .background(Color.tempoSignal)
-                        .clipShape(Capsule())
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
+        .tideCard()
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -393,9 +318,9 @@ enum ChallengeTab: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .active: "ACTIVE"
-        case .pending: "PENDING"
-        case .completed: "COMPLETED"
+        case .active: "Active"
+        case .pending: "Pending"
+        case .completed: "Completed"
         }
     }
 }
@@ -407,6 +332,8 @@ enum ChallengeTab: String, CaseIterable {
 struct ChallengeCreationSheet: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
     @Binding
     var isPresented: Bool
     @State
@@ -442,66 +369,61 @@ struct ChallengeCreationSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xxl) {
-                // Step indicator
-                Text("Step \(step) of \(totalSteps)")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Text("Step \(step) of \(totalSteps)").tideLabel()
+                        TideLevelBar(progress: Double(step) / Double(totalSteps), height: Tide.barSlim)
+                    }
 
-                if step == 1 {
-                    metricSelection
-                } else if step == 2 {
-                    friendSelection
-                } else {
-                    durationSelection
+                    if step == 1 {
+                        metricSelection
+                    } else if step == 2 {
+                        friendSelection
+                    } else {
+                        durationSelection
+                    }
                 }
-
-                Spacer()
-
-                // Next/Create button
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+            }
+            .scrollIndicators(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .tidePage()
+            // The next step is always in reach, on glass over the field.
+            .safeAreaInset(edge: .bottom) {
                 Button {
                     if step < totalSteps {
-                        withAnimation { step += 1 }
+                        withAnimation(Tide.snap) { step += 1 }
                     } else {
                         createChallenge()
                         isPresented = false
                     }
                 } label: {
-                    Text(step < totalSteps ? "NEXT" : "CREATE CHALLENGE")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(
-                            canProceed ?
-                                LinearGradient(colors: [Color.tempoSignal, Color.tempoViolet], startPoint: .leading, endPoint: .trailing) :
-                                LinearGradient(colors: [Color.tempoSteel], startPoint: .leading, endPoint: .trailing)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    Text(step < totalSteps ? "Next" : "Create challenge")
                 }
+                .buttonStyle(.tidePrimary)
                 .disabled(!canProceed)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+                .sensoryFeedback(.selection, trigger: step)
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.lg)
-            .tidePage()
-            .navigationTitle("START A CHALLENGE")
+            .navigationTitle("Start a challenge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if step > 1 {
                         Button {
-                            withAnimation { step -= 1 }
+                            withAnimation(Tide.snap) { step -= 1 }
                         } label: {
                             Image(systemName: "chevron.left")
-                                .foregroundStyle(Color.tempoSignal)
                         }
+                        .accessibilityLabel("Back")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isPresented = false } label: {
-                        Image(systemName: "xmark")
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                    TideCloseButton { isPresented = false }
                 }
             }
         }
@@ -539,200 +461,137 @@ struct ChallengeCreationSheet: View {
         try? modelContext.save()
     }
 
+    // MARK: - Option row
+
+    /// One choice: a glass row that gets a mood-coloured outline when picked.
+    private func optionRow(selected: Bool, action: @escaping () -> Void, @ViewBuilder content: () -> some View) -> some View {
+        Button(action: action) {
+            HStack(spacing: Tide.s3) {
+                content()
+                Spacer(minLength: Tide.s2)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(Tide.headline)
+                    .foregroundStyle(selected ? mood.accent : Tide.text3)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: Tide.hit)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .overlay {
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .strokeBorder(selected ? mood.accent : .clear, lineWidth: Tide.hair)
+            }
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(TideCardPressStyle())
+        .animation(Tide.snap, value: selected)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
     // MARK: - Step 1: Metric Selection
 
     private var metricSelection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text("What are you competing on?")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
 
             ForEach(metrics, id: \.2) { iconName, title, key in
-                Button {
+                optionRow(selected: selectedMetric == key) {
                     selectedMetric = key
-                } label: {
-                    HStack(spacing: TempoSpacing.md) {
-                        Image(systemName: iconName)
-                            .font(.tempoTitle1)
-                        Text(title)
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        if selectedMetric == key {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(Color.tempoSignal)
-                        }
-                    }
-                    .frame(height: 72)
-                    .padding(.horizontal, TempoSpacing.lg)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(
-                                selectedMetric == key ? Color.tempoSignal : Color.tempoBorder,
-                                lineWidth: selectedMetric == key ? 2 : 0.5
-                            )
-                    )
+                } content: {
+                    TideIconTile(systemName: iconName, tint: mood.accent)
+                    Text(title)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                 }
             }
         }
     }
 
-    // MARK: - Step 2: Duration Selection
+    // MARK: - Step 3: Duration Selection
 
     private var durationSelection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             Text("How long?")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
 
-            HStack(spacing: TempoSpacing.sm) {
-                ForEach(durations, id: \.self) { days in
-                    Button {
-                        selectedDuration = days
-                    } label: {
-                        Text("\(days)d")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(selectedDuration == days ? .white : Color.tempoTextPrimary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 44)
-                            .background(selectedDuration == days ? Color.tempoSignal : Color.tempoSurfaceCard)
-                            .clipShape(Capsule())
-                            .overlay(
-                                Capsule()
-                                    .stroke(selectedDuration == days ? Color.clear : Color.tempoBorder, lineWidth: 0.5)
-                            )
-                    }
-                }
-            }
+            TidePillPicker(
+                options: durations,
+                selection: $selectedDuration,
+                title: { "\($0)d" },
+                label: "Duration"
+            )
 
             // Duration label
             Text(durationLabel(selectedDuration))
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(mood.accent)
                 .frame(maxWidth: .infinity, alignment: .center)
+                .contentTransition(.opacity)
+                .animation(Tide.snap, value: selectedDuration)
         }
     }
 
     // MARK: - Step 2: Friend Selection
 
     private var friendSelection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Who are you challenging?")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
 
             // Solo option
-            Button {
+            optionRow(selected: isSoloChallenge) {
                 isSoloChallenge.toggle()
                 if isSoloChallenge {
                     selectedFriends.removeAll()
                 }
-            } label: {
-                HStack(spacing: TempoSpacing.md) {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoSignal)
-                        .frame(width: 40, height: 40)
-                        .background(Color.tempoSignal.opacity(0.15))
-                        .clipShape(Circle())
-                    Text("Solo Challenge")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
-                    if isSoloChallenge {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color.tempoSignal)
-                    }
-                }
-                .frame(height: 56)
-                .padding(.horizontal, TempoSpacing.lg)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isSoloChallenge ? Color.tempoSignal : Color.tempoBorder, lineWidth: isSoloChallenge ? 2 : 0.5)
-                )
+            } content: {
+                TideIconTile(systemName: "person.fill", tint: mood.accent)
+                Text("Solo challenge")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
             }
 
             if !availableFriends.isEmpty {
-                Text("OR CHALLENGE FRIENDS")
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xs)
+                Text("Or challenge friends").tideLabel()
+                    .padding(.top, Tide.s2)
 
                 ForEach(availableFriends) { friend in
-                    Button {
+                    optionRow(selected: selectedFriends.contains(friend.userID)) {
                         isSoloChallenge = false
                         if selectedFriends.contains(friend.userID) {
                             selectedFriends.remove(friend.userID)
                         } else {
                             selectedFriends.insert(friend.userID)
                         }
-                    } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            // Avatar
-                            Circle()
-                                .fill(Color.tempoSignal.opacity(0.15))
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Text(String(friend.displayName.prefix(1)))
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundStyle(Color.tempoSignal)
-                                )
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(friend.displayName)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Text("Level \(friend.level)")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                    } content: {
+                        TideInitialAvatar(name: friend.displayName)
+                            .overlay(alignment: .bottomTrailing) {
+                                Circle()
+                                    .fill(friend.isOnline ? TideTone.mint : Tide.text3)
+                                    .frame(width: Tide.s3, height: Tide.s3)
+                                    .overlay(Circle().strokeBorder(Tide.ink, lineWidth: Tide.hair))
                             }
-
-                            Spacer()
-
-                            // Online indicator
-                            Circle()
-                                .fill(friend.isOnline ? Color.tempoSuccess : Color.tempoSteel)
-                                .frame(width: 8, height: 8)
-
-                            if selectedFriends.contains(friend.userID) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color.tempoSignal)
-                            } else {
-                                Image(systemName: "circle")
-                                    .foregroundStyle(Color.tempoBorder)
-                            }
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(friend.displayName)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                            Text("Level \(friend.level)")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
-                        .frame(height: 56)
-                        .padding(.horizontal, TempoSpacing.lg)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(
-                                    selectedFriends.contains(friend.userID) ? Color.tempoSignal : Color.tempoBorder,
-                                    lineWidth: selectedFriends.contains(friend.userID) ? 2 : 0.5
-                                )
-                        )
                     }
                 }
             }
 
             if availableFriends.isEmpty {
-                VStack(spacing: TempoSpacing.sm) {
-                    Text("No friends yet")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text("Add friends from the Arena to challenge them!")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, TempoSpacing.md)
+                TideEmptyPanel(
+                    systemImage: "person.2",
+                    title: "No friends yet",
+                    message: "Add friends from the Arena to challenge them."
+                )
             }
         }
     }

@@ -18,48 +18,36 @@ struct WeeklyRecoverySummaryView: View {
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                if let stats = viewModel.weeklyStats {
-                    // Average Cards
-                    averagesSection(stats)
+        TideScrollPage {
+            if let stats = viewModel.weeklyStats {
+                // Average Cards
+                averagesSection(stats)
 
-                    // Best & Worst Days
-                    bestWorstSection(stats)
+                // Best & Worst Days
+                bestWorstSection(stats)
 
-                    // Trend Arrows vs Previous Week
-                    trendArrowsSection(stats)
+                // Trend Arrows vs Previous Week
+                trendArrowsSection(stats)
 
-                    // Strain vs Recovery Balance
-                    strainRecoveryBalanceSection(stats)
+                // Strain vs Recovery Balance
+                strainRecoveryBalanceSection(stats)
 
-                    // Recovery Distribution
-                    recoveryDistributionSection
-                } else {
-                    // Not enough data
-                    VStack(spacing: TempoSpacing.md) {
-                        Image(systemName: "chart.bar.xaxis")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Color.tempoTextTertiary)
-
-                        Text("Need at least 3 days of data")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-
-                        Text("Keep wearing your Whoop and check back soon for your weekly summary.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.vertical, TempoSpacing.xxxl)
-                }
+                // Recovery Distribution
+                recoveryDistributionSection
+            } else {
+                // Not enough data
+                TideEmptyPanel(
+                    systemImage: "chart.bar.xaxis",
+                    title: "Need at least 3 days of data",
+                    message: "Keep wearing your Whoop and check back soon for your weekly summary."
+                )
+                .tideCard()
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .tidePage()
         .navigationTitle("Weekly Summary")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
@@ -70,127 +58,109 @@ struct WeeklyRecoverySummaryView: View {
     // MARK: - Averages Section
 
     private func averagesSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("7-Day Averages")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "7-day averages")
 
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-            ], spacing: TempoSpacing.sm) {
-                averageCard(
-                    icon: "heart.text.square.fill",
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2),
+                spacing: Tide.s3
+            ) {
+                TideMetricTile(
                     label: "Recovery",
-                    value: "\(Int(stats.avgRecovery))%",
-                    color: RecoveryZone(score: stats.avgRecovery).zoneColor
+                    value: "\(Int(stats.avgRecovery))",
+                    unit: "%",
+                    tint: RecoveryZone(score: stats.avgRecovery).tideColor,
+                    systemImage: "heart.text.square.fill"
                 )
-                averageCard(
-                    icon: "waveform.path.ecg",
+                TideMetricTile(
                     label: "HRV",
-                    value: "\(Int(stats.avgHRV)) ms",
-                    color: Color.tempoSleepREM
+                    value: "\(Int(stats.avgHRV))",
+                    unit: "ms",
+                    tint: TideSleepStage.rem,
+                    systemImage: "waveform.path.ecg"
                 )
-                averageCard(
-                    icon: "heart.fill",
+                TideMetricTile(
                     label: "RHR",
-                    value: "\(Int(stats.avgRHR)) bpm",
-                    color: Color.tempoRecoveryRed
+                    value: "\(Int(stats.avgRHR))",
+                    unit: "bpm",
+                    tint: Tide.danger,
+                    systemImage: "heart.fill"
                 )
-                averageCard(
-                    icon: "moon.zzz.fill",
+                TideMetricTile(
                     label: "Sleep",
-                    value: String(format: "%.1fh", stats.avgSleep),
-                    color: Color.sleepDeep
+                    value: String(format: "%.1f", stats.avgSleep),
+                    unit: "h",
+                    tint: TideSleepStage.light,
+                    systemImage: "moon.zzz.fill"
                 )
             }
         }
     }
 
-    private func averageCard(icon: String, label: String, value: String, color: Color) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Image(systemName: icon)
-                .font(.tempoTitle3)
-                .foregroundStyle(color)
-
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text(value)
-                .font(.tempoTitle3)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-    }
-
     // MARK: - Best & Worst Days
 
     private func bestWorstSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Highlights")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Highlights")
 
             if let best = stats.bestDay {
                 dayHighlightCard(
                     icon: "arrow.up.circle.fill",
-                    label: "Best Day",
+                    label: "Best day",
                     date: best.0,
                     score: best.1,
                     explanation: bestDayExplanation(best.0),
-                    color: Color.tempoRecoveryGreen
+                    color: TideTone.mint
                 )
             }
 
             if let worst = stats.worstDay {
                 dayHighlightCard(
                     icon: "arrow.down.circle.fill",
-                    label: "Toughest Day",
+                    label: "Toughest day",
                     date: worst.0,
                     score: worst.1,
                     explanation: worstDayExplanation(worst.0),
-                    color: Color.tempoRecoveryRed
+                    color: Tide.danger
                 )
             }
         }
     }
 
     private func dayHighlightCard(icon: String, label: String, date: Date, score: Double, explanation: String, color: Color) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .top, spacing: Tide.s3) {
             Image(systemName: icon)
-                .font(.tempoTitle2)
+                .font(Tide.title2)
                 .foregroundStyle(color)
+                .frame(width: Tide.icon)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                HStack {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(alignment: .firstTextBaseline) {
                     Text(label)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
 
-                    Spacer()
+                    Spacer(minLength: Tide.s2)
 
-                    Text("\(Int(score))%")
-                        .font(.tempoTitle3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(color)
+                    TideNumber("\(Int(score))", unit: "%", size: Tide.numeralM, relativeTo: .title2, color: color)
                 }
 
                 Text(date, format: .dateTime.weekday(.wide).month(.abbreviated).day())
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
 
-                Text(explanation)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineSpacing(2)
+                if !explanation.isEmpty {
+                    Text(explanation)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .lineSpacing(Tide.hair)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     private func bestDayExplanation(_ date: Date) -> String {
@@ -238,10 +208,13 @@ struct WeeklyRecoverySummaryView: View {
     // MARK: - Trend Arrows vs Previous Week
 
     private func trendArrowsSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("vs Last Week")
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Vs last week")
 
-            HStack(spacing: TempoSpacing.sm) {
+            layout {
                 trendArrowTile(
                     label: "Recovery",
                     current: stats.avgRecovery,
@@ -275,138 +248,136 @@ struct WeeklyRecoverySummaryView: View {
     }
 
     private func trendArrowTile(label: String, current: Double, previous: Double?, unit: String, higherIsBetter: Bool) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        let delta = previous.map { current - $0 }
+        let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
+        let tint = isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3
+        let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
+        return VStack(spacing: Tide.s2) {
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .tideLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
 
-            if let prev = previous {
-                let delta = current - prev
-                let isPositive = higherIsBetter ? delta >= 0 : delta <= 0
-                let arrow = isPositive ? "arrow.up.right" : "arrow.down.right"
+            Image(systemName: isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
+                .font(Tide.title2)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
 
-                Image(systemName: arrow)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(isPositive ? Color.tempoRecoveryGreen : Color.tempoRecoveryRed)
-
-                let formatted = unit == "h" ? String(format: "%+.1f", delta) : String(format: "%+.0f", delta)
-                Text("\(formatted)\(unit)")
-                    .font(.tempoCaption1)
-                    .fontWeight(.medium)
-                    .foregroundStyle(isPositive ? Color.tempoRecoveryGreen : Color.tempoRecoveryRed)
-            } else {
-                Image(systemName: "minus")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Color.tempoTextTertiary)
-
-                Text("--")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+            Text(formatted.map { "\($0)\(unit)" } ?? "--")
+                .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            formatted.map { "\(label) \($0) \(unit), \(isPositive == true ? "better" : "worse") than last week" }
+                ?? "\(label), no data for last week"
+        )
     }
 
     // MARK: - Strain vs Recovery Balance
 
     private func strainRecoveryBalanceSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Strain vs Recovery Balance")
+        let last7 = Array(viewModel.recentRecoveries.suffix(7))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Strain vs recovery balance")
 
-            VStack(spacing: TempoSpacing.sm) {
-                // 7-day chart showing strain and recovery side by side
-                let last7 = Array(viewModel.recentRecoveries.suffix(7))
-
-                if last7.count >= 3 {
-                    // Bar representation
+            if last7.count >= 3 {
+                VStack(spacing: Tide.s3) {
+                    // One row per day: recovery bar over strain bar
                     ForEach(last7, id: \.id) { day in
-                        HStack(spacing: TempoSpacing.sm) {
-                            // Day label
-                            Text(day.date, format: .dateTime.weekday(.abbreviated))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                                .frame(width: 32, alignment: .leading)
-
-                            // Recovery bar
-                            GeometryReader { geo in
-                                let recoveryFraction = min(day.recoveryScore / 100.0, 1.0)
-                                let strainFraction = min((day.strain ?? 0) / 21.0, 1.0)
-
-                                VStack(spacing: 2) {
-                                    // Recovery
-                                    HStack(spacing: 0) {
-                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                            .fill(RecoveryZone(score: day.recoveryScore).zoneColor)
-                                            .frame(width: geo.size.width * recoveryFraction, height: 10)
-                                        Spacer(minLength: 0)
-                                    }
-                                    // Strain
-                                    HStack(spacing: 0) {
-                                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                            .fill(Color.tempoRecoveryYellow.opacity(0.7))
-                                            .frame(width: geo.size.width * strainFraction, height: 10)
-                                        Spacer(minLength: 0)
-                                    }
-                                }
-                            }
-                            .frame(height: 22)
-
-                            // Score labels
-                            VStack(alignment: .trailing, spacing: 0) {
-                                Text("\(Int(day.recoveryScore))%")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(RecoveryZone(score: day.recoveryScore).zoneColor)
-                                Text(day.strain.map { String(format: "%.0f", $0) } ?? "--")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(Color.tempoRecoveryYellow)
-                            }
-                            .frame(width: 30, alignment: .trailing)
-                        }
+                        balanceRow(day)
                     }
 
                     // Legend
-                    HStack(spacing: TempoSpacing.lg) {
-                        HStack(spacing: TempoSpacing.xxs) {
-                            Circle()
-                                .fill(Color.tempoRecoveryGreen)
-                                .frame(width: 8, height: 8)
-                            Text("Recovery")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                        HStack(spacing: TempoSpacing.xxs) {
-                            Circle()
-                                .fill(Color.tempoRecoveryYellow)
-                                .frame(width: 8, height: 8)
-                            Text("Strain")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                        }
-                        Spacer()
+                    HStack(spacing: Tide.s4) {
+                        legendDot(label: "Recovery", color: TideTone.mint)
+                        legendDot(label: "Strain", color: TideTone.amber)
+                        Spacer(minLength: Tide.s2)
                         Text("Total: \(String(format: "%.0f", stats.totalStrain))")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
-                    .padding(.top, TempoSpacing.xs)
+                    .padding(.top, Tide.s1)
 
                     // Balance assessment
                     let balanceText = strainRecoveryAssessment(stats)
                     if !balanceText.isEmpty {
                         Text(balanceText)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .lineSpacing(2)
-                            .padding(.top, TempoSpacing.xs)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .lineSpacing(Tide.hair)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .tideCard()
+            } else {
+                Text("Need at least 3 days to compare strain and recovery.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+        }
+    }
+
+    private func balanceRow(_ day: DailyRecovery) -> some View {
+        let zone = RecoveryZone(score: day.recoveryScore)
+        return HStack(spacing: Tide.s3) {
+            // Day label
+            Text(day.date, format: .dateTime.weekday(.abbreviated))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .frame(minWidth: Tide.s8, alignment: .leading)
+
+            VStack(spacing: Tide.s1) {
+                barTrack(fraction: min(day.recoveryScore / 100.0, 1.0), color: zone.tideColor)
+                barTrack(fraction: min((day.strain ?? 0) / 21.0, 1.0), color: TideTone.amber.opacity(0.8))
+            }
+
+            // Score labels
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("\(Int(day.recoveryScore))%")
+                    .font(Tide.numeral(Tide.axisSize + 1, .semibold))
+                    .foregroundStyle(zone.tideColor)
+                Text(day.strain.map { String(format: "%.0f", $0) } ?? "--")
+                    .font(Tide.numeral(Tide.axisSize + 1, .medium))
+                    .foregroundStyle(TideTone.amber)
+            }
+            .frame(minWidth: Tide.s10, alignment: .trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(day.date.formatted(.dateTime.weekday(.wide)))
+        .accessibilityValue(
+            "Recovery \(Int(day.recoveryScore)) percent, strain \(day.strain.map { String(format: "%.0f", $0) } ?? "none")"
+        )
+    }
+
+    private func barTrack(fraction: Double, color: Color) -> some View {
+        Capsule()
+            .fill(Tide.fill)
+            .frame(height: Tide.s2)
+            .overlay(alignment: .leading) {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(color)
+                        .frame(width: fraction > 0 ? max(Tide.s2, geo.size.width * fraction) : 0)
+                }
+            }
+    }
+
+    private func legendDot(label: String, color: Color) -> some View {
+        HStack(spacing: Tide.s2) {
+            Circle()
+                .fill(color)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .accessibilityHidden(true)
+            Text(label)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
     }
 
@@ -429,81 +400,40 @@ struct WeeklyRecoverySummaryView: View {
     // MARK: - Recovery Distribution
 
     private var recoveryDistributionSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Recovery Distribution")
+        let last7 = Array(viewModel.recentRecoveries.suffix(7))
+        let greenDays = last7.count(where: { $0.recoveryScore >= 67 })
+        let yellowDays = last7.count(where: { $0.recoveryScore >= 34 && $0.recoveryScore < 67 })
+        let redDays = last7.count(where: { $0.recoveryScore < 34 })
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
 
-            let last7 = Array(viewModel.recentRecoveries.suffix(7))
-            let greenDays = last7.count(where: { $0.recoveryScore >= 67 })
-            let yellowDays = last7.count(where: { $0.recoveryScore >= 34 && $0.recoveryScore < 67 })
-            let redDays = last7.count(where: { $0.recoveryScore < 34 })
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Recovery distribution")
 
-            HStack(spacing: TempoSpacing.sm) {
-                distributionTile(
-                    label: "Green",
-                    count: greenDays,
-                    total: last7.count,
-                    color: Color.tempoRecoveryGreen
-                )
-                distributionTile(
-                    label: "Yellow",
-                    count: yellowDays,
-                    total: last7.count,
-                    color: Color.tempoRecoveryYellow
-                )
-                distributionTile(
-                    label: "Red",
-                    count: redDays,
-                    total: last7.count,
-                    color: Color.tempoRecoveryRed
-                )
+            layout {
+                distributionTile(label: "Green", count: greenDays, total: last7.count, color: TideTone.mint)
+                distributionTile(label: "Yellow", count: yellowDays, total: last7.count, color: TideTone.amber)
+                distributionTile(label: "Red", count: redDays, total: last7.count, color: Tide.danger)
             }
         }
     }
 
     private func distributionTile(label: String, count: Int, total: Int, color: Color) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Text("\(count)")
-                .font(.tempoLargeTitle)
-                .foregroundStyle(color)
+        VStack(spacing: Tide.s2) {
+            TideNumber("\(count)", size: Tide.numeralL, relativeTo: .largeTitle, color: color)
 
             Text(count == 1 ? "day" : "days")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
-            Text(label)
-                .font(.tempoCaption1)
-                .fontWeight(.medium)
-                .foregroundStyle(color)
+            Text(label).tideLabel(color)
 
-            // Mini bar
-            GeometryReader { geo in
-                let fraction = total > 0 ? Double(count) / Double(total) : 0
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(color.opacity(0.15))
-                        .frame(height: 6)
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(color)
-                        .frame(width: geo.size.width * fraction, height: 6)
-                }
-            }
-            .frame(height: 6)
+            barTrack(fraction: total > 0 ? Double(count) / Double(total) : 0, color: color)
         }
         .frame(maxWidth: .infinity)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-    }
-}
-
-// MARK: - RecoveryZone Color Helper
-
-private extension RecoveryZone {
-    var zoneColor: Color {
-        switch self {
-        case .green: Color.tempoRecoveryGreen
-        case .yellow: Color.tempoRecoveryYellow
-        case .red: Color.tempoRecoveryRed
-        }
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label) zone, \(count) \(count == 1 ? "day" : "days") of \(total)")
     }
 }
