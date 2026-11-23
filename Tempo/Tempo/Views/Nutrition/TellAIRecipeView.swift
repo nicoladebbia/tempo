@@ -26,6 +26,8 @@ struct TellAIRecipeView: View {
     @State private var service: RecipeParserService?
     @State private var isParsing: Bool = false
     @State private var errorText: String?
+    /// The reply came back but held no usable recipe (vs. the call failing).
+    @State private var resultWasEmpty = false
     @State private var blocker: AIBlocker?
 
     /// Parsed recipe awaiting user confirmation. Non-nil → preview sheet
@@ -47,23 +49,42 @@ struct TellAIRecipeView: View {
 
                     editor
 
-                    if let blocker {
+                    if isParsing {
+                        FuelAIState(kind: .working("Reading your recipe…"))
+                            .transition(.opacity)
+                    } else if let blocker {
                         AIBlockerCard(blocker: blocker) {
                             self.blocker = nil
                             Task { await parseAndPreview() }
                         }
                     } else if let errorText {
-                        Text(errorText)
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.danger)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if resultWasEmpty {
+                            FuelAIState(
+                                kind: .empty(title: "No recipe found", message: errorText),
+                                actionTitle: "Try again",
+                                action: { Task { await parseAndPreview() } }
+                            )
+                        } else {
+                            FuelAIState(
+                                kind: .failed(title: "Couldn't read that", message: errorText),
+                                actionTitle: "Try again",
+                                action: { Task { await parseAndPreview() } }
+                            )
+                        }
                     }
                 }
+                .animation(Tide.settle, value: isParsing)
                 .padding(.horizontal, Tide.edge)
                 .padding(.vertical, Tide.s4)
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .top)
+            // The one action sits under the thumb.
+            .fuelBottomBar {
+                Button("Parse") { Task { await parseAndPreview() } }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty || isParsing)
+            }
             .tidePage()
             .navigationTitle("Tell AI")
             .navigationBarTitleDisplayMode(.inline)
@@ -71,18 +92,6 @@ struct TellAIRecipeView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .disabled(isParsing)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        Task { await parseAndPreview() }
-                    } label: {
-                        if isParsing {
-                            ProgressView()
-                        } else {
-                            Text("Parse")
-                        }
-                    }
-                    .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty || isParsing)
                 }
             }
             .onAppear { textFocused = true }
@@ -129,7 +138,7 @@ struct TellAIRecipeView: View {
                 .focused($textFocused)
                 .disabled(isParsing)
         }
-        .frame(minHeight: 220)
+        .frame(minHeight: Tide.fuelEditor)
         .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
         .overlay(
             RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
@@ -157,6 +166,7 @@ struct TellAIRecipeView: View {
         textFocused = false
         isParsing = true
         errorText = nil
+        resultWasEmpty = false
         blocker = nil
         defer { isParsing = false }
 
@@ -172,6 +182,7 @@ struct TellAIRecipeView: View {
             let ingredientCount = recipe.ingredients?.count ?? 0
             guard !trimmedName.isEmpty, ingredientCount > 0 else {
                 errorText = "AI couldn't pull a usable recipe from that. Try being more specific about ingredients and steps."
+                resultWasEmpty = true
                 HapticManager.notification(.error)
                 return
             }
@@ -222,13 +233,14 @@ private struct RecipePreviewSheet: View {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onConfirm(recipe)
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
+            }
+            // The one action sits under the thumb.
+            .fuelBottomBar {
+                Button("Save") {
+                    onConfirm(recipe)
+                    dismiss()
                 }
+                .buttonStyle(.tidePrimary)
             }
         }
     }

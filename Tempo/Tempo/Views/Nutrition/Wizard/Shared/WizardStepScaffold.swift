@@ -93,7 +93,7 @@ struct WizardStepScaffold<Content: View>: View {
                 Text("Plan intake")
                     .tideLabel()
                 Spacer()
-                Color.clear.frame(width: Tide.hit, height: 1)
+                Color.clear.frame(width: Tide.hit, height: Tide.hair)
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s1)

@@ -254,29 +254,18 @@ struct PlannedMealCardView: View {
                 .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
         .accessibilityLabel("Leave feedback for \(meal.mealName)")
     }
 
     // MARK: - Helpers
 
     private var mealIcon: String {
-        switch meal.mealName.lowercased() {
-        case "breakfast": "sunrise.fill"
-        case "lunch": "sun.max.fill"
-        case "dinner": "moon.stars.fill"
-        case "snack": "carrot.fill"
-        default: "fork.knife"
-        }
+        FuelMealStyle.icon(forName: meal.mealName)
     }
 
     private var mealIconColor: Color {
-        switch meal.status {
-        case .eaten: Tide.good
-        case .skipped: Tide.danger
-        case .planned: mood.accent
-        case .modified: Tide.warn
-        }
+        FuelMealStyle.tone(for: meal.status, accent: mood.accent)
     }
 }
 

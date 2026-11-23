@@ -59,6 +59,12 @@ struct NutritionWeeklyPlanView: View {
                     }
                     planHeaderCard(plan)
                     weekDaysList(plan)
+                } else if viewModel.isGeneratingPlan {
+                    // First plan being built: say so, in the same look as every AI wait.
+                    FuelAIState(kind: .working(
+                        viewModel.planGenerationStatusLabel.isEmpty
+                            ? "Building your week…" : viewModel.planGenerationStatusLabel
+                    ))
                 } else {
                     emptyPlanState
                 }

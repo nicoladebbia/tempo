@@ -70,10 +70,14 @@ struct NutritionTabView: View {
             VStack(spacing: 0) {
                 switch viewModel.loadState {
                 case .loading:
-                    Spacer()
-                    ProgressView()
-                        .tint(Tide.text2)
-                    Spacer()
+                    // The shape of the page that is coming, not a lone spinner.
+                    VStack(spacing: Tide.s4) {
+                        FuelSkeletonRows(count: 3).tideCard()
+                        FuelSkeletonRows(count: 2).tideCard()
+                    }
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 case let .error(message):
                     errorState(message)

@@ -137,7 +137,7 @@ struct FuelFlowScaffold<Content: View>: View {
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
                             .padding(.horizontal, Tide.s5)
-                            .frame(minHeight: 52)
+                            .frame(minHeight: Tide.hit + Tide.s2)
                             .background(Tide.fill, in: .capsule)
                             .contentShape(.capsule)
                     }

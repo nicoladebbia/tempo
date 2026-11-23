@@ -60,6 +60,9 @@ struct NutritionTodayView: View {
     /// taken set (a fetch in a computed view doesn't auto-refresh on insert).
     @State
     private var supplementTakenRefresh = 0
+    /// Ties a meal card to the meal page that opens from it.
+    @Namespace
+    private var mealZoom
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -113,7 +116,9 @@ struct NutritionTodayView: View {
                 supplementTakenRefresh += 1
             }
             .navigationDestination(item: $detailMeal) { meal in
+                // The meal page grows out of its card and shrinks back into it.
                 MealDetailView(meal: meal)
+                    .navigationTransition(.zoom(sourceID: meal.id, in: mealZoom))
             }
             .sheet(item: $feedbackMeal, onDismiss: {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
@@ -353,6 +358,7 @@ struct NutritionTodayView: View {
                             && !EatenMealRecorder.isSupplementDose(meal)
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
+                    .matchedTransitionSource(id: meal.id, in: mealZoom)
                 }
             }
         }
