@@ -632,7 +632,7 @@ struct TodayWorkoutView: View {
             }
 
             HStack {
-                Text(session.modality)
+                Text(session.modality.capitalized)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                 Spacer()
