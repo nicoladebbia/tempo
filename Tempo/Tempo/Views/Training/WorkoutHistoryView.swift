@@ -131,13 +131,13 @@ struct WorkoutHistoryView: View {
                 )
                 .frame(minHeight: 400)
             } else {
-                LazyVStack(spacing: TempoSpacing.sm) {
+                LazyVStack(spacing: Tide.s2) {
                     ForEach(completedWorkouts, id: \.id) { workout in
                         swipeToDeleteRow(workout)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
             }
         }
         .tidePage()
@@ -303,22 +303,27 @@ struct WorkoutHistoryView: View {
                 pendingDelete = workout
                 HapticManager.notification(.warning)
             } label: {
-                VStack(spacing: TempoSpacing.xxs) {
+                VStack(spacing: Tide.hair) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(Tide.bodyStrong)
                     Text("Delete")
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                         .fontWeight(.semibold)
                 }
-                .foregroundStyle(Color.tempoTextInverse)
+                .foregroundStyle(Tide.ink)
                 .frame(width: revealWidth)
                 .frame(maxHeight: .infinity)
-                .background(Color.tempoError)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .background(Tide.danger)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
             }
+            // The cards are glass now: the red must not show through until
+            // the row is swiped open.
+            .opacity(isSwiped ? 1 : 0)
+            .allowsHitTesting(isSwiped)
+            .accessibilityHidden(!isSwiped)
 
             workoutCard(workout)
-                .offset(x: isSwiped ? -revealWidth - TempoSpacing.sm : 0)
+                .offset(x: isSwiped ? -revealWidth - Tide.s2 : 0)
                 // highPriorityGesture so a horizontal swipe is claimed as a
                 // swipe BEFORE the card's expand button registers a tap — the
                 // old .gesture let a slightly-moving tap expand the row instead
@@ -332,7 +337,7 @@ struct WorkoutHistoryView: View {
                             guard abs(value.translation.width) > abs(value.translation.height) else {
                                 return
                             }
-                            withAnimation(.snappy(duration: 0.25)) {
+                            withAnimation(Tide.snap) {
                                 if value.translation.width < -40 {
                                     if expandedWorkoutID == workout.id {
                                         expandedWorkoutID = nil
@@ -345,7 +350,7 @@ struct WorkoutHistoryView: View {
                         }
                 )
         }
-        .animation(.snappy(duration: 0.25), value: isSwiped)
+        .animation(Tide.snap, value: isSwiped)
     }
 
     /// Honest confirmation copy — states exactly what is and is NOT removed.
@@ -470,22 +475,21 @@ struct WorkoutHistoryView: View {
 
     private func importOverlay(_ stage: String) -> some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-            VStack(spacing: TempoSpacing.md) {
+            Tide.ink.opacity(0.55).ignoresSafeArea()
+            VStack(spacing: Tide.s3) {
                 if let importProgress {
                     ProgressView(value: importProgress)
-                        .tint(Color.tempoSignal)
+                        .tint(Color.accentColor)
                         .frame(width: 180)
                 } else {
                     ProgressView()
                 }
                 Text(importProgress.map { "\(stage) \(Int($0 * 100))%" } ?? stage)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
             }
-            .padding(TempoSpacing.xl)
-            .background(Color.tempoBgSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            .padding(Tide.s5)
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.cardRadius))
         }
         .transition(.opacity)
     }
@@ -531,48 +535,43 @@ struct WorkoutHistoryView: View {
                 // the Delete affordance from ever pairing with an expanded
                 // (tall) card.
                 if swipedWorkoutID == workout.id {
-                    withAnimation(.snappy(duration: 0.25)) {
+                    withAnimation(Tide.snap) {
                         swipedWorkoutID = nil
                     }
                     return
                 }
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(Tide.snap) {
                     expandedWorkoutID = isExpanded ? nil : workout.id
                 }
                 HapticManager.selection()
             } label: {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    // Row 1: Date + workout type
-                    HStack {
-                        Text(workout.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    // Row 1: workout type + date
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(workout.type.displayName)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
 
                         Spacer()
 
-                        Text(workout.type.displayName.uppercased())
-                            .font(.tempoCaption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoSignal)
-                            .padding(.horizontal, TempoSpacing.xs)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoSignal.opacity(0.12))
-                            .clipShape(Capsule())
+                        Text(workout.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
 
                     // Row 2: Stats
-                    HStack(spacing: TempoSpacing.md) {
+                    HStack(spacing: Tide.s3) {
                         // Duration
                         if let durationText = Self.durationText(for: workout) {
-                            HStack(spacing: TempoSpacing.xxs) {
+                            HStack(spacing: Tide.hair) {
                                 Image(systemName: "timer")
-                                    .font(.system(size: 11))
+                                    .font(Tide.label)
                                 Text(durationText)
-                                    .font(.tempoCaption1)
+                                    .font(Tide.caption)
                                     .lineLimit(1)
                                     .fixedSize()
                             }
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .foregroundStyle(Tide.text2)
                         }
 
                         // Exercise count — keep on one line (don't let "6
@@ -580,68 +579,68 @@ struct WorkoutHistoryView: View {
                         let exerciseCount = workout.status == .completed
                             ? workout.performedExerciseCount : workout.orderedExercises.count
                         if exerciseCount > 0 {
-                            HStack(spacing: TempoSpacing.xxs) {
+                            HStack(spacing: Tide.hair) {
                                 Image(systemName: "figure.strengthtraining.traditional")
-                                    .font(.system(size: 11))
+                                    .font(Tide.label)
                                 Text("\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")")
-                                    .font(.tempoCaption1)
+                                    .font(Tide.caption)
                                     .lineLimit(1)
                                     .fixedSize()
                             }
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .foregroundStyle(Tide.text2)
                         }
 
                         // Total volume
                         let vol = workout.totalVolume
                         if vol > 0 {
-                            HStack(spacing: TempoSpacing.xxs) {
+                            HStack(spacing: Tide.hair) {
                                 Image(systemName: "scalemass")
-                                    .font(.system(size: 11))
+                                    .font(Tide.label)
                                 Text(formatVolume(vol))
-                                    .font(.tempoCaption1)
+                                    .font(Tide.caption)
                                     .lineLimit(1)
                                     .fixedSize()
                             }
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .foregroundStyle(Tide.text2)
                         }
 
                         // Warm-up completed marker
                         if workout.warmupCompleted {
-                            HStack(spacing: TempoSpacing.xxs) {
+                            HStack(spacing: Tide.hair) {
                                 Image(systemName: "checkmark.seal.fill")
-                                    .font(.system(size: 11))
+                                    .font(Tide.label)
                                 Text("Warm-up")
-                                    .font(.tempoCaption1)
+                                    .font(Tide.caption)
                                     .lineLimit(1)
                                     .fixedSize()
                             }
-                            .foregroundStyle(Color.tempoRecoveryGreen)
+                            .foregroundStyle(TideTrain.positive)
                         }
 
                         Spacer()
 
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
-                .padding(TempoSpacing.cardPadding)
+                .padding(Tide.s4)
             }
             .buttonStyle(.plain)
 
             // Expanded exercise detail
             if isExpanded {
                 Divider()
-                    .background(Color.tempoTextTertiary.opacity(0.2))
+                    .background(Tide.text3.opacity(0.2))
 
                 if let notes = workout.userNotes {
                     Text(notes)
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
                         .italic()
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .foregroundStyle(Tide.text2)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, TempoSpacing.cardPadding)
-                        .padding(.top, TempoSpacing.sm)
+                        .padding(.horizontal, Tide.s4)
+                        .padding(.top, Tide.s2)
                 }
 
                 Group {
@@ -652,29 +651,27 @@ struct WorkoutHistoryView: View {
                         // list; show the Whoop activity detail instead.
                         activityDetail(session)
                     } else {
-                        VStack(spacing: TempoSpacing.xs) {
+                        VStack(spacing: Tide.s1) {
                             ForEach(workout.orderedExercises, id: \.id) { plannedEx in
                                 exerciseDetailRow(plannedEx)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, TempoSpacing.cardPadding)
-                .padding(.vertical, TempoSpacing.sm)
+                .padding(.horizontal, Tide.s4)
+                .padding(.vertical, Tide.s2)
                 .transition(.opacity.combined(with: .move(edge: .top)))
 
                 // Fix #7 — trainer-program conditioning blocks logged for this
                 // day (grouped by session — a two-a-day can carry both a lift
                 // and a conditioning second session).
                 conditioningResultsSection(workout)
-                    .padding(.horizontal, TempoSpacing.cardPadding)
-                    .padding(.bottom, TempoSpacing.sm)
+                    .padding(.horizontal, Tide.s4)
+                    .padding(.bottom, Tide.s2)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.cardRadius))
     }
 
     // MARK: - Activity (non-gym) Detail
@@ -698,8 +695,8 @@ struct WorkoutHistoryView: View {
     }
 
     private func activityDetail(_ session: ActivitySession) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.lg) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(spacing: Tide.s4) {
                 if let strain = session.strain {
                     activityMetric(String(format: "%.1f", strain), "Strain")
                 }
@@ -718,33 +715,33 @@ struct WorkoutHistoryView: View {
                 caloriesBurned: session.caloriesBurned,
                 durationMinutes: session.durationMinutes
             ) {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(spacing: Tide.s1) {
                     Image(systemName: "drop.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color.tempoElectric)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.water)
                     Text(String(format: "~%.1f–%.1f L lost", range.lowerBound, range.upperBound))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
 
             if session.source == "manual" {
                 Text("Logged manually — no Whoop data.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func activityMetric(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: Tide.hair) {
             Text(value)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 
@@ -772,16 +769,13 @@ struct WorkoutHistoryView: View {
         let results = conditioningResults(for: workout)
         if !results.isEmpty {
             let grouped = Dictionary(grouping: results) { $0.programSessionKey ?? "" }
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Divider()
-                    .background(Color.tempoTextTertiary.opacity(0.2))
+                    .background(Tide.text3.opacity(0.2))
                 ForEach(grouped.keys.sorted(), id: \.self) { key in
                     let day = programDay(forSessionKey: key)
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                        Text((day?.title ?? day?.workoutType.displayName ?? "Conditioning").uppercased())
-                            .font(.tempoCaption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(day?.title ?? day?.workoutType.displayName ?? "Conditioning").tideLabel()
                         ForEach((grouped[key] ?? []).sorted { $0.createdAt < $1.createdAt }, id: \.id) { result in
                             conditioningResultRow(result, day: day)
                         }
@@ -789,30 +783,30 @@ struct WorkoutHistoryView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, TempoSpacing.sm)
+            .padding(.top, Tide.s2)
         }
     }
 
     private func conditioningResultRow(_ result: ConditioningBlockResult, day: ProgramDay?) -> some View {
         let block = day?.exercises.first { $0.id == result.blockID }
-        return HStack(alignment: .top, spacing: TempoSpacing.xs) {
+        return HStack(alignment: .top, spacing: Tide.s1) {
             Image(systemName: conditioningResultIcon(result))
-                .font(.system(size: 12))
+                .font(Tide.label)
                 .foregroundStyle(conditioningResultColor(result))
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 1) {
+                .padding(.top, Tide.hair)
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(block?.name ?? "Block")
-                    .font(.tempoCaption1)
+                    .font(Tide.caption)
                     .fontWeight(.medium)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
                 Text(conditioningResultSummary(result))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 if let notes = result.notes, !notes.isEmpty {
                     Text(notes)
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                         .italic()
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .foregroundStyle(Tide.text3)
                 }
             }
             Spacer(minLength: 0)
@@ -829,9 +823,9 @@ struct WorkoutHistoryView: View {
 
     private func conditioningResultColor(_ result: ConditioningBlockResult) -> Color {
         switch result.targetMet {
-        case true: Color.tempoRecoveryGreen
-        case false: Color.tempoError
-        case nil: Color.tempoTextTertiary
+        case true: TideTrain.positive
+        case false: Tide.danger
+        case nil: Tide.text3
         }
     }
 
@@ -867,30 +861,30 @@ struct WorkoutHistoryView: View {
     // MARK: - Exercise Detail Row
 
     private func exerciseDetailRow(_ plannedEx: PlannedExercise) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             HStack {
                 Text(plannedEx.displayName)
-                    .font(.tempoBody)
+                    .font(Tide.body)
                     .fontWeight(.medium)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(1)
 
                 Spacer()
 
                 // Completion indicator
                 Image(systemName: plannedEx.isComplete ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 13))
+                    .font(Tide.caption)
                     .foregroundStyle(
-                        plannedEx.isComplete ? Color.tempoRecoveryGreen : Color.tempoTextTertiary
+                        plannedEx.isComplete ? TideTrain.positive : Tide.text3
                     )
             }
 
             let isBodyweight = plannedEx.exercise.map { StrengthStandards.isBodyweightLoaded($0.equipment) } ?? false
             // Sets detail — per-set chip + optional feedback line
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 // H — a planned ramp the athlete never did isn't history.
                 ForEach(Self.visibleSets(of: plannedEx), id: \.id) { set in
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         if set.isWarmup {
                             // Warm-up / ramp set — show the ramp target (not the
                             // blank "--" it was before), tagged and lighter.
@@ -898,17 +892,17 @@ struct WorkoutHistoryView: View {
                             let r = set.actualReps ?? set.targetReps
                             // Fix #9 — a per-side ramp target reads "x8/side".
                             Text("\(WeightFormat.compactSetLoad(kg: w, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label.monospacedDigit())
+                                .foregroundStyle(Tide.text3)
                                 .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.tempoBgSecondary.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                                .padding(.vertical, Tide.hair)
+                                .background(Tide.fill.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
                             // §13 — every warmup on a trainer day is one
                             // Tempo added; the trainer never wrote it.
                             Text(plannedEx.workoutPlan?.programSessionKey != nil ? "Tempo warm-up" : "Warm-up")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {
                             // Fix #9 — "x8/side", or "xL8/R7" when the
                             // athlete logged an uneven L/R split.
@@ -917,20 +911,19 @@ struct WorkoutHistoryView: View {
                                 perSide: plannedEx.perSide
                             )
                             Text("\(WeightFormat.compactSetLoad(kg: weight, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(repsText)")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.label.monospacedDigit())
+                                .foregroundStyle(Tide.text2)
                                 .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.tempoBgSecondary)
-                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                                .padding(.vertical, Tide.hair)
+                                .background(Tide.fill, in: .rect(cornerRadius: Tide.s1))
                         } else {
                             Text("--")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label.monospacedDigit())
+                                .foregroundStyle(Tide.text3)
                                 .padding(.horizontal, 4)
-                                .padding(.vertical, 2)
-                                .background(Color.tempoBgSecondary.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+                                .padding(.vertical, Tide.hair)
+                                .background(Tide.fill.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
                         }
 
                         // Feedback line — only for working sets with a linked
@@ -939,8 +932,8 @@ struct WorkoutHistoryView: View {
                         // used to read as "RPE 7 · Moderate · Clean" on every set.
                         if !set.isWarmup, let summary = feedbackBySetID[set.id]?.enteredSummary {
                             Text(summary)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                                 .lineLimit(1)
                         }
 
@@ -953,11 +946,11 @@ struct WorkoutHistoryView: View {
             let vol = plannedEx.totalVolume
             if vol > 0 {
                 Text("Volume: \(formatVolume(vol))")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .padding(.vertical, TempoSpacing.xxs)
+        .padding(.vertical, Tide.hair)
     }
 
     // MARK: - Helpers

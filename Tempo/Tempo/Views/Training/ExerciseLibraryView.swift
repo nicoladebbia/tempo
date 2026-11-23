@@ -58,7 +58,7 @@ struct ExerciseLibraryView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 // Search bar
                 // Per MODULE_TRAINING.md Section 10.2 — real-time search
                 searchBar
@@ -83,7 +83,7 @@ struct ExerciseLibraryView: View {
                     exerciseList
                 }
             }
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Exercises")
@@ -107,14 +107,14 @@ struct ExerciseLibraryView: View {
     // Per MODULE_TRAINING.md Section 10.2 — 44pt search bar
 
     private var searchBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "magnifyingglass")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text3)
 
             TextField("Search exercises...", text: $searchText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
 
@@ -123,17 +123,16 @@ struct ExerciseLibraryView: View {
                     searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text3)
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
+        .padding(.horizontal, Tide.s3)
         .frame(height: 44)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.sm)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
     }
 
     // MARK: - Muscle Group Chips
@@ -142,7 +141,7 @@ struct ExerciseLibraryView: View {
 
     private var muscleGroupChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s2) {
                 // "All" chip
                 filterChip(label: "All", isSelected: selectedMuscleGroup == nil) {
                     selectedMuscleGroup = nil
@@ -154,7 +153,7 @@ struct ExerciseLibraryView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.horizontal, Tide.edge)
         }
     }
 
@@ -162,7 +161,7 @@ struct ExerciseLibraryView: View {
 
     private var equipmentChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 filterChip(label: "All", isSelected: selectedEquipment == nil) {
                     selectedEquipment = nil
                 }
@@ -173,26 +172,12 @@ struct ExerciseLibraryView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.horizontal, Tide.edge)
         }
     }
 
     private func filterChip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        // Haptic parity with every other toggleable chip in the app (RPE
-        // buttons, emphasis chips) — these were the only silent ones.
-        Button {
-            HapticManager.selection()
-            action()
-        } label: {
-            Text(label)
-                .font(.tempoCaption1)
-                .fontWeight(.medium)
-                .foregroundStyle(isSelected ? .white : Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.sm)
-                .frame(height: 28)
-                .background(isSelected ? Color.tempoSignal : Color.tempoSurfaceCard)
-                .clipShape(Capsule())
-        }
+        TrainFilterChip(label: label, isSelected: isSelected, action: action)
     }
 
     // MARK: - Most Trained Strip (§11.9)
@@ -204,44 +189,40 @@ struct ExerciseLibraryView: View {
             .sorted { ($0.history?.count ?? 0) > ($1.history?.count ?? 0) }
             .prefix(6)
         if !top.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                Text("MOST TRAINED")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Most trained").tideLabel(Tide.text3)
+                    .padding(.horizontal, Tide.edge)
 
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         ForEach(Array(top), id: \.id) { exercise in
                             NavigationLink {
                                 ExerciseDetailView(exercise: exercise)
                             } label: {
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: Tide.hair) {
                                     Text(exercise.name)
-                                        .font(.tempoCaption1)
+                                        .font(Tide.caption)
                                         .fontWeight(.semibold)
-                                        .foregroundStyle(Color.tempoTextPrimary)
+                                        .foregroundStyle(Tide.text)
                                         .lineLimit(1)
-                                    HStack(spacing: TempoSpacing.xxs) {
+                                    HStack(spacing: Tide.hair) {
                                         if let best = bestE1RM(exercise) {
                                             Text(best)
-                                                .font(.tempoCaption2)
-                                                .foregroundStyle(Color.tempoAccent)
+                                                .font(Tide.caption)
+                                                .foregroundStyle(Color.accentColor)
                                                 .monospacedDigit()
                                         }
                                         Text("· \(exercise.history?.count ?? 0)×")
-                                            .font(.tempoCaption2)
-                                            .foregroundStyle(Color.tempoTextTertiary)
+                                            .font(Tide.caption)
+                                            .foregroundStyle(Tide.text3)
                                     }
                                 }
-                                .padding(.horizontal, TempoSpacing.md)
-                                .padding(.vertical, TempoSpacing.sm)
-                                .background(Color.tempoSurfaceCard)
-                                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                                .padding(.horizontal, Tide.s3)
+                                .padding(.vertical, Tide.s2).tideCard(padding: 0, radius: Tide.tileRadius)
                             }
                         }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .padding(.horizontal, Tide.edge)
                 }
             }
         }
@@ -253,7 +234,7 @@ struct ExerciseLibraryView: View {
 
     private var exerciseList: some View {
         let grouped = groupedExercises
-        return LazyVStack(spacing: TempoSpacing.xs, pinnedViews: [.sectionHeaders]) {
+        return LazyVStack(spacing: Tide.s1, pinnedViews: [.sectionHeaders]) {
             ForEach(grouped.keys.sorted(by: { $0.displayName < $1.displayName }), id: \.self) { group in
                 Section {
                     ForEach(grouped[group] ?? [], id: \.id) { exercise in
@@ -268,70 +249,65 @@ struct ExerciseLibraryView: View {
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     private func sectionHeader(group: MuscleGroup, count: Int) -> some View {
         HStack {
-            Text("\(group.displayName.uppercased()) (\(count))")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
+            Text(group.displayName).tideLabel()
             Spacer()
+            Text("\(count)").tideLabel(Tide.text3)
         }
-        .padding(.vertical, TempoSpacing.xs)
-        .padding(.horizontal, TempoSpacing.xs)
-        .tidePage()
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s1)
+        .padding(.horizontal, Tide.s1)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     /// §11.9 — row: demo thumb, name, equipment/type line, and YOUR numbers
     /// (best e1RM + times trained) when the lift has history.
     private func exerciseRow(_ exercise: Exercise) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             ExerciseImageView(exercise: exercise, style: .thumbnail)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TempoSpacing.xs) {
-                    Text(exercise.name.uppercased())
-                        .font(.tempoSubheadline)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(spacing: Tide.s1) {
+                    Text(exercise.name)
+                        .font(Tide.body)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
                     if exercise.isCustom {
-                        Text("CUSTOM")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoSignal)
-                            .padding(.horizontal, TempoSpacing.xs)
-                            .padding(.vertical, 1)
-                            .background(Color.tempoSignal.opacity(0.12))
+                        Text("Custom").tideLabel(Color.accentColor)
+                            .padding(.horizontal, Tide.s1)
+                            .padding(.vertical, Tide.hair)
+                            .background(Color.accentColor.opacity(0.12))
                             .clipShape(Capsule())
                     }
                 }
 
                 Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? "Compound" : "Isolation")")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
-            Spacer(minLength: TempoSpacing.xs)
+            Spacer(minLength: Tide.s1)
 
             if let best = bestE1RM(exercise) {
-                VStack(alignment: .trailing, spacing: 1) {
+                VStack(alignment: .trailing, spacing: Tide.hair) {
                     Text(best)
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoAccent)
+                        .foregroundStyle(Color.accentColor)
                         .monospacedDigit()
                     Text("\(exercise.history?.count ?? 0)× trained")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
         }
-        .padding(TempoSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     // MARK: - Empty State
@@ -339,21 +315,21 @@ struct ExerciseLibraryView: View {
     // Per WIREFRAMES.md Screen 71 State B — No results
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             Spacer().frame(height: 80)
 
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
 
             Text("No exercises found.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
 
             if !searchText.isEmpty {
                 Text("Try a different search term.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
             Spacer()
@@ -464,10 +440,11 @@ struct CustomExerciseFormView: View {
                     TextField("e.g. Landmine Press", text: $name)
                     if isDuplicate {
                         Text("An exercise with this name already exists.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoWarning)
+                            .font(Tide.caption)
+                            .foregroundStyle(TideTrain.caution)
                     }
                 }
+                .listRowBackground(Tide.fill)
 
                 Section("Classification") {
                     Picker("Muscle group", selection: $muscleGroup) {
@@ -487,6 +464,7 @@ struct CustomExerciseFormView: View {
                     }
                     Toggle("Compound (multi-joint)", isOn: $isCompound)
                 }
+                .listRowBackground(Tide.fill)
 
                 Section {
                     TextField("How to perform it", text: $instructions, axis: .vertical)
@@ -497,9 +475,10 @@ struct CustomExerciseFormView: View {
                 } footer: {
                     Text("Compound exercises get a warm-up ramp and 8-rep prescriptions; isolations get 12 reps.")
                 }
+                .listRowBackground(Tide.fill)
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("New Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

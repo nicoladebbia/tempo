@@ -60,15 +60,15 @@ struct ExerciseDetailView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 // Demo area placeholder
                 // Per WIREFRAMES.md Screen 20 — 200pt demo area
                 demoArea
 
                 // Exercise name
-                Text(exercise.name.uppercased())
-                    .font(.tempoTitle1)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(exercise.name)
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
 
                 // Info pills
@@ -78,8 +78,8 @@ struct ExerciseDetailView: View {
                 // Secondary muscles
                 if !exercise.secondaryMuscles.isEmpty {
                     Text("Secondary: \(exercise.secondaryMuscles.map(\.displayName).joined(separator: ", "))")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
 
                 // Stats card
@@ -103,8 +103,8 @@ struct ExerciseDetailView: View {
                 // Rest timer customization
                 restTimerSection
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle(exercise.name)
@@ -177,13 +177,13 @@ struct ExerciseDetailView: View {
 
     private var demoArea: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .fill(Color.tempoSurfaceCard)
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .fill(Tide.fill)
 
             ExerciseImageView(exercise: exercise, style: .hero)
         }
         .frame(height: 200)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
     }
 
     // MARK: - Info Pills
@@ -191,8 +191,8 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — 24pt height pill chips
 
     private var infoPills: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
                 infoPill(exercise.muscleGroup.displayName)
                 infoPill(equipmentLabel)
                 infoPill(exercise.isCompound ? "Compound" : "Isolation")
@@ -212,16 +212,16 @@ struct ExerciseDetailView: View {
         let movementTip = exercise.isCompound
             ? "Compound — works multiple muscle groups at once. Heaviest, most efficient lifts."
             : "Isolation — targets one muscle. Lighter, used for shaping or weak points."
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             if let equipmentTip {
                 Text(equipmentTip)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Text(movementTip)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -246,11 +246,11 @@ struct ExerciseDetailView: View {
 
     private func infoPill(_ text: String) -> some View {
         Text(text)
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .padding(.horizontal, TempoSpacing.sm)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .padding(.horizontal, Tide.s2)
             .frame(height: 24)
-            .background(Color.tempoSurfaceElevated)
+            .background(Tide.fill)
             .clipShape(Capsule())
     }
 
@@ -268,15 +268,13 @@ struct ExerciseDetailView: View {
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("YOUR STATS")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Your stats").tideLabel()
 
             LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-            ], spacing: TempoSpacing.sm) {
+                GridItem(.flexible(), spacing: Tide.s2),
+                GridItem(.flexible(), spacing: Tide.s2),
+            ], spacing: Tide.s2) {
                 statItem(
                     label: "Current 1RM",
                     value: current1RM
@@ -298,34 +296,34 @@ struct ExerciseDetailView: View {
 
             // PR display
             if let allTimePR = exercise.allTimePR {
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     Image(systemName: "trophy.fill")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoPRGold) // prGold
+                        .font(Tide.caption)
+                        .foregroundStyle(TideTrain.record) // prGold
 
                     Text(
                         "All-Time 1RM PR: \(WeightFormat.text(kg: allTimePR, unit: weightUnit))"
                     )
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 }
-                .padding(.top, TempoSpacing.xs)
+                .padding(.top, Tide.s1)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func statItem(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
             Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(TideTrain.figure(.title2))
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -340,11 +338,9 @@ struct ExerciseDetailView: View {
             filteredHistory(for: chartRange).map { ($0.date, $0.estimated1RM) }
         )
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack {
-                Text("PROGRESS (e1RM)")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Progress · e1RM").tideLabel()
 
                 Spacer()
 
@@ -359,14 +355,14 @@ struct ExerciseDetailView: View {
             }
 
             if chartDays.isEmpty {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 32))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.title)
+                        .foregroundStyle(Tide.text3)
 
                     Text("No history yet")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 200)
@@ -374,7 +370,7 @@ struct ExerciseDetailView: View {
                 let data = TempoLineChartData<String>(
                     id: "e1RM",
                     label: "Estimated 1RM",
-                    color: Color.tempoSignal,
+                    color: Color.accentColor,
                     points: chartDays.map { day in
                         TempoLineChartData<String>.DataPoint(
                             date: day.date,
@@ -385,9 +381,7 @@ struct ExerciseDetailView: View {
                 TempoLineChart(data: [data], height: 200, axisDesiredCount: 4)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Instructions
@@ -395,70 +389,64 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — Numbered step-by-step instructions
 
     private func instructionsSection(_ instructions: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("INSTRUCTIONS")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Instructions")
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
 
             Text(instructions)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Coaching Cues
 
     private var cuesSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("COACHING CUES")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Coaching cues")
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
 
             ForEach(Array(exercise.cues.enumerated()), id: \.offset) { index, cue in
-                HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                HStack(alignment: .top, spacing: Tide.s2) {
                     Text("\(index + 1).")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .frame(width: 20, alignment: .trailing)
 
                     Text(cue)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Rest Timer Customization
 
     private var restTimerSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("REST TIMER")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Rest timer")
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
 
             HStack {
                 Text("Preferred rest between sets")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
 
                 Spacer()
 
                 if let rest = exercise.preferredRestSeconds {
                     Text(formatRestDuration(rest))
-                        .font(.tempoBody)
+                        .font(Tide.body)
                         .fontWeight(.medium)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(Tide.text)
                         .monospacedDigit()
                 }
             }
@@ -475,8 +463,8 @@ struct ExerciseDetailView: View {
                 step: 15
             ) {
                 Text(formatRestDuration(exercise.preferredRestSeconds ?? 90))
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .monospacedDigit()
             }
 
@@ -487,14 +475,12 @@ struct ExerciseDetailView: View {
                     modelContext.saveOrAlert("exercise")
                 } label: {
                     Text("Reset to Default")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func formatRestDuration(_ seconds: Int) -> String {
@@ -585,7 +571,7 @@ struct ExerciseDemoImage: View {
                         .scaledToFit()
                 case .empty:
                     ProgressView()
-                        .tint(Color.tempoTextTertiary)
+                        .tint(Tide.text3)
                 case .failure:
                     fallback
                 @unknown default:
@@ -599,8 +585,8 @@ struct ExerciseDemoImage: View {
 
     private var fallback: some View {
         Image(systemName: fallbackSymbol)
-            .font(.system(size: symbolSize))
-            .foregroundStyle(Color.tempoTextTertiary)
+            .trainGlyph(symbolSize, relativeTo: .title)
+            .foregroundStyle(Tide.text3)
     }
 
     private var fallbackSymbol: String {

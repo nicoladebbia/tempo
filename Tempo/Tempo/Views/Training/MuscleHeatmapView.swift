@@ -171,19 +171,19 @@ struct MuscleHeatmapView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 Picker("Side", selection: $showBack) {
                     Text("Front").tag(false)
                     Text("Back").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
+                .padding(.horizontal, Tide.edge)
 
                 bodyFigure
-                    .frame(maxWidth: 320)
+                    .frame(maxWidth: 232)
                     .aspectRatio(0.62, contentMode: .fit)
-                    .padding(.horizontal, TempoSpacing.xl)
-                    .animation(.spring(duration: 0.35), value: showBack)
+                    .padding(.horizontal, Tide.s5)
+                    .animation(Tide.lively, value: showBack)
 
                 legend
 
@@ -192,15 +192,15 @@ struct MuscleHeatmapView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else {
                     Text("Tap a muscle to drill into its week.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
-            .padding(.top, TempoSpacing.lg)
+            .padding(.top, Tide.s4)
             // The floating tab bar overlaps the scroll content: leave room so
             // the drill-down panel can scroll fully clear of it.
             .padding(.bottom, 120)
-            .animation(.spring(duration: 0.3), value: selectedMuscle)
+            .animation(Tide.lively, value: selectedMuscle)
         }
         .tidePage()
         .navigationTitle("Muscle Map")
@@ -225,7 +225,7 @@ struct MuscleHeatmapView: View {
                     for neutral in neutralRegions {
                         context.fill(
                             neutral.path(in: bodyRect),
-                            with: .color(Color.tempoBgSecondary.opacity(0.6))
+                            with: .color(Tide.fill.opacity(0.6))
                         )
                     }
                     for region in regions {
@@ -235,7 +235,7 @@ struct MuscleHeatmapView: View {
                         let isSelected = region.muscle == selectedMuscle
                         context.stroke(
                             path,
-                            with: .color(isSelected ? Color.tempoAccent : Color.tempoTextTertiary.opacity(0.25)),
+                            with: .color(isSelected ? Color.accentColor : Tide.text3.opacity(0.25)),
                             lineWidth: isSelected ? 2.5 : 1
                         )
                     }
@@ -257,28 +257,28 @@ struct MuscleHeatmapView: View {
     /// Cold → hot: base surface through amber to signal red.
     private func heatColor(_ value: Double) -> Color {
         guard value > 0 else {
-            return Color.tempoBgSecondary
+            return Tide.fill
         }
         if value < 0.5 {
-            return Color.tempoAmber.opacity(0.35 + value * 0.9)
+            return TideTrain.caution.opacity(0.35 + value * 0.9)
         }
-        return Color.tempoSignal.opacity(0.45 + (value - 0.5) * 1.1)
+        return Color.accentColor.opacity(0.45 + (value - 0.5) * 1.1)
     }
 
     private var legend: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Text("Rested")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             LinearGradient(
-                colors: [Color.tempoBgSecondary, Color.tempoAmber, Color.tempoSignal],
+                colors: [Tide.fill, TideTrain.caution, Color.accentColor],
                 startPoint: .leading, endPoint: .trailing
             )
             .frame(width: 120, height: 8)
             .clipShape(Capsule())
             Text("Hammered")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 
@@ -305,23 +305,23 @@ struct MuscleHeatmapView: View {
         let change = deltas[muscle, default: nil]
         let exercises = contributions(for: muscle)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack {
-                Text(muscle.displayName.uppercased())
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text(muscle.displayName)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if let change {
                     Label(
                         String(format: "%+.0f%%", change * 100),
                         systemImage: change >= 0 ? "arrow.up.right" : "arrow.down.right"
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(change >= 0 ? Color.tempoAccent : Color.tempoAmber)
+                    .font(Tide.caption)
+                    .foregroundStyle(change >= 0 ? Color.accentColor : TideTrain.caution)
                 }
             }
 
-            HStack(spacing: TempoSpacing.xl) {
+            HStack(spacing: Tide.s5) {
                 statBlock(value: volumeLabel(volume), caption: "7-day volume")
                 statBlock(value: "\(sets)", caption: "working sets")
                 statBlock(value: "\(exercises.count)", caption: "sessions")
@@ -329,38 +329,36 @@ struct MuscleHeatmapView: View {
 
             if exercises.isEmpty {
                 Text("Nothing this week — this muscle is fully rested.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
                 ForEach(exercises.prefix(6), id: \.id) { row in
                     HStack {
                         Text(row.exercise?.name ?? "—")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                         Spacer()
                         if let reps = row.bestSetReps, reps > 0 {
                             Text("\(historySetLoad(row)) × \(reps)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                     }
                 }
             }
         }
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .padding(.horizontal, Tide.edge)
     }
 
     private func statBlock(value: String, caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             Text(value)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(caption)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
     }
 

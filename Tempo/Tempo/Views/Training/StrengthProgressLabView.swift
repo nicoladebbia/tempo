@@ -65,16 +65,16 @@ struct StrengthProgressLabView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             if rankedLifts.isEmpty {
-                VStack(spacing: TempoSpacing.md) {
+                VStack(spacing: Tide.s3) {
                     Spacer().frame(height: 80)
                     Image(systemName: "chart.xyaxis.line")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.largeTitle)
+                        .foregroundStyle(Tide.text3)
                     Text("Log workouts to unlock the Lab")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
                 .frame(maxWidth: .infinity)
             } else {
@@ -84,33 +84,23 @@ struct StrengthProgressLabView: View {
                 volumeCard
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     // MARK: Pickers
 
     private var liftChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 ForEach(rankedLifts.prefix(12), id: \.id) { lift in
                     let isPrimary = lift.id == primaryLift?.id
-                    Button {
+                    TrainFilterChip(label: lift.name, isSelected: isPrimary) {
                         primaryID = lift.id
                         if compareID == lift.id {
                             compareID = nil
                         }
                         scrubDate = nil
-                        HapticManager.selection()
-                    } label: {
-                        Text(lift.name)
-                            .font(.tempoCaption1)
-                            .lineLimit(1)
-                            .padding(.horizontal, TempoSpacing.md)
-                            .padding(.vertical, TempoSpacing.xs)
-                            .background(isPrimary ? Color.tempoAccent : Color.tempoSurfaceCard)
-                            .foregroundStyle(isPrimary ? Color.tempoBgPrimary : Color.tempoTextPrimary)
-                            .clipShape(Capsule())
                     }
                 }
             }
@@ -139,9 +129,9 @@ struct StrengthProgressLabView: View {
                     compareLift.map { "vs \($0.name)" } ?? "Compare",
                     systemImage: "arrow.left.arrow.right"
                 )
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .lineLimit(1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .foregroundStyle(Tide.text2)
             }
         }
         .onChange(of: span) {
@@ -157,25 +147,23 @@ struct StrengthProgressLabView: View {
         let ghost = points(for: compareLift).filter { ($0.e1RM ?? 0) > 0 }
         let scrubbed = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                Text("ESTIMATED 1RM")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                Text("Estimated 1RM").tideLabel()
                 Spacer()
                 if let scrubbed {
                     scrubCallout(scrubbed)
                 } else if let latest = primary.last?.e1RM {
                     Text(weightLabel(latest))
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoAccent)
+                        .font(Tide.headline)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
 
             if primary.isEmpty {
                 Text("No e1RM data in this range.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .frame(maxWidth: .infinity)
                     .frame(height: 180)
             } else {
@@ -187,7 +175,7 @@ struct StrengthProgressLabView: View {
                         )
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color.tempoAccent.opacity(0.35), .clear],
+                                colors: [Color.accentColor.opacity(0.35), .clear],
                                 startPoint: .top, endPoint: .bottom
                             )
                         )
@@ -197,7 +185,7 @@ struct StrengthProgressLabView: View {
                             x: .value("Date", point.date),
                             y: .value("e1RM", display(point.e1RM ?? 0))
                         )
-                        .foregroundStyle(Color.tempoAccent)
+                        .foregroundStyle(Color.accentColor)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
                         .interpolationMethod(.monotone)
                     }
@@ -209,8 +197,8 @@ struct StrengthProgressLabView: View {
                         )
                         .symbol {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(Color.tempoAmber)
+                                .font(Tide.label)
+                                .foregroundStyle(TideTrain.caution)
                         }
                     }
 
@@ -220,71 +208,69 @@ struct StrengthProgressLabView: View {
                             y: .value("Ghost", display(point.e1RM ?? 0)),
                             series: .value("Series", "compare")
                         )
-                        .foregroundStyle(Color.tempoViolet.opacity(0.7))
+                        .foregroundStyle(TideTrain.violet.opacity(0.7))
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                         .interpolationMethod(.monotone)
                     }
 
                     if let scrubbed {
                         RuleMark(x: .value("Scrub", scrubbed.date))
-                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.6))
+                            .foregroundStyle(Tide.text3.opacity(0.6))
                         PointMark(
                             x: .value("Scrub", scrubbed.date),
                             y: .value("e1RM", display(scrubbed.e1RM ?? 0))
                         )
                         .symbolSize(90)
-                        .foregroundStyle(Color.tempoAccent)
+                        .foregroundStyle(Color.accentColor)
                     }
                 }
                 .chartXSelection(value: $scrubDate)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
-                        AxisGridLine().foregroundStyle(Color.tempoTextTertiary.opacity(0.15))
-                        AxisValueLabel().font(.tempoCaption2).foregroundStyle(Color.tempoTextTertiary)
+                        AxisGridLine().foregroundStyle(Tide.text3.opacity(0.15))
+                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
                     }
                 }
                 .chartXAxis {
                     AxisMarks {
-                        AxisValueLabel().font(.tempoCaption2).foregroundStyle(Color.tempoTextTertiary)
+                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
                     }
                 }
                 .frame(height: 200)
 
                 if compareLift != nil {
-                    HStack(spacing: TempoSpacing.md) {
+                    HStack(spacing: Tide.s3) {
                         Label(primaryLift?.name ?? "", systemImage: "circle.fill")
-                            .foregroundStyle(Color.tempoAccent)
+                            .foregroundStyle(Color.accentColor)
                         Label(compareLift?.name ?? "", systemImage: "circle.dashed")
-                            .foregroundStyle(Color.tempoViolet)
+                            .foregroundStyle(TideTrain.violet)
                     }
-                    .font(.tempoCaption2)
+                    .font(Tide.caption)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func scrubCallout(_ point: ProgressLabMath.SessionPoint) -> some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            HStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .trailing, spacing: Tide.hair) {
+            HStack(spacing: Tide.s1) {
                 if point.isPR {
                     Image(systemName: "star.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.label)
+                        .foregroundStyle(TideTrain.caution)
                 }
                 Text(weightLabel(point.e1RM ?? 0))
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoAccent)
+                    .font(Tide.headline)
+                    .foregroundStyle(Color.accentColor)
             }
             Text(point.date.formatted(.dateTime.day().month(.abbreviated)))
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             if let reps = point.bestReps, reps > 0 {
                 Text("best \(WeightFormat.load(kg: point.bestWeight, unit: weightUnit)) × \(reps)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         }
     }
@@ -294,15 +280,13 @@ struct StrengthProgressLabView: View {
     private var volumeCard: some View {
         let primary = points(for: primaryLift)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("SESSION VOLUME")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Session volume").tideLabel()
 
             if primary.isEmpty {
                 Text("Nothing in this range.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .frame(maxWidth: .infinity)
                     .frame(height: 80)
             } else {
@@ -314,23 +298,21 @@ struct StrengthProgressLabView: View {
                     )
                     .foregroundStyle(
                         point.date == scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }?.date
-                            ? Color.tempoAccent
-                            : Color.tempoSignal.opacity(0.65)
+                            ? Color.accentColor
+                            : Color.accentColor.opacity(0.65)
                     )
                     .clipShape(Capsule())
                 }
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
-                        AxisValueLabel().font(.tempoCaption2).foregroundStyle(Color.tempoTextTertiary)
+                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
                     }
                 }
                 .chartXAxis(.hidden)
                 .frame(height: 90)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: Helpers

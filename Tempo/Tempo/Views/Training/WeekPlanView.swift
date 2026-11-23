@@ -59,7 +59,7 @@ struct WeekPlanView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 // Week header
                 weekHeader
 
@@ -88,8 +88,8 @@ struct WeekPlanView: View {
                             "Couldn't reach the AI coach — this is your standard plan. It'll retry shortly.",
                             systemImage: "wifi.exclamationmark"
                         )
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -101,8 +101,8 @@ struct WeekPlanView: View {
                 // Daily detail cards
                 dailyCards
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle(navTitle)
@@ -116,8 +116,8 @@ struct WeekPlanView: View {
                     HapticManager.selection()
                 } label: {
                     Label("Regenerate", systemImage: "arrow.clockwise")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.body)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             if playsFootball {
@@ -126,8 +126,8 @@ struct WeekPlanView: View {
                         showMatchSchedule = true
                     } label: {
                         Label("Matches", systemImage: "calendar")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.body)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -136,8 +136,8 @@ struct WeekPlanView: View {
                     showScheduleEditor = true
                 } label: {
                     Label("Edit", systemImage: "slider.horizontal.3")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.body)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
         }
@@ -149,8 +149,8 @@ struct WeekPlanView: View {
                     .toolbar {
                         ToolbarItem(placement: .confirmationAction) {
                             Button("Done") { showScheduleEditor = false }
-                                .font(.tempoHeadline)
-                                .foregroundStyle(Color.tempoSignal)
+                                .font(Tide.headline)
+                                .foregroundStyle(Color.accentColor)
                         }
                     }
             }
@@ -242,25 +242,25 @@ struct WeekPlanView: View {
             return "\(formatter.string(from: displayedMonday)) – \(formatter.string(from: last)), \(calendar.component(.year, from: displayedMonday))"
         }()
 
-        return HStack(spacing: TempoSpacing.md) {
+        return HStack(spacing: Tide.s3) {
             Button {
                 weekOffset -= 1
                 loadOffsetWeek()
                 HapticManager.selection()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(weekOffset > -Self.historyWeeksBack ? Color.tempoSignal : Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(weekOffset > -Self.historyWeeksBack ? Color.accentColor : Tide.text3)
                     .frame(width: 32, height: 32)
             }
             .disabled(weekOffset <= -Self.historyWeeksBack)
 
             Spacer()
 
-            VStack(spacing: 2) {
+            VStack(spacing: Tide.hair) {
                 Text(dateText)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 if weekOffset != 0 {
                     // Tap the label to jump back to the live week.
                     Button {
@@ -269,9 +269,9 @@ struct WeekPlanView: View {
                         HapticManager.selection()
                     } label: {
                         Text(weekOffset > 0 ? "PREVIEW — tap for this week" : "HISTORY — tap for this week")
-                            .font(.tempoCaption2)
+                            .font(Tide.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoAmber)
+                            .foregroundStyle(TideTrain.caution)
                     }
                 }
             }
@@ -284,13 +284,13 @@ struct WeekPlanView: View {
                 HapticManager.selection()
             } label: {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(weekOffset < 1 ? Color.tempoSignal : Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(weekOffset < 1 ? Color.accentColor : Tide.text3)
                     .frame(width: 32, height: 32)
             }
             .disabled(weekOffset >= 1)
         }
-        .padding(.top, TempoSpacing.md)
+        .padding(.top, Tide.s3)
     }
 
     // MARK: - Week Pulse (§11.6)
@@ -333,14 +333,14 @@ struct WeekPlanView: View {
         let volumes = displayedSlots.map { $0.map(dayVolume) ?? 0 }
         let peak = max(volumes.max() ?? 0, 1)
 
-        return VStack(spacing: TempoSpacing.sm) {
+        return VStack(spacing: Tide.s2) {
             if let idx = pulseIndex {
                 pulseCallout(index: idx)
             }
 
             GeometryReader { geo in
                 let slotWidth = geo.size.width / 7
-                HStack(alignment: .bottom, spacing: TempoSpacing.xs) {
+                HStack(alignment: .bottom, spacing: Tide.s1) {
                     ForEach(0 ..< 7, id: \.self) { idx in
                         pulseBar(
                             plan: displayedSlots[safe: idx].flatMap(\.self),
@@ -381,7 +381,7 @@ struct WeekPlanView: View {
             }
             .frame(height: 72)
         }
-        .animation(.spring(duration: 0.3), value: pulseIndex)
+        .animation(Tide.lively, value: pulseIndex)
     }
 
     private func pulseBar(plan: WorkoutPlan?, volume: Double, peak: Double, isSelected: Bool) -> some View {
@@ -389,11 +389,11 @@ struct WeekPlanView: View {
         let height = hasLoad ? 12 + 56 * (volume / peak) : 8
         let color: Color = {
             guard let plan else {
-                return Color.tempoTextTertiary.opacity(0.25)
+                return Tide.text3.opacity(0.25)
             }
             if !hasLoad {
                 // Non-lifting days (football, run, rest) — a neutral stub.
-                return Color.tempoTextTertiary.opacity(0.4)
+                return Tide.text3.opacity(0.4)
             }
             let base = recoveryDotColor(plan: plan)
             return plan.status == .completed ? base : base.opacity(0.45)
@@ -405,7 +405,7 @@ struct WeekPlanView: View {
                 .frame(height: height)
                 .overlay(
                     Capsule().stroke(
-                        isSelected ? Color.tempoTextPrimary : Color.clear,
+                        isSelected ? Tide.text : Color.clear,
                         lineWidth: 1.5
                     )
                 )
@@ -415,69 +415,67 @@ struct WeekPlanView: View {
     }
 
     private func pulseCallout(index: Int) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             if let slot = displayedSlots[safe: index], let plan = slot {
                 Circle()
                     .fill(recoveryDotColor(plan: plan))
                     .frame(width: 8, height: 8)
                 Text(dayName(for: plan.date))
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(workoutAbbreviation(plan.type))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 Spacer()
                 if dayVolume(plan) > 0 {
                     Text(volumeLabel(dayVolume(plan)))
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoAccent)
+                        .font(Tide.headline)
+                        .foregroundStyle(Color.accentColor)
                         .monospacedDigit()
                 }
                 if plan.totalSets > 0 {
                     Text("\(plan.completedSets)/\(plan.totalSets) sets")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             } else {
                 Text("\(dayAbbreviations[safe: index] ?? "") — no data")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                 Spacer()
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .padding(.horizontal, Tide.s3)
+        .padding(.vertical, Tide.s2).tideCard(padding: 0, radius: Tide.tileRadius)
         .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     // MARK: - Deload Banner
 
     private var deloadBanner: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "arrow.down.circle.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.tempoRecoveryYellow)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(TideTrain.caution)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DELOAD WEEK")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoRecoveryYellow)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Deload week")
+                    .font(Tide.headline)
+                    .foregroundStyle(TideTrain.caution)
 
                 Text("\(viewModel.deloadStyle.blurb) Your body rebuilds stronger.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
             Spacer()
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoRecoveryYellow.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(Tide.s4)
+        .background(TideTrain.caution.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoRecoveryYellow.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                .stroke(TideTrain.caution.opacity(0.3), lineWidth: 1)
         )
     }
 
@@ -487,25 +485,25 @@ struct WeekPlanView: View {
         // Green when the week was productive without overreach; yellow when it
         // overreached or quality dipped. Every number below is real.
         let good = outcome.qualityScore >= 0.6 && outcome.overreachEvents == 0
-        let accent = good ? Color.tempoRecoveryGreen : Color.tempoRecoveryYellow
+        let accent = good ? TideTrain.positive : TideTrain.caution
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: good ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(accent)
-                Text("LAST WEEK")
-                    .font(.tempoHeadline)
+                Text("Last week")
+                    .font(Tide.headline)
                     .foregroundStyle(accent)
                 Spacer()
                 Text("\(Int((outcome.qualityScore * 100).rounded()))%")
-                    .font(.tempoHeadline)
+                    .font(Tide.headline)
                     .foregroundStyle(accent)
             }
 
             Text(coachReviewSummary(outcome))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let rationale {
@@ -513,12 +511,12 @@ struct WeekPlanView: View {
                 rationaleRow(rationale)
             }
         }
-        .padding(TempoSpacing.cardPadding)
+        .padding(Tide.s4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(accent.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
                 .stroke(accent.opacity(0.3), lineWidth: 1)
         )
     }
@@ -544,20 +542,19 @@ struct WeekPlanView: View {
     /// Rationale on its own — only when there's no graded last week yet.
     private func aiRationaleCard(_ rationale: String) -> some View {
         rationaleRow(rationale)
-            .padding(TempoSpacing.cardPadding)
+            .padding(Tide.s4)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoBgSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
     }
 
     private func rationaleRow(_ rationale: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
+        HStack(alignment: .top, spacing: Tide.s2) {
             Image(systemName: "sparkles")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoAccent)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.accentColor)
             Text(rationale)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -568,7 +565,7 @@ struct WeekPlanView: View {
     // Per MODULE_TRAINING.md Section 9.2
 
     private var dayGrid: some View {
-        HStack(spacing: TempoSpacing.xxs) {
+        HStack(spacing: Tide.hair) {
             ForEach(Array(displayedSlots.enumerated()), id: \.offset) { index, slot in
                 if let plan = slot {
                     dayCell(plan: plan, dayLabel: dayAbbreviations[safe: index] ?? "")
@@ -581,31 +578,31 @@ struct WeekPlanView: View {
 
     /// A day with no data (history week before the app existed, or a gap).
     private func emptyDayCell(dayLabel: String) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Text(dayLabel)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             Circle()
-                .fill(Color.tempoTextTertiary.opacity(0.25))
+                .fill(Tide.text3.opacity(0.25))
                 .frame(width: 8, height: 8)
             Text("—")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             Color.clear.frame(width: 10, height: 10)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.vertical, Tide.s2)
     }
 
     private func dayCell(plan: WorkoutPlan, dayLabel: String) -> some View {
         let isToday = calendar.isDateInToday(plan.date)
         let isCompleted = plan.status == .completed
 
-        return VStack(spacing: TempoSpacing.xxs) {
+        return VStack(spacing: Tide.hair) {
             // Day label
             Text(dayLabel)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             // Recovery dot
             Circle()
@@ -614,7 +611,7 @@ struct WeekPlanView: View {
 
             // Workout type abbreviation
             Text(workoutAbbreviation(plan.type))
-                .font(.tempoCaption2)
+                .font(Tide.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(workoutTypeColor(plan: plan))
 
@@ -623,35 +620,35 @@ struct WeekPlanView: View {
             // hidden until the Today card opens.
             if plan.isTwoADay, let second = plan.secondarySessionType {
                 Text("+\(workoutAbbreviation(second))")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
             }
 
             // Status indicator
             if isCompleted {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Color.tempoRecoveryGreen)
+                    .font(Tide.label)
+                    .foregroundStyle(TideTrain.positive)
             } else if plan.type == .football {
                 Image(systemName: "sportscourt")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
             } else {
                 Color.clear.frame(width: 10, height: 10)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
+        .padding(.vertical, Tide.s2)
         .background(
             isToday
-                ? Color.tempoSurfaceCard
+                ? Tide.fill
                 : Color.clear
         )
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                .stroke(isToday ? Color.tempoSignal : Color.clear, lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                .stroke(isToday ? Color.accentColor : Color.clear, lineWidth: 1.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
     }
 
     // MARK: - Daily Detail Cards
@@ -659,15 +656,15 @@ struct WeekPlanView: View {
     // Per MODULE_TRAINING.md Section 9.3
 
     private var dailyCards: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             ForEach(displayedSlots.compactMap(\.self), id: \.id) { plan in
                 dailyCard(plan: plan)
             }
             if weekOffset < 0, displayedSlots.allSatisfy({ $0 == nil }) {
                 Text("No training recorded this week.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.top, TempoSpacing.md)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .padding(.top, Tide.s3)
             }
         }
     }
@@ -680,21 +677,19 @@ struct WeekPlanView: View {
 
         return VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(Tide.snap) {
                     expandedPlanID = isExpanded ? nil : plan.id
                 }
             } label: {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     // Day label
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         if isToday {
-                            Text("TODAY")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoSignal)
+                            Text("Today").tideLabel(Color.accentColor)
                         } else {
                             Text(dayName)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
 
@@ -702,22 +697,22 @@ struct WeekPlanView: View {
                     HStack {
                         // Icon
                         Image(systemName: workoutIcon(plan.type))
-                            .font(.tempoBody)
+                            .font(Tide.body)
                             .foregroundStyle(workoutTypeColor(plan: plan))
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: TempoSpacing.xs) {
-                                Text(plan.type.displayName.uppercased())
-                                    .font(.tempoHeadline)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            HStack(spacing: Tide.s1) {
+                                Text(plan.type.displayName)
+                                    .font(Tide.headline)
+                                    .foregroundStyle(Tide.text)
 
                                 if isCompleted {
                                     // A session saved early reads as partial, not "Completed".
                                     Text(plan.completedSets < plan.totalSets && plan.totalSets > 0
                                         ? "— Done \(plan.completedSets)/\(plan.totalSets) sets"
                                         : "— Completed")
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoRecoveryGreen)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(TideTrain.positive)
                                 }
                             }
 
@@ -726,31 +721,31 @@ struct WeekPlanView: View {
                                 Text(
                                     "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
                                 )
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                             } else if plan.type == .football {
                                 // Engine note distinguishes a dated fixture
                                 // ("Match day") from a recurring football
                                 // weekday ("Football day") — §14.
                                 Text(plan.notes ?? "Football day")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text2)
                             } else if plan.type == .rest {
                                 Text("Recovery day")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text2)
                             } else if plan.type == .mobility {
                                 Text("~25 min · Active recovery")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text2)
                             }
 
                             // §21 (b) two-a-day — name the cardio second session
                             // in the detail card so the plan reads honestly.
                             if plan.isTwoADay, let second = plan.secondarySessionType {
                                 Text("+ easy \(second.displayName.lowercased()) · second session")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoSignal)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Color.accentColor)
                             }
                         }
 
@@ -758,33 +753,31 @@ struct WeekPlanView: View {
 
                         if isCompleted, let seconds = plan.actualDurationSeconds {
                             Text(WorkoutPlan.durationLabel(seconds: seconds))
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
 
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
-                .padding(TempoSpacing.cardPadding)
+                .padding(Tide.s4)
             }
             .buttonStyle(.plain)
 
             // Expanded content — every day type renders something useful on tap.
             if isExpanded {
                 Divider()
-                    .padding(.horizontal, TempoSpacing.cardPadding)
+                    .padding(.horizontal, Tide.s4)
 
                 expandedContent(for: plan)
-                    .padding(.horizontal, TempoSpacing.cardPadding)
-                    .padding(.vertical, TempoSpacing.sm)
+                    .padding(.horizontal, Tide.s4)
+                    .padding(.vertical, Tide.s2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.cardRadius))
     }
 
     // MARK: - Expanded Content
@@ -817,30 +810,30 @@ struct WeekPlanView: View {
     }
 
     private func gymExerciseList(plan: WorkoutPlan) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             if plan.orderedExercises.isEmpty {
                 Text("No exercises planned yet.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
                 ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Text("\(index + 1)")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .frame(width: 16, alignment: .trailing)
 
                         Text(plannedEx.exercise?.name ?? "Exercise")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                             .lineLimit(1)
 
                         Spacer()
 
                         if let sets = plannedEx.sets {
                             Text("\(sets.count) sets")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                     }
                 }
@@ -852,24 +845,24 @@ struct WeekPlanView: View {
         // Single source of warm-up/mobility content (shared with the in-session
         // warm-up block). A mobility day uses the full-body routine.
         let moves = WarmupRoutine.routine(for: .fullBody).moves
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s1) {
             ForEach(Array(moves.enumerated()), id: \.element.id) { index, move in
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     Text("\(index + 1)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .frame(width: 16, alignment: .trailing)
 
                     Text(move.name)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
 
                     Spacer()
 
                     Text(move.dose)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
         }
@@ -877,25 +870,25 @@ struct WeekPlanView: View {
 
     private func footballContext(plan: WorkoutPlan) -> some View {
         let phase = footballPhase(for: plan.date)
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
             Text(phase.headline)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(phase.body)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var restGuidance: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text("Full rest")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text("No lifting today. Light walk and mobility optional. Target 8h sleep — recovery is where adaptation happens.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -917,14 +910,14 @@ struct WeekPlanView: View {
             title = plan.type.displayName
             body = ""
         }
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
             Text(title)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             if !body.isEmpty {
                 Text(body)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1002,25 +995,25 @@ struct WeekPlanView: View {
 
     private func workoutTypeColor(plan: WorkoutPlan) -> Color {
         if plan.status == .completed {
-            return Color.tempoRecoveryGreen
+            return TideTrain.positive
         }
         switch plan.type {
-        case .football: return Color.tempoRecoveryYellow
-        case .rest: return Color.tempoTextTertiary
-        case .mobility: return Color.tempoTextSecondary
-        default: return Color.tempoTextPrimary
+        case .football: return TideTrain.caution
+        case .rest: return Tide.text3
+        case .mobility: return Tide.text2
+        default: return Tide.text
         }
     }
 
     private func recoveryDotColor(plan: WorkoutPlan) -> Color {
         let adj = plan.recoveryAdjustment
         if adj >= 1.0 {
-            return Color.tempoRecoveryGreen
+            return TideTrain.positive
         }
         if adj >= 0.6 {
-            return Color.tempoRecoveryYellow
+            return TideTrain.caution
         }
-        return Color.tempoRecoveryRed
+        return Tide.danger
     }
 
     private func dayName(for date: Date) -> String {

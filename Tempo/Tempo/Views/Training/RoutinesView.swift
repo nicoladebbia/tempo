@@ -35,28 +35,28 @@ struct RoutinesView: View {
         List {
             if let blocker = viewModel.routineBlocker(for: viewModel.todayPlan) {
                 Text(blocker)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .listRowBackground(Color.clear)
             }
 
             if routines.isEmpty {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("No routines yet.")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text(
                         "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
             }
 
             ForEach(routines) { routine in
                 routineRow(routine)
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Tide.fill)
                     .swipeActions {
                         Button(role: .destructive) {
                             modelContext.delete(routine)
@@ -69,7 +69,7 @@ struct RoutinesView: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
-                        .tint(Color.tempoSignal)
+                        .tint(Color.accentColor)
                     }
             }
         }
@@ -125,26 +125,26 @@ struct RoutinesView: View {
     }
 
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(routine.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(routine.items.map(\.exerciseName).joined(separator: " · "))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .lineLimit(2)
                 Text("\(routine.items.count) exercises · \(routine.items.reduce(0) { $0 + $1.workingSets }) sets")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
             Spacer()
             Button("Use today") {
                 pendingApply = routine
             }
-            .font(.tempoCaption1.weight(.semibold))
+            .font(Tide.caption.weight(.semibold))
             .buttonStyle(.borderedProminent)
-            .tint(Color.tempoSignal)
+            .tint(Color.accentColor)
             .disabled(viewModel.routineBlocker(for: viewModel.todayPlan) != nil)
         }
         .contentShape(Rectangle())
@@ -185,11 +185,11 @@ struct RoutineEditorView: View {
             List {
                 Section {
                     TextField("Routine name (e.g. Upper A)", text: $name)
-                        .font(.tempoBody)
+                        .font(Tide.body)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
 
-                Section("EXERCISES") {
+                Section("Exercises") {
                     ForEach($items) { $item in
                         itemRow($item)
                     }
@@ -200,14 +200,14 @@ struct RoutineEditorView: View {
                         showPicker = true
                     } label: {
                         Label("Add Exercise", systemImage: "plus")
-                            .foregroundStyle(Color.tempoSignal)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .environment(\.editMode, .constant(.active))
             .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)
@@ -245,18 +245,18 @@ struct RoutineEditorView: View {
         let groupedWithNext = index + 1 < items.count
             && item.wrappedValue.group != nil
             && items[index + 1].group == item.wrappedValue.group
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s1) {
             HStack {
                 Text(item.wrappedValue.exerciseName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Stepper(
                     "\(item.wrappedValue.workingSets) sets",
                     value: item.workingSets,
                     in: 1 ... 10
                 )
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .fixedSize()
             }
             if index + 1 < items.count {
@@ -265,10 +265,10 @@ struct RoutineEditorView: View {
                     set: { setGrouped($0, at: index) }
                 )) {
                     Label("Superset with next", systemImage: "link")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                .tint(Color.tempoSignal)
+                .tint(Color.accentColor)
             }
         }
     }
@@ -347,7 +347,7 @@ private struct RoutineExercisePicker: View {
         NavigationStack {
             List {
                 ForEach(sections, id: \.group) { section in
-                    Section(section.group.displayName.uppercased()) {
+                    Section(section.group.displayName) {
                         ForEach(section.exercises, id: \.id) { exercise in
                             Button {
                                 onPick(exercise)
@@ -355,14 +355,14 @@ private struct RoutineExercisePicker: View {
                             } label: {
                                 ExercisePickRow(exercise: exercise)
                             }
-                            .listRowBackground(Color.tempoSurfaceCard)
+                            .listRowBackground(Tide.fill)
                         }
                     }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)
