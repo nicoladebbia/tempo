@@ -110,6 +110,7 @@
 		1013CDF775D3AE67297771AA /* PantryPriceEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2CE07FA825E8371C3565390 /* PantryPriceEntry.swift */; };
 		1031B1B1207500EA0EF9C3D9 /* FoodProductView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AB43623A73206D5AD5066B /* FoodProductView.swift */; };
 		1081170B9819CF091DE88AAE /* RoutinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4ED9E1F090BA47498D6D774 /* RoutinesView.swift */; };
+		10D268BE664B009EA750E974 /* Tide+Train.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1130BBA5CB5329656C3B7441 /* Tide+Train.swift */; };
 		10D35E44B6E9F7FDB999D632 /* WatchSnapshotBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B6D8F2CCCB4227C73608F1 /* WatchSnapshotBuilderTests.swift */; };
 		1136DCFAAD7D6088924EF5B6 /* GuidedRunActivitySnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11BBF1F18589D12BEDA5442E /* GuidedRunActivitySnapshotTests.swift */; };
 		11943895E2E70AA44CE07E43 /* TrainerReportDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110D92ADE95F73AF1EEED15C /* TrainerReportDocument.swift */; };
@@ -1473,6 +1474,7 @@
 		10A68A8886AF6DD22611B8FA /* MealReviewDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealReviewDraft.swift; sourceTree = "<group>"; };
 		10B575FE37D2EEFEF24BDCE9 /* PrescriptionMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrescriptionMath.swift; sourceTree = "<group>"; };
 		110D92ADE95F73AF1EEED15C /* TrainerReportDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerReportDocument.swift; sourceTree = "<group>"; };
+		1130BBA5CB5329656C3B7441 /* Tide+Train.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tide+Train.swift"; sourceTree = "<group>"; };
 		1155D639044D3DC63A9E23B9 /* GuidedRunActivitySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunActivitySnapshot.swift; sourceTree = "<group>"; };
 		1161732CAD75A0EAE0F7B3B6 /* ReceiptStoreBrandPrefixes.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ReceiptStoreBrandPrefixes.json; sourceTree = "<group>"; };
 		117FB49D2E76F6CE3D3CC042 /* GuidedRunLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunLiveActivity.swift; sourceTree = "<group>"; };
@@ -3703,6 +3705,7 @@
 			isa = PBXGroup;
 			children = (
 				0597EA1F193B3DFC757ACEC1 /* Tide.metal */,
+				1130BBA5CB5329656C3B7441 /* Tide+Train.swift */,
 				70466F4A254B9F82C9FAA0E5 /* TideComponents.swift */,
 				A0AFD51F8198DE6E60C2384F /* TideGallery.swift */,
 				899169DD738BF35AD7FCC2CC /* TideMood.swift */,
@@ -6610,6 +6613,7 @@
 				F39C73E19E14AA4302EC3903 /* TemporaryExclusionsStepView.swift in Sources */,
 				7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */,
 				1926D115A4B3332150CFC26B /* TestServer.swift in Sources */,
+				10D268BE664B009EA750E974 /* Tide+Train.swift in Sources */,
 				08D989951B2D83127DF1EA04 /* Tide.metal in Sources */,
 				B5ADC1D24F3E4FDD62AE498C /* TideComponents.swift in Sources */,
 				C60701040F31DA5AA72470EB /* TideGallery.swift in Sources */,
