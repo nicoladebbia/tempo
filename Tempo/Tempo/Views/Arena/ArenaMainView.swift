@@ -132,7 +132,11 @@ struct ArenaMainView: View {
     // MARK: - Header
 
     private func header(_ vm: ArenaViewModel) -> some View {
-        HStack(alignment: .top, spacing: Tide.s2) {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s2))
+        return layout {
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(TempoDateFormatters.dashboardHeader.string(from: Date())).tideLabel()
                 Text("Arena")
@@ -141,23 +145,27 @@ struct ArenaMainView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: Tide.s2)
-            if vm.freezesAvailable > 0 {
-                chip(symbol: "snowflake", value: vm.freezesAvailable, tint: TideTone.sky)
-                    .accessibilityLabel("\(vm.freezesAvailable) streak freezes")
+            if !stacked {
+                Spacer(minLength: Tide.s2)
             }
-            chip(symbol: "flame.fill", value: vm.streakDays, tint: Tide.streak)
-                .accessibilityLabel("\(vm.streakDays) day streak")
-            NavigationLink(value: ArenaDestination.friends) {
-                Image(systemName: "person.2.fill")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                    .frame(width: Tide.hit, height: Tide.hit)
-                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+            HStack(spacing: Tide.s2) {
+                if vm.freezesAvailable > 0 {
+                    chip(symbol: "snowflake", value: vm.freezesAvailable, tint: TideTone.sky)
+                        .accessibilityLabel("\(vm.freezesAvailable) streak freezes")
+                }
+                chip(symbol: "flame.fill", value: vm.streakDays, tint: Tide.streak)
+                    .accessibilityLabel("\(vm.streakDays) day streak")
+                NavigationLink(value: ArenaDestination.friends) {
+                    Image(systemName: "person.2.fill")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .tideZoomSource(id: ArenaDestination.friends, in: zoom)
+                .accessibilityLabel("Friends")
             }
-            .buttonStyle(.plain)
-            .tideZoomSource(id: ArenaDestination.friends, in: zoom)
-            .accessibilityLabel("Friends")
         }
     }
 
