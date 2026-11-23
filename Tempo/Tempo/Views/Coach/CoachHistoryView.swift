@@ -61,23 +61,20 @@ struct CoachHistoryView: View {
 
     private var list: some View {
         List {
-            Section {
-                ForEach(conversations, id: \.id) { conv in
-                    row(for: conv)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(
-                            EdgeInsets(
-                                top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge
-                            )
-                        )
-                }
-            } header: {
-                TideSectionLabel(title: "Swipe a chat to star it", trailing: "\(conversations.count)")
-                    .padding(.horizontal, Tide.edge)
-                    .padding(.bottom, Tide.s1)
+            TideSectionLabel(title: "Swipe a chat to star it", trailing: "\(conversations.count)")
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(
+                    EdgeInsets(top: Tide.s2, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge)
+                )
+            ForEach(conversations, id: \.id) { conv in
+                row(for: conv)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(
+                        EdgeInsets(top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge)
+                    )
             }
-            .listSectionMargins(.horizontal, 0)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
