@@ -52,14 +52,14 @@ Whenever a session builds a big change (a `/round`, a multi-lane feature, a rede
 
 ## Architecture
 
-- iOS 17.4+: SwiftUI + SwiftData + HealthKit (unified biometric bus) + EventKit. Swift 6 strict concurrency; `@Observable` services.
+- iOS 26+: SwiftUI + SwiftData + HealthKit (unified biometric bus) + EventKit. Swift 6 strict concurrency; `@Observable` services.
 - Backend: Vapor + PostgreSQL + Redis. Auth: Sign in with Apple + JWT (ES256). Push: APNs Time Sensitive (NOT Critical Alerts).
 - Integrations: Whoop (OAuth2 via backend proxy), NutriTrack (Flask proxy), HealthKit, Apple Calendar. AI: Claude API (Haiku real-time, Sonnet deep analysis).
 - 5 modules: Dashboard/LifeOS (Body/Fuel/Mind/Move quadrants) · Training/RepForge · Accountability/Lockdown · Recovery/RecoverIQ · Arena/ClutchTime.
 
 ## Conventions
 
-- Only 3 third-party iOS deps: PostHog, Crashlytics, Lottie (`docs/DEPENDENCIES.md`).
+- Only 2 third-party iOS deps: PostHog, Crashlytics (`docs/DEPENDENCIES.md`; Lottie was removed in the UI rework, it was never used).
 - Colors/tokens from `docs/DESIGN_SYSTEM.md`, strings from `docs/UX_COPY_BIBLE.md`, state machines from `docs/STATE_MACHINES.md`.
 - Parallel sessions: one git worktree per session, never two in the same dir — see `/parallel`.
 - Workflow commands: `/audit <area>` (read-only audit → report + fix rounds) · `/round <area> <n>` (fix one round: decisions up front, lanes in worktrees, PRs) · `/review` + `/fix`.
