@@ -24,14 +24,14 @@ struct WeeklyRecoverySummaryView: View {
     var body: some View {
         TideScrollPage {
             if let stats = viewModel.weeklyStats {
-                // Average Cards
+                // The week's recovery, and how it moved against last week
+                heroSection(stats)
+
+                // Average HRV, RHR and sleep with their change vs last week
                 averagesSection(stats)
 
                 // Best & Worst Days
                 bestWorstSection(stats)
-
-                // Trend Arrows vs Previous Week
-                trendArrowsSection(stats)
 
                 // Strain vs Recovery Balance
                 strainRecoveryBalanceSection(stats)
@@ -57,44 +57,109 @@ struct WeeklyRecoverySummaryView: View {
 
     // MARK: - Averages Section
 
-    private func averagesSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "7-day averages")
+    /// The hero: the week's average recovery on the dial, with its zone and
+    /// how it moved against last week.
+    private func heroSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
+        let zone = RecoveryZone(score: stats.avgRecovery)
+        return RecoveryHero {
+            TideDial(score: Int(stats.avgRecovery), caption: "7-day avg", diameter: Tide.dialHero)
+        } side: {
+            Text("Recovery").tideLabel(Tide.text3)
+            Text("\(zone.displayName) zone")
+                .font(Tide.title2)
+                .foregroundStyle(zone.tideColor)
+            changeLine(
+                current: stats.avgRecovery, previous: stats.prevWeekAvgRecovery,
+                unit: "%", higherIsBetter: true, suffix: " vs last week"
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Average recovery \(Int(stats.avgRecovery)) percent, \(zone.displayName) zone")
+    }
 
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2),
-                spacing: Tide.s3
-            ) {
-                TideMetricTile(
-                    label: "Recovery",
-                    value: "\(Int(stats.avgRecovery))",
-                    unit: "%",
-                    tint: RecoveryZone(score: stats.avgRecovery).tideColor,
-                    systemImage: "heart.text.square.fill"
+    /// HRV, resting heart rate and sleep in one card, each with its change vs
+    /// last week. They stack at accessibility text sizes.
+    private func averagesSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "7-day averages", trailing: "Change vs last week")
+
+            layout {
+                averageColumn(
+                    label: "HRV", value: "\(Int(stats.avgHRV))", unit: "ms",
+                    current: stats.avgHRV, previous: stats.prevWeekAvgHRV, higherIsBetter: true
                 )
-                TideMetricTile(
-                    label: "HRV",
-                    value: "\(Int(stats.avgHRV))",
-                    unit: "ms",
-                    tint: TideSleepStage.rem,
-                    systemImage: "waveform.path.ecg"
+                if !stacked {
+                    columnDivider
+                }
+                averageColumn(
+                    label: "RHR", value: "\(Int(stats.avgRHR))", unit: "bpm",
+                    current: stats.avgRHR, previous: stats.prevWeekAvgRHR, higherIsBetter: false
                 )
-                TideMetricTile(
-                    label: "RHR",
-                    value: "\(Int(stats.avgRHR))",
-                    unit: "bpm",
-                    tint: Tide.danger,
-                    systemImage: "heart.fill"
-                )
-                TideMetricTile(
-                    label: "Sleep",
-                    value: String(format: "%.1f", stats.avgSleep),
-                    unit: "h",
-                    tint: TideSleepStage.light,
-                    systemImage: "moon.zzz.fill"
+                if !stacked {
+                    columnDivider
+                }
+                averageColumn(
+                    label: "Sleep", value: String(format: "%.1f", stats.avgSleep), unit: "h",
+                    current: stats.avgSleep, previous: stats.prevWeekAvgSleep, higherIsBetter: true
                 )
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
+    }
+
+    private var columnDivider: some View {
+        Rectangle()
+            .fill(Tide.hairline)
+            .frame(width: Tide.rule)
+            .accessibilityHidden(true)
+    }
+
+    private func averageColumn(
+        label: String, value: String, unit: String,
+        current: Double, previous: Double?, higherIsBetter: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(label).tideLabel()
+            TideNumber(value, unit: unit, size: Tide.numeralM, relativeTo: .title2)
+            changeLine(current: current, previous: previous, unit: unit, higherIsBetter: higherIsBetter)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(changeLabel(label: label, current: current, previous: previous, unit: unit, higherIsBetter: higherIsBetter))
+    }
+
+    /// An arrow and the signed change against last week. Green is the good side.
+    private func changeLine(
+        current: Double, previous: Double?, unit: String, higherIsBetter: Bool, suffix: String = ""
+    ) -> some View {
+        let delta = previous.map { current - $0 }
+        let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
+        let tint = isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3
+        let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
+        return HStack(spacing: Tide.s1) {
+            Image(systemName: isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
+                .font(Tide.label)
+                .accessibilityHidden(true)
+            Text(formatted.map { "\($0)\(unit)\(suffix)" } ?? "No last week")
+                .font(Tide.numeral(Tide.axisSize + 1, .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+        }
+        .foregroundStyle(tint)
+    }
+
+    private func changeLabel(label: String, current: Double, previous: Double?, unit: String, higherIsBetter: Bool) -> String {
+        let delta = previous.map { current - $0 }
+        let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
+        let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
+        let value = unit == "h" ? String(format: "%.1f", current) : "\(Int(current))"
+        return formatted.map {
+            "\(label) \(value) \(unit), \($0) \(unit), \(isPositive == true ? "better" : "worse") than last week"
+        } ?? "\(label) \(value) \(unit), no data for last week"
     }
 
     // MARK: - Best & Worst Days
@@ -103,27 +168,35 @@ struct WeeklyRecoverySummaryView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Highlights")
 
-            if let best = stats.bestDay {
-                dayHighlightCard(
-                    icon: "arrow.up.circle.fill",
-                    label: "Best day",
-                    date: best.0,
-                    score: best.1,
-                    explanation: bestDayExplanation(best.0),
-                    color: TideTone.mint
-                )
-            }
+            // One card, two rows: the best day and the toughest day.
+            VStack(spacing: Tide.s4) {
+                if let best = stats.bestDay {
+                    dayHighlightCard(
+                        icon: "arrow.up.circle.fill",
+                        label: "Best day",
+                        date: best.0,
+                        score: best.1,
+                        explanation: bestDayExplanation(best.0),
+                        color: TideTone.mint
+                    )
+                }
 
-            if let worst = stats.worstDay {
-                dayHighlightCard(
-                    icon: "arrow.down.circle.fill",
-                    label: "Toughest day",
-                    date: worst.0,
-                    score: worst.1,
-                    explanation: worstDayExplanation(worst.0),
-                    color: Tide.danger
-                )
+                if stats.bestDay != nil, stats.worstDay != nil {
+                    TideDivider()
+                }
+
+                if let worst = stats.worstDay {
+                    dayHighlightCard(
+                        icon: "arrow.down.circle.fill",
+                        label: "Toughest day",
+                        date: worst.0,
+                        score: worst.1,
+                        explanation: worstDayExplanation(worst.0),
+                        color: Tide.danger
+                    )
+                }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -159,7 +232,6 @@ struct WeeklyRecoverySummaryView: View {
                 }
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityElement(children: .combine)
     }
 
@@ -203,79 +275,6 @@ struct WeeklyRecoverySummaryView: View {
             reasons.append("high strain (\(String(format: "%.1f", strain)))")
         }
         return reasons.isEmpty ? "Multiple metrics below baseline." : reasons.joined(separator: ", ") + "."
-    }
-
-    // MARK: - Trend Arrows vs Previous Week
-
-    private func trendArrowsSection(_ stats: RecoveryViewModel.WeeklyStats) -> some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: Tide.s2))
-            : AnyLayout(HStackLayout(spacing: Tide.s2))
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Vs last week")
-
-            layout {
-                trendArrowTile(
-                    label: "Recovery",
-                    current: stats.avgRecovery,
-                    previous: stats.prevWeekAvgRecovery,
-                    unit: "%",
-                    higherIsBetter: true
-                )
-                trendArrowTile(
-                    label: "HRV",
-                    current: stats.avgHRV,
-                    previous: stats.prevWeekAvgHRV,
-                    unit: "ms",
-                    higherIsBetter: true
-                )
-                trendArrowTile(
-                    label: "RHR",
-                    current: stats.avgRHR,
-                    previous: stats.prevWeekAvgRHR,
-                    unit: "bpm",
-                    higherIsBetter: false
-                )
-                trendArrowTile(
-                    label: "Sleep",
-                    current: stats.avgSleep,
-                    previous: stats.prevWeekAvgSleep,
-                    unit: "h",
-                    higherIsBetter: true
-                )
-            }
-        }
-    }
-
-    private func trendArrowTile(label: String, current: Double, previous: Double?, unit: String, higherIsBetter: Bool) -> some View {
-        let delta = previous.map { current - $0 }
-        let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
-        let tint = isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3
-        let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
-        return VStack(spacing: Tide.s2) {
-            Text(label)
-                .tideLabel()
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
-
-            Image(systemName: isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
-                .font(Tide.title2)
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
-
-            Text(formatted.map { "\($0)\(unit)" } ?? "--")
-                .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
-                .foregroundStyle(tint)
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
-        }
-        .frame(maxWidth: .infinity)
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            formatted.map { "\(label) \($0) \(unit), \(isPositive == true ? "better" : "worse") than last week" }
-                ?? "\(label), no data for last week"
-        )
     }
 
     // MARK: - Strain vs Recovery Balance

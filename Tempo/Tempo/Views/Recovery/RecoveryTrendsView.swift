@@ -19,6 +19,8 @@ struct RecoveryTrendsView: View {
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showRecovery = true
@@ -66,24 +68,44 @@ struct RecoveryTrendsView: View {
 
     // MARK: - Averages Row
 
+    /// One card with three readouts side by side, split by hairlines. They stack
+    /// at accessibility text sizes.
     private var averagesRow: some View {
-        HStack(spacing: Tide.s3) {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return layout {
             averageTile(
                 label: "Recovery",
                 value: viewModel.avgRecovery7d.map { "\(Int($0))" } ?? "--",
                 unit: viewModel.avgRecovery7d == nil ? nil : "%"
             )
+            if !stacked {
+                averageDivider
+            }
             averageTile(
                 label: "HRV",
                 value: viewModel.avgHRV7d.map { "\(Int($0))" } ?? "--",
                 unit: viewModel.avgHRV7d == nil ? nil : "ms"
             )
+            if !stacked {
+                averageDivider
+            }
             averageTile(
                 label: "RHR",
                 value: viewModel.avgRHR7d.map { "\(Int($0))" } ?? "--",
                 unit: viewModel.avgRHR7d == nil ? nil : "bpm"
             )
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private var averageDivider: some View {
+        Rectangle()
+            .fill(Tide.hairline)
+            .frame(width: Tide.rule)
+            .accessibilityHidden(true)
     }
 
     private func averageTile(label: String, value: String, unit: String?) -> some View {
@@ -94,7 +116,7 @@ struct RecoveryTrendsView: View {
                 .minimumScaleFactor(Tide.labelShrink)
             TideNumber(value, unit: unit, size: Tide.numeralS + Tide.s1, relativeTo: .title3)
         }
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
@@ -105,12 +127,10 @@ struct RecoveryTrendsView: View {
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             if chartData.isEmpty {
-                Text("Need more days of data to show trends.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Tide.s8)
+                RecoveryChartPlaceholder(
+                    message: "Need more days of data to show trends.",
+                    height: Tide.chartHeight + Tide.s5
+                )
             } else {
                 TideLineChart(
                     data: chartData,
@@ -174,7 +194,10 @@ struct RecoveryTrendsView: View {
     // Per MODULE_RECOVERY.md Section 7 — Toggle legend
 
     private var legendRow: some View {
-        HStack(spacing: Tide.s2) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             legendToggle(label: "Recovery", color: TideTone.mint, isOn: $showRecovery)
             legendToggle(label: "HRV", color: TideSleepStage.rem, isOn: $showHRV)
             legendToggle(label: "RHR", color: Tide.danger, isOn: $showRHR)

@@ -19,9 +19,6 @@ struct StrainDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    /// The top of the strain scale.
-    private let strainMax = 21.0
-
     var body: some View {
         TideScrollPage(energy: 1) {
             // Strain gauge
@@ -50,34 +47,18 @@ struct StrainDetailView: View {
 
     private var strainGaugeSection: some View {
         let strain = viewModel.todayRecovery?.strain
-        return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Strain").tideLabel()
-                Spacer(minLength: Tide.s2)
-                TideStatusPill(text: strainClassification, tint: strainColor)
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber(
-                    strain.map { String(format: "%.1f", $0) } ?? "--",
-                    size: Tide.numeralHero, relativeTo: .largeTitle, color: strainColor
-                )
-                Text("of 21")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text2)
-            }
-
-            TideLevelBar(
-                progress: min(max((strain ?? 0) / strainMax, 0), 1),
-                color: strainColor,
-                height: Tide.bar
-            )
-
+        return RecoveryHero {
+            RecoveryStrainGauge(strain: strain, color: strainColor, diameter: Tide.dialHero)
+        } side: {
+            Text("Strain").tideLabel()
+            Text(strainClassification)
+                .font(Tide.title2)
+                .foregroundStyle(strainColor)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Calories: \(viewModel.formattedCalories)")
                 .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+                .foregroundStyle(Tide.text)
         }
-        .tideCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Strain \(strain.map { String(format: "%.1f", $0) } ?? "none") out of 21, \(strainClassification)"
@@ -138,6 +119,9 @@ struct StrainDetailView: View {
                        let activePct = viewModel.activeCaloriePercent,
                        let basalPct = viewModel.basalCaloriePercent
                     {
+                        TideLevelBar(progress: Double(activePct) / 100, color: strainColor, height: Tide.bar)
+                            .padding(.bottom, Tide.s2)
+                            .accessibilityHidden(true)
                         TideDivider()
                         caloriesRow(label: "Active", value: "\(Int(active).formatted()) kcal", detail: "\(activePct)%")
                         TideDivider()
@@ -151,10 +135,18 @@ struct StrainDetailView: View {
                         caloriesRow(label: "Basal", value: "\(basalCal.formatted()) kcal", detail: "~53%")
                     }
                 } else {
-                    Text("No calorie data available")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: Tide.s3) {
+                        Image(systemName: "flame")
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text3)
+                            .accessibilityHidden(true)
+                        Text("No calorie data available")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                    .accessibilityElement(children: .combine)
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -204,14 +196,9 @@ struct StrainDetailView: View {
                         height: Tide.chartHeight
                     )
                 } else {
-                    Text(
-                        "Need \(3 - viewModel.strainChartData.count) more day\(3 - viewModel.strainChartData.count == 1 ? "" : "s") of data to show trends."
+                    RecoveryChartPlaceholder(
+                        message: "Need \(3 - viewModel.strainChartData.count) more day\(3 - viewModel.strainChartData.count == 1 ? "" : "s") of data to show trends."
                     )
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Tide.s8)
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)

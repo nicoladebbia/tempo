@@ -140,11 +140,22 @@ struct TidePillPicker<Value: Hashable>: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Namespace
     private var pill
 
+    /// At accessibility text sizes four short words no longer share one row:
+    /// they wrap to two rows instead of shrinking.
+    private var wraps: Bool {
+        typeSize.isAccessibilitySize && options.count > 3
+    }
+
     var body: some View {
-        HStack(spacing: Tide.s1) {
+        let layout = wraps
+            ? AnyLayout(WrappingPillRows(columns: 2, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s1))
+        layout {
             ForEach(options, id: \.self) { option in
                 let selected = option == selection
                 Button {
@@ -168,10 +179,48 @@ struct TidePillPicker<Value: Hashable>: View {
             }
         }
         .padding(Tide.s1)
-        .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: wraps ? Tide.controlRadius + Tide.s2 : Tide.hit))
         .sensoryFeedback(.selection, trigger: selection)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
+    }
+}
+
+/// A grid of equal cells filled row by row. Used by the picker when it wraps.
+private struct WrappingPillRows: Layout {
+    var columns: Int
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 0
+        let cell = (width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+        let rows = (subviews.count + columns - 1) / columns
+        let heights = (0 ..< rows).map { row in
+            subviews[row * columns ..< min((row + 1) * columns, subviews.count)]
+                .map { $0.sizeThatFits(ProposedViewSize(width: cell, height: nil)).height }
+                .max() ?? 0
+        }
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(rows - 1, 0)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let cell = (bounds.width - spacing * CGFloat(columns - 1)) / CGFloat(columns)
+        var y = bounds.minY
+        var index = 0
+        while index < subviews.count {
+            let end = min(index + columns, subviews.count)
+            let rowHeight = subviews[index ..< end]
+                .map { $0.sizeThatFits(ProposedViewSize(width: cell, height: nil)).height }
+                .max() ?? 0
+            for (offset, subview) in subviews[index ..< end].enumerated() {
+                subview.place(
+                    at: CGPoint(x: bounds.minX + CGFloat(offset) * (cell + spacing), y: y),
+                    proposal: ProposedViewSize(width: cell, height: rowHeight)
+                )
+            }
+            y += rowHeight + spacing
+            index = end
+        }
     }
 }
 

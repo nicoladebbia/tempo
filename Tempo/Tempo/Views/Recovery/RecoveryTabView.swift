@@ -32,10 +32,7 @@ struct RecoveryTabView: View {
                 if let viewModel {
                     recoveryContent(viewModel: viewModel)
                 } else {
-                    ProgressView()
-                        .controlSize(.large)
-                        .tint(Tide.text2)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    RecoverySkeleton()
                         .tidePage(energy: 1)
                 }
             }

@@ -23,6 +23,8 @@ struct WhoopConnectionView: View {
     @State
     private var isDisconnecting = false
     @State
+    private var isSyncing = false
+    @State
     private var showDisconnectConfirmation = false
     @State
     private var errorMessage: String?
@@ -67,12 +69,20 @@ struct WhoopConnectionView: View {
 
             // Error message
             if let errorMessage {
-                Text(errorMessage)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .accessibilityAddTraits(.updatesFrequently)
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.danger)
+                        .accessibilityHidden(true)
+                    Text(errorMessage)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .tideTintedCard(Tide.danger, padding: Tide.s4, radius: Tide.tileRadius)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.updatesFrequently)
+                .transition(.opacity)
             }
 
             // Footnote
@@ -112,22 +122,26 @@ struct WhoopConnectionView: View {
             TideSectionLabel(title: "Whoop integration")
 
             VStack(alignment: .leading, spacing: Tide.s3) {
-                // Connection status row
-                HStack(spacing: Tide.s2) {
-                    Text("Status")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-
-                    Spacer(minLength: Tide.s2)
-
-                    Circle()
-                        .fill(statusDotColor)
-                        .frame(width: Tide.s2, height: Tide.s2)
+                // Connection status: the state in the colour of the state
+                HStack(spacing: Tide.s3) {
+                    TideAreaIconTile(systemName: "sensor.tag.radiowaves.forward.fill", tint: statusDotColor)
                         .accessibilityHidden(true)
 
-                    Text(statusText)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text("Status").tideLabel(Tide.text3)
+                        HStack(spacing: Tide.s2) {
+                            Circle()
+                                .fill(statusDotColor)
+                                .frame(width: Tide.s2, height: Tide.s2)
+                                .accessibilityHidden(true)
+                            Text(statusText)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Spacer(minLength: Tide.s2)
 
                     if whoop.isDemoMode, isConnected {
                         TideStatusPill(text: "Demo", tint: TideTone.amber)
@@ -209,9 +223,7 @@ struct WhoopConnectionView: View {
     private var credentialSetupSection: some View {
         VStack(spacing: Tide.s5) {
             VStack(spacing: Tide.s3) {
-                Image(systemName: "key.fill")
-                    .font(Tide.title)
-                    .foregroundStyle(Tide.text3)
+                TideAreaIconTile(systemName: "key.fill", tint: Tide.text2, size: Tide.avatarLarge)
                     .accessibilityHidden(true)
 
                 Text("Whoop developer setup")
@@ -317,10 +329,10 @@ struct WhoopConnectionView: View {
     private var connectSection: some View {
         VStack(spacing: Tide.s5) {
             VStack(spacing: Tide.s3) {
-                Image(systemName: "sensor.tag.radiowaves.forward.fill")
-                    .font(Tide.largeTitle)
-                    .foregroundStyle(Tide.text3)
-                    .accessibilityHidden(true)
+                TideAreaIconTile(
+                    systemName: "sensor.tag.radiowaves.forward.fill", tint: Tide.text2, size: Tide.avatarLarge
+                )
+                .accessibilityHidden(true)
 
                 Text("Connect your Whoop")
                     .font(Tide.title2)
@@ -372,12 +384,15 @@ struct WhoopConnectionView: View {
     // MARK: - Sync Button
 
     private var syncButton: some View {
-        Button("Sync now") {
+        Button(isSyncing ? "Syncing..." : "Sync now") {
             Task {
+                isSyncing = true
                 try? await whoop.syncAll()
+                isSyncing = false
             }
         }
         .buttonStyle(.tidePrimary)
+        .disabled(isSyncing)
     }
 
     // MARK: - Disconnect Button

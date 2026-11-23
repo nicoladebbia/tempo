@@ -96,9 +96,17 @@ struct RecoveryAIInsightView: View {
                             .lineSpacing(Tide.hair)
                             .fixedSize(horizontal: false, vertical: true)
                     } else if let errorText {
-                        Text(errorText)
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
+                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(TideTone.amber)
+                                .accessibilityHidden(true)
+                            Text(errorText)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
                     } else {
                         Text("Connect WHOOP to get today's personalised read.")
                             .font(Tide.body)
