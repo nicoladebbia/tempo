@@ -42,27 +42,39 @@ struct WaterCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            let title = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: "drop.fill")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.water)
                     .accessibilityHidden(true)
                 Text("Water").tideLabel()
-                Spacer(minLength: Tide.s2)
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                    TideNumber(
-                        totalMl.formatted(),
-                        size: Tide.numeralS,
-                        relativeTo: .headline,
-                        color: totalMl >= target ? Tide.good : Tide.text
-                    )
-                    Text("/ \(target.formatted()) ml")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+            }
+            let total = HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                TideNumber(
+                    totalMl.formatted(),
+                    size: Tide.numeralS,
+                    relativeTo: .headline,
+                    color: totalMl >= target ? Tide.good : Tide.text
+                )
+                Text("/ \(target.formatted()) ml")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Water \(totalMl) of \(target) millilitres")
+            .accessibilityIdentifier("water.total")
+
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    title
+                    Spacer(minLength: Tide.s2)
+                    total
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Water \(totalMl) of \(target) millilitres")
-                .accessibilityIdentifier("water.total")
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    title
+                    total
+                }
             }
 
             TideLevelBar(progress: progress, color: Tide.water, height: Tide.bar)
@@ -79,6 +91,10 @@ struct WaterCardView: View {
                     }
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         HStack(spacing: Tide.s2) { chips }
+                        undoButton
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        chips
                         undoButton
                     }
                 }

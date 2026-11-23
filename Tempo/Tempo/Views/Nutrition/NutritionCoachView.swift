@@ -54,7 +54,10 @@ struct NutritionCoachView: View {
             }
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s8)
+            // Pin the content to the screen width so it only scrolls up and down.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
