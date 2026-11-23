@@ -54,49 +54,50 @@ struct TrainerFeedbackReviewView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            TrainPlanPage {
                 if matchedEdits.isEmpty, unmatchedEdits.isEmpty {
-                    Section {
-                        Text("No changes found in that message.")
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
-                    }
-                    .listRowBackground(Tide.fill)
+                    TrainEmptyCard(systemImage: "text.bubble", title: "No changes found in that message.")
+                        .padding(.top, Tide.s4)
                 }
                 if !matchedEdits.isEmpty {
-                    Section("Changes") {
-                        ForEach(matchedEdits) { edit in
-                            Toggle(isOn: binding(for: edit.id)) {
-                                Text(edit.summary)
-                                    .font(Tide.body)
-                                    .foregroundStyle(Tide.text)
+                    TrainPlanCard(label: "Changes") {
+                        ForEach(Array(matchedEdits.enumerated()), id: \.element.id) { index, edit in
+                            if index > 0 {
+                                TrainPlanDivider()
                             }
-                            .tint(Color.accentColor)
+                            TrainPlanToggleRow(title: edit.summary, isOn: binding(for: edit.id))
                         }
                     }
-                    .listRowBackground(Tide.fill)
                 }
                 if !unmatchedEdits.isEmpty {
-                    Section {
-                        ForEach(unmatchedEdits) { edit in
-                            VStack(alignment: .leading, spacing: Tide.hair) {
-                                Text(edit.summary)
-                                    .font(Tide.body)
-                                    .foregroundStyle(Tide.text3)
-                                Text(edit.matchFailureReason ?? "Couldn't match.")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(TideTrain.caution)
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        TrainPlanCard(label: "COULDN'T MATCH") {
+                            ForEach(Array(unmatchedEdits.enumerated()), id: \.element.id) { index, edit in
+                                if index > 0 {
+                                    TrainPlanDivider()
+                                }
+                                VStack(alignment: .leading, spacing: Tide.hair) {
+                                    Text(edit.summary)
+                                        .font(Tide.body)
+                                        .foregroundStyle(Tide.text3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(edit.matchFailureReason ?? "Couldn't match.")
+                                        .font(Tide.caption)
+                                        .foregroundStyle(TideTrain.caution)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityElement(children: .combine)
                             }
                         }
-                    } header: {
-                        Text("COULDN'T MATCH")
-                    } footer: {
                         Text("Fix these yourself on the program's Edit screen if you still want them.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, Tide.s2)
                     }
-                    .listRowBackground(Color.clear)
                 }
             }
-            .scrollContentBackground(.hidden)
             .trainSheetRoot()
             .navigationTitle("Review Changes")
             .navigationBarTitleDisplayMode(.inline)

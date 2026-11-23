@@ -166,45 +166,51 @@ struct TrainerProgramImportView: View {
 
     private var sourcePicker: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: Tide.s6) {
-                VStack(spacing: Tide.s2) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(Tide.largeTitle)
-                        .foregroundStyle(TideTrain.violet)
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.s3) {
+                    TideIconTile(
+                        systemName: "figure.strengthtraining.traditional",
+                        tint: TideTrain.violet,
+                        size: Tide.tileLarge
+                    )
                     Text("Get your coach's program into Tempo")
-                        .font(Tide.headline)
+                        .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(
                         "Add every sheet your coach sent — photos, PDFs, Word/Excel files, or pasted text. Tempo reads them all as one program and you review before it goes live."
                     )
-                    .font(Tide.caption)
+                    .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, Tide.s5)
-                .padding(.horizontal, Tide.s5)
+                .padding(.top, Tide.s4)
+                .padding(.horizontal, Tide.edge)
 
                 if let quotaBanner {
-                    Text(quotaBanner)
+                    Label(quotaBanner, systemImage: "ticket")
                         .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                        .foregroundStyle(Tide.text2)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, Tide.s5)
+                        .padding(.horizontal, Tide.edge)
                 }
 
                 if let quotaExceededMessage {
-                    VStack(spacing: Tide.s2) {
+                    VStack(spacing: Tide.s3) {
                         Text(quotaExceededMessage)
                             .font(Tide.caption)
                             .foregroundStyle(Tide.danger)
                             .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                         Button("Upgrade to Tempo Pro") {
                             showPaywall = true
                         }
                         .buttonStyle(.tempoSecondary)
                     }
-                    .padding(.horizontal, Tide.s5)
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    .padding(.horizontal, Tide.edge)
                 }
 
                 if let errorMessage {
@@ -212,7 +218,9 @@ struct TrainerProgramImportView: View {
                         .font(Tide.caption)
                         .foregroundStyle(Tide.danger)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, Tide.s5)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                        .padding(.horizontal, Tide.edge)
                 }
 
                 if !sources.isEmpty {
@@ -244,7 +252,8 @@ struct TrainerProgramImportView: View {
                     }
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
-                    .padding(.top, Tide.s3)
+                    .frame(minHeight: Tide.hit)
+                    .padding(.top, Tide.s2)
 
                     // trainer-feedback-tests — a separate sample (today's
                     // weekday, one exercise flagged as a test) so the
@@ -256,7 +265,7 @@ struct TrainerProgramImportView: View {
                     }
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
-                    .padding(.top, Tide.s1)
+                    .frame(minHeight: Tide.hit)
                 #endif
             }
             .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
@@ -270,21 +279,23 @@ struct TrainerProgramImportView: View {
             Text("Sources").tideLabel(Tide.text3)
 
             ForEach(sources) { source in
-                HStack(spacing: Tide.s2) {
-                    Image(systemName: source.systemImage)
-                        .foregroundStyle(TideTrain.violet)
-                        .frame(width: 24)
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: source.systemImage, tint: TideTrain.violet)
                     Text(source.displayName)
-                        .font(Tide.body)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
-                        .lineLimit(1)
-                    Spacer()
+                        .lineLimit(2)
+                    Spacer(minLength: Tide.s2)
                     Button {
                         removeSource(source.id)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
+                            .font(Tide.title2)
                             .foregroundStyle(Tide.text3)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(source.displayName)")
                 }
                 .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
@@ -334,11 +345,17 @@ struct TrainerProgramImportView: View {
 
     private var processingOverlay: some View {
         VStack(spacing: Tide.s4) {
-            ProgressView().scaleEffect(1.4)
+            ProgressView().controlSize(.large)
             Text(processingLabel)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(Tide.s6)
+        .tideCard(padding: Tide.s5, radius: Tide.cardRadius)
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Source list mutation
@@ -733,21 +750,20 @@ private struct PasteTextSheet: View {
     private var dismiss
     @State
     private var text = ""
+    @FocusState
+    private var textFocused: Bool
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: Tide.s3) {
+            VStack(spacing: Tide.s4) {
                 TextEditor(text: $text)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .scrollContentBackground(.hidden)
-                    .padding(Tide.s2)
-                    .background(Tide.fill.opacity(TempoOpacity.o40))
-                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Tide.controlRadius)
-                            .stroke(Tide.hairline, lineWidth: 1)
-                    )
+                    .focused($textFocused)
+                    .padding(.vertical, Tide.s2)
+                    .tideFieldSurface(focused: textFocused)
+                    .frame(maxHeight: .infinity)
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s4)
 
@@ -765,8 +781,7 @@ private struct PasteTextSheet: View {
                 .buttonStyle(.tidePrimary)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .padding(.horizontal, Tide.edge)
-
-                Spacer()
+                .padding(.bottom, Tide.s4)
             }
             .trainSheetRoot()
             .navigationTitle("Paste Text")

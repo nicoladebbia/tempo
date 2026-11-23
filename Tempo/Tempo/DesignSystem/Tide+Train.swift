@@ -883,6 +883,8 @@ struct TrainPlanToggleRow: View {
 struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
     let title: String
     var detail: String?
+    /// Long titles or long option names: the menu sits under the title.
+    var stacked = false
     @Binding var selection: Selection
     @ViewBuilder var options: Options
 
@@ -891,7 +893,8 @@ struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            let layout = typeSize.isAccessibilitySize
+            let stack = stacked || typeSize.isAccessibilitySize
+            let layout = stack
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
                 : AnyLayout(HStackLayout(spacing: Tide.s2))
             layout {
@@ -899,7 +902,7 @@ struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
-                if !typeSize.isAccessibilitySize {
+                if !stack {
                     Spacer(minLength: Tide.s2)
                 }
                 Picker(title, selection: $selection) {
@@ -908,6 +911,7 @@ struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .tint(Color.accentColor)
+                .fixedSize(horizontal: !stack, vertical: true)
             }
             .frame(minHeight: Tide.hit)
             if let detail {
@@ -1385,5 +1389,94 @@ struct TrainPlanWeekStrip: View {
         }
         .font(Tide.label)
         .frame(height: Tide.s3)
+    }
+}
+
+// MARK: - TrainPlanCell
+
+extension View {
+    /// A compact input cell for dense editors: soft fill, hairline, 44 pt tall.
+    func trainPlanCell() -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+        return padding(.horizontal, Tide.s3)
+            .frame(minHeight: Tide.hit)
+            .background(Tide.fill, in: shape)
+            .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
+    }
+}
+
+// MARK: - TrainPlanCellField
+
+/// A small label over a compact input cell: the unit of a dense editor row.
+struct TrainPlanCellField<Content: View>: View {
+    let label: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(label)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            content
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .trainPlanCell()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - TrainPlanFieldRow
+
+/// Fields side by side while they fit, stacked once they do not.
+struct TrainPlanFieldRow<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                content
+            }
+            VStack(spacing: Tide.s2) {
+                content
+            }
+        }
+    }
+}
+
+// MARK: - TrainPlanAddButton
+
+/// "+ Add day": a quiet full-width glass button for adding a row to a list.
+struct TrainPlanAddButton: View {
+    let title: String
+    var systemImage = "plus"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.accentColor)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - TrainPlanDivider
+
+/// A hairline between rows inside a card.
+struct TrainPlanDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Tide.hairline)
+            .frame(height: 1)
+            .accessibilityHidden(true)
     }
 }
