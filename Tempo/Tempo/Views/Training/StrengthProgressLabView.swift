@@ -8,7 +8,6 @@
 // tab of ProgressChartsView; math lives in ProgressLabMath (pure, tested).
 //
 
-import Charts
 import SwiftData
 import SwiftUI
 
@@ -67,16 +66,7 @@ struct StrengthProgressLabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             if rankedLifts.isEmpty {
-                VStack(spacing: Tide.s3) {
-                    Spacer().frame(height: 80)
-                    Image(systemName: "chart.xyaxis.line")
-                        .font(Tide.largeTitle)
-                        .foregroundStyle(Tide.text3)
-                    Text("Log workouts to unlock the Lab")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                }
-                .frame(maxWidth: .infinity)
+                TrainEmptyCard(systemImage: "chart.xyaxis.line", title: "Log workouts to unlock the Lab")
             } else {
                 liftChips
                 controls
@@ -84,8 +74,6 @@ struct StrengthProgressLabView: View {
                 volumeCard
             }
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     // MARK: Pickers
@@ -105,37 +93,51 @@ struct StrengthProgressLabView: View {
                 }
             }
         }
+        .scrollClipDisabled()
     }
 
     private var controls: some View {
-        HStack {
-            Picker("Span", selection: $span) {
-                ForEach(ProgressLabMath.Span.allCases, id: \.self) { span in
-                    Text(span.rawValue).tag(span)
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                spanTabs
+                    .frame(maxWidth: TideTrain.tabsCompact)
+                Spacer(minLength: Tide.s2)
+                compareMenu
             }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 220)
-
-            Spacer()
-
-            Menu {
-                Button("No compare") { compareID = nil }
-                ForEach(rankedLifts.prefix(12).filter { $0.id != primaryLift?.id }, id: \.id) { lift in
-                    Button(lift.name) { compareID = lift.id }
-                }
-            } label: {
-                Label(
-                    compareLift.map { "vs \($0.name)" } ?? "Compare",
-                    systemImage: "arrow.left.arrow.right"
-                )
-                .font(Tide.caption)
-                .lineLimit(1)
-                .foregroundStyle(Tide.text2)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                spanTabs
+                compareMenu
             }
         }
         .onChange(of: span) {
             scrubDate = nil
+        }
+    }
+
+    private var spanTabs: some View {
+        TrainPlanTabs(
+            items: ProgressLabMath.Span.allCases.map { (tag: $0, label: $0.rawValue) },
+            selection: $span
+        )
+    }
+
+    private var compareMenu: some View {
+        Menu {
+            Button("No compare") { compareID = nil }
+            ForEach(rankedLifts.prefix(12).filter { $0.id != primaryLift?.id }, id: \.id) { lift in
+                Button(lift.name) { compareID = lift.id }
+            }
+        } label: {
+            Label(
+                compareLift.map { "vs \($0.name)" } ?? "Compare",
+                systemImage: "arrow.left.arrow.right"
+            )
+            .font(Tide.bodyStrong)
+            .lineLimit(1)
+            .foregroundStyle(Tide.text)
+            .padding(.horizontal, Tide.s4)
+            .frame(minHeight: Tide.hit)
+            .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
         }
     }
 
@@ -147,16 +149,17 @@ struct StrengthProgressLabView: View {
         let ghost = points(for: compareLift).filter { ($0.e1RM ?? 0) > 0 }
         let scrubbed = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline) {
+        return TrainPlanCard {
+            HStack(alignment: .top, spacing: Tide.s2) {
                 Text("Estimated 1RM").tideLabel()
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 if let scrubbed {
                     scrubCallout(scrubbed)
                 } else if let latest = primary.last?.e1RM {
                     Text(weightLabel(latest))
-                        .font(Tide.headline)
+                        .font(TideTrain.figure(.title3))
                         .foregroundStyle(Color.accentColor)
+                        .contentTransition(.numericText())
                 }
             }
 
@@ -164,92 +167,38 @@ struct StrengthProgressLabView: View {
                 Text("No e1RM data in this range.")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 180)
+                    .frame(maxWidth: .infinity, minHeight: TideTrain.chartHeight)
             } else {
-                Chart {
-                    ForEach(primary) { point in
-                        AreaMark(
-                            x: .value("Date", point.date),
-                            y: .value("e1RM", display(point.e1RM ?? 0))
-                        )
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.accentColor.opacity(0.35), .clear],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                        )
-                        .interpolationMethod(.monotone)
-
-                        LineMark(
-                            x: .value("Date", point.date),
-                            y: .value("e1RM", display(point.e1RM ?? 0))
-                        )
-                        .foregroundStyle(Color.accentColor)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5))
-                        .interpolationMethod(.monotone)
-                    }
-
-                    ForEach(primary.filter(\.isPR)) { pr in
-                        PointMark(
-                            x: .value("Date", pr.date),
-                            y: .value("e1RM", display(pr.e1RM ?? 0))
-                        )
-                        .symbol {
-                            Image(systemName: "star.fill")
-                                .font(Tide.label)
-                                .foregroundStyle(TideTrain.caution)
-                        }
-                    }
-
-                    ForEach(ghost) { point in
-                        LineMark(
-                            x: .value("Date", point.date),
-                            y: .value("Ghost", display(point.e1RM ?? 0)),
-                            series: .value("Series", "compare")
-                        )
-                        .foregroundStyle(TideTrain.violet.opacity(0.7))
-                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
-                        .interpolationMethod(.monotone)
-                    }
-
-                    if let scrubbed {
-                        RuleMark(x: .value("Scrub", scrubbed.date))
-                            .foregroundStyle(Tide.text3.opacity(0.6))
-                        PointMark(
-                            x: .value("Scrub", scrubbed.date),
-                            y: .value("e1RM", display(scrubbed.e1RM ?? 0))
-                        )
-                        .symbolSize(90)
-                        .foregroundStyle(Color.accentColor)
-                    }
-                }
-                .chartXSelection(value: $scrubDate)
-                .chartYAxis {
-                    AxisMarks(position: .trailing) {
-                        AxisGridLine().foregroundStyle(Tide.text3.opacity(0.15))
-                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks {
-                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
-                    }
-                }
-                .frame(height: 200)
+                TrainPlanTrendChart(
+                    points: primary.map {
+                        TrainPlanPoint(date: $0.date, value: display($0.e1RM ?? 0), isRecord: $0.isPR)
+                    },
+                    ghost: ghost.map { TrainPlanPoint(date: $0.date, value: display($0.e1RM ?? 0)) },
+                    scrub: $scrubDate
+                )
 
                 if compareLift != nil {
-                    HStack(spacing: Tide.s3) {
-                        Label(primaryLift?.name ?? "", systemImage: "circle.fill")
-                            .foregroundStyle(Color.accentColor)
-                        Label(compareLift?.name ?? "", systemImage: "circle.dashed")
-                            .foregroundStyle(TideTrain.violet)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: Tide.s4) {
+                            legendEntries
+                            Spacer(minLength: 0)
+                        }
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            legendEntries
+                        }
                     }
                     .font(Tide.caption)
                 }
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    @ViewBuilder
+    private var legendEntries: some View {
+        Label(primaryLift?.name ?? "", systemImage: "circle.fill")
+            .foregroundStyle(Color.accentColor)
+        Label(compareLift?.name ?? "", systemImage: "circle.dashed")
+            .foregroundStyle(TideTrain.violet)
     }
 
     private func scrubCallout(_ point: ProgressLabMath.SessionPoint) -> some View {
@@ -258,10 +207,10 @@ struct StrengthProgressLabView: View {
                 if point.isPR {
                     Image(systemName: "star.fill")
                         .font(Tide.label)
-                        .foregroundStyle(TideTrain.caution)
+                        .foregroundStyle(TideTrain.record)
                 }
                 Text(weightLabel(point.e1RM ?? 0))
-                    .font(Tide.headline)
+                    .font(TideTrain.figure(.title3))
                     .foregroundStyle(Color.accentColor)
             }
             Text(point.date.formatted(.dateTime.day().month(.abbreviated)))
@@ -279,40 +228,21 @@ struct StrengthProgressLabView: View {
 
     private var volumeCard: some View {
         let primary = points(for: primaryLift)
+        let lit = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }?.date
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Session volume").tideLabel()
-
+        return TrainPlanCard(label: "Session volume") {
             if primary.isEmpty {
                 Text("Nothing in this range.")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 80)
+                    .frame(maxWidth: .infinity, minHeight: TideTrain.sparkHeight)
             } else {
-                Chart(primary) { point in
-                    BarMark(
-                        x: .value("Date", point.date),
-                        y: .value("Volume", display(point.volume)),
-                        width: .fixed(6)
-                    )
-                    .foregroundStyle(
-                        point.date == scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }?.date
-                            ? Color.accentColor
-                            : Color.accentColor.opacity(0.65)
-                    )
-                    .clipShape(Capsule())
-                }
-                .chartYAxis {
-                    AxisMarks(position: .trailing) {
-                        AxisValueLabel().font(Tide.caption).foregroundStyle(Tide.text3)
-                    }
-                }
-                .chartXAxis(.hidden)
-                .frame(height: 90)
+                TrainPlanDateBars(
+                    points: primary.map { TrainPlanPoint(date: $0.date, value: display($0.volume)) },
+                    highlight: lit
+                )
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: Helpers

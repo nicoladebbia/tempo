@@ -6,7 +6,6 @@
 //
 //
 
-import Charts
 import SwiftData
 import SwiftUI
 
@@ -27,6 +26,9 @@ struct ExerciseDetailView: View {
     private var allSettings: [UserSettings]
     @State
     private var chartRange: ChartRange = .thirtyDays
+    /// The chart's scrub position (nil = nothing held).
+    @State
+    private var scrubDate: Date?
     /// §10.6 — delete confirmation for custom exercises.
     @State
     private var showDeleteConfirm = false
@@ -59,53 +61,51 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: Tide.s5) {
-                // Demo area placeholder
-                // Per WIREFRAMES.md Screen 20 — 200pt demo area
-                demoArea
+        TrainPlanPage {
+            // Demo area placeholder
+            // Per WIREFRAMES.md Screen 20 — 200pt demo area
+            demoArea
 
-                // Exercise name
-                Text(exercise.name)
-                    .accessibilityLabel(exercise.name.uppercased())
-                    .font(Tide.title)
-                    .foregroundStyle(Tide.text)
+            // Exercise name
+            Text(exercise.name)
+                .accessibilityLabel(exercise.name.uppercased())
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Info pills
+            // Per WIREFRAMES.md Screen 20 — muscle group, equipment, compound/isolation
+            infoPills
+
+            // Secondary muscles
+            if !exercise.secondaryMuscles.isEmpty {
+                Text("Secondary: \(exercise.secondaryMuscles.map(\.displayName).joined(separator: ", "))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
-
-                // Info pills
-                // Per WIREFRAMES.md Screen 20 — muscle group, equipment, compound/isolation
-                infoPills
-
-                // Secondary muscles
-                if !exercise.secondaryMuscles.isEmpty {
-                    Text("Secondary: \(exercise.secondaryMuscles.map(\.displayName).joined(separator: ", "))")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-
-                // Stats card
-                // Per WIREFRAMES.md Screen 20 — YOUR STATS section
-                statsCard
-
-                // Progress chart
-                // Per WIREFRAMES.md Screen 20 — e1RM line chart with time range picker
-                progressChart
-
-                // Instructions
-                if let instructions = exercise.instructions, !instructions.isEmpty {
-                    instructionsSection(instructions)
-                }
-
-                // Coaching cues
-                if !exercise.cues.isEmpty {
-                    cuesSection
-                }
-
-                // Rest timer customization
-                restTimerSection
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+
+            // Stats card
+            // Per WIREFRAMES.md Screen 20 — YOUR STATS section
+            statsCard
+
+            // Progress chart
+            // Per WIREFRAMES.md Screen 20 — e1RM line chart with time range picker
+            progressChart
+
+            // Instructions
+            if let instructions = exercise.instructions, !instructions.isEmpty {
+                instructionsSection(instructions)
+            }
+
+            // Coaching cues
+            if !exercise.cues.isEmpty {
+                cuesSection
+            }
+
+            // Rest timer customization
+            restTimerSection
         }
         .tidePage()
         .navigationTitle(exercise.name)
@@ -178,12 +178,10 @@ struct ExerciseDetailView: View {
 
     private var demoArea: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                .fill(Tide.fill)
-
             ExerciseImageView(exercise: exercise, style: .hero)
         }
-        .frame(height: 200)
+        .frame(maxWidth: .infinity)
+        .frame(height: TideTrain.demo)
         .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
     }
 
@@ -192,14 +190,24 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — 24pt height pill chips
 
     private var infoPills: some View {
-        VStack(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                infoPill(exercise.muscleGroup.displayName)
-                infoPill(equipmentLabel)
-                infoPill(exercise.isCompound ? "Compound" : "Isolation")
+        VStack(spacing: Tide.s3) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    pillRow
+                }
+                VStack(spacing: Tide.s2) {
+                    pillRow
+                }
             }
             beginnerExplainer
         }
+    }
+
+    @ViewBuilder
+    private var pillRow: some View {
+        TrainTag(text: exercise.muscleGroup.displayName, color: Color.accentColor)
+        TrainTag(text: equipmentLabel)
+        TrainTag(text: exercise.isCompound ? "Compound" : "Isolation")
     }
 
     /// Plain-language one-liner for whichever pills are most likely to confuse
@@ -218,12 +226,14 @@ struct ExerciseDetailView: View {
                 Text(equipmentTip)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             }
             Text(movementTip)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -245,16 +255,6 @@ struct ExerciseDetailView: View {
         }
     }
 
-    private func infoPill(_ text: String) -> some View {
-        Text(text)
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-            .padding(.horizontal, Tide.s2)
-            .frame(height: 24)
-            .background(Tide.fill)
-            .clipShape(Capsule())
-    }
-
     // MARK: - Stats Card
 
     // Per WIREFRAMES.md Screen 20 — Current 1RM, Best Set, Volume (30d), Sessions (30d)
@@ -269,29 +269,31 @@ struct ExerciseDetailView: View {
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Your stats").tideLabel()
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: Tide.s2),
-                GridItem(.flexible(), spacing: Tide.s2),
-            ], spacing: Tide.s2) {
-                statItem(
+        return TrainPlanCard(label: "Your stats") {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: TideTrain.statColumn * 1.4), spacing: Tide.s3, alignment: .topLeading)],
+                alignment: .leading,
+                spacing: Tide.s4
+            ) {
+                TrainStat(
+                    value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
                     label: "Current 1RM",
-                    value: current1RM
-                        .map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—"
+                    size: Tide.numeralS
                 )
-                statItem(
+                TrainStat(
+                    value: bestSetText(bestSet),
                     label: "Best Set",
-                    value: bestSetText(bestSet)
+                    size: Tide.numeralS
                 )
-                statItem(
+                TrainStat(
+                    value: volume30d > 0 ? formatVolume(volume30d) : "—",
                     label: "Volume (30d)",
-                    value: volume30d > 0 ? formatVolume(volume30d) : "—"
+                    size: Tide.numeralS
                 )
-                statItem(
+                TrainStat(
+                    value: sessions30d > 0 ? "\(sessions30d)" : "—",
                     label: "Sessions (30d)",
-                    value: sessions30d > 0 ? "\(sessions30d)" : "—"
+                    size: Tide.numeralS
                 )
             }
 
@@ -301,32 +303,17 @@ struct ExerciseDetailView: View {
                     Image(systemName: "trophy.fill")
                         .font(Tide.caption)
                         .foregroundStyle(TideTrain.record) // prGold
+                        .accessibilityHidden(true)
 
                     Text(
                         "All-Time 1RM PR: \(WeightFormat.text(kg: allTimePR, unit: weightUnit))"
                     )
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, Tide.s1)
             }
         }
-        .tideCard(padding: Tide.s4)
-    }
-
-    private func statItem(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-
-            Text(value)
-                .font(TideTrain.figure(.title2))
-                .foregroundStyle(Tide.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Progress Chart
@@ -338,51 +325,56 @@ struct ExerciseDetailView: View {
         let chartDays = ProgressLabMath.dailyBestE1RM(
             filteredHistory(for: chartRange).map { ($0.date, $0.estimated1RM) }
         )
+        let points = chartDays.map {
+            TrainPlanPoint(date: $0.date, value: WeightUnit.kg.convert($0.e1RM, to: weightUnit))
+        }
+        let shown = scrubDate.flatMap { target in
+            points.min { abs($0.date.timeIntervalSince(target)) < abs($1.date.timeIntervalSince(target)) }
+        } ?? points.last
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack {
-                Text("Progress · e1RM").tideLabel()
-
-                Spacer()
-
-                // Per WIREFRAMES.md Screen 20 — [ 30D | 90D | ALL ] picker
-                Picker("Range", selection: $chartRange) {
-                    ForEach(ChartRange.allCases, id: \.self) { range in
-                        Text(range.rawValue).tag(range)
-                    }
+        return TrainPlanCard {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: Tide.s3) {
+                    Text("Progress · e1RM").tideLabel()
+                    Spacer(minLength: Tide.s2)
+                    rangeTabs
+                        .frame(maxWidth: TideTrain.tabsCompact)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 160)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Progress · e1RM").tideLabel()
+                    rangeTabs
+                }
             }
 
-            if chartDays.isEmpty {
-                VStack(spacing: Tide.s2) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(Tide.title)
-                        .foregroundStyle(Tide.text3)
-
-                    Text("No history yet")
+            if let shown {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        "\(Int(shown.value.rounded()))",
+                        unit: weightUnit.abbreviation,
+                        size: Tide.numeralS,
+                        relativeTo: .title2,
+                        color: Color.accentColor
+                    )
+                    Spacer(minLength: Tide.s2)
+                    Text(shown.date.formatted(.dateTime.day().month(.abbreviated)))
                         .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                        .foregroundStyle(Tide.text3)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 200)
+                TrainPlanTrendChart(points: points, scrub: $scrubDate)
             } else {
-                let data = TempoLineChartData<String>(
-                    id: "e1RM",
-                    label: "Estimated 1RM",
-                    color: Color.accentColor,
-                    points: chartDays.map { day in
-                        TempoLineChartData<String>.DataPoint(
-                            date: day.date,
-                            value: WeightUnit.kg.convert(day.e1RM, to: weightUnit)
-                        )
-                    }
-                )
-                TempoLineChart(data: [data], height: 200, axisDesiredCount: 4)
+                TrainEmptyCard(systemImage: "chart.line.uptrend.xyaxis", title: "No history yet")
             }
         }
-        .tideCard(padding: Tide.s4)
+    }
+
+    private var rangeTabs: some View {
+        TrainPlanTabs(
+            items: ChartRange.allCases.map { (tag: $0, label: $0.rawValue) },
+            selection: $chartRange
+        )
+        .onChange(of: chartRange) {
+            scrubDate = nil
+        }
     }
 
     // MARK: - Instructions
@@ -390,33 +382,25 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — Numbered step-by-step instructions
 
     private func instructionsSection(_ instructions: String) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Instructions")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-
+        TrainPlanCard(label: "Instructions") {
             Text(instructions)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Coaching Cues
 
     private var cuesSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Coaching cues")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-
+        TrainPlanCard(label: "Coaching cues") {
             ForEach(Array(exercise.cues.enumerated()), id: \.offset) { index, cue in
-                HStack(alignment: .top, spacing: Tide.s2) {
-                    Text("\(index + 1).")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .frame(width: 20, alignment: .trailing)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                    Text("\(index + 1)")
+                        .font(TideTrain.figure(.caption, weight: .bold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minWidth: Tide.s4, alignment: .trailing)
+                        .accessibilityHidden(true)
 
                     Text(cue)
                         .font(Tide.body)
@@ -425,28 +409,22 @@ struct ExerciseDetailView: View {
                 }
             }
         }
-        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Rest Timer Customization
 
     private var restTimerSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Rest timer")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-
-            HStack {
+        TrainPlanCard(label: "Rest timer") {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text("Preferred rest between sets")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
 
-                Spacer()
+                Spacer(minLength: Tide.s2)
 
                 if let rest = exercise.preferredRestSeconds {
                     Text(formatRestDuration(rest))
-                        .font(Tide.body)
-                        .fontWeight(.medium)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                         .monospacedDigit()
                 }
@@ -477,11 +455,12 @@ struct ExerciseDetailView: View {
                 } label: {
                     Text("Reset to Default")
                         .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                        .foregroundStyle(Tide.text2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
             }
         }
-        .tideCard(padding: Tide.s4)
     }
 
     private func formatRestDuration(_ seconds: Int) -> String {

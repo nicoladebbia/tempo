@@ -714,6 +714,10 @@ extension TideTrain {
     static let sparkHeight: CGFloat = 56
     /// A status dot next to a label.
     static let dot: CGFloat = 8
+    /// The narrowest a stat cell gets before the grid wraps to a new row.
+    static let statColumn: CGFloat = 96
+    /// The widest a compact tab control is allowed to get.
+    static let tabsCompact: CGFloat = 230
     /// The tall field of a multi-line text input.
     static let textArea: CGFloat = 140
     /// A small picture next to a row (library, picker, thumbnails in lists).
@@ -792,11 +796,11 @@ struct TrainPlanTabs<Tag: Hashable>: View {
                     selection = item.tag
                 } label: {
                     Text(item.label)
-                        .font(Tide.bodyStrong)
+                        .font(items.count > 4 ? Tide.caption.weight(.semibold) : Tide.bodyStrong)
                         .lineLimit(1)
                         .minimumScaleFactor(Tide.labelShrink)
                         .foregroundStyle(on ? Tide.ink : Tide.text2)
-                        .padding(.horizontal, Tide.s2)
+                        .padding(.horizontal, fill ? Tide.s1 : Tide.s3)
                         .frame(maxWidth: fill ? .infinity : nil, minHeight: Tide.hit)
                         .background {
                             if on {
