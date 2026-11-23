@@ -187,7 +187,7 @@ struct SundayWrapUpSheet: View {
         VStack(alignment: .leading, spacing: Tide.hair) {
             Text(title).tideLabel()
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                Text(line)
+                Text("• \(line)")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)

@@ -35,12 +35,12 @@ struct RestTimerView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             skipButton
                 .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s3)
         }
-        .sensoryFeedback(.warning, trigger: secondsLeft <= 5 && secondsLeft > 0 ? secondsLeft : 0)
+        .sensoryFeedback(.impact(weight: .light), trigger: secondsLeft <= 3 && secondsLeft > 0 ? secondsLeft : 0)
     }
 
     /// Whole seconds left — drives the end-of-rest color shift and pulse.

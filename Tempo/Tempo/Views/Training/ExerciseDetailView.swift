@@ -67,6 +67,7 @@ struct ExerciseDetailView: View {
 
                 // Exercise name
                 Text(exercise.name)
+                    .accessibilityLabel(exercise.name.uppercased())
                     .font(Tide.title)
                     .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)

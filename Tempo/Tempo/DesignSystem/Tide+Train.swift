@@ -353,8 +353,8 @@ struct TrainStepper: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(unit)
-        .accessibilityValue(String(format: format, value))
+        .accessibilityLabel(label)
+        .accessibilityValue("\(String(format: format, value)) \(unit)")
         .accessibilityAddTraits(onTapValue == nil ? [] : .isButton)
         .accessibilityAdjustableAction { direction in
             switch direction {

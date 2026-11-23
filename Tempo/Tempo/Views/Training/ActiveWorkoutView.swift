@@ -563,7 +563,7 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             actionRow
                 .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s3)
@@ -932,7 +932,7 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             VStack(spacing: Tide.s2) {
                 Button {
                     viewModel.skipWarmupMove()
@@ -1007,7 +1007,7 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s4)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.advancePastWarmup()
                 HapticManager.notification(.success)
@@ -1051,6 +1051,7 @@ struct ActiveWorkoutView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                         Text(exercise.name)
+                            .accessibilityLabel(exercise.name.uppercased())
                             .font(Tide.headline)
                             .foregroundStyle(Tide.text)
                             .lineLimit(2)
@@ -1091,14 +1092,23 @@ struct ActiveWorkoutView: View {
     /// §11.13 — what's coming after this exercise, visible WHILE lifting
     /// (the rest screen already previews it; the set screen didn't).
     private var upNextLine: some View {
-        HStack(spacing: Tide.s2) {
-            Text("Up next").tideLabel()
-            Text(upNextName ?? "Last exercise — finish strong")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text2)
-                .lineLimit(1)
-            Spacer(minLength: Tide.s2)
-            dropSetControl
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                Text("Up next").tideLabel()
+                Text(upNextName ?? "Last exercise — finish strong")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                Spacer(minLength: Tide.s2)
+                dropSetControl
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Up next").tideLabel()
+                Text(upNextName ?? "Last exercise — finish strong")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                dropSetControl
+            }
         }
     }
 
@@ -1176,6 +1186,7 @@ struct ActiveWorkoutView: View {
                 let exercises = plan.orderedExercises
                 if toIndex < exercises.count, let name = exercises[toIndex].exercise?.name {
                     Text(name)
+                        .accessibilityLabel(name.uppercased())
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                 }

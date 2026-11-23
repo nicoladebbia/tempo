@@ -971,7 +971,7 @@ struct TodayWorkoutView: View {
                     .font(Tide.headline)
                     .foregroundStyle(Color.accentColor)
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text("Month's over. debrief.")
+                    Text("Month's over. Debrief.")
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                     Text("5 questions, then your report. 2 minutes.")
@@ -1272,6 +1272,7 @@ struct TodayWorkoutView: View {
                     .frame(minWidth: Tide.s4, alignment: .leading)
 
                 Text(plannedExercise.exercise?.name ?? "Exercise")
+                    .accessibilityLabel((plannedExercise.exercise?.name ?? "Exercise").uppercased())
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)

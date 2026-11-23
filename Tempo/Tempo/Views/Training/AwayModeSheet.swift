@@ -158,7 +158,7 @@ private struct StartPauseView: View {
         .tidePage()
         .navigationTitle("Take a break")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startPause(
                     reason: reason,
@@ -251,7 +251,7 @@ private struct StartTravelEquipmentView: View {
         .tidePage()
         .navigationTitle("Limited equipment")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startTravelEquipmentPeriod(scope: scope, availableEquipment: selected, modelContext: modelContext)
                 onDone()

@@ -201,6 +201,7 @@ struct ExerciseLibraryView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: Tide.hair) {
                                     Text(exercise.name)
+                                        .accessibilityLabel(exercise.name.uppercased())
                                         .font(Tide.caption)
                                         .fontWeight(.semibold)
                                         .foregroundStyle(Tide.text)

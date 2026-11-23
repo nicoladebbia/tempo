@@ -38,10 +38,24 @@ struct TrainingTabView: View {
             TodayWorkoutView(
                 viewModel: viewModel,
                 showActiveWorkout: $session.showActiveWorkout,
-                showSummary: $session.showSummary,
-                headerActions: AnyView(headerActions(viewModel: viewModel))
+                showSummary: $session.showSummary
             )
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Training")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    moreMenu(viewModel: viewModel)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        opened += 1
+                        showSettings = true
+                    } label: {
+                        Image(systemName: TempoSymbols.settings)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
             .tideCovered(showAwayMode || showSettings)
             .sheet(isPresented: $showAwayMode) {
                 AwayModeSheet(viewModel: viewModel)
@@ -71,12 +85,10 @@ struct TrainingTabView: View {
         .persistenceAlert()
     }
 
-    // MARK: - Header actions
+    // MARK: - Toolbar
 
-    /// The two round glass buttons at the top right: everything else in Train
-    /// (menu) and Settings.
-    private func headerActions(viewModel: TrainingViewModel) -> some View {
-        HStack(spacing: Tide.s2) {
+    /// Everything else in Train: plan, routines, library, progress, history.
+    private func moreMenu(viewModel: TrainingViewModel) -> some View {
             Menu {
                 NavigationLink {
                     WeekPlanView(viewModel: viewModel)
@@ -126,15 +138,9 @@ struct TrainingTabView: View {
                     Label("History", systemImage: "clock.arrow.circlepath")
                 }
             } label: {
-                TrainMenuLabel(systemImage: "line.3.horizontal")
-            }
-            .accessibilityLabel("More")
-            .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
-
-            TrainIconButton(systemImage: TempoSymbols.settings, label: "Settings") {
-                opened += 1
-                showSettings = true
-            }
+            Image(systemName: "line.3.horizontal")
         }
+        .accessibilityLabel("More")
+        .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
     }
 }

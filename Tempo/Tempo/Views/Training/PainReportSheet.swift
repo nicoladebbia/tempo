@@ -108,7 +108,7 @@ struct PainReportSheet: View {
             }
             .listRowBackground(Color.clear)
         }
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 submit()
             } label: {
