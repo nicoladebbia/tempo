@@ -49,86 +49,66 @@ struct VenueProposalCard: View {
     // MARK: - Card
 
     private func card(pattern: VenuePattern, venue: TrainingVenue) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text("VENUE CHECK")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Spacer()
-                Button {
-                    dismissed = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .accessibilityLabel("Dismiss venue check")
-            }
-
-            Text(proposalText(pattern: pattern, venue: venue))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-
+        TrainBanner(
+            systemImage: "mappin.and.ellipse",
+            label: "Venue check",
+            title: proposalText(pattern: pattern, venue: venue)
+        ) {
             if changing {
                 changePickers
             } else {
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s2) {
                     Button {
                         confirm(venue: venue, startMin: pattern.medianStartMin)
                     } label: {
                         Text("Yes")
-                            .font(.tempoSubheadline)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.tempoSignal)
-                            .foregroundStyle(Color.tempoTextInverse)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.trainBanner())
 
                     Button {
                         pickedVenue = venue
                         pickedTime = timeFromMinutes(pattern.medianStartMin)
-                        withAnimation { changing = true }
+                        withAnimation(Tide.snap) { changing = true }
                     } label: {
                         Text("Change")
-                            .font(.tempoSubheadline)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.tempoBgSecondary)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.trainBanner(filled: false))
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismissed = true
+            } label: {
+                Image(systemName: "xmark")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss venue check")
+        }
     }
 
     private var changePickers: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack {
                 Text("Venue")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                 Spacer()
                 Picker("Venue", selection: $pickedVenue) {
                     ForEach(TrainingVenue.allCases, id: \.self) { venue in
                         Text(venue.displayName).tag(venue)
                     }
                 }
-                .tint(Color.tempoTextPrimary)
+                .tint(Tide.text)
             }
             HStack {
                 Text("Time")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                 Spacer()
                 DatePicker("", selection: $pickedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
@@ -140,15 +120,8 @@ struct VenueProposalCard: View {
                 )
             } label: {
                 Text("Confirm")
-                    .font(.tempoSubheadline)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.trainBanner())
         }
     }
 

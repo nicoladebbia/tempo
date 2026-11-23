@@ -47,46 +47,20 @@ struct WelcomeBackResumeCard: View {
     }
 
     private func card(for pause: TrainingPause) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
-                Image(systemName: "figure.walk.arrival")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoSuccess)
-                Text("WELCOME BACK")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoSuccess)
-            }
-            Text("Pick up where you left off?")
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(
-                "Your trainer's program uses fixed weekdays. Continue the same program week you paused in, or just pick up from today's weekday."
-            )
-            .font(.tempoFootnote)
-            .foregroundStyle(Color.tempoTextSecondary)
-
+        TrainBanner(
+            systemImage: "figure.walk.arrival",
+            label: "Welcome back",
+            tint: TideTrain.positive,
+            title: "Pick up where you left off?",
+            message: "Your trainer's program uses fixed weekdays. Continue the same program week you paused in, or just pick up from today's weekday."
+        ) {
             Button {
                 showOptions = true
             } label: {
                 Text("Choose")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .background(Color.tempoSuccess.opacity(TempoOpacity.o15))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.trainBanner(tint: TideTrain.positive))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoSuccess.opacity(TempoOpacity.o15), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
         .confirmationDialog("Resume training?", isPresented: $showOptions, titleVisibility: .visible) {
             Button("Continue this week where I left off (shift program)") {
                 resolve(decision: .shiftForward)

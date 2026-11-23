@@ -23,6 +23,10 @@ struct TrainingTabView: View {
     /// Pause/travel-pain feature — see AwayModeSheet.swift.
     @State
     private var showAwayMode = false
+    @State
+    private var showSettings = false
+    @State
+    private var opened = 0
 
     var body: some View {
         // The session (view model and its screens) is owned by the app, not
@@ -34,73 +38,22 @@ struct TrainingTabView: View {
             TodayWorkoutView(
                 viewModel: viewModel,
                 showActiveWorkout: $session.showActiveWorkout,
-                showSummary: $session.showSummary
+                showSummary: $session.showSummary,
+                headerActions: AnyView(headerActions(viewModel: viewModel))
             )
-            .navigationTitle("Training")
-            .tempoSettingsToolbar()
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        NavigationLink {
-                            WeekPlanView(viewModel: viewModel)
-                        } label: {
-                            Label("Week Plan", systemImage: "calendar")
-                        }
-
-                        NavigationLink {
-                            RoutinesView(viewModel: viewModel)
-                        } label: {
-                            Label("My Routines", systemImage: "list.bullet.rectangle")
-                        }
-
-                        NavigationLink {
-                            TrainerProgramView()
-                        } label: {
-                            Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
-                        }
-
-                        Button {
-                            showAwayMode = true
-                        } label: {
-                            Label("Away from the gym", systemImage: "airplane")
-                        }
-
-                        NavigationLink {
-                            ExerciseLibraryView()
-                        } label: {
-                            Label("Exercise Library", systemImage: "books.vertical")
-                        }
-
-                        NavigationLink {
-                            ProgressChartsView()
-                        } label: {
-                            Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
-                        }
-
-                        NavigationLink {
-                            MuscleHeatmapView()
-                        } label: {
-                            Label("Muscle Map", systemImage: "figure.arms.open")
-                        }
-
-                        NavigationLink {
-                            WorkoutHistoryView()
-                        } label: {
-                            Label("History", systemImage: "clock.arrow.circlepath")
-                        }
-                    } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .accessibilityLabel("More")
-                    .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
+            .tideCovered(showAwayMode || showSettings)
             .sheet(isPresented: $showAwayMode) {
                 AwayModeSheet(viewModel: viewModel)
             }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    DashboardSettingsView()
+                }
+                .persistenceAlert()
+            }
         }
+        .sensoryFeedback(.selection, trigger: opened)
         .onReceive(
             // Tier 3.3 — re-personalize the training week when the schedule
             // inputs change (football days / split edited in TrainingSettingsDetailView).
@@ -116,5 +69,72 @@ struct TrainingTabView: View {
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
         .persistenceAlert()
+    }
+
+    // MARK: - Header actions
+
+    /// The two round glass buttons at the top right: everything else in Train
+    /// (menu) and Settings.
+    private func headerActions(viewModel: TrainingViewModel) -> some View {
+        HStack(spacing: Tide.s2) {
+            Menu {
+                NavigationLink {
+                    WeekPlanView(viewModel: viewModel)
+                } label: {
+                    Label("Week Plan", systemImage: "calendar")
+                }
+
+                NavigationLink {
+                    RoutinesView(viewModel: viewModel)
+                } label: {
+                    Label("My Routines", systemImage: "list.bullet.rectangle")
+                }
+
+                NavigationLink {
+                    TrainerProgramView()
+                } label: {
+                    Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
+                }
+
+                Button {
+                    showAwayMode = true
+                } label: {
+                    Label("Away from the gym", systemImage: "airplane")
+                }
+
+                NavigationLink {
+                    ExerciseLibraryView()
+                } label: {
+                    Label("Exercise Library", systemImage: "books.vertical")
+                }
+
+                NavigationLink {
+                    ProgressChartsView()
+                } label: {
+                    Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+                }
+
+                NavigationLink {
+                    MuscleHeatmapView()
+                } label: {
+                    Label("Muscle Map", systemImage: "figure.arms.open")
+                }
+
+                NavigationLink {
+                    WorkoutHistoryView()
+                } label: {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+            } label: {
+                TrainMenuLabel(systemImage: "line.3.horizontal")
+            }
+            .accessibilityLabel("More")
+            .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
+
+            TrainIconButton(systemImage: TempoSymbols.settings, label: "Settings") {
+                opened += 1
+                showSettings = true
+            }
+        }
     }
 }

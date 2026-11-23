@@ -70,60 +70,33 @@ struct WeeklyUploadPromptCard: View {
     }
 
     private func card(for program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
-                Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoViolet)
-                    .accessibilityHidden(true)
-                Text("NEW WEEK")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoViolet)
+        TrainBanner(
+            systemImage: "calendar.badge.exclamationmark",
+            label: "NEW WEEK",
+            tint: TideTrain.violet,
+            title: Self.title(for: program),
+            message: "Recap the week, send your trainer the report, and load what's next."
+        ) {
+            VStack(spacing: Tide.s1) {
+                Button {
+                    showWrapUp = true
+                } label: {
+                    Label("Wrap up the week", systemImage: "checkmark.seal")
+                }
+                .buttonStyle(.trainBanner(tint: TideTrain.violet))
+
+                Button {
+                    showImport = true
+                } label: {
+                    Text("Upload only")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
             }
-
-            Text(Self.title(for: program))
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("Recap the week, send your trainer the report, and load what's next.")
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Button {
-                showWrapUp = true
-            } label: {
-                Label("Wrap up the week", systemImage: "checkmark.seal")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .background(Color.tempoViolet.opacity(TempoOpacity.o15))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xxs)
-
-            Button {
-                showImport = true
-            } label: {
-                Text("Upload only")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoViolet.opacity(TempoOpacity.o15), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
     }
 
     /// "Wrap up last week · 21–27 Sep" once the served week is behind us,
