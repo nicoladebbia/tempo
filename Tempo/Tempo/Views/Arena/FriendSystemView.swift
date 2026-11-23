@@ -17,6 +17,8 @@ import UIKit
 struct FriendSystemView: View {
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var searchText = ""
@@ -34,41 +36,47 @@ struct FriendSystemView: View {
     private var showShareSheet = false
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                // Search bar
-                searchBar
+        TideScrollPage {
+            TextField("Search friends", text: $searchText)
+                .tideField(systemImage: "magnifyingglass")
 
-                // Pending requests
-                if !pendingRequests.isEmpty {
-                    pendingSection
-                }
-
-                // Online friends
-                let online = friends.filter(\.isOnline)
-                if !online.isEmpty {
-                    friendSection(title: "ONLINE (\(online.count))", friends: online, isOnline: true)
-                }
-
-                // Offline friends
-                let offline = friends.filter { !$0.isOnline }
-                if !offline.isEmpty {
-                    friendSection(title: "OFFLINE (\(offline.count))", friends: offline, isOnline: false)
-                }
-
-                // Empty state
-                if friends.isEmpty, pendingRequests.isEmpty {
-                    emptyState
-                }
-
-                // Invite button
-                inviteButton
+            // Pending requests
+            if !pendingRequests.isEmpty {
+                pendingSection
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.xxxl)
+
+            // Online friends
+            let online = friends.filter(\.isOnline)
+            if !online.isEmpty {
+                friendSection(title: "Online", friends: online, isOnline: true)
+            }
+
+            // Offline friends
+            let offline = friends.filter { !$0.isOnline }
+            if !offline.isEmpty {
+                friendSection(title: "Offline", friends: offline, isOnline: false)
+            }
+
+            // Empty state
+            if friends.isEmpty, pendingRequests.isEmpty {
+                TideEmptyPanel(
+                    systemImage: "person.2",
+                    title: "No friends yet",
+                    message: "Add friends to see their activity and compete on the leaderboard."
+                )
+                .tideCard()
+            }
+
+            // Invite button
+            Button {
+                showAddFriend = true
+            } label: {
+                Label("Invite friends", systemImage: "person.badge.plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tideGlass)
         }
-        .tidePage()
-        .navigationTitle("FRIENDS")
+        .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -76,229 +84,127 @@ struct FriendSystemView: View {
                     showAddFriend = true
                 } label: {
                     Image(systemName: "person.badge.plus")
-                        .foregroundStyle(Color.tempoSignal)
                 }
+                .accessibilityLabel("Add friends")
             }
         }
+        .tideCovered(showAddFriend)
         .sheet(isPresented: $showAddFriend) {
             addFriendSheet
         }
     }
 
-    // MARK: - Search Bar
-
-    private var searchBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.tempoTextTertiary)
-            TextField("Search friends...", text: $searchText)
-                .font(.system(size: 15))
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
-        )
-    }
-
     // MARK: - Pending Requests
 
     private var pendingSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("PENDING (\(pendingRequests.count))")
-                .font(.system(size: 13, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(Color.tempoWarning)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Requests", trailing: "\(pendingRequests.count)")
 
             ForEach(pendingRequests) { request in
-                HStack(spacing: TempoSpacing.sm) {
-                    Circle()
-                        .fill(Color.tempoWarning.opacity(0.2))
-                        .frame(width: 8, height: 8)
-
-                    Circle()
-                        .fill(Color.tempoSignal.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(String(request.username.prefix(1).uppercased()))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("@\(request.username)")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Text(request.timeAgo)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    HStack(spacing: Tide.s3) {
+                        TideInitialAvatar(name: request.username, tint: Tide.streak)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text("@\(request.username)")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                                .lineLimit(1)
+                            Text(request.timeAgo)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+                        Spacer(minLength: 0)
                     }
+                    .accessibilityElement(children: .combine)
 
-                    Spacer()
-
-                    Button("Accept") { acceptRequest(request) }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.tempoSignal)
-                        .clipShape(Capsule())
-
-                    Button("Decline") { declineRequest(request) }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.tempoBorder, lineWidth: 0.5))
+                    HStack(spacing: Tide.s3) {
+                        Button("Accept") { acceptRequest(request) }
+                            .buttonStyle(.tidePrimary)
+                        Button("Decline") { declineRequest(request) }
+                            .buttonStyle(.tideGlass)
+                            .frame(maxWidth: .infinity)
+                    }
                 }
-                .frame(height: 56)
             }
         }
+        .tideCard()
     }
 
     // MARK: - Friend Section (Online / Offline)
 
     private func friendSection(title: String, friends: [FriendDisplayItem], isOnline: Bool) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(isOnline ? Color.tempoSuccess : Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            TideSectionLabel(title: title, trailing: "\(friends.count)")
+                .padding(.bottom, Tide.s1)
 
-            ForEach(friends) { friend in
-                HStack(spacing: TempoSpacing.sm) {
-                    // Online dot
-                    Circle()
-                        .fill(isOnline ? Color.tempoSuccess : Color.tempoSteel)
-                        .frame(width: 8, height: 8)
+            ForEach(Array(friends.enumerated()), id: \.element.id) { index, friend in
+                if index > 0 {
+                    TideDivider()
+                }
+                HStack(spacing: Tide.s3) {
+                    TideInitialAvatar(name: friend.displayName)
+                        .overlay(alignment: .bottomTrailing) {
+                            Circle()
+                                .fill(isOnline ? TideTone.mint : Tide.text3)
+                                .frame(width: Tide.s3, height: Tide.s3)
+                                .overlay(Circle().strokeBorder(Tide.ink, lineWidth: Tide.hair))
+                        }
 
-                    // Avatar
-                    Circle()
-                        .fill(Color.tempoSignal.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(String(friend.displayName.prefix(1)))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(friend.displayName)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(1)
                         Text("Level \(friend.level)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
 
-                    Spacer()
+                    Spacer(minLength: Tide.s2)
 
-                    Text("\(friend.weeklyXP) XP")
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    TideNumber(
+                        friend.weeklyXP.formatted(), unit: "XP", size: Tide.numeralS, relativeTo: .headline,
+                        weight: .semibold
+                    )
                 }
-                .frame(height: 56)
+                .frame(minHeight: Tide.hit + Tide.s3)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "\(friend.displayName), level \(friend.level), \(friend.weeklyXP) XP this week, \(isOnline ? "online" : "offline")"
+                )
             }
         }
-    }
-
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "person.2")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No friends yet")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Add friends to see their activity and compete on the leaderboard.")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
-    }
-
-    // MARK: - Invite Button
-
-    private var inviteButton: some View {
-        Button {
-            showAddFriend = true
-        } label: {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "person.badge.plus")
-                Text("Invite More Friends")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(Color.tempoSignal)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.tempoSignal, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-            )
-        }
+        .tideCard()
     }
 
     // MARK: - Add Friend Sheet
 
     private var addFriendSheet: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xxl) {
-                // Search
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("ADD FRIENDS")
-                        .font(.system(size: 13, weight: .semibold))
-                        .tracking(1.2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        TextField("Search by username...", text: $searchText)
-                            .font(.system(size: 15))
-                    }
-                    .padding(TempoSpacing.md)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.tempoBorder, lineWidth: 0.5)
-                    )
+            TideScrollPage(spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("Find a friend").tideLabel()
+                    TextField("Search by username", text: $searchText)
+                        .tideField(systemImage: "magnifyingglass")
                 }
 
-                Text("— OR —")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                Text("or")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity)
 
                 // Alternative methods
-                VStack(spacing: TempoSpacing.md) {
-                    addMethodButton(icon: "qrcode.viewfinder", title: "QR Code Scan")
-                    addMethodButton(icon: "link", title: "Share Link")
-                    addMethodButton(icon: "person.crop.rectangle", title: "Import from Contacts")
+                VStack(spacing: Tide.s3) {
+                    addMethodButton(icon: "qrcode.viewfinder", title: "Scan a QR code")
+                    addMethodButton(icon: "link", title: "Share a link")
+                    addMethodButton(icon: "person.crop.rectangle", title: "Import from contacts")
                 }
-
-                Spacer()
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.top, TempoSpacing.lg)
-            .tidePage()
-            .navigationTitle("Add Friends")
+            .navigationTitle("Add friends")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showAddFriend = false }
-                        .foregroundStyle(Color.tempoSignal)
+                    TideCloseButton(label: "Done") { showAddFriend = false }
                 }
             }
         }
@@ -316,7 +222,7 @@ struct FriendSystemView: View {
     // MARK: - Friend Request Actions
 
     private func acceptRequest(_ request: FriendRequestItem) {
-        withAnimation {
+        withAnimation(Tide.snap) {
             // Move from pending to friends
             pendingRequests.removeAll { $0.id == request.id }
             friends.append(FriendDisplayItem(
@@ -331,40 +237,34 @@ struct FriendSystemView: View {
     }
 
     private func declineRequest(_ request: FriendRequestItem) {
-        withAnimation {
+        withAnimation(Tide.snap) {
             pendingRequests.removeAll { $0.id == request.id }
         }
     }
 
     private func addMethodButton(icon: String, title: String) -> some View {
         Button {
-            if title == "Share Link" {
+            if title == "Share a link" {
                 showShareSheet = true
             } else {
                 showComingSoonAlert = true
             }
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 32)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: icon, tint: mood.accent)
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Spacer(minLength: Tide.s2)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .padding(TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 0.5)
-            )
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
+        .buttonStyle(TideCardPressStyle())
     }
 }
 
