@@ -49,8 +49,16 @@ enum TideTrainSession {
     static let outlineOpacity = 0.4
     /// A small number field beside its label (minutes, metres, rounds).
     static let fieldWidth: CGFloat = 100
-    /// The "Rep 3" label column, so every rep field starts at the same edge.
+    /// A short label column ("Rep 3", "KM 12") so every field beside it starts at the same edge.
     static let repLabel: CGFloat = 52
+    /// The training-load chart: plot height, and the empty-state height it keeps.
+    static let chartHeight: CGFloat = 140
+    static let chartEmptyHeight: CGFloat = 80
+    /// Chart marks: the sweet-spot band, the injury limit line, the grid.
+    static let zoneBandOpacity = 0.12
+    static let limitLineOpacity = 0.6
+    static let gridOpacity = 0.2
+    static let limitDash: [CGFloat] = [4, 3]
 }
 
 extension View {

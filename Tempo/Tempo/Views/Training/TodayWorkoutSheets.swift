@@ -10,6 +10,18 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - Picker row layout
+
+private extension View {
+    /// A list row that reads as a Tide card: no separator, no row fill, a
+    /// small gap between neighbours. The card itself is drawn by the caller.
+    func trainPickerRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge))
+    }
+}
+
 // MARK: - ExerciseReorderSheet
 
 /// Drag-to-reorder for today's planned exercises. A dedicated List because
@@ -29,19 +41,28 @@ struct ExerciseReorderSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(viewModel.todayPlan?.orderedExercises ?? [], id: \.id) { ex in
-                    HStack(spacing: Tide.s2) {
+                let exercises = viewModel.todayPlan?.orderedExercises ?? []
+                ForEach(Array(exercises.enumerated()), id: \.element.id) { index, ex in
+                    HStack(spacing: Tide.s3) {
+                        Text("\(index + 1)")
+                            .font(TideTrain.figure(.headline))
+                            .foregroundStyle(Tide.text3)
+                            .frame(minWidth: Tide.s5, alignment: .leading)
                         Text(ex.exercise?.name ?? "Exercise")
-                            .font(Tide.body)
+                            .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
-                        Spacer()
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: Tide.s2)
                         if ex.supersetGroup != nil {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(Tide.label)
                                 .foregroundStyle(Color.accentColor)
+                                .accessibilityLabel("Superset")
                         }
                     }
-                    .listRowBackground(Tide.fill)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+                    .trainPickerRow()
                 }
                 .onMove { source, destination in
                     viewModel.moveExercises(from: source, to: destination)
@@ -83,10 +104,11 @@ struct SwapExerciseSheet: View {
             List {
                 let alternatives = viewModel.swapAlternatives(for: target, modelContext: modelContext)
                 if alternatives.isEmpty {
-                    Text("No alternatives for this muscle group.")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .listRowBackground(Tide.fill)
+                    TrainEmptyCard(
+                        systemImage: "arrow.triangle.swap",
+                        title: "No alternatives for this muscle group."
+                    )
+                    .trainPickerRow()
                 } else {
                     ForEach(alternatives, id: \.id) { exercise in
                         Button {
@@ -94,14 +116,17 @@ struct SwapExerciseSheet: View {
                             dismiss()
                         } label: {
                             ExercisePickRow(exercise: exercise)
+                                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+                                .contentShape(.rect)
                         }
-                        .listRowBackground(Tide.fill)
+                        .buttonStyle(TideCardPressStyle())
+                        .trainPickerRow()
                     }
                     // §2.13b — swaps teach the planner.
                     Text("Tempo remembers your pick — future days prescribe it instead. Swap back anytime to undo.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
-                        .listRowBackground(Color.clear)
+                        .trainPickerRow()
                 }
             }
             .listStyle(.plain)
@@ -159,18 +184,34 @@ struct AddExerciseSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                if sections.isEmpty {
+                    TrainEmptyCard(
+                        systemImage: "magnifyingglass",
+                        title: "Nothing found",
+                        message: "Try a different name."
+                    )
+                    .trainPickerRow()
+                }
                 ForEach(sections, id: \.group) { section in
-                    Section(section.group.displayName) {
+                    Section {
                         ForEach(section.exercises, id: \.id) { exercise in
                             Button {
                                 viewModel.addExercise(exercise, modelContext: modelContext)
                                 dismiss()
                             } label: {
                                 ExercisePickRow(exercise: exercise)
+                                    .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+                                    .contentShape(.rect)
                             }
-                            .listRowBackground(Tide.fill)
+                            .buttonStyle(TideCardPressStyle())
+                            .trainPickerRow()
                         }
+                    } header: {
+                        Text(section.group.displayName)
+                            .tideLabel()
+                            .padding(.top, Tide.s2)
                     }
+                    .listSectionSeparator(.hidden)
                 }
             }
             .listStyle(.plain)
@@ -194,24 +235,35 @@ struct AddExerciseSheet: View {
 struct ExercisePickRow: View {
     let exercise: Exercise
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    private var stacksTag: Bool {
+        typeSize.isAccessibilitySize
+    }
+
     var body: some View {
-        HStack(spacing: Tide.s2) {
+        HStack(spacing: Tide.s3) {
+            ExerciseImageView(exercise: exercise, style: .thumbnail)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(exercise.name)
-                    .font(Tide.body)
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                Text(exercise.equipment.rawValue.capitalized)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(exercise.equipment.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
+                if exercise.isCompound, stacksTag {
+                    TrainTag(text: "Compound")
+                        .padding(.top, Tide.s1)
+                }
             }
-            Spacer()
-            if exercise.isCompound {
-                Text("Compound").tideLabel(Tide.text2)
-                    .padding(.horizontal, Tide.s1)
-                    .padding(.vertical, Tide.hair)
-                    .background(Tide.fill)
-                    .clipShape(Capsule())
+            Spacer(minLength: Tide.s2)
+            if exercise.isCompound, !stacksTag {
+                TrainTag(text: "Compound")
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
