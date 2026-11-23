@@ -25,16 +25,17 @@ struct AIFeaturesSettingsCard: View {
             title: "AI features",
             footnote: errorMessage ?? "Plans, Quick Log, photo and voice logging, receipts and coaching send "
                 + "what you type or snap to Tempo's AI. Turn off to keep everything on the device. "
-                + "Needs Tempo Pro."
+                + "Needs Tempo Pro.",
+            footnoteColor: errorMessage == nil ? Tide.text2 : Tide.danger
         ) {
-            SettingsControlRow(label: "Use AI features", icon: "sparkles", iconTint: .tempoViolet) {
+            SettingsControlRow(label: "Use AI features", icon: "sparkles") {
                 Toggle("Use AI features", isOn: binding)
                     .labelsHidden()
-                    .tint(Color.tempoSignal)
                     .disabled(isSaving)
                     .accessibilityIdentifier("aiFeaturesToggle")
             }
         }
+        .sensoryFeedback(.selection, trigger: isOn)
         .task { await refresh() }
     }
 

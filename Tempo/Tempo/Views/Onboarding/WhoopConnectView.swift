@@ -24,37 +24,11 @@ struct WhoopConnectView: View {
     private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Text("YOUR BODY TALKS.\nLET'S LISTEN.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Image(systemName: "waveform.path.ecg")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoSuccess)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                benefitRow(icon: "heart.fill", text: "Recovery scores + HRV")
-                benefitRow(icon: "moon.fill", text: "Sleep analysis")
-                benefitRow(icon: "flame.fill", text: "Strain tracking")
-                benefitRow(icon: "arrow.triangle.2.circlepath", text: "Auto-adjusted workouts")
-            }
-            .padding(.horizontal, TempoSpacing.xxl)
-
-            Spacer()
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.tempoError)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xl)
-            }
-
-            OnboardingPrimaryButton(title: isConnecting ? "CONNECTING..." : "CONNECT WHOOP", enabled: !isConnecting) {
+        OnboardingScaffold(
+            title: "YOUR BODY TALKS.\nLET'S LISTEN.",
+            primaryTitle: isConnecting ? "CONNECTING..." : "CONNECT WHOOP",
+            primaryEnabled: !isConnecting,
+            primaryAction: {
                 Task {
                     isConnecting = true
                     errorMessage = nil
@@ -67,23 +41,24 @@ struct WhoopConnectView: View {
                         isConnecting = false
                     }
                 }
+            },
+            skipAction: { viewModel.skip() },
+            errorMessage: errorMessage,
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "waveform.path.ecg", tint: Color.tempoSuccess)
+
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingBenefitRow(systemImage: "heart.fill", text: "Recovery scores + HRV", tint: Color.tempoSuccess)
+                OnboardingBenefitRow(systemImage: "moon.fill", text: "Sleep analysis", tint: Color.tempoSuccess)
+                OnboardingBenefitRow(systemImage: "flame.fill", text: "Strain tracking", tint: Color.tempoSuccess)
+                OnboardingBenefitRow(
+                    systemImage: "arrow.triangle.2.circlepath",
+                    text: "Auto-adjusted workouts",
+                    tint: Color.tempoSuccess
+                )
             }
-
-            OnboardingSkipButton { viewModel.skip() }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
-        }
-    }
-
-    private func benefitRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoSuccess)
-                .frame(width: 24)
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundStyle(.white.opacity(0.8))
+            .onboardingCard()
         }
     }
 }
@@ -93,6 +68,6 @@ struct WhoopConnectView: View {
     var vm = OnboardingViewModel()
 
     WhoopConnectView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
+        .environment(ServiceContainer.mock())
 }

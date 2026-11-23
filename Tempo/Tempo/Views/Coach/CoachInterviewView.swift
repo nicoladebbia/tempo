@@ -7,6 +7,8 @@
 // global "Skip rest" closes the interview with whatever priors the user
 // has already given.
 //
+// One question at a time, answers as glass rows, one filled button.
+//
 // Per .plans/coach-v2.1/05-ui-surfaces.md §1.
 //
 
@@ -20,6 +22,8 @@ struct CoachInterviewView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     /// Called after persist completes. Caller decides what to do next —
     /// typically: dismiss the sheet and route to Coach chat.
@@ -29,28 +33,37 @@ struct CoachInterviewView: View {
     @State private var currentQuestion = 1
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var picks = 0
 
     private let totalQuestions = 6
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
-                progressBar
-                ScrollView {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-                        questionBlock
-                    }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.xl)
-                    .padding(.bottom, TempoSpacing.xxxxl)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s6) {
+                    progressBar
+                    questionBlock
+                        .id(currentQuestion)
+                        .transition(questionTransition)
                 }
-                Spacer()
+                .animation(reduceMotion ? nil : Tide.snap, value: currentQuestion)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .safeAreaBar(edge: .top, spacing: 0) {
+                header
+            }
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 footer
             }
             .tidePage()
             .navigationBarBackButtonHidden(true)
             .toolbar(.hidden, for: .navigationBar)
+            .sensoryFeedback(.selection, trigger: picks)
         }
         .alert("Couldn't save", isPresented: .constant(saveError != nil)) {
             Button("OK") { saveError = nil }
@@ -59,48 +72,46 @@ struct CoachInterviewView: View {
         }
     }
 
+    private var questionTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .asymmetric(insertion: .opacity.combined(with: .offset(x: Tide.s6)), removal: .opacity)
+    }
+
     // MARK: - Header
 
     private var header: some View {
         HStack {
-            Button("Skip rest") { skipRest() }
-                .buttonStyle(.tempoGhost)
-
-            Spacer()
-
+            skipButton("Skip rest") { skipRest() }
+            Spacer(minLength: Tide.s2)
             if currentQuestion < totalQuestions {
-                Button("Skip this") { advanceWithoutAnswer() }
-                    .buttonStyle(.tempoGhost)
+                skipButton("Skip this") { advanceWithoutAnswer() }
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s4)
+    }
+
+    private func skipButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text2)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Progress
 
     private var progressBar: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("Question \(currentQuestion) of \(totalQuestions)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.tempoSurfaceCard)
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(Color.tempoSignal)
-                        .frame(
-                            width: proxy.size.width * CGFloat(currentQuestion) / CGFloat(totalQuestions),
-                            height: 4
-                        )
-                }
-            }
-            .frame(height: 4)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Question \(currentQuestion) of \(totalQuestions)").tideLabel()
+            TideLevelBar(progress: Double(currentQuestion) / Double(totalQuestions), height: Tide.bar)
+                .animation(reduceMotion ? nil : Tide.settle, value: currentQuestion)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Question dispatch
@@ -121,7 +132,7 @@ struct CoachInterviewView: View {
     // MARK: - Q1
 
     private var tiredModeQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             questionTitle("When you're tired, do you want me to…")
             ForEach(TiredMode.allCases, id: \.self) { mode in
                 radioRow(
@@ -137,7 +148,7 @@ struct CoachInterviewView: View {
     // MARK: - Q2
 
     private var toneQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             questionTitle("Pick your tone")
             ForEach(TonePreference.allCases, id: \.self) { tone in
                 radioRow(
@@ -153,11 +164,9 @@ struct CoachInterviewView: View {
     // MARK: - Q3
 
     private var silentTrackQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             questionTitle("What should I track silently?")
-            Text("Choose any that apply.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+            hint("Choose any that apply.")
             ForEach(SilentTrackOption.allCases, id: \.self) { option in
                 multiSelectRow(
                     label: option.displayName,
@@ -176,89 +185,97 @@ struct CoachInterviewView: View {
     // MARK: - Q4
 
     private var failedHabitQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             questionTitle("What's a habit you've tried and failed at?")
-            Text("Optional — I'll never suggest it.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+            hint("Optional. I'll never suggest it.")
             TextField(
-                "e.g. intermittent fasting",
                 text: Binding(
                     get: { answers.failedHabit ?? "" },
                     set: { answers.failedHabit = $0 }
-                )
-            )
+                ),
+                prompt: Text("e.g. intermittent fasting").foregroundStyle(Tide.text3)
+            ) {
+                Text("A habit you tried and failed at")
+            }
             .textInputAutocapitalization(.sentences)
-            .textFieldStyle(.roundedBorder)
+            .tideCoachField()
         }
     }
 
     // MARK: - Q5
 
     private var hardDayQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            questionTitle("On a hard day, what should I NEVER suggest?")
-            Text("Optional.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            questionTitle("On a hard day, what should I never suggest?")
+            hint("Optional.")
             TextField(
-                "e.g. cold showers, big breakfasts",
                 text: Binding(
                     get: { answers.hardDayNeverSuggest ?? "" },
                     set: { answers.hardDayNeverSuggest = $0 }
-                )
-            )
+                ),
+                prompt: Text("e.g. cold showers, big breakfasts").foregroundStyle(Tide.text3)
+            ) {
+                Text("What to never suggest on a hard day")
+            }
             .textInputAutocapitalization(.sentences)
-            .textFieldStyle(.roundedBorder)
+            .tideCoachField()
         }
     }
 
     // MARK: - Q6
 
     private var scheduleQuestion: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             questionTitle("Anything weird about your schedule?")
-            Text("e.g. shift work, fasting on Fridays, dual time zones, religious schedule…")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+            hint("e.g. shift work, fasting on Fridays, dual time zones, religious schedule…")
             TextField(
-                "Optional",
                 text: Binding(
                     get: { answers.scheduleException ?? "" },
                     set: { answers.scheduleException = $0 }
                 ),
+                prompt: Text("Optional").foregroundStyle(Tide.text3),
                 axis: .vertical
-            )
-            .lineLimit(3...6)
+            ) {
+                Text("Anything unusual about your schedule")
+            }
+            .lineLimit(3 ... 6)
             .textInputAutocapitalization(.sentences)
-            .textFieldStyle(.roundedBorder)
+            .tideCoachField()
         }
     }
 
     // MARK: - Footer
 
     private var footer: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Button(currentQuestion == totalQuestions ? "Start Chat" : "Continue") {
-                if currentQuestion == totalQuestions {
-                    saveAndComplete()
-                } else {
-                    currentQuestion += 1
-                }
+        Button(currentQuestion == totalQuestions ? "Start chat" : "Continue") {
+            if currentQuestion == totalQuestions {
+                saveAndComplete()
+            } else {
+                currentQuestion += 1
             }
-            .buttonStyle(.tempoPrimary)
-            .disabled(isSaving)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe)
+        .buttonStyle(.tidePrimary)
+        .disabled(isSaving)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Helpers
 
     private func questionTitle(_ text: String) -> some View {
         Text(text)
-            .font(.tempoTitle2)
-            .foregroundStyle(Color.tempoTextPrimary)
+            .font(Tide.title)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.bottom, Tide.s1)
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -267,20 +284,10 @@ struct CoachInterviewView: View {
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextTertiary)
-                    .imageScale(.large)
-                Text(label)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-            }
-            .padding(.vertical, TempoSpacing.sm)
-            .contentShape(Rectangle())
+        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .radio) {
+            picks += 1
+            action()
         }
-        .buttonStyle(.plain)
     }
 
     private func multiSelectRow(
@@ -288,20 +295,10 @@ struct CoachInterviewView: View {
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .foregroundStyle(isSelected ? Color.tempoSignal : Color.tempoTextTertiary)
-                    .imageScale(.large)
-                Text(label)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-            }
-            .padding(.vertical, TempoSpacing.sm)
-            .contentShape(Rectangle())
+        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .check) {
+            picks += 1
+            action()
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Actions

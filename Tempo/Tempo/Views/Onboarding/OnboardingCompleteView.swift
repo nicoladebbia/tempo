@@ -24,44 +24,61 @@ struct OnboardingCompleteView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
-    @State private var opacity: Double = 0
-    @State private var scale: Double = 0.9
+    @State private var shown = false
     @State private var didPersist = false
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
+        VStack(spacing: Tide.s6) {
             Spacer()
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Color.tempoSuccess)
-                .scaleEffect(scale)
-                .opacity(opacity)
+            // The ring closes, the check lands.
+            ZStack {
+                TideRing(progress: shown ? 1 : 0, color: Color.tempoSuccess, lineWidth: Tide.s2)
+                    .frame(width: 128, height: 128)
+                Image(systemName: "checkmark")
+                    .font(Tide.numeral(56, .heavy))
+                    .foregroundStyle(Color.tempoSuccess)
+                    .scaleEffect(shown ? 1 : 0.5)
+                    .opacity(shown ? 1 : 0)
+            }
+            .accessibilityHidden(true)
 
-            Text("YOU'RE IN.")
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(.white)
-                .opacity(opacity)
+            VStack(spacing: Tide.s2) {
+                Text("YOU'RE IN.")
+                    .font(Tide.numeral(44, .heavy))
+                    .foregroundStyle(Tide.text)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("Welcome to Tempo.\nYour operating system starts now.")
-                .font(.system(size: 17))
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .opacity(opacity)
+                Text("Welcome to Tempo.\nYour operating system starts now.")
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : Tide.s3)
 
             Spacer()
-
-            OnboardingPrimaryButton(title: "LET'S GO", enabled: true) {
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Tide.edge)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button("LET'S GO") {
                 viewModel.complete()
             }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
+        .sensoryFeedback(.success, trigger: shown)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.6)) {
-                opacity = 1
-                scale = 1
+            if reduceMotion {
+                shown = true
+            } else {
+                withAnimation(Tide.lively.delay(0.15)) { shown = true }
             }
             persistDailyPlanProfileIfNeeded()
         }
@@ -71,7 +88,9 @@ struct OnboardingCompleteView: View {
     /// the backend. Idempotent — guarded by `didPersist` so re-entering this
     /// view (e.g. via state restoration) doesn't insert duplicate rows.
     private func persistDailyPlanProfileIfNeeded() {
-        guard !didPersist else { return }
+        guard !didPersist else {
+            return
+        }
         didPersist = true
 
         // Local SwiftData first — survives offline, and is what the meal
@@ -92,6 +111,5 @@ struct OnboardingCompleteView: View {
 
 #Preview {
     OnboardingCompleteView(viewModel: OnboardingViewModel())
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

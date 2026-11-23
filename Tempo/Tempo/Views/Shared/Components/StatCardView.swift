@@ -19,9 +19,6 @@ struct StatCardView: View {
     let trendValue: String?
     let trendDirection: TrendDirection
 
-    @Environment(\.colorScheme)
-    private var colorScheme
-
     enum TrendDirection {
         case up
         case down
@@ -40,8 +37,8 @@ struct StatCardView: View {
         var color: Color {
             switch self {
             case .up: .tempoSuccess
-            case .down: .tempoError
-            case .flat: .tempoTextTertiary
+            case .down: Tide.danger
+            case .flat: Tide.text3
             case .none: .clear
             }
         }
@@ -56,29 +53,28 @@ struct StatCardView: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(label)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text(value)
-                    .font(.tempoDataLarge)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                TideNumber(value, size: Tide.numeralS + Tide.s2, relativeTo: .title2)
             }
 
             Spacer()
 
             if let trendValue, trendDirection != .none {
-                HStack(spacing: TempoSpacing.xxs) {
+                HStack(spacing: Tide.hair) {
                     Image(systemName: trendDirection.icon)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(Tide.caption)
                     Text(trendValue)
-                        .font(.tempoCaption1)
+                        .font(Tide.numeral(13, .semibold))
                 }
                 .foregroundStyle(trendDirection.color)
             }
         }
-        .padding(TempoSpacing.cardPaddingCompact)
-        .frame(height: 80)
+        .padding(Tide.s3)
+        .frame(minHeight: 80)
         .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.tileRadius))
+        .accessibilityElement(children: .combine)
     }
 }

@@ -16,28 +16,16 @@ struct ArenaIntroView: View {
     let viewModel: OnboardingViewModel
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.1)
+        OnboardingScaffold(
+            title: "WELCOME TO\nTHE ARENA.",
+            primaryTitle: "ENTER TEMPO",
+            primaryAction: { viewModel.advance() },
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "trophy.fill", tint: Tide.carbs)
 
-                Text("WELCOME TO\nTHE ARENA.")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.05)
-
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 70))
-                    .foregroundStyle(Color.tempoAmber)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.06)
-
-                VStack(spacing: TempoSpacing.lg) {
+            GlassEffectContainer(spacing: Tide.s3) {
+                VStack(spacing: Tide.s3) {
                     featureCard(
                         icon: "star.fill",
                         title: "EARN XP",
@@ -54,53 +42,28 @@ struct ArenaIntroView: View {
                         body: "Head-to-head challenges to push each other harder."
                     )
                 }
-                .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-
-                OnboardingPrimaryButton(title: "ENTER TEMPO", enabled: true) {
-                    viewModel.advance()
-                }
-
-                Spacer()
-                    .frame(height: max(geometry.safeAreaInsets.bottom + 20, 40))
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
         }
     }
 
     private func featureCard(icon: String, title: String, body: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundStyle(Color.tempoAmber)
-                .frame(width: 32)
+        HStack(alignment: .top, spacing: Tide.s3) {
+            TideIconTile(systemName: icon, tint: Tide.carbs, size: Tide.tile)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 15, weight: .bold))
-                    .tracking(1)
-                    .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(title).tideLabel(Tide.text)
                 Text(body)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineSpacing(3)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.white.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        )
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 }
 
 #Preview {
     ArenaIntroView(viewModel: OnboardingViewModel())
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

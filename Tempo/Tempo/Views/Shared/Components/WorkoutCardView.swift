@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Workout Card
 
-// Per DESIGN_SYSTEM.md Section 8.2 — Workout Card:
-// 16pt radius, 16pt padding, Signal Red left accent bar 4pt, auto height (min 120pt).
+// Name and length of a session on a glass card: the muscle groups sit under
+// it as small chips, the figures as condensed numerals.
 
 struct WorkoutCardView: View {
     let name: String
@@ -20,78 +20,46 @@ struct WorkoutCardView: View {
     let muscleGroups: [String]
     let action: () -> Void
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
-    private var isPressed = false
+    private var taps = 0
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 0) {
-                // Left accent bar
-                Color.tempoSignal
-                    .frame(width: 4)
+        Button {
+            taps += 1
+            action()
+        } label: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: "dumbbell.fill", size: Tide.tile)
+                    Text(name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
+                    TideNumber("\(estimatedMinutes)", unit: "min", size: Tide.numeralS, relativeTo: .headline)
+                }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    HStack {
-                        Image(systemName: "dumbbell.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(Color.tempoSignal)
-                        Text(name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(estimatedMinutes) min")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
+                Text("\(exerciseCount) exercises")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
 
-                    Text("\(exerciseCount) exercises")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    if !muscleGroups.isEmpty {
-                        HStack(spacing: TempoSpacing.xs) {
-                            ForEach(muscleGroups, id: \.self) { group in
-                                Text(group)
-                                    .font(.tempoModuleTag)
-                                    .tracking(TempoTracking.moduleTag)
-                                    .textCase(.uppercase)
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                                    .padding(.horizontal, TempoSpacing.sm)
-                                    .padding(.vertical, TempoSpacing.xxs)
-                                    .background(Color.tempoInk.opacity(0.05))
-                                    .clipShape(
-                                        RoundedRectangle(cornerRadius: TempoRadius.pill, style: .continuous)
-                                    )
-                            }
+                if !muscleGroups.isEmpty {
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(muscleGroups, id: \.self) { group in
+                            Text(group)
+                                .tideLabel()
+                                .padding(.horizontal, Tide.s3)
+                                .padding(.vertical, Tide.s1)
+                                .background(Tide.fill, in: .capsule)
                         }
                     }
                 }
-                .padding(TempoSpacing.cardPadding)
             }
-            .frame(minHeight: 120)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
-                    .opacity(colorScheme == .dark ? 1 : 0)
-            )
+            .tideCard()
+            .contentShape(.rect(cornerRadius: Tide.cardRadius))
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isPressed ? 0.97 : 1.0)
-        .animation(TempoAnimation.springMedium, value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed {
-                        isPressed = true
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                }
-                .onEnded { _ in isPressed = false }
-        )
+        .buttonStyle(TideCardPressStyle())
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
+        .accessibilityElement(children: .combine)
     }
 }

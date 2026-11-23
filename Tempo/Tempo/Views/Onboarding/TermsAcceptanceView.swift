@@ -19,6 +19,8 @@ struct TermsAcceptanceView: View {
     var viewModel: OnboardingViewModel
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var isSubmitting = false
 
@@ -30,73 +32,11 @@ struct TermsAcceptanceView: View {
     private let privacyURL = URL(string: "https://tempo.app/legal/privacy")!
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Text("ONE LAST\nTHING.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Image(systemName: "doc.text.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoAmber)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Link(destination: termsURL) {
-                    HStack {
-                        Image(systemName: "scroll")
-                            .foregroundStyle(Color.tempoAmber)
-                            .frame(width: 24)
-                        Text("Terms of Service")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                }
-                Link(destination: privacyURL) {
-                    HStack {
-                        Image(systemName: "lock.shield")
-                            .foregroundStyle(Color.tempoAmber)
-                            .frame(width: 24)
-                        Text("Privacy Policy")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Image(systemName: "arrow.up.right")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xxl)
-
-            Toggle(isOn: $viewModel.tosAccepted) {
-                Text("I have read and agree to the Terms of Service and the Privacy Policy.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.85))
-            }
-            .toggleStyle(SwitchToggleStyle(tint: Color.tempoAmber))
-            .padding(.horizontal, TempoSpacing.xxl)
-
-            if let err = viewModel.tosAcceptError {
-                Text(err)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.tempoError)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.lg)
-            }
-
-            Spacer()
-
-            OnboardingPrimaryButton(
-                title: "CONTINUE",
-                enabled: viewModel.tosAccepted && !isSubmitting
-            ) {
+        OnboardingScaffold(
+            title: "ONE LAST\nTHING.",
+            primaryTitle: "CONTINUE",
+            primaryEnabled: viewModel.tosAccepted && !isSubmitting,
+            primaryAction: {
                 Task {
                     isSubmitting = true
                     await viewModel.submitToSAcceptance(
@@ -105,9 +45,49 @@ struct TermsAcceptanceView: View {
                     )
                     isSubmitting = false
                 }
-            }
+            },
+            errorMessage: viewModel.tosAcceptError,
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "doc.text.fill")
 
-            Spacer().frame(height: TempoSpacing.xxxl)
+            VStack(spacing: 0) {
+                legalLink(destination: termsURL, icon: "scroll", title: "Terms of Service")
+                Divider().overlay(Tide.hairline)
+                legalLink(destination: privacyURL, icon: "lock.shield", title: "Privacy Policy")
+            }
+            .onboardingCard()
+
+            Toggle(isOn: $viewModel.tosAccepted) {
+                Text("I have read and agree to the Terms of Service and the Privacy Policy.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .toggleStyle(.tempo)
+
+        }
+    }
+
+    private func legalLink(destination: URL, icon: String, title: String) -> some View {
+        Link(destination: destination) {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: icon)
+                    .font(Tide.headline)
+                    .foregroundStyle(mood.accent)
+                    .frame(width: Tide.icon)
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
     }
 }
@@ -117,7 +97,6 @@ struct TermsAcceptanceView: View {
     var vm = OnboardingViewModel()
 
     TermsAcceptanceView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
         .environment(ServiceContainer.mock())
 }

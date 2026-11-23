@@ -22,83 +22,23 @@ struct IdentitySetupView: View {
     private let labels = OnboardingViewModel.identityLabels
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.12)
-
-                Text("WHAT BEST DESCRIBES YOU?")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.05)
-
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: TempoSpacing.sm) {
-                        ForEach(labels, id: \.self) { label in
-                            identityRow(label)
-                        }
+        OnboardingScaffold(
+            title: "WHAT BEST DESCRIBES YOU?",
+            primaryTitle: "CONTINUE",
+            primaryEnabled: viewModel.canContinue,
+            primaryAction: { viewModel.advance() }
+        ) {
+            // Tapping a row sets viewModel.identityLabel; the chosen one shows
+            // the accent ring and a check.
+            VStack(spacing: Tide.s2) {
+                ForEach(labels, id: \.self) { label in
+                    OnboardingOptionRow(title: label, isSelected: viewModel.identityLabel == label) {
+                        viewModel.identityLabel = label
+                        HapticManager.lightImpact()
                     }
-                    .padding(.horizontal, TempoSpacing.xl)
-                    .padding(.bottom, TempoSpacing.md)
-                }
-
-                Spacer(minLength: 0)
-
-                OnboardingPrimaryButton(
-                    title: "CONTINUE",
-                    enabled: viewModel.canContinue
-                ) {
-                    viewModel.advance()
-                }
-
-                Spacer()
-                    .frame(height: max(geometry.safeAreaInsets.bottom + 20, 40))
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-    }
-
-    // Renders one selectable identity row. Tapping it sets
-    // viewModel.identityLabel. The currently-selected label is visually
-    // distinct (checkmark + highlighted border/background).
-    @ViewBuilder
-    private func identityRow(_ label: String) -> some View {
-        let isSelected = viewModel.identityLabel == label
-
-        Button {
-            viewModel.identityLabel = label
-            HapticManager.lightImpact()
-        } label: {
-            HStack(spacing: TempoSpacing.sm) {
-                Text(label)
-                    .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? .white : .white.opacity(0.7))
-
-                Spacer(minLength: 0)
-
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.tempoSignal)
                 }
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(isSelected ? 0.16 : 0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(
-                        isSelected ? Color.tempoSignal.opacity(0.8) : Color.white.opacity(0.12),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
-            )
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -107,6 +47,5 @@ struct IdentitySetupView: View {
     var vm = OnboardingViewModel()
 
     IdentitySetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

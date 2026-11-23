@@ -19,15 +19,15 @@ struct HeatmapCalendarView: View {
     let startDate: Date
     let endDate: Date
 
-    @Environment(\.colorScheme)
-    private var colorScheme
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var selectedDate: Date?
 
     /// Day label column width
     private let dayLabelWidth: CGFloat = 20
     private let dayLabelTrailing: CGFloat = 4
-    private let cellRadius: CGFloat = 2
+    private let cellRadius: CGFloat = 2.5
 
     init(data: [Date: Double], startDate: Date? = nil, endDate: Date? = nil) {
         self.data = data
@@ -61,7 +61,7 @@ struct HeatmapCalendarView: View {
     var body: some View {
         GeometryReader { geometry in
             let metrics = cellMetrics(for: geometry.size.width)
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 // Month labels
                 monthLabelsView(cellSize: metrics.cellSize, cellGap: metrics.cellGap)
 
@@ -92,7 +92,7 @@ struct HeatmapCalendarView: View {
         let estimatedCellSize: CGFloat = 10
         let estimatedGap: CGFloat = 1.5
         let gridHeight = 7 * (estimatedCellSize + estimatedGap) - estimatedGap
-        return 14 + TempoSpacing.sm + gridHeight + TempoSpacing.sm + 14 + TempoSpacing.sm + 20
+        return 14 + Tide.s2 + gridHeight + Tide.s2 + 14 + Tide.s2 + 20
     }
 
     // MARK: - Subviews
@@ -105,8 +105,9 @@ struct HeatmapCalendarView: View {
             let months = monthPositions()
             ForEach(months, id: \.offset) { month in
                 Text(month.label)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
                     .frame(width: CGFloat(month.weeks) * (cellSize + cellGap), alignment: .leading)
             }
         }
@@ -117,8 +118,10 @@ struct HeatmapCalendarView: View {
             ForEach(0 ..< 7, id: \.self) { dayIndex in
                 if dayIndex % 2 == 0 {
                     Text(dayLabel(for: dayIndex))
-                        .font(.system(size: max(7, cellSize * 0.7)))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .foregroundStyle(Tide.text3)
                         .frame(width: dayLabelWidth, height: cellSize, alignment: .trailing)
                 } else {
                     Spacer().frame(width: dayLabelWidth, height: cellSize)
@@ -153,8 +156,7 @@ struct HeatmapCalendarView: View {
 
                 // Today border
                 if calendar.isDateInToday(current) {
-                    let borderColor = colorScheme == .dark ? Color.tempoBone : Color.tempoInk
-                    context.stroke(path, with: .color(borderColor), lineWidth: 1)
+                    context.stroke(path, with: .color(Tide.text), lineWidth: 1)
                 }
 
                 current = calendar.date(byAdding: .day, value: 1, to: current)!
@@ -179,11 +181,11 @@ struct HeatmapCalendarView: View {
     }
 
     private func legendView(cellSize: CGFloat) -> some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             Spacer()
             Text("Less")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
 
             ForEach([0.0, 0.25, 0.5, 0.75, 1.0], id: \.self) { intensity in
                 RoundedRectangle(cornerRadius: cellRadius)
@@ -192,64 +194,34 @@ struct HeatmapCalendarView: View {
             }
 
             Text("More")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
         }
     }
 
     @ViewBuilder
     private func tooltipView(for date: Date) -> some View {
         let value = data[Calendar.current.startOfDay(for: date)] ?? 0
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s2) {
             Text(date, format: .dateTime.month(.abbreviated).day().year())
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
             Text(String(format: "%.0f%%", value * 100))
-                .font(.tempoDataSmall)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.numeral(17))
+                .foregroundStyle(Tide.text)
         }
     }
 
     // MARK: - Helpers
 
+    /// Empty days are a faint cell; the more of the day was done, the brighter
+    /// the mood accent.
     private func cellColor(for intensity: Double) -> Color {
-        let emptyColor = colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-
         guard intensity > 0 else {
-            return emptyColor
+            return Tide.fill
         }
-
-        let levels: [(threshold: Double, light: Color, dark: Color)] = [
-            (
-                0.25,
-                Color(red: 252 / 255, green: 165 / 255, blue: 165 / 255),
-                Color(red: 127 / 255, green: 29 / 255, blue: 29 / 255)
-            ),
-            (
-                0.50,
-                Color(red: 248 / 255, green: 113 / 255, blue: 113 / 255),
-                Color(red: 153 / 255, green: 27 / 255, blue: 27 / 255)
-            ),
-            (
-                0.75,
-                Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255),
-                Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255)
-            ),
-            (
-                1.00,
-                Color.tempoError,
-                Color.tempoError
-            ),
-        ]
-
-        for level in levels {
-            if intensity <= level.threshold {
-                return colorScheme == .dark ? level.dark : level.light
-            }
-        }
-        return colorScheme == .dark ? levels.last!.dark : levels.last!.light
+        let level = min(max(ceil(intensity * 4) / 4, 0.25), 1)
+        return mood.accent.opacity(0.22 + 0.78 * level)
     }
 
     private func dateAt(point: CGPoint, cellSize: CGFloat, cellGap: CGFloat) -> Date? {

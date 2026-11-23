@@ -16,142 +16,143 @@ struct ProgressReportView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var stats = ProgressStats()
 
+    /// Days with a recovery record, out of the 30-day window.
+    private let windowDays = 30
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    // Header
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("YOUR FIRST 30 DAYS")
-                            .font(.tempoTitle2)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Text("Here's what you've accomplished.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-
-                    // Stats grid
-                    LazyVGrid(
-                        columns: [GridItem(.flexible()), GridItem(.flexible())],
-                        spacing: TempoSpacing.md
-                    ) {
-                        statCard(
-                            value: "\(stats.workoutsCompleted)",
-                            label: "Workouts",
-                            icon: "dumbbell.fill",
-                            color: Color.tempoSignal
-                        )
-                        statCard(
-                            value: "\(stats.mealsLogged)",
-                            label: "Meals Logged",
-                            icon: "leaf.fill",
-                            color: Color.tempoSuccess
-                        )
-                        statCard(
-                            value: "\(stats.streakBest)",
-                            label: "Best Streak",
-                            icon: "flame.fill",
-                            color: Color.tempoAmber
-                        )
-                        statCard(
-                            value: "\(stats.totalXP)",
-                            label: "XP Earned",
-                            icon: "star.fill",
-                            color: Color.tempoViolet
-                        )
-                        statCard(
-                            value: stats.avgSleep,
-                            label: "Avg Sleep",
-                            icon: "moon.fill",
-                            color: Color.tempoAmber
-                        )
-                        statCard(
-                            value: "\(stats.daysActive)/30",
-                            label: "Days Active",
-                            icon: "calendar",
-                            color: Color.tempoSignal
-                        )
-                    }
-
-                    // Consistency score
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    header
                     consistencySection
+                    statGrid
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s8)
             }
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .tidePage()
-            .navigationTitle("Progress Report")
+            .navigationTitle("Progress report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(Color.tempoSignal)
+                    Button("Close", systemImage: "xmark") { dismiss() }
                 }
             }
             .onAppear { loadStats() }
         }
     }
 
+    // MARK: - Header
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text("Your first 30 days")
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .accessibilityAddTraits(.isHeader)
+            Text("Here's what you've accomplished.")
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+        }
+    }
+
     // MARK: - Consistency Section
 
+    /// The headline: how many of the 30 days you showed up, as a dial.
     private var consistencySection: some View {
-        let pct = stats.daysActive * 100 / max(1, 30)
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("CONSISTENCY SCORE")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .tracking(1.2)
-
-            HStack {
-                Text("\(pct)%")
-                    .font(.system(size: 48, weight: .black, design: .rounded))
-                    .foregroundStyle(consistencyColor(pct: pct))
-                Spacer()
-            }
-
+        let pct = stats.daysActive * 100 / max(1, windowDays)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
+        return layout {
+            TideDial(score: min(pct, 100), caption: "of 100", diameter: Tide.dialSheet)
+                .environment(\.tideMood, consistencyMood(pct: pct))
             Text(consistencyMessage(pct: pct))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl))
+        .tideCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Consistency \(min(pct, 100)) out of 100. \(consistencyMessage(pct: pct))")
+    }
+
+    // MARK: - Stat grid
+
+    private var statGrid: some View {
+        let columns = typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
+        return GlassEffectContainer(spacing: Tide.s3) {
+            LazyVGrid(columns: columns, spacing: Tide.s3) {
+                statCard(value: "\(stats.workoutsCompleted)", label: "Workouts", icon: "dumbbell.fill")
+                statCard(value: "\(stats.mealsLogged)", label: "Meals logged", icon: "fork.knife")
+                statCard(
+                    value: "\(stats.streakBest)", unit: "days", label: "Best streak",
+                    icon: "flame.fill", color: Tide.streak
+                )
+                statCard(value: stats.totalXP.formatted(), label: "XP earned", icon: "star.fill")
+                statCard(
+                    value: sleepValue, unit: sleepUnit, label: "Avg sleep", icon: "moon.fill"
+                )
+                statCard(
+                    value: "\(stats.daysActive)", unit: "/\(windowDays)", label: "Days active",
+                    icon: "calendar"
+                )
+            }
+        }
     }
 
     // MARK: - Stat Card
 
-    private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
+    private func statCard(
+        value: String, unit: String? = nil, label: String, icon: String, color: Color? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-            Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.headline)
+                .foregroundStyle(color ?? mood.accent)
+                .frame(height: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
+            TideNumber(value, unit: unit, size: Tide.numeralM)
+            Text(label).tideLabel()
         }
-        .frame(maxWidth: .infinity)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Helpers
 
-    private func consistencyColor(pct: Int) -> Color {
+    /// "7.2h" is stored as one string; the figure and its unit are drawn apart.
+    private var sleepValue: String {
+        stats.avgSleep.hasSuffix("h") ? String(stats.avgSleep.dropLast()) : stats.avgSleep
+    }
+
+    private var sleepUnit: String? {
+        stats.avgSleep.hasSuffix("h") ? "h" : nil
+    }
+
+    /// Same cut-offs as before (80 and 50), shown in the Tide moods.
+    private func consistencyMood(pct: Int) -> TideMood {
         if pct >= 80 {
-            return Color.tempoSuccess
+            return TideMood(level: .onPace)
         }
         if pct >= 50 {
-            return Color.tempoAmber
+            return TideMood(level: .behind)
         }
-        return Color.tempoError
+        return TideMood(level: .offTrack)
     }
 
     private func consistencyMessage(pct: Int) -> String {

@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Error State View
 
-// Per DESIGN_SYSTEM.md Section 12.5 — Full-Screen Error:
-// Centered layout, exclamationmark icon 48pt Fail Red, retry + go back buttons.
+// Same calm glass card as the empty state, with a danger-tinted symbol. Retry
+// is the main action; going back, when offered, is quieter.
 
 struct ErrorStateView: View {
     let title: String
@@ -31,42 +31,58 @@ struct ErrorStateView: View {
         self.backAction = backAction
     }
 
+    @State
+    private var retries = 0
+
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
 
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoError)
+            VStack(spacing: Tide.s4) {
+                TideIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
 
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.lg)
+                VStack(spacing: Tide.s2) {
+                    Text(title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
 
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Retry", action: retryAction)
-                    .buttonStyle(.tempoSecondary)
-
-                if let backAction {
-                    Button("Go Back", action: backAction)
-                        .buttonStyle(.tempoGhost)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                VStack(spacing: Tide.s2) {
+                    Button("Retry") {
+                        retries += 1
+                        retryAction()
+                    }
+                    .buttonStyle(.tidePrimary)
+
+                    if let backAction {
+                        Button("Go Back", action: backAction)
+                            .buttonStyle(.tempoSecondary)
+                    }
+                }
+                .padding(.top, Tide.s2)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
+            .frame(maxWidth: Tide.stateWidth)
+            .sensoryFeedback(.impact(weight: .light), trigger: retries)
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
+}
+
+#Preview {
+    ErrorStateView(retryAction: {}, backAction: {})
+        .tidePage()
 }

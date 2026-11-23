@@ -19,7 +19,7 @@ struct SwipeDeleteList<Item: Identifiable, Row: View>: View where Item.ID: Hasha
     }
 
     let items: [Item]
-    var rowGap: CGFloat = TempoSpacing.md
+    var rowGap: CGFloat = Tide.s3
     var swipe: (Item) -> SwipeSpec?
     @ViewBuilder
     var row: (Item) -> Row

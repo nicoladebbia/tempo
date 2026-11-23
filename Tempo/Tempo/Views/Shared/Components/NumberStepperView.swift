@@ -10,8 +10,9 @@ import SwiftUI
 
 // MARK: - Number Stepper View
 
-// Per DESIGN_SYSTEM.md Section 8.5 — Number Stepper:
-// Minus/Plus buttons (36pt circle), value display (Data Medium), long press acceleration.
+// A value with a round minus and plus either side. Buttons are 44 pt, the
+// figure is a condensed tabular numeral that rolls as it changes. Hold a
+// button to repeat; tap the value to type it when a handler is supplied.
 
 struct NumberStepperView: View {
     @Binding
@@ -25,12 +26,14 @@ struct NumberStepperView: View {
     /// call site.
     var onTapValue: (() -> Void)?
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
     private var timer: Timer?
     @State
     private var holdDuration: TimeInterval = 0
+    @State
+    private var steps = 0
+    @ScaledMetric(relativeTo: .title3)
+    private var figureSize: CGFloat = 22
 
     init(
         value: Binding<Double>,
@@ -48,37 +51,31 @@ struct NumberStepperView: View {
         self.onTapValue = onTapValue
     }
 
-    private var buttonBackground: Color {
-        colorScheme == .dark
-            ? Color.tempoInputBgDark
-            : Color.tempoInputBgLight
-    }
-
     var body: some View {
-        HStack(spacing: 0) {
-            // Minus button
-            stepButton(icon: "minus", action: decrement)
+        HStack(spacing: Tide.s1) {
+            stepButton(icon: "minus", label: "Decrease", action: decrement)
                 .simultaneousGesture(longPressGesture(action: decrement))
 
-            // Value display — tappable to type/wheel it when a handler is
-            // supplied (§4.3); otherwise plain, unchanged text.
+            // Tappable to type/wheel it when a handler is supplied (§4.3);
+            // otherwise plain, unchanged text.
             Group {
                 if let onTapValue {
                     Button(action: onTapValue) {
                         valueLabel
                     }
                     .buttonStyle(.plain)
+                    .accessibilityHint("Type a value")
                 } else {
                     valueLabel
                 }
             }
-            .frame(minWidth: 60)
+            .frame(minWidth: 64)
 
-            // Plus button
-            stepButton(icon: "plus", action: increment)
+            stepButton(icon: "plus", label: "Increase", action: increment)
                 .simultaneousGesture(longPressGesture(action: increment))
         }
-        .frame(height: 44)
+        .frame(minHeight: Tide.hit)
+        .sensoryFeedback(.selection, trigger: steps)
         .accessibilityElement(children: .combine)
         .accessibilityValue("\(String(format: format, value)) \(unit)")
         .accessibilityAdjustableAction { direction in
@@ -90,33 +87,37 @@ struct NumberStepperView: View {
         }
     }
 
-    /// The number + unit text — pulled out so the tappable Button and the
-    /// plain fallback render identically.
+    /// The number + unit text, shared by the tappable Button and the plain fallback.
     private var valueLabel: some View {
-        HStack(spacing: TempoSpacing.xxs) {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.hair) {
             Text(String(format: format, value))
-                .font(.tempoDataMedium)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .underline(onTapValue != nil, color: Color.tempoTextTertiary.opacity(0.5))
+                .font(Tide.numeral(figureSize))
+                .foregroundStyle(Tide.text)
+                .contentTransition(.numericText(value: value))
+                .animation(Tide.snap, value: value)
+                .underline(onTapValue != nil, color: Tide.text3)
             if !unit.isEmpty {
                 Text(unit)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         }
+        .lineLimit(1)
+        .minimumScaleFactor(Tide.labelShrink)
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
     }
 
-    private func stepButton(icon: String, action: @escaping () -> Void) -> some View {
+    private func stepButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.tempoTextPrimary)
-                .frame(width: 36, height: 36)
-                .background(buttonBackground)
-                .clipShape(Circle())
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
         }
         .buttonStyle(.plain)
-        .frame(width: 44, height: 44)
+        .accessibilityLabel(label)
     }
 
     private func increment() {
@@ -125,7 +126,7 @@ struct NumberStepperView: View {
             return
         }
         value = newValue
-        HapticManager.lightImpact()
+        steps += 1
     }
 
     private func decrement() {
@@ -134,7 +135,7 @@ struct NumberStepperView: View {
             return
         }
         value = newValue
-        HapticManager.lightImpact()
+        steps += 1
     }
 
     private func longPressGesture(action: @escaping @MainActor @Sendable () -> Void) -> some Gesture {
@@ -158,4 +159,13 @@ struct NumberStepperView: View {
                 }
             }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var weight = 82.5
+
+    NumberStepperView(value: $weight, onTapValue: {})
+        .padding(Tide.edge)
+        .tidePage()
 }

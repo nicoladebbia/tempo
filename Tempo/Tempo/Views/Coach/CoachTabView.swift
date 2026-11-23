@@ -45,13 +45,12 @@ struct CoachTabView: View {
                     voiceMode: currentVoiceMode()
                 )
             } else {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Color.tempoSignal)
+                TideCoachSkeleton()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tidePage()
             }
         }
+        .tidePage(energy: 1)
+        .tideCovered(presentingInterview)
         .task {
             await bootstrapViewModelIfNeeded()
         }

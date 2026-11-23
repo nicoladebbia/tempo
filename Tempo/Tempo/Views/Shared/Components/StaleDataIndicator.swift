@@ -10,7 +10,8 @@ import SwiftUI
 
 // MARK: - Stale Data Indicator
 
-// Amber dot indicating data is older than 15 minutes.
+// An amber dot and "Updated 20 minutes ago" once the data is older than the
+// threshold (15 minutes by default). Fresh data shows nothing.
 
 struct StaleDataIndicator: View {
     let lastUpdated: Date
@@ -27,14 +28,15 @@ struct StaleDataIndicator: View {
 
     var body: some View {
         if isStale {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s2) {
                 Circle()
-                    .fill(Color.tempoAmber)
-                    .frame(width: 6, height: 6)
+                    .fill(Color.tempoWarning)
+                    .frame(width: Tide.s2 - Tide.hair, height: Tide.s2 - Tide.hair)
                 Text("Updated \(lastUpdated, format: .relative(presentation: .named))")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
             }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Data is stale. Last updated \(lastUpdated, format: .relative(presentation: .named))")
         }
     }

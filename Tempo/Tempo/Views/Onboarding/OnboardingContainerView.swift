@@ -21,26 +21,24 @@ struct OnboardingContainerView: View {
     private var viewModel = OnboardingViewModel()
 
     var body: some View {
-        ZStack {
-            // Onboarding follows the main app's bg token so the transition into
-            // the dashboard isn't a visual jump from pure black to grey-black.
-            TidePageBackground()
-            VStack(spacing: 0) {
-                // Progress bar — hidden during splash, valueDemo, and complete
-                if viewModel.currentStep != .splash, viewModel.currentStep != .valueDemo, viewModel.currentStep != .complete {
-                    progressBar
-                        .padding(.top, TempoSpacing.md)
-                }
-
-                // Step content — fills remaining space. Opacity-only
-                // transition; `.scale`/`.move` here caused overflow artifacts
-                // on device, so keep it plain opacity.
-                stepContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 0) {
+            // Progress: hidden during splash, valueDemo and complete.
+            if showsProgress {
+                progressBar
+                    .padding(.top, Tide.s2)
                     .transition(.opacity)
             }
+
+            // Step content fills the rest. Opacity-only transition: `.scale` /
+            // `.move` here caused overflow artifacts on device.
+            stepContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(viewModel.currentStep)
+                .transition(.opacity)
         }
-        .preferredColorScheme(.dark)
+        // Onboarding is the one place the Tide field runs at full energy.
+        .tidePage(energy: 1)
+        .environment(\.tideMood, .neutral)
         .onAppear {
             viewModel.onComplete = {
                 services.appState.isOnboardingComplete = true
@@ -55,39 +53,37 @@ struct OnboardingContainerView: View {
         }
     }
 
+    private var showsProgress: Bool {
+        viewModel.currentStep != .splash && viewModel.currentStep != .valueDemo && viewModel.currentStep != .complete
+    }
+
     // MARK: - Progress Bar
 
-    // Per WIREFRAMES.md Screen 44 — 3pt height, white fill, 20% white unfill
+    // A slim Tide level bar with the back button on its left.
 
     private var progressBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            // Back button (if applicable)
+        HStack(spacing: Tide.s3) {
             if viewModel.canGoBack {
                 Button {
                     viewModel.goBack()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back")
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Color.white.opacity(0.2))
-                        .frame(height: 3)
-
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Color.white)
-                        .frame(width: geo.size.width * viewModel.progress, height: 3)
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
-                }
-            }
-            .frame(height: 3)
+            TideLevelBar(progress: viewModel.progress, color: .white, height: Tide.barSlim)
+                .background(Tide.fill, in: .capsule)
+                .animation(Tide.snap, value: viewModel.progress)
+                .accessibilityLabel("Setup progress")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.sm)
+        .frame(minHeight: Tide.hit)
+        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Step Content
@@ -141,23 +137,18 @@ struct OnboardingContainerView: View {
 
 // MARK: - OnboardingPrimaryButton
 
+/// The one filled button of a step. Steps built on `OnboardingScaffold` pin
+/// their own; this stays for views that lay out their own footer.
 struct OnboardingPrimaryButton: View {
     let title: String
     let enabled: Bool
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(enabled ? .black : .white.opacity(0.5))
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(enabled ? Color.tempoAmber : Color.white.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .disabled(!enabled)
-        .padding(.horizontal, TempoSpacing.xl)
+        Button(title, action: action)
+            .buttonStyle(.tidePrimary)
+            .disabled(!enabled)
+            .padding(.horizontal, Tide.edge)
     }
 }
 
@@ -169,29 +160,24 @@ struct OnboardingSkipButton: View {
     var body: some View {
         Button(action: action) {
             Text("SKIP")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.5))
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text2)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .contentShape(.rect)
         }
+        .buttonStyle(.plain)
     }
 }
 
 // MARK: - OnboardingCardModifier
 
-// Per WIREFRAMES.md Screen 44-48 — 10% white bg, 1pt 15% white border, radius 16pt
+// A glass card for grouped content inside a step.
 
 struct OnboardingCardModifier: ViewModifier {
     func body(content: Content) -> some View {
-        content
-            .padding(TempoSpacing.lg)
-            // Full-width: without this a card hugs its content, so cards with
-            // short chip rows render narrower than their siblings.
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
-            )
+        // `tideCard` is already full width: without that a card hugs its
+        // content, so cards with short chip rows render narrower than siblings.
+        content.tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 }
 

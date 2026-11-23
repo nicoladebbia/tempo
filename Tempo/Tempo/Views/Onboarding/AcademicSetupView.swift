@@ -16,6 +16,8 @@ import SwiftUI
 struct AcademicSetupView: View {
     @Bindable
     var viewModel: OnboardingViewModel
+    @Environment(\.tideMood)
+    private var mood
 
     private let years = ["1st Year", "2nd Year", "3rd Year", "4th Year", "Postgrad", "Not in school"]
 
@@ -43,113 +45,68 @@ struct AcademicSetupView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                Spacer().frame(height: TempoSpacing.md)
+        OnboardingScaffold(
+            title: "YOUR ACADEMICS.",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() },
+            skipAction: { viewModel.skip() }
+        ) {
+            // University — searchable picker over the bundled
+            // UniversityDirectory; free text still accepted for schools
+            // that aren't listed.
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("University / School")
 
-                Text("YOUR ACADEMICS.")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // University — searchable picker over the bundled
-                // UniversityDirectory; free text still accepted for schools
-                // that aren't listed.
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("University / School")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: isSchoolPicked ? "checkmark.circle.fill" : "magnifyingglass")
-                            .foregroundStyle(isSchoolPicked ? Color.tempoAmber : .white.opacity(0.5))
-                        TextField("Search your school", text: $viewModel.university)
-                            .font(.system(size: 16))
-                            .foregroundStyle(.white)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.words)
-                            .submitLabel(.done)
-                            .focused($isSchoolFieldFocused)
-                            .onChange(of: viewModel.university) { _, newValue in
-                                pickedSchool = pickedSchool == newValue ? pickedSchool : nil
-                            }
-                        if !viewModel.university.isEmpty {
-                            Button {
-                                viewModel.university = ""
-                                isSchoolFieldFocused = true
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.white.opacity(0.4))
-                            }
-                            .accessibilityLabel("Clear school")
+                HStack(spacing: Tide.s3) {
+                    Image(systemName: isSchoolPicked ? "checkmark.circle.fill" : "magnifyingglass")
+                        .font(Tide.headline)
+                        .foregroundStyle(isSchoolPicked ? mood.accent : Tide.text3)
+                        .accessibilityHidden(true)
+                    TextField("", text: $viewModel.university, prompt: Text("Search your school").foregroundStyle(Tide.text3))
+                        .font(Tide.headline.weight(.regular))
+                        .foregroundStyle(Tide.text)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .focused($isSchoolFieldFocused)
+                        .onChange(of: viewModel.university) { _, newValue in
+                            pickedSchool = pickedSchool == newValue ? pickedSchool : nil
                         }
-                    }
-                    .padding(TempoSpacing.sm)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(
-                                isSchoolFieldFocused ? Color.tempoAmber : Color.white.opacity(0.15),
-                                lineWidth: 1
-                            )
-                    )
-
-                    if showSchoolSuggestions {
-                        schoolSuggestions
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Year of study
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                    Text("Year of Study")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white)
-
-                    ForEach(years, id: \.self) { year in
+                    if !viewModel.university.isEmpty {
                         Button {
-                            viewModel.yearOfStudy = year
+                            viewModel.university = ""
+                            isSchoolFieldFocused = true
                         } label: {
-                            HStack {
-                                Text(year)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(.white)
-                                Spacer()
-                                if viewModel.yearOfStudy == year {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(Color.tempoAmber)
-                                }
-                            }
-                            .padding(TempoSpacing.md)
-                            .background(Color.white.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(
-                                        viewModel.yearOfStudy == year ? Color.tempoAmber : Color.white.opacity(0.15),
-                                        lineWidth: viewModel.yearOfStudy == year ? 2 : 1
-                                    )
-                            )
+                            Image(systemName: "xmark.circle.fill")
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text3)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear school")
+                        .padding(.trailing, -Tide.s3)
+                    }
+                }
+                .tideFieldSurface(focused: isSchoolFieldFocused)
+
+                if showSchoolSuggestions {
+                    schoolSuggestions
+                        .transition(.opacity)
+                }
+            }
+            .animation(Tide.snap, value: showSchoolSuggestions)
+
+            // Year of study
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingSectionLabel("Year of Study")
+                VStack(spacing: Tide.s2) {
+                    ForEach(years, id: \.self) { year in
+                        OnboardingOptionRow(title: year, isSelected: viewModel.yearOfStudy == year) {
+                            viewModel.yearOfStudy = year
                         }
                     }
                 }
-                .onboardingCard()
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                Spacer()
-
-                HStack {
-                    OnboardingSkipButton { viewModel.skip() }
-                    Spacer()
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                    viewModel.advance()
-                }
-
-                Spacer().frame(height: TempoSpacing.lg)
             }
         }
         .onAppear {
@@ -173,57 +130,51 @@ private extension AcademicSetupView {
         return VStack(spacing: 0) {
             ForEach(Array(matches.enumerated()), id: \.element) { index, school in
                 if index > 0 {
-                    Divider().overlay(Color.white.opacity(0.08))
+                    Divider().overlay(Tide.hairline)
                 }
                 Button {
                     choose(school.name)
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(school.name)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
                             .multilineTextAlignment(.leading)
                         Text(school.countryName)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 10)
-                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                    .padding(.horizontal, Tide.s4)
+                    .padding(.vertical, Tide.s2)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
 
             if !typedIsListed {
                 if !matches.isEmpty {
-                    Divider().overlay(Color.white.opacity(0.08))
+                    Divider().overlay(Tide.hairline)
                 }
                 Button {
                     choose(typed)
                 } label: {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s2) {
                         Image(systemName: "plus.circle")
-                            .foregroundStyle(Color.tempoAmber)
+                            .foregroundStyle(mood.accent)
                         Text(matches.isEmpty ? "Not listed — use \u{201C}\(typed)\u{201D}" : "Use \u{201C}\(typed)\u{201D}")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.8))
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
                             .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 10)
-                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                    .padding(.horizontal, Tide.s4)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        )
+        .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.tileRadius))
     }
 
     func choose(_ name: String) {
@@ -238,6 +189,5 @@ private extension AcademicSetupView {
     var vm = OnboardingViewModel()
 
     AcademicSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

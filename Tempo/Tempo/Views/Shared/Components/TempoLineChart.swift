@@ -22,8 +22,6 @@ struct TempoLineChart<ID: Hashable>: View {
     /// of the per-point stride — for sparse series over a long range.
     let axisDesiredCount: Int?
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
     private var selectedPoint: (series: ID, date: Date, value: Double)?
 
@@ -44,7 +42,7 @@ struct TempoLineChart<ID: Hashable>: View {
                         series: .value("Series", "\(series.id)")
                     )
                     .foregroundStyle(series.color)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
                     .interpolationMethod(.catmullRom)
 
                     AreaMark(
@@ -54,7 +52,7 @@ struct TempoLineChart<ID: Hashable>: View {
                     )
                     .foregroundStyle(
                         .linearGradient(
-                            colors: [series.color.opacity(0.20), series.color.opacity(0)],
+                            colors: [series.color.opacity(0.28), series.color.opacity(0)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -66,14 +64,14 @@ struct TempoLineChart<ID: Hashable>: View {
                         y: .value("Value", point.value)
                     )
                     .foregroundStyle(series.color)
-                    .symbolSize(36)
+                    .symbolSize(series.points.count > 14 ? 0 : 30)
                 }
             }
 
             if let selected = selectedPoint {
                 RuleMark(x: .value("Selected", selected.date))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(Tide.text3)
+                    .lineStyle(StrokeStyle(lineWidth: 1))
             }
         }
         .chartXAxis {
@@ -86,12 +84,12 @@ struct TempoLineChart<ID: Hashable>: View {
         .chartYAxis {
             AxisMarks { _ in
                 if showGrid {
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                        .foregroundStyle(gridColor)
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Tide.hairline)
                 }
                 AxisValueLabel()
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .chartOverlay { proxy in
@@ -127,19 +125,13 @@ struct TempoLineChart<ID: Hashable>: View {
         .frame(height: height)
     }
 
-    private var gridColor: Color {
-        colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-    }
-
     @AxisMarkBuilder
     private var xAxisContent: some AxisMark {
-        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-            .foregroundStyle(gridColor)
+        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+            .foregroundStyle(Tide.hairline)
         AxisValueLabel(format: .dateTime.day().month(.abbreviated))
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
     }
 
     /// With `axisDesiredCount`: at most that many tick dates, one per distinct
@@ -175,18 +167,17 @@ struct TempoLineChart<ID: Hashable>: View {
     }
 
     private func tooltipView(value: Double, date: Date) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Text(String(format: "%.1f", value))
-                .font(.tempoDataSmall)
-                .foregroundStyle(Color.tempoBone)
+                .font(Tide.numeral(17))
+                .foregroundStyle(Tide.text)
             Text(date, format: .dateTime.month(.abbreviated).day())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoAsh)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.horizontal, TempoSpacing.cardPaddingCompact)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoInk)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .padding(.horizontal, Tide.s3)
+        .padding(.vertical, Tide.s2)
+        .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.controlRadius))
     }
 }
 

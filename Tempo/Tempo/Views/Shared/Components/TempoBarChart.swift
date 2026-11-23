@@ -19,8 +19,6 @@ struct TempoBarChart<ID: Hashable>: View {
     let height: CGFloat
     let showGrid: Bool
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
     private var selectedBar: String?
 
@@ -41,10 +39,10 @@ struct TempoBarChart<ID: Hashable>: View {
                     .foregroundStyle(seriesItem.color)
                     .clipShape(
                         UnevenRoundedRectangle(
-                            topLeadingRadius: 4,
+                            topLeadingRadius: Tide.s2 - Tide.hair,
                             bottomLeadingRadius: 0,
                             bottomTrailingRadius: 0,
-                            topTrailingRadius: 4
+                            topTrailingRadius: Tide.s2 - Tide.hair
                         )
                     )
                     .opacity(barOpacity(for: bar.label))
@@ -56,35 +54,34 @@ struct TempoBarChart<ID: Hashable>: View {
                let bar = firstBar(for: selected)
             {
                 RuleMark(x: .value("Selected", selected))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(Tide.text3)
+                    .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top) {
                         Text(String(format: "%.0f", bar.value))
-                            .font(.tempoDataSmall)
-                            .foregroundStyle(Color.tempoBone)
-                            .padding(.horizontal, TempoSpacing.sm)
-                            .padding(.vertical, TempoSpacing.xs)
-                            .background(Color.tempoInk)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                            .font(Tide.numeral(15))
+                            .foregroundStyle(Tide.text)
+                            .padding(.horizontal, Tide.s2)
+                            .padding(.vertical, Tide.s1)
+                            .glassEffect(.regular.tint(Tide.glassCard), in: .capsule)
                     }
             }
         }
         .chartXAxis {
             AxisMarks { _ in
                 AxisValueLabel()
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .chartYAxis {
             AxisMarks { _ in
                 if showGrid {
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4, 4]))
-                        .foregroundStyle(gridColor)
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(Tide.hairline)
                 }
                 AxisValueLabel()
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .chartOverlay { proxy in
@@ -105,12 +102,6 @@ struct TempoBarChart<ID: Hashable>: View {
             }
         }
         .frame(height: height)
-    }
-
-    private var gridColor: Color {
-        colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
     }
 
     private func barOpacity(for label: String) -> Double {

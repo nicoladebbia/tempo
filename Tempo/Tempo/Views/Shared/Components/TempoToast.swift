@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - TempoToast
 
-// Per DESIGN_SYSTEM.md Section 8.8 — Toast:
-// Ink Black bg @95%, 14pt radius, slide from top, auto-dismiss 3s.
+// A glass capsule that drops in from the top: symbol, one or two lines, and an
+// optional action ("Undo"). The ink tint keeps white text readable over any page.
 
 struct TempoToast: View {
     let message: String
@@ -54,41 +54,51 @@ struct TempoToast: View {
         }
     }
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: style.icon)
-                .font(.system(size: 20))
+                .font(Tide.headline)
                 .foregroundStyle(style.iconColor)
+                .accessibilityHidden(true)
 
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoBone)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
                 .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             if let actionTitle, let action {
                 Button(action: action) {
                     Text(actionTitle)
-                        .font(.tempoBody)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
-                        .padding(.horizontal, TempoSpacing.xs)
-                        .frame(minHeight: 44)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .padding(.horizontal, Tide.s2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, TempoSpacing.cardPadding)
-        .padding(.vertical, TempoSpacing.md)
+        .padding(.leading, Tide.s5)
+        .padding(.trailing, actionTitle == nil ? Tide.s5 : Tide.s3)
+        .padding(.vertical, Tide.s2)
+        .frame(minHeight: Tide.hit + Tide.s2)
         .frame(maxWidth: .infinity)
-        .background(Color.tempoInk.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.xl)
+        .glassEffect(.regular.tint(Tide.glassCard), in: .capsule)
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .combine)
     }
 }
 
 // MARK: - ToastModifier
+
+// Attach with `.tempoToast($toast)`. Setting the binding shows the toast;
+// it clears itself after `ToastData.duration`, or on an upward swipe.
 
 struct ToastModifier: ViewModifier {
     @Binding
@@ -105,45 +115,45 @@ struct ToastModifier: ViewModifier {
                         action: toast.action.map { run in
                             {
                                 // Clear first: run() may set its own (error) toast.
-                                withAnimation(.easeIn(duration: 0.2)) {
+                                withAnimation(Tide.snap) {
                                     self.toast = nil
                                 }
                                 run()
                             }
                         }
                     )
-                        .padding(.top, TempoSpacing.sm)
-                        // Per-toast identity so a replacement re-runs onAppear
-                        // (haptic + its own auto-dismiss timer).
-                        .id(toast.id)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .onAppear {
-                            HapticManager.notification(toast.style.haptic)
-                            // A toast with an action stays long enough to use it;
-                            // a newer toast must not be dismissed by an older timer.
-                            let shownID = toast.id
-                            DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
-                                guard self.toast?.id == shownID else {
-                                    return
-                                }
-                                withAnimation(.easeIn(duration: 0.2)) {
-                                    self.toast = nil
-                                }
+                    .padding(.top, Tide.s2)
+                    // Per-toast identity so a replacement re-runs onAppear
+                    // (haptic + its own auto-dismiss timer).
+                    .id(toast.id)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onAppear {
+                        HapticManager.notification(toast.style.haptic)
+                        // A toast with an action stays long enough to use it;
+                        // a newer toast must not be dismissed by an older timer.
+                        let shownID = toast.id
+                        DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
+                            guard self.toast?.id == shownID else {
+                                return
+                            }
+                            withAnimation(Tide.snap) {
+                                self.toast = nil
                             }
                         }
-                        .gesture(
-                            DragGesture(minimumDistance: 10)
-                                .onEnded { value in
-                                    if value.translation.height < -10 {
-                                        withAnimation(.easeIn(duration: 0.2)) {
-                                            self.toast = nil
-                                        }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 10)
+                            .onEnded { value in
+                                if value.translation.height < -10 {
+                                    withAnimation(Tide.snap) {
+                                        self.toast = nil
                                     }
                                 }
-                        )
+                            }
+                    )
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: toast?.id)
+            .animation(Tide.lively, value: toast?.id)
     }
 }
 

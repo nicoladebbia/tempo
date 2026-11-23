@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Dashboard Quadrant Card
 
-// Per DESIGN_SYSTEM.md Section 8.2 — Dashboard Quadrant Card:
-// Square 1:1, 12pt padding, module tint bar 3pt top, compact layout.
+// A square glass tile for one module: its symbol and name, one big figure and
+// a line under it. Presses dip like every Tide card.
 
 struct QuadrantCardView: View {
     let moduleIcon: String
@@ -21,65 +21,41 @@ struct QuadrantCardView: View {
     let secondaryMetric: String
     let action: () -> Void
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
-    private var isPressed = false
+    private var taps = 0
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                HStack(spacing: 6) {
+        Button {
+            taps += 1
+            action()
+        } label: {
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
                     Image(systemName: moduleIcon)
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(Tide.headline)
                         .foregroundStyle(moduleColor)
                     Text(moduleLabel)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tideLabel()
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                 }
 
-                Spacer()
+                Spacer(minLength: Tide.s2)
 
-                Text(metricValue)
-                    .font(.tempoDataLarge)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TideNumber(metricValue, size: Tide.numeralS + Tide.s2, relativeTo: .title2)
 
                 Text(secondaryMetric)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(2)
             }
-            .padding(TempoSpacing.cardPaddingCompact)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(
-                ZStack(alignment: .top) {
-                    Color.tempoSurfaceCard
-                    VStack(spacing: 0) {
-                        moduleColor.frame(height: 3)
-                        Spacer()
-                    }
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
-                    .opacity(colorScheme == .dark ? 1 : 0)
-            )
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isPressed ? 0.96 : 1.0)
-        .animation(TempoAnimation.springMedium, value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed {
-                        isPressed = true
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    }
-                }
-                .onEnded { _ in isPressed = false }
-        )
+        .buttonStyle(TideCardPressStyle())
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
         .aspectRatio(1, contentMode: .fit)
+        .accessibilityElement(children: .combine)
     }
 }

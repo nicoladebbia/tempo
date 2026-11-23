@@ -26,186 +26,95 @@ struct TrainingSetupView: View {
     ]
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                Spacer().frame(height: TempoSpacing.md)
+        // Per WIREFRAMES.md Screen 45 — "LET'S BUILD YOUR TRAINING PROFILE."
+        OnboardingScaffold(
+            title: "LET'S BUILD YOUR\nTRAINING PROFILE.",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() },
+            skipAction: { viewModel.skip() }
+        ) {
+            // Do you train?
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingSectionLabel("Do you train?")
+                HStack(spacing: Tide.s2) {
+                    OnboardingChip(title: "YES", isSelected: viewModel.doesTrain == true, expands: true) {
+                        viewModel.doesTrain = true
+                    }
+                    OnboardingChip(title: "NO", isSelected: viewModel.doesTrain == false, expands: true) {
+                        viewModel.doesTrain = false
+                    }
+                }
+            }
 
-                // Per WIREFRAMES.md Screen 45 — "LET'S BUILD YOUR TRAINING PROFILE."
-                Text("LET'S BUILD YOUR\nTRAINING PROFILE.")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                // Do you train?
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("Do you train?")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white)
-
-                    HStack(spacing: TempoSpacing.sm) {
-                        togglePill("YES", selected: viewModel.doesTrain == true) {
-                            viewModel.doesTrain = true
-                        }
-                        togglePill("NO", selected: viewModel.doesTrain == false) {
-                            viewModel.doesTrain = false
+            if viewModel.doesTrain == true {
+                // What do you do?
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    OnboardingSectionLabel("What do you do?")
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(trainingTypes, id: \.self) { type in
+                            OnboardingChip(title: type, isSelected: viewModel.trainingTypes.contains(type)) {
+                                if viewModel.trainingTypes.contains(type) {
+                                    viewModel.trainingTypes.remove(type)
+                                } else {
+                                    viewModel.trainingTypes.insert(type)
+                                }
+                            }
                         }
                     }
                 }
-                .onboardingCard()
-                .padding(.horizontal, TempoSpacing.screenEdge)
+                .transition(.opacity)
 
-                if viewModel.doesTrain == true {
-                    // What do you do?
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("What do you do?")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
+                // Days per week
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    OnboardingSectionLabel("How many days/week?")
 
-                        FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
-                            ForEach(trainingTypes, id: \.self) { type in
-                                chipButton(type, selected: viewModel.trainingTypes.contains(type)) {
-                                    if viewModel.trainingTypes.contains(type) {
-                                        viewModel.trainingTypes.remove(type)
-                                    } else {
-                                        viewModel.trainingTypes.insert(type)
-                                    }
-                                }
+                    // Seven equal-width cells (not fixed-width circles): fixed
+                    // widths have an intrinsic total that cannot compress,
+                    // which once forced the whole screen wider than the device
+                    // (content rendered 516pt on a 402pt screen, shifted off
+                    // the left edge). Flexible cells always fit.
+                    HStack(spacing: Tide.s1) {
+                        ForEach(1 ... 7, id: \.self) { day in
+                            OnboardingChip(title: "\(day)", isSelected: viewModel.daysPerWeek == day, expands: true) {
+                                viewModel.daysPerWeek = day
                             }
                         }
                     }
-                    .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+                .transition(.opacity)
 
-                    // Days per week
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("How many days/week?")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-
-                        // FlowLayout (not HStack): 7 fixed-36pt circles in an
-                        // HStack have a combined intrinsic width that cannot
-                        // compress, forcing this card's VStack — and via the
-                        // ScrollView, the whole screen — wider than the device
-                        // (content rendered 516pt on a 402pt screen, shifted
-                        // off the left edge). FlowLayout lets the circles wrap.
-                        // Same bug class as GoalSetupView's wheel→compact fix.
-                        FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
-                            ForEach(1 ... 7, id: \.self) { day in
-                                Button {
-                                    viewModel.daysPerWeek = day
-                                } label: {
-                                    Text("\(day)")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(viewModel.daysPerWeek == day ? .black : .white)
-                                        .frame(width: 36, height: 36)
-                                        .background(viewModel.daysPerWeek == day ? Color.tempoAmber : Color.white.opacity(0.1))
-                                        .clipShape(Circle())
-                                }
+                // Preferred split
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    OnboardingSectionLabel("Preferred split?")
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(splits, id: \.self) { split in
+                            OnboardingChip(title: split, isSelected: viewModel.preferredSplit == split) {
+                                viewModel.preferredSplit = split
                             }
                         }
                     }
-                    .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                }
+                .transition(.opacity)
 
-                    // Preferred split
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("Preferred split?")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-
-                        FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
-                            ForEach(splits, id: \.self) { split in
-                                chipButton(split, selected: viewModel.preferredSplit == split) {
-                                    viewModel.preferredSplit = split
-                                }
-                            }
-                        }
-                    }
-                    .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-
-                    // Experience level
-                    VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                        Text("Experience level")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-
+                // Experience level
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    OnboardingSectionLabel("Experience level")
+                    VStack(spacing: Tide.s2) {
                         ForEach(levels, id: \.0) { name, desc in
-                            Button {
+                            OnboardingOptionRow(
+                                title: name,
+                                subtitle: desc,
+                                isSelected: viewModel.experienceLevel == name
+                            ) {
                                 viewModel.experienceLevel = name
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(name)
-                                            .font(.system(size: 15, weight: .semibold))
-                                            .foregroundStyle(.white)
-                                        Text(desc)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.white.opacity(0.6))
-                                    }
-                                    Spacer()
-                                }
-                                .padding(TempoSpacing.sm)
-                                .background(Color.white.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(
-                                            viewModel.experienceLevel == name ? Color.tempoAmber : Color.white.opacity(0.15),
-                                            lineWidth: viewModel.experienceLevel == name ? 2 : 1
-                                        )
-                                )
                             }
                         }
                     }
-                    .onboardingCard()
-                    .padding(.horizontal, TempoSpacing.screenEdge)
                 }
-
-                // A bare Spacer() here is broken: inside a ScrollView the
-                // content gets unbounded height, so an unconstrained Spacer
-                // mis-sizes the stack and the YES content overflows the
-                // screen instead of scrolling. Use a fixed gap so the
-                // Continue button sits a consistent distance below content.
-                Spacer().frame(height: TempoSpacing.xl)
-
-                HStack {
-                    OnboardingSkipButton { viewModel.skip() }
-                    Spacer()
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                    viewModel.advance()
-                }
-
-                Spacer().frame(height: TempoSpacing.lg)
+                .transition(.opacity)
             }
         }
-    }
-
-    private func togglePill(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(selected ? .black : .white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(selected ? Color.tempoAmber : Color.white.opacity(0.1))
-                .clipShape(Capsule())
-        }
-    }
-
-    private func chipButton(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(selected ? .black : .white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(selected ? Color.tempoAmber : Color.white.opacity(0.1))
-                .clipShape(Capsule())
-        }
+        .animation(Tide.snap, value: viewModel.doesTrain)
     }
 }
 
@@ -214,8 +123,7 @@ struct TrainingSetupView: View {
     var vm = OnboardingViewModel()
 
     TrainingSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }
 
 #Preview("Training Active") {
@@ -231,6 +139,5 @@ struct TrainingSetupView: View {
     }()
 
     TrainingSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

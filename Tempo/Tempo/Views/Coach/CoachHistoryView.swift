@@ -15,8 +15,10 @@ import SwiftUI
 // MARK: - CoachHistoryView
 
 struct CoachHistoryView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
 
     /// All conversations except the currently-active one. Newer first.
     @Query(
@@ -25,7 +27,10 @@ struct CoachHistoryView: View {
     )
     private var conversations: [CoachConversation]
 
-    @State private var selectedConversation: CoachConversation?
+    @State
+    private var selectedConversation: CoachConversation?
+    @State
+    private var stars = 0
 
     var body: some View {
         NavigationStack {
@@ -37,88 +42,117 @@ struct CoachHistoryView: View {
                 }
             }
             .tidePage()
-            .navigationTitle("Past Conversations")
+            .navigationTitle("Past chats")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Close", systemImage: "xmark") { dismiss() }
                 }
             }
         }
+        .tideCovered(selectedConversation != nil)
         .sheet(item: $selectedConversation) { conv in
             CoachConversationDetailView(conversation: conv)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: stars)
     }
 
     // MARK: - List
 
     private var list: some View {
         List {
+            TideSectionLabel(title: "Swipe a chat to star it", trailing: "\(conversations.count)")
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(
+                    EdgeInsets(top: Tide.s2, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge)
+                )
             ForEach(conversations, id: \.id) { conv in
                 row(for: conv)
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(
+                        EdgeInsets(top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge)
+                    )
             }
         }
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .listStyle(.insetGrouped)
+        .scrollEdgeEffectStyle(.soft, for: .all)
     }
 
     private func row(for conv: CoachConversation) -> some View {
         Button { selectedConversation = conv } label: {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s3) {
                 if conv.isStarred {
                     Image(systemName: "star.fill")
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.carbs)
                         .accessibilityLabel(Text("Starred"))
                 }
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(conv.titleSummary.isEmpty ? "Untitled chat" : conv.titleSummary)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .lineLimit(1)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                     Text(dateLabel(for: conv.lastMessageAt))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 Image(systemName: "chevron.right")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .contentShape(Rectangle())
+            .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s3)
+            .frame(minHeight: Tide.hit)
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .strokeBorder(Tide.hairline, lineWidth: 1)
+            }
+            .contentShape(.rect(cornerRadius: Tide.tileRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button {
                 conv.isStarred.toggle()
                 try? modelContext.save()
+                stars += 1
             } label: {
                 Label(
                     conv.isStarred ? "Unstar" : "Star",
                     systemImage: conv.isStarred ? "star.slash" : "star"
                 )
             }
-            .tint(Color.tempoAmber)
+            .tint(Tide.carbs)
         }
     }
 
     // MARK: - Empty
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s3) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.largeTitle)
+                .foregroundStyle(Tide.text3)
                 .accessibilityHidden(true)
-            Text("No past conversations yet.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Text("Chats you end will show up here.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+            VStack(spacing: Tide.s1) {
+                Text("No past conversations yet.")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Text("Chats you end will show up here.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+            }
+            .multilineTextAlignment(.center)
+            .accessibilityElement(children: .combine)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, TempoSpacing.lg)
+        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Helpers
@@ -131,29 +165,32 @@ struct CoachHistoryView: View {
     }
 }
 
-// MARK: - CoachConversationDetailView (read-only transcript)
+// MARK: - CoachConversationDetailView
 
 private struct CoachConversationDetailView: View {
     let conversation: CoachConversation
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss)
+    private var dismiss
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: TempoSpacing.md) {
+                LazyVStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(visibleMessages, id: \.id) { wrapper in
                         renderMessage(wrapper.message)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.md)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
+            .scrollEdgeEffectStyle(.soft, for: .all)
             .tidePage()
             .navigationTitle(conversation.titleSummary.isEmpty ? "Chat" : conversation.titleSummary)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
+                    Button("Close", systemImage: "xmark") { dismiss() }
                 }
             }
         }

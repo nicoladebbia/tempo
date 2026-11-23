@@ -10,8 +10,9 @@ import SwiftUI
 
 // MARK: - Empty State View
 
-// Per DESIGN_SYSTEM.md Section 8.11 — Empty States:
-// Centered layout, 48pt icon (Ultralight, Ash), Title 3, Body, optional CTA.
+// A calm glass card with a symbol, one line of what is missing and, when there
+// is a next step, one button. The spacers stay outside the card so a screen
+// that is only this view centres it.
 
 struct EmptyStateView: View {
     let icon: String
@@ -38,33 +39,48 @@ struct EmptyStateView: View {
         VStack(spacing: 0) {
             Spacer()
 
-            Image(systemName: icon)
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
+            VStack(spacing: Tide.s4) {
+                TideIconTile(systemName: icon, size: Tide.tileLarge)
 
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.lg)
+                VStack(spacing: Tide.s2) {
+                    Text(title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
 
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.tempoPrimary)
-                    .padding(.horizontal, TempoSpacing.xxxxl)
-                    .padding(.top, TempoSpacing.xxl)
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .buttonStyle(.tidePrimary)
+                        .padding(.top, Tide.s2)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
+            .frame(maxWidth: Tide.stateWidth)
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
+}
+
+#Preview {
+    EmptyStateView(
+        icon: "fork.knife",
+        title: "No meals yet",
+        message: "Log your first meal and today's targets start to fill.",
+        actionTitle: "Log a meal",
+        action: {}
+    )
+    .tidePage()
 }

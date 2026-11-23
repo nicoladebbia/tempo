@@ -30,37 +30,33 @@ struct AIBlockerCard: View {
     private var consentError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: "lock.fill")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoAmber)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.streak)
+                    .accessibilityHidden(true)
                 Text(message ?? blocker.message)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let consentError {
                 Text(consentError)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Button {
                 act()
             } label: {
                 Text(isWorking ? "Working…" : blocker.actionTitle)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tideGlass)
             .disabled(isWorking)
             .accessibilityIdentifier("aiBlockerAction")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityIdentifier("aiBlockerCard")
         .sheet(isPresented: $showPaywall) {
             PaywallView()

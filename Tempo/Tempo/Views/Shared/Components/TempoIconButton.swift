@@ -8,9 +8,9 @@
 
 import SwiftUI
 
-// MARK: - Icon-Only Button
+// MARK: - TempoIconButton
 
-// Per DESIGN_SYSTEM.md Section 8.1 — 44x44pt touch target, 22pt icon, 12pt radius.
+// A bare symbol with a 44 pt target. Pressing lights it up with a soft fill.
 
 struct TempoIconButton: View {
     let icon: String
@@ -18,45 +18,34 @@ struct TempoIconButton: View {
 
     @Environment(\.isEnabled)
     private var isEnabled
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
-    private var isPressed = false
+    private var taps = 0
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            taps += 1
+            action()
+        } label: {
             Image(systemName: icon)
-                .font(.system(size: 22))
-                .foregroundStyle(iconColor)
-                .frame(width: 44, height: 44)
-                .background(isPressed ? pressedBackground : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .font(Tide.headline)
+                .foregroundStyle(isEnabled ? Tide.text : Color.tempoTextDisabled)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect(cornerRadius: Tide.controlRadius))
         }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.08), value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    guard isEnabled, !isPressed else {
-                        return
-                    }
-                    isPressed = true
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                }
-                .onEnded { _ in isPressed = false }
-        )
+        .buttonStyle(TideIconPressStyle())
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
     }
+}
 
-    private var iconColor: Color {
-        guard isEnabled else {
-            return Color.tempoTextDisabled
-        }
-        return colorScheme == .dark ? Color.tempoBone : Color.tempoInk
-    }
+// MARK: - TideIconPressStyle
 
-    private var pressedBackground: Color {
-        colorScheme == .dark
-            ? Color.tempoBone.opacity(0.12)
-            : Color.tempoInk.opacity(0.08)
+private struct TideIconPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                configuration.isPressed ? Tide.fillStrong : Color.clear,
+                in: .rect(cornerRadius: Tide.controlRadius, style: .continuous)
+            )
+            .animation(Tide.snap, value: configuration.isPressed)
     }
 }

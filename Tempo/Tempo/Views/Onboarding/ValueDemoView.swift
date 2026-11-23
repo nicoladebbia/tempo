@@ -18,97 +18,67 @@ struct ValueDemoView: View {
     let onContinue: () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                // Header
-                VStack(spacing: TempoSpacing.sm) {
-                    Text("THIS IS TEMPO")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Your entire life — training, nutrition, recovery, accountability — in one app.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
+        OnboardingScaffold(
+            title: "THIS IS TEMPO",
+            subtitle: "Your entire life — training, nutrition, recovery, accountability — in one app.",
+            primaryTitle: "SET UP MY TEMPO",
+            primaryAction: onContinue,
+            skipTitle: "Skip tour",
+            skipAction: onContinue
+        ) {
+            GlassEffectContainer(spacing: Tide.s3) {
+                VStack(spacing: Tide.s3) {
+                    sampleCard(
+                        icon: "heart.fill",
+                        title: "RECOVERY",
+                        subtitle: "Whoop-powered daily insights",
+                        value: "72%",
+                        valueColor: Tide.protein,
+                        detail: "HRV 58ms \u{00B7} RHR 62 \u{00B7} Sleep 7.2h"
+                    )
+
+                    sampleCard(
+                        icon: "dumbbell.fill",
+                        title: "TRAINING",
+                        subtitle: "AI-adjusted to your recovery",
+                        value: "Push Day",
+                        valueColor: Tide.fat,
+                        detail: "5 exercises \u{00B7} Est. 52 min"
+                    )
+
+                    sampleCard(
+                        icon: "leaf.fill",
+                        title: "NUTRITION",
+                        subtitle: "AI meal plans & macro tracking",
+                        value: "2,450 kcal",
+                        valueColor: Color.tempoSuccess,
+                        detail: "P: 185g \u{00B7} C: 280g \u{00B7} F: 72g"
+                    )
+
+                    sampleCard(
+                        icon: "lock.fill",
+                        title: "ACCOUNTABILITY",
+                        subtitle: "Non-negotiables & daily targets",
+                        value: "3/5 done",
+                        valueColor: Tide.carbs,
+                        detail: "Train \u{00B7} Study 2h \u{00B7} Log meals"
+                    )
                 }
-                .padding(.top, TempoSpacing.xl)
-
-                // Sample dashboard preview cards
-
-                // Recovery card
-                sampleCard(
-                    icon: "heart.fill",
-                    title: "RECOVERY",
-                    subtitle: "Whoop-powered daily insights",
-                    value: "72%",
-                    valueColor: Color.tempoAmber,
-                    detail: "HRV 58ms \u{00B7} RHR 62 \u{00B7} Sleep 7.2h"
-                )
-
-                // Training card
-                sampleCard(
-                    icon: "dumbbell.fill",
-                    title: "TRAINING",
-                    subtitle: "AI-adjusted to your recovery",
-                    value: "Push Day",
-                    valueColor: Color.tempoSignal,
-                    detail: "5 exercises \u{00B7} Est. 52 min"
-                )
-
-                // Nutrition card
-                sampleCard(
-                    icon: "leaf.fill",
-                    title: "NUTRITION",
-                    subtitle: "AI meal plans & macro tracking",
-                    value: "2,450 kcal",
-                    valueColor: Color.tempoSuccess,
-                    detail: "P: 185g \u{00B7} C: 280g \u{00B7} F: 72g"
-                )
-
-                // Accountability card
-                sampleCard(
-                    icon: "lock.fill",
-                    title: "ACCOUNTABILITY",
-                    subtitle: "Non-negotiables & daily targets",
-                    value: "3/5 done",
-                    valueColor: Color.tempoAmber,
-                    detail: "Train \u{00B7} Study 2h \u{00B7} Log meals"
-                )
-
-                // Consolidation pitch
-                VStack(spacing: TempoSpacing.xs) {
-                    Text("One app. Not five.")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Replaces your workout tracker, meal planner, sleep app, habit tracker, and study timer.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, TempoSpacing.md)
-
-                // CTA
-                Button(action: onContinue) {
-                    Text("SET UP MY TEMPO")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoBgPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.tempoSignal)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
-                }
-                .padding(.top, TempoSpacing.md)
-
-                // Skip option
-                Button("Skip tour") {
-                    onContinue()
-                }
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.bottom, TempoSpacing.bottomSafe)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+
+            // Consolidation pitch
+            VStack(spacing: Tide.s1) {
+                Text("One app. Not five.")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Text("Replaces your workout tracker, meal planner, sleep app, habit tracker, and study timer.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .tidePage()
     }
 
     // MARK: - Sample Card
@@ -121,41 +91,44 @@ struct ValueDemoView: View {
         valueColor: Color,
         detail: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(valueColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .tracking(1.2)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: icon, tint: valueColor, size: Tide.tile)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(title).tideLabel()
                     Text(subtitle)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 Text("SAMPLE")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.tempoTextTertiary.opacity(0.15))
-                    .clipShape(Capsule())
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
+                    .padding(.horizontal, Tide.s2)
+                    .padding(.vertical, Tide.hair)
+                    .background(Tide.fill, in: .capsule)
             }
 
             HStack(alignment: .firstTextBaseline) {
                 Text(value)
-                    .font(.tempoTitle2)
+                    .font(Tide.numeral(Tide.numeralS + Tide.s2))
                     .foregroundStyle(valueColor)
-                Spacer()
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+                Spacer(minLength: Tide.s2)
                 Text(detail)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
             }
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
+}
+
+#Preview {
+    ValueDemoView(onContinue: {})
+        .tidePage(energy: 1)
 }
