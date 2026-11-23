@@ -17,7 +17,7 @@ extension Notification.Name {
     static let tempoMealLogToast = Notification.Name("tempoMealLogToast")
 }
 
-// MARK: - Request
+// MARK: - MealReviewRequest
 
 /// What the Confirm Meal sheet is asked to review.
 struct MealReviewRequest: Identifiable, Equatable {
@@ -83,7 +83,7 @@ struct MealReviewRequest: Identifiable, Equatable {
     }
 }
 
-// MARK: - Commit
+// MARK: - MealReviewCommitter
 
 /// Saves a confirmed review. Pure of UI so it is unit-testable.
 @MainActor
@@ -163,7 +163,7 @@ enum MealReviewCommitter {
     }
 }
 
-// MARK: - Host
+// MARK: - MealReviewHost
 
 struct MealReviewHost: ViewModifier {
     @Binding
@@ -189,6 +189,7 @@ struct MealReviewHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .tideCovered(request != nil || duplicate != nil)
             .sheet(item: $request) { current in
                 ParsedFoodReviewSheet(
                     items: current.items,
@@ -202,7 +203,11 @@ struct MealReviewHost: ViewModifier {
             }
             .alert(
                 "Already logged",
-                isPresented: Binding(get: { duplicate != nil }, set: { if !$0 { duplicate = nil } }),
+                isPresented: Binding(get: { duplicate != nil }, set: {
+                    if !$0 {
+                        duplicate = nil
+                    }
+                }),
                 presenting: duplicate
             ) { pending in
                 Button("Add another") {
@@ -213,7 +218,9 @@ struct MealReviewHost: ViewModifier {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { pending in
-                Text("You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?")
+                Text(
+                    "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?"
+                )
             }
     }
 

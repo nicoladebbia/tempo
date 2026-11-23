@@ -11,6 +11,8 @@ import Combine
 import SwiftData
 import SwiftUI
 
+// MARK: - RequestedMealView
+
 struct RequestedMealView: View {
     let request: MealRequest
 
@@ -18,6 +20,8 @@ struct RequestedMealView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
@@ -25,19 +29,12 @@ struct RequestedMealView: View {
                 if let meal = Self.meal(id: request.id, in: modelContext) {
                     MealDetailView(meal: meal, opensMarkEaten: request.action == .markEaten)
                 } else {
-                    VStack(spacing: TempoSpacing.md) {
-                        Image(systemName: "fork.knife")
-                            .font(.tempoTitle2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("That meal isn't on your plan any more.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .multilineTextAlignment(.center)
-                        Text("The plan was rebuilt since this reminder was set.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .padding(TempoSpacing.screenEdge)
+                    FuelEmptyState(
+                        icon: "fork.knife",
+                        title: "That meal isn't on your plan any more.",
+                        message: "The plan was rebuilt since this reminder was set."
+                    )
+                    .padding(.horizontal, Tide.edge)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .tidePage()
                     .accessibilityIdentifier("requestedMealMissing")
@@ -46,7 +43,7 @@ struct RequestedMealView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(mood.accent)
                 }
             }
         }
@@ -59,7 +56,7 @@ struct RequestedMealView: View {
     }
 }
 
-// MARK: - ContentView hooks
+// MARK: - MealNotificationHooks
 
 private struct MealNotificationHooks: ViewModifier {
     @Binding

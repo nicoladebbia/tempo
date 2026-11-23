@@ -28,6 +28,8 @@ struct WeeklyCheckInView: View {
     private var blocker: AIBlocker?
     @State
     private var sent = false
+    @Environment(\.tideMood)
+    private var mood
 
     private let weekStart = WeeklyPlanService.weekStart()
 
@@ -40,52 +42,46 @@ struct WeeklyCheckInView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     if sent {
                         sentState
                     } else {
                         form
                     }
                 }
-                .padding(TempoSpacing.screenEdge)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
+                .padding(.bottom, Tide.s8)
             }
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(sent ? "Done" : "Cancel") { dismiss() }
-                        .foregroundStyle(Color.tempoTextSecondary)
                 }
             }
         }
     }
 
     private var form: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s5) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Anything different next week?")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(
                     "Week of \(weekStart.formatted(.dateTime.month(.wide).day())). Your usual routine is already in. 30 seconds — exams, travel, a dinner out, a new gym time."
                 )
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                ForEach(Self.quickPicks, id: \.self) { pick in
-                    Button {
-                        said = said.isEmpty ? pick : "\(said). \(pick)"
-                    } label: {
-                        Label(pick, systemImage: "plus.circle")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            quickPickList
             VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 120)
                 .accessibilityIdentifier("weeklyCheckInSaid")
             if let blocker {
@@ -95,8 +91,9 @@ struct WeeklyCheckInView: View {
                 }
             } else if let errorMessage {
                 Text(errorMessage)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Button {
                 send()
@@ -104,33 +101,73 @@ struct WeeklyCheckInView: View {
                 Group {
                     if isSending {
                         ProgressView()
+                            .tint(Tide.ink)
                     } else {
                         Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
+                            .multilineTextAlignment(.center)
                     }
                 }
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(isSending)
             .accessibilityIdentifier("weeklyCheckInBuild")
         }
     }
 
+    /// Tap a line to add it to what you say. The lines are long, so each one
+    /// is a full-width row that wraps instead of a chip that cuts.
+    private var quickPickList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(Self.quickPicks.enumerated()), id: \.element) { index, pick in
+                Button {
+                    HapticManager.lightImpact()
+                    said = said.isEmpty ? pick : "\(said). \(pick)"
+                } label: {
+                    HStack(spacing: Tide.s3) {
+                        Image(systemName: "plus.circle")
+                            .font(Tide.headline)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.icon, alignment: .leading)
+                            .accessibilityHidden(true)
+                        Text(pick)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: Tide.hit + Tide.s3)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+
+                if index < Self.quickPicks.count - 1 {
+                    Divider()
+                        .overlay(Tide.hairline)
+                }
+            }
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
     private var sentState: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.title)
+                .foregroundStyle(Tide.good)
+                .accessibilityHidden(true)
             Text("On it.")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
             Text(
                 "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
             )
-            .font(.tempoBody)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityIdentifier("weeklyCheckInSent")
+        .tideCard()
     }
 
     private func send() {
