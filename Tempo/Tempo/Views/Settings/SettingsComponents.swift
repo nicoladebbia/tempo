@@ -136,13 +136,17 @@ private extension View {
 /// optional live summary subtitle + chevron.
 struct SettingsNavRow: View {
     let icon: String
-    var iconTint: Color = .accentColor
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     let title: String
     var subtitle: String?
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         HStack(spacing: Tide.s3) {
-            SettingsIconTile(systemName: icon, tint: iconTint)
+            SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 SettingsRowTitle(text: title)
@@ -173,16 +177,20 @@ struct SettingsNavRow: View {
 /// (for integrations: Connected / Not Set Up / Error).
 struct SettingsStatusRow: View {
     let icon: String
-    var iconTint: Color = .accentColor
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     let title: String
     let status: String
     let statusColor: Color
     var showsChevron = true
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         TideSettingsRowLine {
             HStack(spacing: Tide.s3) {
-                SettingsIconTile(systemName: icon, tint: iconTint)
+                SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
                 SettingsRowTitle(text: title)
             }
         } trailing: {
@@ -361,14 +369,18 @@ struct SettingsInfoRow: View {
 struct SettingsControlRow<Control: View>: View {
     let label: String
     var icon: String?
-    var iconTint: Color = .accentColor
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     @ViewBuilder var control: Control
+
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         TideSettingsRowLine {
             HStack(spacing: Tide.s3) {
                 if let icon {
-                    SettingsIconTile(systemName: icon, tint: iconTint)
+                    SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
                 }
                 SettingsRowTitle(text: label)
             }

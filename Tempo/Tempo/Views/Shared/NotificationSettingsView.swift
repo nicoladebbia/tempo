@@ -25,6 +25,8 @@ struct NotificationSettingsView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query
     private var allSettings: [UserSettings]
 
@@ -96,7 +98,7 @@ struct NotificationSettingsView: View {
             } else {
                 ProgressView()
                     .tint(Tide.text2)
-                    .frame(maxWidth: .infinity, minHeight: Tide.dialHero)
+                    .frame(maxWidth: .infinity, minHeight: Tide.settingsRow * 3)
             }
         }
         .navigationTitle("Notifications")
@@ -126,7 +128,7 @@ struct NotificationSettingsView: View {
         VStack(spacing: Tide.settingsGroupGap) {
             permissionHeader(
                 icon: "bell.badge.fill",
-                iconTint: Color.accentColor,
+                iconTint: mood.accent,
                 title: "Enable Notifications",
                 message: "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind."
             )
@@ -244,7 +246,7 @@ struct NotificationSettingsView: View {
 
     private func notificationFeatureRow(icon: String, text: String) -> some View {
         HStack(spacing: Tide.s3) {
-            SettingsIconTile(systemName: icon, tint: Color.accentColor)
+            SettingsIconTile(systemName: icon, tint: mood.accent)
             Text(text)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
@@ -293,33 +295,55 @@ struct NotificationSettingsView: View {
 
     private func intensityRow(_ option: IntensityOption) -> some View {
         let isSelected = intensity == option.rawValue
-        return HStack(spacing: Tide.s3) {
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                HStack(spacing: Tide.s2) {
-                    Text(option.title)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if option == .drillSergeant {
-                        Text("REC")
-                            .font(Tide.label)
-                            .foregroundStyle(Tide.ink)
-                            .padding(.horizontal, Tide.s2)
-                            .padding(.vertical, Tide.hair)
-                            .background(Color.accentColor, in: .capsule)
+        let isLarge = typeSize.isAccessibilitySize
+        let indicator = Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(Tide.headline)
+            .foregroundStyle(isSelected ? mood.accent : Tide.text3)
+            .accessibilityHidden(true)
+        let title = Text(option.title)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+        let recommended = Text("REC")
+            .font(Tide.label)
+            .foregroundStyle(Tide.ink)
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.hair)
+            .background(mood.accent, in: .capsule)
+        let detail = Text(option.description)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+        return Group {
+            if isLarge {
+                // At accessibility sizes the circle moves up beside the name, so the
+                // description gets the whole card width.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                        indicator
+                        title
                     }
+                    if option == .drillSergeant {
+                        recommended
+                    }
+                    detail
                 }
-                Text(option.description)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                HStack(spacing: Tide.s3) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        HStack(spacing: Tide.s2) {
+                            title
+                            if option == .drillSergeant {
+                                recommended
+                            }
+                        }
+                        detail
+                    }
+                    Spacer(minLength: Tide.s2)
+                    indicator
+                }
             }
-            Spacer(minLength: Tide.s2)
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(Tide.headline)
-                .foregroundStyle(isSelected ? Color.accentColor : Tide.text3)
-                .accessibilityHidden(true)
         }
         .padding(.horizontal, Tide.s4)
         .padding(.vertical, Tide.s3)

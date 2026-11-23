@@ -13,6 +13,9 @@ import SwiftUI
 // Displays Tempo's data practices: what stays on-device, what's sent to AI, and what's never shared.
 
 struct PrivacyInfoView: View {
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         TideSettingsPage {
             // Header
@@ -25,7 +28,7 @@ struct PrivacyInfoView: View {
                 } icon: {
                     Image(systemName: "lock.shield.fill")
                         .font(Tide.title2)
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(mood.accent)
                 }
                 .accessibilityAddTraits(.isHeader)
                 Text("Tempo is built privacy-first. Here's exactly what stays on your device and what doesn't.")
@@ -40,7 +43,7 @@ struct PrivacyInfoView: View {
             dataSection(
                 title: "Stays on your device",
                 icon: "iphone",
-                color: Color.accentColor,
+                color: mood.accent,
                 items: [
                     DataItem(name: "Heart rate, HRV, resting HR", detail: "HealthKit — never leaves your device"),
                     DataItem(name: "Sleep stages & duration", detail: "HealthKit — processed locally"),

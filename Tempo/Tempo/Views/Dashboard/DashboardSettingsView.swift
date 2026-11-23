@@ -330,15 +330,15 @@ struct DashboardSettingsView: View {
                 label: "Plan",
                 value: subscriptionStatusText,
                 icon: "crown.fill",
-                iconTint: services.subscriptions.isPro ? Color.accentColor : Tide.text2,
-                valueColor: services.subscriptions.isPro ? Color.accentColor : Tide.text2
+                iconTint: services.subscriptions.isPro ? mood.accent : Tide.text2,
+                valueColor: services.subscriptions.isPro ? mood.accent : Tide.text2
             )
 
             if !services.subscriptions.isPro {
                 Button {
                     showPaywall = true
                 } label: {
-                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: Color.accentColor)
+                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: mood.accent)
                 }
                 .buttonStyle(.tideSettingsRow)
             }
@@ -1058,6 +1058,9 @@ struct ScheduleSettingsDetailView: View {
 // MARK: - FocusTimerSettingsDetailView
 
 struct FocusTimerSettingsDetailView: View {
+    @Environment(\.tideMood)
+    private var mood
+
     @Environment(\.modelContext)
     private var modelContext
     @Query
@@ -1156,7 +1159,7 @@ struct FocusTimerSettingsDetailView: View {
             HStack(spacing: Tide.s1) {
                 ForEach(0 ..< 4) { i in
                     Capsule()
-                        .fill(Color.accentColor)
+                        .fill(mood.accent)
                         .frame(height: Tide.s2)
                     if i < 3 {
                         Capsule()
@@ -1266,6 +1269,9 @@ struct ModesSettingsDetailView: View {
 /// Surfaces the real subscription state (plan, renewal/expiry, trial
 /// countdown) that the root only showed as a single word.
 struct SubscriptionDetailView: View {
+    @Environment(\.tideMood)
+    private var mood
+
     @Environment(ServiceContainer.self)
     private var services
     @State
@@ -1295,8 +1301,8 @@ struct SubscriptionDetailView: View {
                     label: "Status",
                     value: planTitle,
                     icon: "checkmark.seal.fill",
-                    iconTint: state.isPro ? Color.accentColor : Tide.text3,
-                    valueColor: state.isPro ? Color.accentColor : Tide.text3
+                    iconTint: state.isPro ? mood.accent : Tide.text3,
+                    valueColor: state.isPro ? mood.accent : Tide.text3
                 )
                 if let renewal = renewalLine {
                     SettingsRowDivider()

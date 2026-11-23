@@ -15,6 +15,9 @@ import SwiftUI
 // Generates a JSON file with user data and presents UIActivityViewController.
 
 struct DataExportView: View {
+    @Environment(\.tideMood)
+    private var mood
+
     @Environment(\.modelContext)
     private var modelContext
     @Query
@@ -74,7 +77,7 @@ struct DataExportView: View {
                 )
             } else if let url = exportFileURL, !isExporting {
                 exportStatusCard(
-                    icon: "checkmark.circle.fill", tint: Color.accentColor,
+                    icon: "checkmark.circle.fill", tint: mood.accent,
                     title: "Export ready", detail: url.lastPathComponent
                 )
             }
