@@ -71,6 +71,20 @@ struct MindQuadrantDetailView: View {
         }
         .navigationTitle("Mind")
         .navigationBarTitleDisplayMode(.inline)
+        // The page field rests while the timer or the exam sheet is over it.
+        // This must sit on the page itself: it sets an environment value that
+        // only reaches the views below it.
+        .tideCovered(showFocusTimer || showAddExam)
+        .sheet(isPresented: $showFocusTimer) {
+            NavigationStack {
+                FocusTimerView(viewModel: AccountabilityViewModel(engine: services.accountabilityEngine))
+            }
+        }
+        .sheet(isPresented: $showAddExam) {
+            NavigationStack {
+                AddExamSheet(calendar: services.calendar)
+            }
+        }
     }
 
     // MARK: - Progress Hero
@@ -194,12 +208,6 @@ struct MindQuadrantDetailView: View {
             Label("Start Study Session", systemImage: "play.fill")
         }
         .buttonStyle(.tidePrimary)
-        .tideCovered(showFocusTimer)
-        .sheet(isPresented: $showFocusTimer) {
-            NavigationStack {
-                FocusTimerView(viewModel: AccountabilityViewModel(engine: services.accountabilityEngine))
-            }
-        }
     }
 
     // MARK: - Upcoming Exams
@@ -231,12 +239,6 @@ struct MindQuadrantDetailView: View {
                 .buttonStyle(.tideGlass)
             }
             .tideCard()
-            .tideCovered(showAddExam)
-            .sheet(isPresented: $showAddExam) {
-                NavigationStack {
-                    AddExamSheet(calendar: services.calendar)
-                }
-            }
         }
     }
 

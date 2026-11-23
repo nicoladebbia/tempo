@@ -182,7 +182,7 @@ struct AchievementsView: View {
         return TideScrollPage(spacing: Tide.s5) {
             VStack(spacing: Tide.s4) {
                 Image(systemName: achievement.isEarned ? achievement.rarity.tideSymbol : "lock.fill")
-                    .font(.largeTitle)
+                    .font(Tide.numeral(Tide.numeralM))
                     .foregroundStyle(achievement.isEarned ? tint : Tide.text2)
                     .frame(width: Tide.dialSheet, height: Tide.dialSheet)
                     .glassEffect(.regular.tint(tint.opacity(0.25)), in: .circle)

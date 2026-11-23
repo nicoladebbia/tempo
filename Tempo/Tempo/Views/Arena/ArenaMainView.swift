@@ -143,11 +143,9 @@ struct ArenaMainView: View {
                     .font(Tide.title)
                     .foregroundStyle(Tide.text)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            if !stacked {
-                Spacer(minLength: Tide.s2)
-            }
             HStack(spacing: Tide.s2) {
                 if vm.freezesAvailable > 0 {
                     chip(symbol: "snowflake", value: vm.freezesAvailable, tint: TideTone.sky)
@@ -166,6 +164,8 @@ struct ArenaMainView: View {
                 .tideZoomSource(id: ArenaDestination.friends, in: zoom)
                 .accessibilityLabel("Friends")
             }
+            // The chips take their full width first; the title gets the rest.
+            .layoutPriority(1)
         }
     }
 
@@ -233,8 +233,10 @@ struct ArenaMainView: View {
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
         return VStack(alignment: .leading, spacing: Tide.s4) {
             TideSectionLabel(title: "Last week")
+            // XP gets a full row: a week's total can run to five digits, which
+            // would not fit one quarter of the card.
+            recapStat("XP", "+\(vm.weeklyXPEarned.formatted())", mood.accent)
             layout {
-                recapStat("XP", "+\(vm.weeklyXPEarned.formatted())", mood.accent)
                 recapStat("Unlocked", "\(vm.weeklyAchievementsUnlocked)", TideTone.violet)
                 recapStat(
                     "Rank",
