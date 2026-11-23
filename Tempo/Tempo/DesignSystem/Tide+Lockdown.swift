@@ -357,3 +357,76 @@ struct TideHeatmap: View {
         return "\(full) full days"
     }
 }
+
+// MARK: - LockdownSessionDots
+
+/// The focus-timer's sessions as a row of dots: lit for each finished session,
+/// ringed for the one in progress, empty for the rest.
+struct LockdownSessionDots: View {
+    /// Sessions already finished in this run.
+    let completed: Int
+    /// Sessions before the long break.
+    let total: Int
+    /// Whether a session is running right now (the next dot is ringed).
+    let running: Bool
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: Tide.s2) {
+            ForEach(0 ..< max(total, 1), id: \.self) { index in
+                dot(index)
+            }
+        }
+        .animation(reduceMotion ? nil : Tide.snap, value: completed)
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private func dot(_ index: Int) -> some View {
+        if index < completed {
+            Circle().fill(mood.accent).frame(width: Tide.s2, height: Tide.s2)
+        } else if index == completed, running {
+            Circle()
+                .strokeBorder(mood.accent, lineWidth: Tide.hair)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .overlay(Circle().fill(mood.accent.opacity(0.35)))
+        } else {
+            Circle().fill(Tide.track).frame(width: Tide.s2, height: Tide.s2)
+        }
+    }
+}
+
+// MARK: - LockdownShareMetric
+
+/// Sizes of the streak picture people post. It is drawn offscreen at a fixed
+/// 1080 x 1350 export, so these are export pixels, not layout tokens: they do
+/// not scale with Dynamic Type or the screen.
+enum LockdownShareMetric {
+    static let width: CGFloat = 1080
+    static let height: CGFloat = 1350
+    static let outer: CGFloat = 64
+    static let stack: CGFloat = 56
+    static let inner: CGFloat = 24
+    static let tight: CGFloat = 8
+    static let flame: CGFloat = 120
+    static let count: CGFloat = 280
+    static let caption: CGFloat = 44
+    static let captionTracking: CGFloat = 10
+    static let panelPad: CGFloat = 40
+    static let panelRadius: CGFloat = 40
+    static let rule: CGFloat = 2
+    static let footer: CGFloat = 26
+    static let footerTracking: CGFloat = 6
+    static let glowRadius: CGFloat = 760
+    static let statLabel: CGFloat = 24
+    static let statTracking: CGFloat = 5
+    static let statValue: CGFloat = 88
+    static let statPad: CGFloat = 16
+    static let cellGap: CGFloat = 10
+    static let cellHeight: CGFloat = 56
+    static let cellRadius: CGFloat = 8
+}

@@ -81,11 +81,10 @@ struct LockdownMainView: View {
                 } else {
                     nonNegotiableCards
                 }
-
-                // Clearance for the pinned leisure card (and the timer button above it).
-                Color.clear
-                    .frame(height: showsQuickAction ? Tide.s10 * 4 : Tide.s10 * 3)
-                    .accessibilityHidden(true)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // Pinned bottom: quick action + leisure status
+                leisureStatusBar
             }
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)
@@ -97,9 +96,6 @@ struct LockdownMainView: View {
                     )
                 }
             }
-
-            // Pinned bottom: quick action + leisure status
-            leisureStatusBar
 
             // Unlock celebration overlay
             if showUnlockCelebration {
@@ -161,42 +157,35 @@ struct LockdownMainView: View {
     // Per MODULE_ACCOUNTABILITY.md — the day's progress as a shader-lit dial.
 
     private var statusBanner: some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
-            : AnyLayout(HStackLayout(spacing: Tide.s5))
         let percent = Int((min(max(viewModel.completionPercentage, 0), 1) * 100).rounded())
 
-        return layout {
-            TideDial(score: percent, caption: "Done", diameter: Tide.dialSheet)
+        return RecoveryHero {
+            TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
+        } side: {
+            HStack(spacing: Tide.s2) {
+                Image(systemName: viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill")
+                    .font(Tide.title2)
+                    .foregroundStyle(lockColor)
+                    .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                HStack(spacing: Tide.s2) {
-                    Image(systemName: viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill")
-                        .font(Tide.title2)
-                        .foregroundStyle(lockColor)
-                        .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
-                        .accessibilityHidden(true)
-
-                    Text(viewModel.isLeisureUnlocked ? "Unlocked" : "Locked")
-                        .font(Tide.title2)
-                        .foregroundStyle(lockColor)
-                }
-
-                Text(statusTimeContext)
-                    .font(Tide.body)
-                    .foregroundStyle(statusTimeColor)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                TideNumber(
-                    "\(viewModel.completedCount)",
-                    unit: "of \(viewModel.totalCount) done",
-                    size: Tide.numeralM,
-                    relativeTo: .title
-                )
+                Text(viewModel.isLeisureUnlocked ? "Unlocked" : "Locked")
+                    .font(Tide.title2)
+                    .foregroundStyle(lockColor)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(statusTimeContext)
+                .font(Tide.body)
+                .foregroundStyle(statusTimeColor)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TideNumber(
+                "\(viewModel.completedCount)",
+                unit: "of \(viewModel.totalCount) done",
+                size: Tide.numeralM,
+                relativeTo: .title
+            )
         }
-        .tideCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(viewModel.isLeisureUnlocked ? "Unlocked" : "Locked"). \(viewModel.completedCount) of \(viewModel.totalCount) done. \(statusTimeContext)"
@@ -297,18 +286,19 @@ struct LockdownMainView: View {
         VStack(spacing: 0) {
             if let prediction = completionPrediction, !viewModel.isLeisureUnlocked {
                 let tint = prediction.onTrack ? TideTone.mint : Tide.danger
-                HStack(alignment: .top, spacing: Tide.s3) {
+                // A pace read-out under the dial, not a card of its own.
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: prediction.onTrack ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                        .font(Tide.headline)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(tint)
                         .accessibilityHidden(true)
 
                     Text(prediction.message)
                         .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
+                        .foregroundStyle(tint)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .tideTintedCard(tint, padding: Tide.s4, radius: Tide.tileRadius)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
             }
         }
@@ -379,7 +369,10 @@ struct LockdownMainView: View {
     // MARK: - Non-Negotiable Cards
 
     private var nonNegotiableCards: some View {
-        ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
+        Group {
+            TideSectionLabel(title: "Non-negotiables")
+                .padding(.top, Tide.s2)
+            ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
             NonNegotiableCardView(
                 progress: progress,
                 isExpanded: expandedCardID == progress.persistentModelID,
@@ -412,8 +405,10 @@ struct LockdownMainView: View {
                 },
                 onViewHistory: {
                     showHistoryAlert = true
-                }
+                },
+                secondaryActions: showsQuickAction
             )
+            }
         }
     }
 
@@ -538,6 +533,7 @@ struct LockdownMainView: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.cardRadius)
+        .background(Tide.ink.opacity(0.6), in: .rect(cornerRadius: Tide.cardRadius))
         .padding(.horizontal, Tide.edge)
         .padding(.bottom, Tide.s2)
     }
@@ -609,8 +605,10 @@ struct LockdownMainView: View {
 
     private var unlockCelebrationOverlay: some View {
         ZStack {
-            // Dark background
-            Tide.ink.opacity(0.85)
+            // The page stays faintly visible behind the celebration.
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Tide.ink.opacity(0.55))
                 .ignoresSafeArea()
 
             // Confetti particle system
@@ -619,23 +617,25 @@ struct LockdownMainView: View {
                 .allowsHitTesting(false)
 
             // Content
-            VStack(spacing: Tide.s6) {
+            VStack(spacing: Tide.s4) {
                 Spacer()
 
-                // Controller icon
-                Image(systemName: "gamecontroller.fill")
-                    .font(Tide.numeral(Tide.numeralL + Tide.s2))
-                    .foregroundStyle(TideTone.mint)
-                    .shadow(color: TideTone.mint.opacity(0.6), radius: Tide.s6)
-                    .scaleEffect(showUnlockCelebration ? 1.0 : 0.3)
-                    .animation(Tide.lively, value: showUnlockCelebration)
-                    .accessibilityHidden(true)
-
-                // Lock icon
-                Image(systemName: "lock.open.fill")
-                    .font(Tide.title)
-                    .foregroundStyle(TideTone.mint.opacity(0.7))
-                    .accessibilityHidden(true)
+                // The day's score is the hero: lit like the Today dial.
+                if let accountability = viewModel.accountability {
+                    let score = services.accountabilityEngine.calculateDailyScore(accountability: accountability)
+                    TideDial(score: score, caption: "Today's score", diameter: Tide.dialHero)
+                        .scaleEffect(showUnlockCelebration ? 1.0 : 0.6)
+                        .animation(Tide.lively, value: showUnlockCelebration)
+                        .accessibilityElement(children: .combine)
+                } else {
+                    Image(systemName: "lock.open.fill")
+                        .font(Tide.numeral(Tide.numeralL + Tide.s2))
+                        .foregroundStyle(TideTone.mint)
+                        .shadow(color: TideTone.mint.opacity(0.6), radius: Tide.s6)
+                        .scaleEffect(showUnlockCelebration ? 1.0 : 0.3)
+                        .animation(Tide.lively, value: showUnlockCelebration)
+                        .accessibilityHidden(true)
+                }
 
                 Text("PS5 unlocked")
                     .font(Tide.title)
@@ -645,18 +645,6 @@ struct LockdownMainView: View {
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
-
-                // Score display
-                if let accountability = viewModel.accountability {
-                    let score = services.accountabilityEngine.calculateDailyScore(accountability: accountability)
-                    VStack(spacing: Tide.s1) {
-                        Text("Today's score").tideLabel(Tide.text3)
-
-                        TideNumber("\(score)", size: Tide.numeralL, relativeTo: .largeTitle)
-                    }
-                    .padding(.top, Tide.s3)
-                    .accessibilityElement(children: .combine)
-                }
 
                 // Streak badge
                 if viewModel.streakCount > 0 {
@@ -692,6 +680,8 @@ struct ConfettiCanvasView: View {
     private var particles: [ConfettiParticle] = []
     @State
     private var animationTimer: Timer?
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     struct ConfettiParticle: Identifiable {
         let id = UUID()
@@ -764,6 +754,10 @@ struct ConfettiCanvasView: View {
     }
 
     private func spawnParticles() {
+        // Falling confetti is decoration: leave it out when motion is reduced.
+        guard !reduceMotion else {
+            return
+        }
         let screenWidth = UIScreen.main.bounds.width
         let colors: [Color] = [TideTone.mint, TideTone.sky, TideTone.amber, Tide.danger, TideTone.violet, Tide.text]
 
@@ -823,6 +817,9 @@ struct NonNegotiableCardView: View {
     var onLogMeal: () -> Void = {}
     var onEditNonNegotiable: () -> Void = {}
     var onViewHistory: () -> Void = {}
+    /// True when the page already carries one primary action (the pinned timer
+    /// button): the row actions step back to glass so only one button leads.
+    var secondaryActions = false
 
     @Environment(ServiceContainer.self)
     private var services
@@ -1163,8 +1160,9 @@ struct NonNegotiableCardView: View {
 
     enum PillStyle { case filled, outline }
 
-    private func pillButton(title: String, style: PillStyle, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func pillButton(title: String, style requested: PillStyle, action: @escaping () -> Void) -> some View {
+        let style: PillStyle = secondaryActions ? .outline : requested
+        return Button(action: action) {
             Text(title)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(style == .filled ? Tide.ink : Tide.text)
@@ -1188,7 +1186,10 @@ struct NonNegotiableCardView: View {
             TideDivider()
 
             // Quick actions
-            HStack(spacing: Tide.s5) {
+            let actions = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                : AnyLayout(HStackLayout(spacing: Tide.s5))
+            actions {
                 if !progress.isCompleted {
                     Button {
                         HapticManager.notification(.success)

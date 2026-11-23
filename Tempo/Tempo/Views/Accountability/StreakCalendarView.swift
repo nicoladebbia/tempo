@@ -36,9 +36,9 @@ struct StreakCalendarView: View {
         TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
             streakHero
             currentWeekDots
-            heatmapSection
-            freezeSection
             milestonesSection
+            freezeSection
+            heatmapSection
         }
         .navigationTitle("Streak")
         .navigationBarTitleDisplayMode(.large)
@@ -65,63 +65,71 @@ struct StreakCalendarView: View {
     }
 
     private var streakHero: some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .firstTextBaseline) {
+        let count = viewModel.streakCount
+        let dayWord = count == 1 ? "day" : "days"
+
+        return RecoveryHero {
+            // The ring fills toward the next milestone, lit like the focus dial.
+            TideTimerDial(
+                progress: nextMilestone.map { progress(toward: $0) } ?? 1,
+                accent: count > 0 ? Tide.streak : Tide.text3,
+                diameter: Tide.dialHero
+            ) {
+                VStack(spacing: 0) {
+                    Image(systemName: "flame.fill")
+                        .font(Tide.headline)
+                        .foregroundStyle(count > 0 ? Tide.streak : Tide.text3)
+                        .symbolEffect(.pulse, isActive: viewModel.isStreakAtRisk)
+                        .accessibilityHidden(true)
+                    TideNumber(
+                        "\(count)",
+                        size: Tide.numeralL,
+                        relativeTo: .title,
+                        color: count > 0 ? Tide.text : Tide.text2
+                    )
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Current streak, \(count) \(dayWord)")
+        } side: {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text("Current streak").tideLabel()
-                Spacer(minLength: Tide.s2)
                 if viewModel.isStreakAtRisk {
                     TideStatusPill(text: "At risk", tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
                 }
             }
 
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                Image(systemName: "flame.fill")
-                    .font(Tide.title)
-                    .foregroundStyle(viewModel.streakCount > 0 ? Tide.streak : Tide.text3)
-                    .accessibilityHidden(true)
-                TideNumber(
-                    "\(viewModel.streakCount)",
-                    unit: viewModel.streakCount == 1 ? "day" : "days",
-                    size: Tide.numeralHero,
-                    relativeTo: .largeTitle,
-                    color: viewModel.streakCount > 0 ? Tide.text : Tide.text2
-                )
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Current streak, \(viewModel.streakCount) \(viewModel.streakCount == 1 ? "day" : "days")")
+            Text("\(count) \(dayWord)")
+                .font(Tide.title2)
+                .foregroundStyle(count > 0 ? Tide.streak : Tide.text2)
+                .accessibilityHidden(true)
 
             if let next = nextMilestone {
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    TideLevelBar(progress: progress(toward: next), color: Tide.streak)
-                    HStack {
-                        Text(next.title).font(Tide.caption).foregroundStyle(Tide.text2)
-                        Spacer(minLength: Tide.s2)
-                        Text("\(next.rawValue - viewModel.streakCount) to go")
-                            .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
-                            .foregroundStyle(Tide.text)
-                    }
+                HStack(alignment: .firstTextBaseline) {
+                    Text(next.title).font(Tide.caption).foregroundStyle(Tide.text2)
+                    Spacer(minLength: Tide.s2)
+                    Text("\(next.rawValue - count) to go")
+                        .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                        .foregroundStyle(Tide.text)
                 }
                 .accessibilityElement(children: .combine)
             } else {
                 Text("Every milestone cleared.").font(Tide.caption).foregroundStyle(Tide.text2)
             }
 
-            TideDivider()
-
-            HStack(alignment: .firstTextBaseline) {
-                Text("Longest streak").font(Tide.body).foregroundStyle(Tide.text2)
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text("Longest streak").font(Tide.caption).foregroundStyle(Tide.text2)
                 Spacer(minLength: Tide.s2)
                 TideNumber(
                     "\(viewModel.longestStreak)",
                     unit: viewModel.longestStreak == 1 ? "day" : "days",
-                    size: Tide.numeralM,
-                    relativeTo: .title,
+                    size: Tide.numeralS,
+                    relativeTo: .headline,
                     color: TideTone.amber
                 )
             }
             .accessibilityElement(children: .combine)
         }
-        .tideCard()
     }
 
     /// How far the streak has come between the last milestone reached and the next one.
@@ -251,61 +259,82 @@ struct StreakCalendarView: View {
 
             VStack(spacing: 0) {
                 ForEach(StreakMilestone.allCases, id: \.rawValue) { milestone in
-                    milestoneRow(milestone)
-
-                    if milestone != StreakMilestone.allCases.last {
-                        TideDivider().padding(.leading, Tide.s4)
-                    }
+                    milestoneRow(milestone, isLast: milestone == StreakMilestone.allCases.last)
                 }
             }
-            .tideCard(padding: 0)
+            .tideCard(padding: Tide.s4)
         }
     }
 
-    private func milestoneRow(_ milestone: StreakMilestone) -> some View {
+    /// One stop on the path: a node on the rail, then what the stop is worth.
+    private func milestoneRow(_ milestone: StreakMilestone, isLast: Bool) -> some View {
         let achieved = viewModel.streakCount >= milestone.rawValue
         let isNext = milestone == nextMilestone
 
-        return HStack(spacing: Tide.s3) {
-            TideAreaIconTile(
-                systemName: achieved ? "trophy.fill" : "trophy",
-                tint: achieved ? TideTone.gold : Tide.text3
-            )
-
-            VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(milestone.title)
-                    .font(Tide.headline)
-                    .foregroundStyle(achieved ? Tide.text : Tide.text2)
-
-                if milestone.xpBonus > 0 {
-                    Text("+\(milestone.xpBonus) XP")
-                        .font(Tide.caption)
-                        .foregroundStyle(achieved ? mood.accent : Tide.text3)
-                }
-
-                if milestone.grantsBonusHour {
-                    Text("Grants bonus hour (PS5 time 1h earlier)")
-                        .font(Tide.caption)
-                        .foregroundStyle(achieved ? TideTone.mint : Tide.text3)
+        return HStack(alignment: .top, spacing: Tide.s3) {
+            VStack(spacing: 0) {
+                milestoneNode(achieved: achieved, isNext: isNext)
+                if !isLast {
+                    Rectangle()
+                        .fill(achieved ? TideTone.mint.opacity(0.6) : Tide.hairline)
+                        .frame(width: Tide.hair)
+                        .frame(maxHeight: .infinity)
                 }
             }
+            .frame(width: Tide.icon)
 
-            Spacer(minLength: Tide.s2)
+            HStack(alignment: .top, spacing: Tide.s2) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(milestone.title)
+                        .font(Tide.headline)
+                        .foregroundStyle(achieved || isNext ? Tide.text : Tide.text2)
 
-            if achieved {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(Tide.title2)
-                    .foregroundStyle(TideTone.mint)
-                    .accessibilityLabel("Reached")
-            } else if isNext {
-                TideStatusPill(text: "\(milestone.rawValue - viewModel.streakCount) to go", tint: mood.accent)
+                    if milestone.xpBonus > 0 {
+                        Text("+\(milestone.xpBonus) XP")
+                            .font(Tide.caption)
+                            .foregroundStyle(achieved ? mood.accent : Tide.text3)
+                    }
+
+                    if milestone.grantsBonusHour {
+                        Text("Grants bonus hour (PS5 time 1h earlier)")
+                            .font(Tide.caption)
+                            .foregroundStyle(achieved ? TideTone.mint : Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Spacer(minLength: Tide.s2)
+
+                if isNext {
+                    TideStatusPill(text: "\(milestone.rawValue - viewModel.streakCount) to go", tint: mood.accent)
+                }
             }
+            .padding(.bottom, isLast ? 0 : Tide.s4)
         }
-        .padding(.horizontal, Tide.s4)
-        .padding(.vertical, Tide.s3)
         .frame(minHeight: Tide.hit)
         .opacity(achieved || isNext ? 1 : 0.6)
         .accessibilityElement(children: .combine)
+        .accessibilityValue(achieved ? "Reached" : "")
+    }
+
+    @ViewBuilder
+    private func milestoneNode(achieved: Bool, isNext: Bool) -> some View {
+        if achieved {
+            Circle()
+                .fill(TideTone.mint)
+                .frame(width: Tide.icon, height: Tide.icon)
+                .overlay(Image(systemName: "checkmark").font(Tide.label).foregroundStyle(Tide.ink))
+        } else if isNext {
+            Circle()
+                .fill(mood.accent.opacity(0.16))
+                .overlay(Circle().strokeBorder(mood.accent, lineWidth: Tide.hair))
+                .overlay(Circle().fill(mood.accent).frame(width: Tide.s2, height: Tide.s2))
+                .frame(width: Tide.icon, height: Tide.icon)
+        } else {
+            Circle()
+                .strokeBorder(Tide.hairline, lineWidth: Tide.rule)
+                .frame(width: Tide.icon, height: Tide.icon)
+        }
     }
 
     // MARK: - Share Image
@@ -320,7 +349,7 @@ struct StreakCalendarView: View {
             month: monthDays(for: Date()),
             weeklyConsistency: weeklyConsistencyFraction()
         )
-        .frame(width: 1080, height: 1350)
+        .frame(width: LockdownShareMetric.width, height: LockdownShareMetric.height)
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1.0
         if let cg = renderer.cgImage {
@@ -390,41 +419,43 @@ private struct StreakShareCard: View {
     let month: [(day: Int, completion: Double)]
     let weeklyConsistency: Double
 
+    private typealias Px = LockdownShareMetric
+
     var body: some View {
-        VStack(spacing: 56) {
-            VStack(spacing: 8) {
+        VStack(spacing: Px.stack) {
+            VStack(spacing: Px.tight) {
                 Image(systemName: "flame.fill")
-                    .font(Tide.numeral(120, .bold))
+                    .font(Tide.numeral(Px.flame, .bold))
                     .foregroundStyle(Tide.streak)
                 Text("\(currentStreak)")
-                    .font(Tide.numeral(280, .heavy))
+                    .font(Tide.numeral(Px.count, .heavy))
                     .foregroundStyle(Tide.text)
                 Text("DAY STREAK")
-                    .font(Tide.numeral(44, .bold))
-                    .tracking(10)
+                    .font(Tide.numeral(Px.caption, .bold))
+                    .tracking(Px.captionTracking)
                     .foregroundStyle(Tide.text2)
             }
 
-            VStack(spacing: 24) {
-                HStack(spacing: 24) {
+            VStack(spacing: Px.inner) {
+                HStack(spacing: Px.inner) {
                     statTile(label: "LONGEST", value: "\(longestStreak)d")
                     statTile(label: "THIS WEEK", value: "\(Int(weeklyConsistency * 100))%")
                 }
                 monthHeatmap
             }
-            .padding(40)
-            .background(Tide.fill, in: .rect(cornerRadius: 40, style: .continuous))
+            .padding(Px.panelPad)
+            .background(Tide.fill, in: .rect(cornerRadius: Px.panelRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 40, style: .continuous)
-                    .strokeBorder(Tide.hairline, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Px.panelRadius, style: .continuous)
+                    .strokeBorder(Tide.hairline, lineWidth: Px.rule)
             )
 
             Text("TRACKED WITH TEMPO")
-                .font(Tide.numeral(26, .semibold))
-                .tracking(6)
+                .font(Tide.numeral(Px.footer, .semibold))
+                .tracking(Px.footerTracking)
                 .foregroundStyle(Tide.text3)
         }
-        .padding(64)
+        .padding(Px.outer)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
             ZStack {
@@ -433,33 +464,33 @@ private struct StreakShareCard: View {
                     colors: [Tide.streak.opacity(0.32), .clear],
                     center: .init(x: 0.5, y: 0.18),
                     startRadius: 0,
-                    endRadius: 760
+                    endRadius: Px.glowRadius
                 )
             }
         )
     }
 
     private func statTile(label: String, value: String) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Px.tight) {
             Text(label)
-                .font(Tide.numeral(24, .semibold))
-                .tracking(5)
+                .font(Tide.numeral(Px.statLabel, .semibold))
+                .tracking(Px.statTracking)
                 .foregroundStyle(Tide.text3)
             Text(value)
-                .font(Tide.numeral(88, .bold))
+                .font(Tide.numeral(Px.statValue, .bold))
                 .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, Px.statPad)
     }
 
     private var monthHeatmap: some View {
-        let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 7)
-        return LazyVGrid(columns: columns, spacing: 10) {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: Px.cellGap), count: 7)
+        return LazyVGrid(columns: columns, spacing: Px.cellGap) {
             ForEach(month, id: \.day) { item in
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Px.cellRadius)
                     .fill(cellColor(item.completion))
-                    .frame(height: 56)
+                    .frame(height: Px.cellHeight)
             }
         }
     }

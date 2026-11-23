@@ -28,6 +28,8 @@ struct FocusTimerView: View {
     private var scenePhase
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @ScaledMetric(relativeTo: .largeTitle)
     private var numeralScale: CGFloat = 1
 
@@ -147,18 +149,18 @@ struct FocusTimerView: View {
                     navigationBar
                         .padding(.horizontal, Tide.edge)
 
-                    // Smart recommendation banner
-                    if isIdleOrConfiguring {
-                        focusRecommendationBanner
-                            .padding(.horizontal, Tide.edge)
-                            .padding(.top, Tide.s2)
-                    }
-
                     Spacer(minLength: Tide.s4)
 
-                    // Session label
+                    // Session label and the run's sessions as dots
                     sessionLabel
                         .padding(.bottom, Tide.s2)
+
+                    LockdownSessionDots(
+                        completed: min(viewModel.currentSessionCount, viewModel.sessionsBeforeLongBreak),
+                        total: viewModel.sessionsBeforeLongBreak,
+                        running: viewModel.focusState.isActive
+                    )
+                    .padding(.bottom, Tide.s3)
 
                     // Subject pill
                     if let subject = viewModel.focusSubject {
@@ -176,7 +178,7 @@ struct FocusTimerView: View {
 
                     // Accumulated time
                     accumulatedTime
-                        .padding(.bottom, Tide.s1)
+                        .padding(.bottom, Tide.s3)
 
                     // Focus score (only during focusing)
                     if case .focusing = viewModel.focusState {
@@ -193,6 +195,13 @@ struct FocusTimerView: View {
                     }
 
                     Spacer(minLength: Tide.s4)
+
+                    // Smart recommendation: next to the Start button, in thumb reach
+                    if isIdleOrConfiguring {
+                        focusRecommendationBanner
+                            .padding(.horizontal, Tide.edge)
+                            .padding(.bottom, Tide.s3)
+                    }
 
                     // Secondary buttons (distraction + ambient)
                     if viewModel.focusState.isActive {
@@ -612,11 +621,20 @@ struct FocusTimerView: View {
         let currentText = hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
         let targetText = targetH > 0 ? "\(targetH)h \(targetM)m" : "\(targetM)m"
 
-        return Text("Today's total: \(currentText) / \(targetText)")
-            .font(Tide.bodyStrong)
-            .monospacedDigit()
-            .foregroundStyle(Tide.text2)
-            .multilineTextAlignment(.center)
+        let fraction = targetMinutes > 0 ? min(1, Double(totalMinutes) / Double(targetMinutes)) : 0
+
+        return VStack(spacing: Tide.s2) {
+            Text("Today's total: \(currentText) / \(targetText)")
+                .font(Tide.bodyStrong)
+                .monospacedDigit()
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+
+            TideLevelBar(progress: fraction, color: mood.accent, height: Tide.barSlim)
+                .frame(maxWidth: Tide.dialHero)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, Tide.edge)
     }
 
     private var studyTargetMinutes: Int {
@@ -649,8 +667,12 @@ struct FocusTimerView: View {
     // MARK: - Secondary Buttons
 
     private var secondaryButtons: some View {
-        GlassEffectContainer(spacing: Tide.s3) {
-            HStack(spacing: Tide.s3) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+
+        return GlassEffectContainer(spacing: Tide.s3) {
+            layout {
                 // Distraction button
                 Button {
                     HapticManager.impact(.light)
@@ -844,7 +866,9 @@ struct FocusTimerView: View {
 
     private func completionOverlay(totalSessions: Int) -> some View {
         ZStack {
-            Tide.ink.opacity(0.8)
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Tide.ink.opacity(0.55))
                 .ignoresSafeArea()
 
             VStack(spacing: Tide.s5) {
@@ -863,6 +887,8 @@ struct FocusTimerView: View {
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
+
+                LockdownSessionDots(completed: totalSessions, total: totalSessions, running: false)
 
                 Button("Done") {
                     viewModel.focusState = .review
@@ -898,42 +924,49 @@ struct FocusTimerView: View {
                         .foregroundStyle(scoreColor(score))
                 }
 
-                // Stats cards
-                VStack(spacing: Tide.s3) {
-                    reviewStatCard(
+                // The run in one card
+                VStack(spacing: 0) {
+                    reviewStatRow(
                         title: "Total Focus Time",
                         value: "\(viewModel.currentSessionCount * Int(viewModel.focusDuration / 60))m",
                         icon: "clock.fill"
                     )
 
-                    reviewStatCard(
+                    TideDivider()
+
+                    reviewStatRow(
                         title: "Sessions Completed",
                         value: "\(viewModel.currentSessionCount)",
                         icon: "checkmark.circle.fill"
                     )
 
-                    reviewStatCard(
+                    TideDivider()
+
+                    reviewStatRow(
                         title: "Distractions",
                         value: "\(viewModel.distractionCount)",
                         icon: "hand.raised.fill"
                     )
                 }
-
-                // Done button
-                Button("Done") {
-                    viewModel.finishFocusReview(modelContext: modelContext)
-                    dismiss()
-                }
-                .buttonStyle(.tidePrimary)
-                .padding(.top, Tide.s4)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
             .padding(.horizontal, Tide.edge)
-            .padding(.bottom, Tide.s8)
+            .padding(.bottom, Tide.s4)
         }
         .scrollIndicators(.hidden)
+        // The one action stays under the thumb however long the content grows.
+        .safeAreaInset(edge: .bottom) {
+            Button("Done") {
+                viewModel.finishFocusReview(modelContext: modelContext)
+                dismiss()
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s4)
+        }
     }
 
-    private func reviewStatCard(title: String, value: String, icon: String) -> some View {
+    private func reviewStatRow(title: String, value: String, icon: String) -> some View {
         HStack(spacing: Tide.s3) {
             TideAreaIconTile(systemName: icon, tint: mood.accent)
 
@@ -945,7 +978,7 @@ struct FocusTimerView: View {
 
             Spacer(minLength: Tide.s2)
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .padding(.vertical, Tide.s3)
         .accessibilityElement(children: .combine)
     }
 
