@@ -16,7 +16,7 @@ import Foundation
 
 // MARK: - TodaySnapshot
 
-struct TodaySnapshot: Codable, Equatable {
+struct TodaySnapshot: Codable, Equatable, Sendable {
     /// Start of the day these numbers belong to.
     var day: Date
     var firstName: String?
@@ -33,8 +33,8 @@ struct TodaySnapshot: Codable, Equatable {
     var moveConnected: Bool
     var nextMeal: Meal?
 
-    struct Workout: Codable, Equatable {
-        enum Status: String, Codable {
+    struct Workout: Codable, Equatable, Sendable {
+        enum Status: String, Codable, Sendable {
             case none
             case planned
             case completed
@@ -47,7 +47,7 @@ struct TodaySnapshot: Codable, Equatable {
         var durationMinutes: Int?
     }
 
-    struct Recovery: Codable, Equatable {
+    struct Recovery: Codable, Equatable, Sendable {
         /// 1...100, nil when no source has a score. Never 0.
         var score: Int?
         var sleepHours: Double?
@@ -58,7 +58,7 @@ struct TodaySnapshot: Codable, Equatable {
         var hasSource: Bool
     }
 
-    struct Fuel: Codable, Equatable {
+    struct Fuel: Codable, Equatable, Sendable {
         var calories: Int?
         var calorieTarget: Int?
         var protein: Int?
@@ -71,19 +71,19 @@ struct TodaySnapshot: Codable, Equatable {
         var waterTargetMl: Int
     }
 
-    struct TaskItem: Codable, Equatable, Identifiable {
+    struct TaskItem: Codable, Equatable, Identifiable, Sendable {
         var id: UUID
         var title: String
         var done: Bool
     }
 
-    struct Study: Codable, Equatable {
+    struct Study: Codable, Equatable, Sendable {
         var minutes: Int
         var targetMinutes: Int
         var nextExam: String?
     }
 
-    struct Meal: Codable, Equatable {
+    struct Meal: Codable, Equatable, Sendable {
         var id: UUID
         var name: String
         /// "HH:mm"
@@ -137,20 +137,19 @@ struct TodaySnapshot: Codable, Equatable {
 
 /// What Today puts on screen. The loading placeholder is only ever chosen
 /// when there is neither live data nor a saved snapshot: a first-ever launch.
+/// There is no failed state: a sync that fails keeps the last good numbers.
 enum TodayPhase: Equatable {
     case content(TodaySnapshot, isLive: Bool)
     case firstLoad
-    case failed(String)
 
-    static func resolve(live: TodaySnapshot?, cached: TodaySnapshot?, error: String?) -> TodayPhase {
+    /// `cached` is shown as it would look on `day`, so a copy saved on an
+    /// earlier day never passes its progress off as today's.
+    static func resolve(live: TodaySnapshot?, cached: TodaySnapshot?, day: Date) -> TodayPhase {
         if let live {
             return .content(live, isLive: true)
         }
         if let cached {
-            return .content(cached, isLive: false)
-        }
-        if let error {
-            return .failed(error)
+            return .content(cached.carried(to: day), isLive: false)
         }
         return .firstLoad
     }
@@ -275,38 +274,5 @@ enum TodayNextAction: Equatable {
             return .setUpTasks
         }
         return .allDone
-    }
-}
-
-// MARK: - TodayCache
-
-/// The last Today that was drawn, kept on disk so the next launch can draw it
-/// before anything has loaded.
-struct TodayCache {
-    let url: URL
-
-    static let shared = TodayCache(
-        url: URL.cachesDirectory.appending(path: "today-snapshot.json")
-    )
-
-    /// The saved snapshot, adjusted for `now` (yesterday's progress is cleared).
-    func load(now: Date = Date(), calendar: Calendar = .current) -> TodaySnapshot? {
-        guard let data = try? Data(contentsOf: url),
-              let snapshot = try? JSONDecoder().decode(TodaySnapshot.self, from: data)
-        else {
-            return nil
-        }
-        return snapshot.carried(to: calendar.startOfDay(for: now))
-    }
-
-    func save(_ snapshot: TodaySnapshot) {
-        guard let data = try? JSONEncoder().encode(snapshot) else {
-            return
-        }
-        try? data.write(to: url, options: .atomic)
-    }
-
-    func clear() {
-        try? FileManager.default.removeItem(at: url)
     }
 }

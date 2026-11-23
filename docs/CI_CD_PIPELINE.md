@@ -212,7 +212,10 @@ jobs:
         run: swiftformat --lint . --reporter github-actions-log
 
   # ──────────────────────────────────────────────
-  # Job 2: Unit Tests (matrix: iOS 17.4 + 18.0)
+  # NOTE (2026-11-22): the app's minimum is now iOS 26.0 (ADR-001). The version
+  # numbers in the sample jobs below predate that; read "17.0" as 26.0 and
+  # "18.0" as the latest iOS when implementing them.
+  # Job 2: Unit Tests (matrix: iOS 26.0 + latest)
   # ──────────────────────────────────────────────
   unit-tests:
     name: Unit Tests (iOS ${{ matrix.ios-version }})
@@ -596,7 +599,7 @@ jobs:
                v             v             v
     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
     │ Unit Tests   │ │ Unit Tests   │ │  Snapshot    │  ~8 min
-    │ iOS 17.4     │ │ iOS 18.0     │ │  Tests       │  (parallel)
+    │ iOS 26.0     │ │ iOS latest   │ │  Tests       │  (parallel)
     └──────┬───────┘ └──────┬───────┘ └──────┬───────┘
            └────────┬───────┘                │
                     │                        │
@@ -2607,7 +2610,7 @@ CLAUDE_API_KEY=sk-ant-your-key-here
 
 1. **Scheme setup:** Ensure the `Tempo` scheme uses the `Debug` build configuration, which reads from `Config/Debug.xcconfig`.
 
-2. **Simulator:** Use iPhone 15 Pro (iOS 17.4) or iPhone 16 Pro (iOS 18.0) to match CI matrix.
+2. **Simulator:** Use an iPhone 17 simulator on iOS 26.0 or the latest iOS to match the CI matrix (the app's minimum is iOS 26.0 since 2026-11-22, ADR-001).
 
 3. **Environment variables in scheme:** Edit Scheme > Run > Arguments > Environment Variables:
    - `TEMPO_API_BASE_URL` = `http://localhost:8080` (should already be set via xcconfig)
@@ -2630,7 +2633,7 @@ CLAUDE_API_KEY=sk-ant-your-key-here
 | iOS app shows "Network error" | Backend not running or wrong URL | Verify `curl http://localhost:8080/v1/health/live` works. Check xcconfig has correct URL. |
 | SwiftLint errors after pulling | New lint rules in `.swiftlint.yml` | Run `swiftlint --fix` to auto-fix, then manually fix remaining |
 | SPM resolution fails | Corrupted package cache | `rm -rf ~/Library/Developer/Xcode/DerivedData` and `File > Packages > Reset Package Caches` |
-| Snapshot tests fail locally | Different simulator than CI | Use iPhone 15 Pro (iOS 17.4) for snapshots — same device as CI |
+| Snapshot tests fail locally | Different simulator than CI | Use iPhone 17 (iOS 26.0) for snapshots — same device as CI |
 | Docker build slow (Swift compilation) | No build cache | First build is slow (~5-10 min). Subsequent builds use Docker layer caching. |
 | `Permission denied` on Fastlane | Ruby gem path issue | `sudo gem install fastlane` or use `rbenv`/`asdf` for Ruby version management |
 | Tests pass locally but fail in CI | Environment differences | Ensure you run tests with `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO` locally too |

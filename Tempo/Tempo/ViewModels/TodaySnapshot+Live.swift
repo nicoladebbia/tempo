@@ -101,22 +101,25 @@ extension TodaySnapshot {
         )
     }
 
-    /// A score of 0 means "no reading", never "0% recovered".
+    /// The saved recovery row wins over the live feed: it is what the Recovery
+    /// page draws, so the two can never show different numbers. The live feed
+    /// only fills what the row does not have yet. A score of 0 means "no
+    /// reading", never "0% recovered".
     static func recovery(body: BodyQuadrantData, owned: Owned, whoopConnected: Bool) -> Recovery {
-        let score = [body.recoveryScore, owned.recoveryScore]
-            .compactMap(\.self)
-            .first { $0 > 0 }
-            .map { Int($0.rounded()) }
-        func whole(_ value: Double?) -> Int? {
-            value.flatMap { $0 > 0 ? Int($0.rounded()) : nil }
+        func first(_ values: Double?...) -> Double? {
+            values.compactMap(\.self).first { $0 > 0 }
         }
-        let sleep = [body.sleepHours, owned.sleepHours].compactMap(\.self).first { $0 > 0 }
+        func whole(_ value: Double?) -> Int? {
+            value.map { Int($0.rounded()) }
+        }
+        let score = whole(first(owned.recoveryScore, body.recoveryScore))
+        let sleep = first(owned.sleepHours, body.sleepHours)
         return Recovery(
             score: score,
             sleepHours: sleep,
-            sleepPerformance: whole(body.sleepPerformance),
-            hrv: whole(body.hrv ?? owned.hrv),
-            restingHR: whole(body.rhr ?? owned.restingHR),
+            sleepPerformance: whole(first(body.sleepPerformance)),
+            hrv: whole(first(owned.hrv, body.hrv)),
+            restingHR: whole(first(owned.restingHR, body.rhr)),
             hasSource: body.isConnected || whoopConnected || score != nil || sleep != nil
         )
     }

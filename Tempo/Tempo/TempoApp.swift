@@ -128,6 +128,10 @@ struct TempoApp: App {
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
         TempoSignpost.mark("SeedsDone")
         let serviceContainer = ServiceContainer.live()
+        // Read the saved Today snapshot off the main thread now, so it is in
+        // memory by the time Today draws its first frame. After the container:
+        // a UI-test reset (AppState.init) clears the file first.
+        TodayLaunchSnapshot.begin()
         TempoSignpost.mark("ServicesBuilt")
         // §22 — the watch action router needs a real ModelContext to act on
         // (mark a non-negotiable done, log a meal eaten, ...); wire it here,

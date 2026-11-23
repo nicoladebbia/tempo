@@ -107,8 +107,29 @@ final class AppState {
 
     /// Switches to Today and shows `route` on top of it.
     func openOnToday(_ route: TodayRoute) {
-        activeTab = .today
-        todayPath = [route]
+        open(.today, todayRoute: route)
+    }
+
+    /// Goes to `tab`. Today ends up showing exactly `todayRoute` (or its own
+    /// page when nil): a page left open from earlier never stays on top of
+    /// where a notification or shortcut meant to land.
+    func open(_ tab: AppTab, todayRoute: TodayRoute? = nil) {
+        activeTab = tab
+        let path = todayRoute.map { [$0] } ?? []
+        if todayPath != path {
+            todayPath = path
+        }
+    }
+
+    /// Pushes `route` on Today, unless it is already the page on top (a
+    /// double tap must not open the same page twice).
+    @discardableResult
+    func pushOnToday(_ route: TodayRoute) -> Bool {
+        guard todayPath.last != route else {
+            return false
+        }
+        todayPath.append(route)
+        return true
     }
 
     var authState: AuthState {

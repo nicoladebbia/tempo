@@ -9,9 +9,8 @@
 // numbers replace it quietly once the first refresh has finished. The loading
 // placeholder only appears when there is nothing saved (a first-ever launch).
 //
-// Everything the old Dashboard hosted lives here: the refresh lifecycle, the
-// watch and widget pushes, the setup and sign-in prompts, weather, insights,
-// the score breakdown and the milestone celebration.
+// Loading, refreshing and saving live in `TodayViewModel`; this file lays the
+// page out and presents its sheets.
 //
 
 import Combine
@@ -35,21 +34,10 @@ struct TodayView: View {
     @Query
     private var nonNegotiables: [NonNegotiable]
 
-    /// Read once per process: the snapshot the last session left behind.
-    private static let launchSnapshot = TodayCache.shared.load()
-
+    /// Owns the load, the refreshes and the saved copy. Its first load runs
+    /// outside this view's tasks, so leaving the tab cannot cancel it.
     @State
-    private var viewModel: DashboardViewModel?
-    @State
-    private var cached: TodaySnapshot? = TodayView.launchSnapshot
-    @State
-    private var owned = TodaySnapshot.Owned()
-    @State
-    private var hasAppeared = false
-    /// A meal / plan / profile event arrived before the first load finished.
-    /// Replayed once it has, so the card never keeps a pre-event target.
-    @State
-    private var fuelRefreshPending = false
+    private var model = TodayViewModel()
     @State
     private var showMealLogging = false
     @State
@@ -63,13 +51,9 @@ struct TodayView: View {
     @State
     private var showScoreBreakdown = false
     @State
-    private var activeMilestone: MilestoneService.Milestone?
-    @State
     private var showMilestoneCelebration = false
     @State
     private var showProgressReport = false
-    @State
-    private var workoutStartRequest = 0
     @State
     private var focusModel: AccountabilityViewModel?
     @State
@@ -89,29 +73,29 @@ struct TodayView: View {
 
     // MARK: What to draw
 
+    private var viewModel: DashboardViewModel? {
+        model.dashboard
+    }
+
     private var liveSnapshot: TodaySnapshot? {
-        guard let viewModel, hasAppeared else {
-            return nil
-        }
-        // A failed sync must not wipe good numbers off the screen.
-        if case .error = viewModel.loadState, cached != nil {
+        guard let viewModel, model.isLive else {
             return nil
         }
         return TodaySnapshot.live(
             vm: viewModel,
             firstName: profiles.first?.displayName,
-            owned: owned,
+            owned: model.owned,
             whoopConnected: services.whoop.connectionState == .connected,
             healthAuthorized: healthKitAuthorized
         )
     }
 
     private var phase: TodayPhase {
-        var error: String?
-        if case let .error(message) = viewModel?.loadState {
-            error = message
-        }
-        return TodayPhase.resolve(live: liveSnapshot, cached: cached, error: error)
+        TodayPhase.resolve(
+            live: liveSnapshot,
+            cached: model.cached,
+            day: Calendar.current.startOfDay(for: Date())
+        )
     }
 
     private var shownScore: Int? {
@@ -140,19 +124,6 @@ struct TodayView: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .accessibilityIdentifier("today.loading")
-                case let .failed(message):
-                    ErrorStateView(
-                        title: "Sync failed.",
-                        message: message,
-                        retryAction: {
-                            Task {
-                                await viewModel?.refresh()
-                                viewModel?.refreshTrainingStatus(modelContext: modelContext)
-                                viewModel?.refreshAccountability(modelContext: modelContext)
-                                reloadOwned()
-                            }
-                        }
-                    )
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -168,7 +139,6 @@ struct TodayView: View {
             }
         }
         .sensoryFeedback(.selection, trigger: pushes)
-        .todayWorkoutFlow(startRequest: workoutStartRequest)
         // The shell colours itself from the day score on screen.
         .onChange(of: shownScore, initial: true) { _, score in
             services.appState.dayScore = score
@@ -176,15 +146,22 @@ struct TodayView: View {
         // Keep the saved copy current so the next launch opens on it.
         .onChange(of: liveSnapshot) { _, snapshot in
             if let snapshot {
-                cached = snapshot
-                TodayCache.shared.save(snapshot)
+                model.liveSnapshotChanged(snapshot)
             }
         }
-        .task {
-            await firstLoad()
+        .onAppear {
+            model.start(services: services, modelContext: modelContext)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoSessionEnded)) { _ in
+            model.sessionEnded()
+        }
+        .onChange(of: model.milestone) { _, milestone in
+            if milestone != nil {
+                showMilestoneCelebration = true
+            }
         }
         .fullScreenCover(isPresented: $showMilestoneCelebration) {
-            if let milestone = activeMilestone {
+            if let milestone = model.milestone {
                 MilestoneCelebrationView(
                     milestone: milestone,
                     onDismiss: { showMilestoneCelebration = false },
@@ -219,8 +196,7 @@ struct TodayView: View {
         .sheet(isPresented: $showWhoopConnect, onDismiss: {
             Task {
                 await viewModel?.refresh()
-                viewModel?.refreshTrainingStatus(modelContext: modelContext)
-                reloadOwned()
+                model.rereadOwnedState()
             }
         }) {
             NavigationStack {
@@ -245,34 +221,19 @@ struct TodayView: View {
                 InsightDetailSheet(vm: viewModel)
             }
         }
-        .modifier(TodayObservers(
-            viewModel: viewModel,
-            hasAppeared: hasAppeared,
-            fuelRefreshPending: $fuelRefreshPending,
-            refreshFuel: { await refreshFuelAfterChange() },
-            reloadOwned: reloadOwned
-        ))
+        .modifier(TodayObservers(model: model))
         .onChange(of: services.appState.activeTab) { _, tab in
             // Coming back to Today: another tab may have settled the day
             // (Training's coach can change today's session). Re-read what
             // those tabs own so Today says the same thing they do.
-            guard hasAppeared, tab == .today else {
-                return
+            if tab == .today {
+                model.rereadOwnedState()
             }
-            viewModel?.refreshTrainingStatus(modelContext: modelContext)
-            reloadOwned()
         }
         .onChange(of: scenePhase) { _, newPhase in
             // Foreground is a sensible moment to re-sync the page and the watch.
-            guard hasAppeared, newPhase == .active else {
-                return
-            }
-            Task {
-                await viewModel?.refresh()
-                viewModel?.refreshTrainingStatus(modelContext: modelContext)
-                viewModel?.refreshAccountability(modelContext: modelContext)
-                viewModel?.pushWatchSnapshot()
-                reloadOwned()
+            if newPhase == .active {
+                Task { await model.syncAll() }
             }
         }
     }
@@ -330,19 +291,21 @@ struct TodayView: View {
             // Pull-to-refresh is the user asking for fresh data: skip the
             // in-memory Whoop response cache.
             await services.whoop.invalidateCache()
-            await syncAll()
+            await model.syncAll()
         }
-        .task {
-            // Auto-sync while Today is on screen. Cancelled when it goes
-            // away; foregrounding already syncs via the scenePhase observer.
+        .task(id: scenePhase) {
+            // Auto-sync while Today is on screen and the app is in front.
+            // Restarted on every scene change; coming to the front already
+            // syncs once through the scenePhase observer.
+            guard scenePhase == .active else {
+                return
+            }
             while !Task.isCancelled {
                 try? await Task.sleep(for: DashboardViewModel.autoRefreshInterval)
-                guard !Task.isCancelled, hasAppeared,
-                      UIApplication.shared.applicationState == .active
-                else {
-                    continue
+                guard !Task.isCancelled else {
+                    return
                 }
-                await syncAll()
+                await model.syncAll()
             }
         }
         .accessibilityIdentifier("today.page")
@@ -351,7 +314,6 @@ struct TodayView: View {
     private var actions: TodayActions {
         TodayActions(
             open: { route in
-                pushes += 1
                 var route = route
                 // The Body detail only knows the live Whoop/Health feed. When
                 // tonight's sleep came from the saved recovery row instead,
@@ -359,7 +321,10 @@ struct TodayView: View {
                 if route == .body, let body = viewModel?.body, !body.isConnected, body.sleepHours == nil {
                     route = .recovery
                 }
-                services.appState.todayPath.append(route)
+                // A second tap on the same card must not open the page twice.
+                if services.appState.pushOnToday(route) {
+                    pushes += 1
+                }
             },
             openTab: { services.appState.activeTab = $0 },
             openScore: {
@@ -367,7 +332,18 @@ struct TodayView: View {
                     showScoreBreakdown = true
                 }
             },
-            startWorkout: { workoutStartRequest += 1 },
+            startWorkout: {
+                Task {
+                    // The app's one session: a second tap while it is starting
+                    // or already up does nothing.
+                    let result = await services.workoutSession.start(modelContext: modelContext)
+                    if result == .notStartable {
+                        // Nothing startable (plan changed under us): the Train
+                        // tab shows why and what to do instead.
+                        services.appState.activeTab = .train
+                    }
+                }
+            },
             openMeal: { meal in
                 // The live plan row if it is still there, else the Fuel tab.
                 if let planned = viewModel?.fuel.nextMeal, planned.id == meal.id {
@@ -489,137 +465,35 @@ struct TodayView: View {
         }
     }
 
-    // MARK: - Loading and refreshing
-
-    /// The first load of the session. Same order as the old Dashboard: the
-    /// order matters (Whoop is checked before the first refresh, the gate
-    /// opens before the weather fetch).
-    private func firstLoad() async {
-        guard viewModel == nil else {
-            return
-        }
-        let vm = DashboardViewModel(services: services)
-        vm.setFuelContext(modelContext)
-        let descriptor = FetchDescriptor<UserProfile>()
-        if let profile = try? modelContext.fetch(descriptor).first {
-            vm.setUserName(profile.displayName)
-        }
-        viewModel = vm
-        // Validate the Whoop connection BEFORE fetching data, so refresh()
-        // never reads connectionState before the tokens are verified.
-        await services.whoop.checkConnectionOnLaunch()
-
-        // Take the name from the Whoop profile if ours is still the default.
-        if let profile = try? modelContext.fetch(descriptor).first,
-           profile.displayName == TodayGreeting.placeholderName,
-           let whoopService = services.whoop as? WhoopService,
-           let firstName = whoopService.profileFirstName, !firstName.isEmpty
-        {
-            let fullName = [firstName, whoopService.profileLastName].compactMap(\.self).joined(separator: " ")
-            profile.displayName = fullName
-            profile.updatedAt = Date()
-            try? modelContext.save()
-            vm.setUserName(fullName)
-        }
-
-        // Same deload rule as Training (start date, Auto Deload, fatigue).
-        vm.setDeloadWeek(services.trainingEngine.isDeloadWeek(on: Date(), modelContext: modelContext))
-        vm.loadScoreHistory(modelContext: modelContext)
-
-        await vm.refresh()
-        vm.refreshTrainingStatus(modelContext: modelContext)
-        vm.refreshAccountability(modelContext: modelContext)
-        reloadOwned()
-
-        vm.persistDailyScore(modelContext: modelContext)
-        vm.loadScoreHistory(modelContext: modelContext)
-
-        // App launch is a sensible moment to sync the watch, so the wrist
-        // never shows a placeholder.
-        vm.pushWatchSnapshot()
-
-        // Open the gate BEFORE the weather fetch (network, can take many
-        // seconds): a plan applied or meal logged during it must refresh
-        // the Fuel card, not be dropped.
-        withAnimation(Tide.snap) {
-            hasAppeared = true
-        }
-        TempoSignpost.todayContentShown(source: "fresh")
-        TempoSignpost.mark("TodayLive")
-        if fuelRefreshPending {
-            fuelRefreshPending = false
-            await refreshFuelAfterChange()
-        }
-
-        await vm.fetchWeather()
-
-        if let milestone = MilestoneService.checkMilestone(modelContext: modelContext) {
-            activeMilestone = milestone
-            showMilestoneCelebration = true
-        }
-    }
-
-    /// Full refresh used by pull-to-refresh and the 5-minute auto-sync.
-    private func syncAll() async {
-        guard let vm = viewModel else {
-            return
-        }
-        await vm.refresh()
-        vm.refreshTrainingStatus(modelContext: modelContext)
-        vm.refreshAccountability(modelContext: modelContext)
-        vm.persistDailyScore(modelContext: modelContext)
-        vm.loadScoreHistory(modelContext: modelContext)
-        vm.pushWatchSnapshot()
-        reloadOwned()
-    }
-
-    /// A meal was logged or today's target changed: re-pull Fuel, then the
-    /// things that depend on it.
-    private func refreshFuelAfterChange() async {
-        guard let vm = viewModel else {
-            return
-        }
-        await vm.refresh(force: true)
-        vm.refreshTrainingStatus(modelContext: modelContext)
-        vm.refreshAccountability(modelContext: modelContext)
-        vm.pushWatchSnapshot()
-        reloadOwned()
-    }
-
-    /// Re-read the numbers Today takes from the tab that owns them.
-    private func reloadOwned() {
-        owned = TodaySnapshot.Owned.read(in: modelContext)
-    }
 }
 
 // MARK: - TodayObservers
 
 /// The app events that change what Today shows.
 private struct TodayObservers: ViewModifier {
-    let viewModel: DashboardViewModel?
-    let hasAppeared: Bool
-    @Binding var fuelRefreshPending: Bool
-    let refreshFuel: () async -> Void
-    let reloadOwned: () -> Void
+    let model: TodayViewModel
 
     @Environment(ServiceContainer.self)
     private var services
     @Environment(\.modelContext)
     private var modelContext
 
+    private var viewModel: DashboardViewModel? {
+        model.dashboard
+    }
+
     func body(content: Content) -> some View {
         content
             .onChange(of: services.whoop.connectionState) { oldState, newState in
                 // Refresh when Whoop connects mid-session. Guarded so the
                 // launch load (which connects, then refreshes) is not doubled.
-                guard hasAppeared else {
+                guard model.isLive else {
                     return
                 }
                 if case .connected = newState, oldState != .connected {
                     Task {
                         await viewModel?.refresh()
-                        viewModel?.refreshTrainingStatus(modelContext: modelContext)
-                        reloadOwned()
+                        model.rereadOwnedState()
                     }
                 }
             }
@@ -641,15 +515,11 @@ private struct TodayObservers: ViewModifier {
                 // Regenerate posts a profile change then the plan; one refresh.
                 .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             ) { _ in
-                guard hasAppeared else {
-                    fuelRefreshPending = true
-                    return
-                }
-                Task { await refreshFuel() }
+                Task { await model.fuelChanged() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
                 // A workout was started, finished or discarded.
-                guard hasAppeared else {
+                guard model.isLive else {
                     return
                 }
                 viewModel?.refreshTrainingStatus(modelContext: modelContext)
@@ -657,7 +527,7 @@ private struct TodayObservers: ViewModifier {
             }
             .onReceive(NotificationCenter.default.publisher(for: .tempoNonNegotiableChanged)) { _ in
                 // A task was ticked in Lockdown or on the watch.
-                guard hasAppeared else {
+                guard model.isLive else {
                     return
                 }
                 viewModel?.refreshAccountability(modelContext: modelContext)

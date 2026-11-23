@@ -17,7 +17,6 @@ import SwiftData
 enum DashboardLoadState {
     case loading
     case loaded
-    case error(String)
 }
 
 // MARK: - BiometricDataSource

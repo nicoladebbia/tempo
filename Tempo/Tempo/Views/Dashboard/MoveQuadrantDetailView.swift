@@ -44,13 +44,6 @@ struct MoveQuadrantDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    // Live workout session presented directly from the Move detail (chosen
-    // behavior). Mirrors TrainingTabView's VM + fullScreenCover wiring so the
-    // session behaves identically wherever it's started.
-    @State private var trainingVM: TrainingViewModel?
-    @State private var showActiveWorkout = false
-    @State private var showSummary = false
-
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
     }
@@ -88,68 +81,6 @@ struct MoveQuadrantDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: completedWorkouts.first?.id) {
             await loadLastSessionHR()
-        }
-        .fullScreenCover(isPresented: $showActiveWorkout) {
-            if let trainingVM {
-                NavigationStack {
-                    ActiveWorkoutView(viewModel: trainingVM)
-                }
-            }
-        }
-        .fullScreenCover(isPresented: $showSummary, onDismiss: {
-            showSummary = false
-            // However the summary closed, its feedback is now final.
-            trainingVM?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
-        }) {
-            if let trainingVM {
-                NavigationStack {
-                    WorkoutSummaryView(viewModel: trainingVM)
-                }
-            }
-        }
-        .onChange(of: trainingVM?.sessionState) { _, newState in
-            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
-                // A session that went live without the Start button (watch-
-                // started and adopted on load, or crash recovery) still needs
-                // its screen — otherwise timers run behind the Today view.
-                showActiveWorkout = true
-            } else if case .summary = newState {
-                // Persist the moment the session reaches summary, exactly
-                // like TrainingTabView — without this a session started from
-                // the Dashboard was only saved if the user tapped SAVE, and
-                // swiping the summary away lost the whole workout. Idempotent.
-                trainingVM?.persistCompletion(modelContext: modelContext)
-                showActiveWorkout = false
-                showSummary = true
-            } else if case .discarded = newState {
-                // Mirror TrainingTabView: without this branch a discard from a
-                // session started HERE left sessionState stuck at .discarded —
-                // covers stayed torn down but the VM never reset, so the next
-                // start from this screen ran on stale state.
-                showActiveWorkout = false
-                showSummary = false
-                if let trainingVM {
-                    Task { @MainActor in
-                        await trainingVM.loadToday(modelContext: modelContext)
-                        trainingVM.sessionState = .idle
-                    }
-                }
-            }
-        }
-        .alert(
-            "Save failed",
-            isPresented: Binding(
-                get: { trainingVM?.saveErrorMessage != nil },
-                set: {
-                    if !$0 {
-                        trainingVM?.saveErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(trainingVM?.saveErrorMessage ?? "")
         }
     }
 
@@ -258,15 +189,7 @@ struct MoveQuadrantDetailView: View {
                     // Training tab uses; the .tempoWorkoutChanged fan-out then
                     // flips the Dashboard's workoutStatus to .planned.
                     Task { @MainActor in
-                        let vm = trainingVM ?? TrainingViewModel(
-                            trainingEngine: services.trainingEngine,
-                            whoop: services.whoop,
-                            healthKit: services.healthKit,
-                            apiClient: services.apiClient,
-                            calendarService: services.calendar
-                        )
-                        trainingVM = vm
-                        await vm.loadToday(modelContext: modelContext)
+                        await services.workoutSession.viewModel.loadToday(modelContext: modelContext)
                         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
                         HapticManager.notification(.success)
                     }
@@ -539,21 +462,9 @@ struct MoveQuadrantDetailView: View {
     private var startWorkoutButton: some View {
         Button {
             Task { @MainActor in
-                // Build the VM lazily, same construction as TrainingTabView.
-                let vm = trainingVM ?? TrainingViewModel(
-                    trainingEngine: services.trainingEngine,
-                    whoop: services.whoop,
-                    healthKit: services.healthKit,
-                    apiClient: services.apiClient,
-                    calendarService: services.calendar
-                )
-                trainingVM = vm
-                await vm.loadToday(modelContext: modelContext)
-                guard vm.startWorkout() else {
-                    return
-                }
-                showActiveWorkout = true
-                HapticManager.notification(.success)
+                // The shared session: a second tap while it is starting, or
+                // while it is already on screen, never starts another.
+                _ = await services.workoutSession.start(modelContext: modelContext)
             }
         } label: {
             HStack(spacing: 6) {

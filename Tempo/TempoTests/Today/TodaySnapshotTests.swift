@@ -212,25 +212,74 @@ final class TodaySnapshotTests: XCTestCase {
     /// never shows its loading state, whatever the live load is doing.
     func testTodayNeverShowsLoadingWhenACachedStateExists() {
         let cached = snapshot()
-        let whileLoading = TodayPhase.resolve(live: nil, cached: cached, error: nil)
+        let whileLoading = TodayPhase.resolve(live: nil, cached: cached, day: day)
         XCTAssertFalse(whileLoading.isLoading)
         XCTAssertEqual(whileLoading, .content(cached, isLive: false))
-
-        let whenSyncFails = TodayPhase.resolve(live: nil, cached: cached, error: "Sync failed")
-        XCTAssertEqual(whenSyncFails, .content(cached, isLive: false))
     }
 
     func testLiveDataReplacesTheCachedState() {
         let live = snapshot(score: 82)
         XCTAssertEqual(
-            TodayPhase.resolve(live: live, cached: snapshot(), error: nil),
+            TodayPhase.resolve(live: live, cached: snapshot(), day: day),
             .content(live, isLive: true)
         )
     }
 
     func testLoadingOnlyOnAFirstEverLaunch() {
-        XCTAssertTrue(TodayPhase.resolve(live: nil, cached: nil, error: nil).isLoading)
-        XCTAssertEqual(TodayPhase.resolve(live: nil, cached: nil, error: "Offline"), .failed("Offline"))
+        XCTAssertTrue(TodayPhase.resolve(live: nil, cached: nil, day: day).isLoading)
+    }
+
+    /// The copy held in memory is carried over too: an app left open past
+    /// midnight must not draw yesterday's progress while it reloads.
+    func testEveryCachedFallbackIsCarriedToTheCurrentDay() throws {
+        let nextDay = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 1, to: day))
+        let cached = snapshot(workout: .completed, workoutName: "Push", tasks: [true])
+        guard case let .content(shown, isLive) = TodayPhase.resolve(live: nil, cached: cached, day: nextDay) else {
+            return XCTFail("expected content")
+        }
+        XCTAssertFalse(isLive)
+        XCTAssertEqual(shown.day, nextDay)
+        XCTAssertNil(shown.score)
+        XCTAssertEqual(shown.workout.status, .none)
+        XCTAssertEqual(shown.tasksDone, 0)
+    }
+
+    func testCacheSavesInTheBackgroundAndClearIsNeverOvertaken() {
+        let cache = temporaryCache()
+        for score in 0 ..< 20 {
+            cache.save(snapshot(score: score))
+        }
+        cache.clear()
+        cache.flush()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: cache.url.path))
+    }
+
+    func testCacheFileIsProtected() throws {
+        let cache = temporaryCache()
+        defer { cache.clear() }
+        cache.save(snapshot())
+        cache.flush()
+        let attributes = try FileManager.default.attributesOfItem(atPath: cache.url.path)
+        // The simulator does not always report the class; a device does.
+        if let protection = attributes[.protectionKey] as? FileProtectionType {
+            XCTAssertEqual(protection, .complete)
+        }
+    }
+
+    func testLaunchSnapshotIsReadOffTheMainThreadAndCanBeDiscarded() async {
+        let cache = temporaryCache()
+        defer { cache.clear() }
+        var saved = snapshot(score: 64)
+        saved.day = Calendar.current.startOfDay(for: Date())
+        cache.save(saved)
+        let launch = TodayLaunchSnapshot(cache: cache)
+        let value = await launch.value
+        XCTAssertEqual(value, saved)
+        XCTAssertTrue(launch.peek().ready)
+        launch.discard()
+        XCTAssertNil(launch.peek().snapshot)
+        let after = await launch.value
+        XCTAssertNil(after)
     }
 
     // MARK: Greeting and recovery
@@ -255,6 +304,29 @@ final class TodaySnapshotTests: XCTestCase {
         let none = TodaySnapshot.recovery(body: body, owned: .init(), whoopConnected: false)
         XCTAssertNil(none.score)
         XCTAssertFalse(none.hasSource)
+    }
+
+    /// Today and the Recovery page read the same saved row first, so they can
+    /// never show two different recovery numbers.
+    func testTheSavedRecoveryRowWinsOverTheLiveFeed() {
+        var body = BodyQuadrantData.empty
+        body.recoveryScore = 61
+        body.sleepHours = 6.2
+        body.hrv = 55
+        body.rhr = 58
+        let shown = TodaySnapshot.recovery(
+            body: body,
+            owned: .init(recoveryScore: 78, sleepHours: 7.5, hrv: 74, restingHR: 52),
+            whoopConnected: true
+        )
+        XCTAssertEqual(shown.score, 78)
+        XCTAssertEqual(shown.sleepHours, 7.5)
+        XCTAssertEqual(shown.hrv, 74)
+        XCTAssertEqual(shown.restingHR, 52)
+        // No row yet: the live feed fills in.
+        let live = TodaySnapshot.recovery(body: body, owned: .init(), whoopConnected: true)
+        XCTAssertEqual(live.score, 61)
+        XCTAssertEqual(live.sleepHours, 6.2)
     }
 
     /// The Recovery page's saved score is used when the Dashboard feed has none,

@@ -20,50 +20,37 @@ struct TrainingTabView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
-    @State
-    private var viewModel: TrainingViewModel?
-    @State
-    private var showActiveWorkout = false
-    @State
-    private var showSummary = false
     /// Pause/travel-pain feature — see AwayModeSheet.swift.
     @State
     private var showAwayMode = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let viewModel {
-                    TodayWorkoutView(
-                        viewModel: viewModel,
-                        showActiveWorkout: $showActiveWorkout,
-                        showSummary: $showSummary
-                    )
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.tempoBgPrimary)
-                }
-            }
+        // The session (view model and its screens) is owned by the app, not
+        // by this tab: Today and the Move detail drive the same one.
+        @Bindable
+        var session = services.workoutSession
+        let viewModel = session.viewModel
+        return NavigationStack {
+            TodayWorkoutView(
+                viewModel: viewModel,
+                showActiveWorkout: $session.showActiveWorkout,
+                showSummary: $session.showSummary
+            )
             .navigationTitle("Training")
             .tempoSettingsToolbar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
-                        if let viewModel {
-                            NavigationLink {
-                                WeekPlanView(viewModel: viewModel)
-                            } label: {
-                                Label("Week Plan", systemImage: "calendar")
-                            }
+                        NavigationLink {
+                            WeekPlanView(viewModel: viewModel)
+                        } label: {
+                            Label("Week Plan", systemImage: "calendar")
                         }
 
-                        if let viewModel {
-                            NavigationLink {
-                                RoutinesView(viewModel: viewModel)
-                            } label: {
-                                Label("My Routines", systemImage: "list.bullet.rectangle")
-                            }
+                        NavigationLink {
+                            RoutinesView(viewModel: viewModel)
+                        } label: {
+                            Label("My Routines", systemImage: "list.bullet.rectangle")
                         }
 
                         NavigationLink {
@@ -110,39 +97,8 @@ struct TrainingTabView: View {
                     .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
                 }
             }
-            .fullScreenCover(isPresented: $showActiveWorkout) {
-                if let viewModel {
-                    NavigationStack {
-                        ActiveWorkoutView(viewModel: viewModel)
-                    }
-                }
-            }
-            .fullScreenCover(isPresented: $showSummary, onDismiss: {
-                showSummary = false
-                // However the summary closed, its feedback is now final.
-                viewModel?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
-            }) {
-                if let viewModel {
-                    NavigationStack {
-                        WorkoutSummaryView(viewModel: viewModel)
-                    }
-                }
-            }
             .sheet(isPresented: $showAwayMode) {
-                if let viewModel {
-                    AwayModeSheet(viewModel: viewModel)
-                }
-            }
-        }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = TrainingViewModel(
-                    trainingEngine: services.trainingEngine,
-                    whoop: services.whoop,
-                    healthKit: services.healthKit,
-                    apiClient: services.apiClient,
-                    calendarService: services.calendar
-                )
+                AwayModeSheet(viewModel: viewModel)
             }
         }
         .onReceive(
@@ -154,57 +110,11 @@ struct TrainingTabView: View {
             NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
                 .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
         ) { _ in
-            guard let viewModel, !(viewModel.sessionState.isActive) else {
+            guard !viewModel.sessionState.isActive else {
                 return
             }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
         .persistenceAlert()
-        .alert(
-            "Save failed",
-            isPresented: Binding(
-                get: { viewModel?.saveErrorMessage != nil },
-                set: {
-                    if !$0 {
-                        viewModel?.saveErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel?.saveErrorMessage ?? "")
-        }
-        .onChange(of: viewModel?.sessionState) { _, newState in
-            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
-                // A session that went live without the Start button (watch-
-                // started and adopted on load, or crash recovery) still needs
-                // its screen — otherwise timers run behind the Today view.
-                showActiveWorkout = true
-            } else if case .summary = newState {
-                // Persist completion the moment the session reaches summary —
-                // NOT on the SAVE button. Previously history was written only
-                // if the user tapped "SAVE & CLOSE"; swiping the summary away
-                // (or any non-button exit) silently lost the whole session.
-                // persistCompletion is idempotent, so the SAVE button calling
-                // it again is a no-op.
-                viewModel?.persistCompletion(modelContext: modelContext)
-                showActiveWorkout = false
-                showSummary = true
-            } else if case .discarded = newState {
-                // Discard → close the workout cover and reload today so the
-                // session settles back to a fresh, restartable state (the day
-                // was kept .planned). Driven from here, not a dismiss() inside
-                // the cover, so teardown can't race the reset into a blank screen.
-                showActiveWorkout = false
-                showSummary = false
-                if let viewModel {
-                    Task { @MainActor in
-                        await viewModel.loadToday(modelContext: modelContext)
-                        viewModel.sessionState = .idle
-                    }
-                }
-            }
-        }
     }
 }

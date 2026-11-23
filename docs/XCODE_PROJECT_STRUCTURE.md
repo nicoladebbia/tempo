@@ -55,7 +55,7 @@ After creation, immediately change these in Build Settings:
 
 | Setting | Value |
 |---------|-------|
-| iOS Deployment Target | **17.0** |
+| iOS Deployment Target | **26.0** (raised 2026-11-22, ADR-001) |
 | Swift Language Version | **Swift 6** |
 | Strict Concurrency Checking | **Complete** |
 
@@ -945,7 +945,7 @@ team_id("XXXXXXXXXX")
 
 | Setting | Value |
 |---------|-------|
-| Deployment Target | iOS 17.4 |
+| Deployment Target | iOS 26.0 |
 | App Group | `group.app.tempo` (must match main app) |
 | Frameworks | SwiftUI, WidgetKit |
 
@@ -1477,7 +1477,7 @@ If resolution fails behind a corporate proxy, check Xcode > Settings > Accounts 
 ### Step 7: Select Scheme and Destination (30 sec)
 
 1. Select **Tempo (Dev)** scheme from the scheme selector (top-left toolbar)
-2. Select **iPhone 16 Pro** simulator (or any iOS 17+ simulator)
+2. Select **iPhone 16 Pro** simulator (or any iOS 26+ simulator)
 
 ### Step 8: Build (2 min)
 
@@ -1557,7 +1557,7 @@ Or simply press `Cmd + U` in Xcode with the "Tempo Tests" scheme selected.
 | App Group | `group.app.tempo` |
 | Keychain Group | `$(AppIdentifierPrefix)app.tempo.shared` |
 | URL Scheme | `tempo://` |
-| iOS Deployment Target | 17.0 |
+| iOS Deployment Target | 26.0 |
 | watchOS Deployment Target | 10.0 |
 | Swift Version | 6 |
 | Xcode Version | 16.0+ |

@@ -150,10 +150,9 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         guard let appState = Self.services?.appState else {
             return
         }
-        appState.activeTab = destination.tab
-        if let route = destination.todayRoute {
-            appState.todayPath = [route]
-        }
+        // Also clears a page left open on Today, so the notification lands
+        // on the screen it names and not under an older one.
+        appState.open(destination.tab, todayRoute: destination.todayRoute)
         if destination.tab == .fuel {
             let section = destination.kitchenSection != nil ? NutritionSection.kitchen : destination.nutritionSection
             if let section {

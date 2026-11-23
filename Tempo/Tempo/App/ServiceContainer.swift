@@ -58,6 +58,10 @@ final class ServiceContainer {
     /// from `TempoApp.init` once the ModelContainer exists.
     let watchActionRouter: WatchActionRouter
     let appState: AppState
+    /// The one training session of the app. Today, the Train tab and the Move
+    /// detail all read and drive this, so they can never disagree about what
+    /// today's session is or whether it is running.
+    let workoutSession: WorkoutSessionCoordinator
 
     init(
         apiClient: APIClient,
@@ -117,6 +121,14 @@ final class ServiceContainer {
         )
         watchActionRouter = router
         appState = AppState(authService: authService)
+        authService.onSessionEnded = { Self.endSession() }
+        workoutSession = WorkoutSessionCoordinator(viewModel: TrainingViewModel(
+            trainingEngine: trainingEngine,
+            whoop: whoop,
+            healthKit: healthKit,
+            apiClient: apiClient,
+            calendarService: calendar
+        ))
         watchConnectivity.activate()
         // §22 — single registrant PhoneWatchConnectivityService ever sees.
         // Training layers `.logSet` on top via `router.setLogSetHandler`
@@ -124,6 +136,17 @@ final class ServiceContainer {
         watchConnectivity.setQuickActionHandler { action in
             router.handle(action)
         }
+    }
+
+    /// Sign-out or account deletion: remove the Today snapshot saved on disk
+    /// and tell the screen to drop its copy.
+    static func endSession(
+        cache: any TodayCaching = TodayCache.shared,
+        launch: TodayLaunchSnapshot = .shared
+    ) {
+        cache.clear()
+        launch.discard()
+        NotificationCenter.default.post(name: .tempoSessionEnded, object: nil)
     }
 
     /// Called once at launch (`TempoApp.init`) once the ModelContainer
@@ -197,4 +220,9 @@ final class ServiceContainer {
             nutrition: NutritionService.live(apiClient: apiClient)
         )
     }
+}
+
+extension Notification.Name {
+    /// The person signed out or deleted their account.
+    static let tempoSessionEnded = Notification.Name("tempoSessionEnded")
 }

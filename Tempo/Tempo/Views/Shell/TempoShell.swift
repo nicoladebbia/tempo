@@ -39,8 +39,10 @@ struct TempoShell: View {
         }
     }
 
-    /// The separated "+" in the tab bar needs iOS 27. Older systems get a
-    /// floating "+" above the bar. `-tideCaptureFallback` forces the fallback (QA).
+    /// The prominent "+" needs iOS 27. iOS 26 gets the same "+" as the tab
+    /// bar's own separated trailing button, so it is part of the bar: it moves
+    /// and scales with it and never sits on top of a screen's content.
+    /// `-tideCaptureFallback` forces the iOS 26 form (QA).
     private var hasProminentTab: Bool {
         if ProcessInfo.processInfo.arguments.contains("-tideCaptureFallback") {
             return false
@@ -68,15 +70,12 @@ struct TempoShell: View {
         @Bindable
         var appState = services.appState
         return tabs
-            .overlay(alignment: .bottomTrailing) {
-                if !hasProminentTab {
-                    floatingCapture
-                }
-            }
             // The tab bar takes the mood colour, not the old accent setting.
             .tint(TideMood(score: appState.dayScore).accent)
             .environment(\.tideMood, TideMood(score: appState.dayScore))
             .captureHost(isPresented: $appState.captureRequested, nutritionViewModel: nutritionViewModel)
+            // The one place the workout screens are presented from.
+            .workoutSessionHost()
             .onChange(of: appState.activeTab, initial: true) { _, tab in
                 TempoSignpost.mark("ShellBody")
                 TempoSignpost.tabPicked(tab)
@@ -103,6 +102,9 @@ struct TempoShell: View {
         } else {
             TabView(selection: selection) {
                 mainTabs
+                SwiftUI.Tab("Log", systemImage: "plus", value: Slot.capture, role: .search) {
+                    Color.clear
+                }
             }
         }
     }
@@ -124,22 +126,5 @@ struct TempoShell: View {
             ArenaTabView()
                 .onAppear { TempoSignpost.tabContentShown(.arena) }
         }
-    }
-
-    private var floatingCapture: some View {
-        Button {
-            services.appState.captureRequested = true
-        } label: {
-            Image(systemName: "plus")
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Tide.text)
-                .frame(width: 56, height: 56)
-                .glassEffect(.regular.interactive(), in: .circle)
-        }
-        .buttonStyle(.plain)
-        .padding(.trailing, Tide.s4)
-        .padding(.bottom, 72)
-        .accessibilityLabel("Log")
-        .accessibilityIdentifier("shell.capture")
     }
 }

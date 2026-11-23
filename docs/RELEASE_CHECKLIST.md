@@ -419,7 +419,7 @@ Prepare for all required device sizes. Each screenshot must tell a story in unde
 - [ ] Tested on oldest supported device (iPhone SE 3 or equivalent)
 - [ ] Tested on current flagship (iPhone 15 Pro Max)
 - [ ] Tested on mid-range device (iPhone 15)
-- [ ] Tested on minimum supported iOS version (iOS 17.4)
+- [ ] Tested on minimum supported iOS version (iOS 26.0)
 - [ ] Tested on current iOS version (latest release)
 - [ ] Tested on iOS beta if available (avoid Day 1 incompatibility)
 
@@ -1116,7 +1116,7 @@ Unlike traditional fitness or productivity apps that operate in isolation, Tempo
 
 Tempo is free to download with a Pro tier available at $4.99/month or $39.99/year. The free tier includes core tracking and basic accountability features. Pro unlocks AI coaching, unlimited social features, advanced analytics, and the full drill-sergeant notification experience.
 
-**Availability:** iOS 17.4 and later. Available now on the App Store.
+**Availability:** iOS 26.0 and later. Available now on the App Store.
 
 **Press kit:** [URL to press page]
 
