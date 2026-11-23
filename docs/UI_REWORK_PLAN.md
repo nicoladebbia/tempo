@@ -73,14 +73,17 @@ How: every screen draws from a small saved snapshot first and refreshes quietly;
 
 ## Phases
 
-0. **Direction lab.** Three looks built in `Tempo/DesignLab/` on sample data. Nicola picks one. _(in progress)_
-1. **Foundation.** Design system (colour, type, spacing, shape, motion, haptics, shader kit, components), the 4-tab shell with "+", the snapshot-first loading layer, the speed tests (launch, hitches, signposts), iOS 26 target, dead code and Lottie removed.
-2. **Today.** Today, Recovery, Lockdown and focus, Week in review, study.
-3. **Train.**
-4. **Fuel.**
-5. **Arena.**
-6. **Onboarding, paywall, settings.**
-7. **Widgets, Live Activities, watch, accessibility pass, on-device speed pass.**
+Status on 2026-11-23:
+
+0. **Direction lab.** Done. Nicola chose B ("Tide": glass on a living field) with A's numerals and live elements.
+1. **Foundation.** Done (PR #88): Tide design system, 4-tab shell with "+", iOS 26 target, Lottie removed.
+2. **Today.** Done (PR #88).
+3. **Whole-app look ("Rework 2").** Done in code, on PR #88, waiting for Nicola's device test. Nicola asked on 2026-11-23 to finish the UI of every page first and to cut, merge and add features afterwards. So this pass restyled every screen in place and removed no feature:
+   - A bridge maps the old `tempo*` colours, fonts, cards, buttons and page backgrounds onto Tide (`Color+Tempo.swift`, `TidePage.swift`), so no screen can fall back to the old look.
+   - Each area was then rebuilt on Tide components: Train, Fuel, Kitchen/Scan/Supplements, Arena, Recovery, Lockdown, Settings, Paywall, Onboarding, Coach and the shared components. Area kits live in `DesignSystem/Tide+<Area>.swift`.
+   - `Views/` now has no literal font size, no literal colour and no light/dark branch.
+4. **Features (next, after the device test).** Remove what Nicola will never use, merge screens toward the ~85-screen map above, add and improve functions. Decisions go to Nicola first.
+5. **Widgets, Live Activities, watch, accessibility pass, on-device speed pass.**
 
 Each phase from 1 on: one PR, tests, simulator check against the local test backend, a device-test page for Nicola, and the cross-surface check for any shared model.
 
