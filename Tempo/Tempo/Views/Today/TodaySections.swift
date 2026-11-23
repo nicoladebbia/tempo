@@ -29,9 +29,10 @@ struct TodayHeader: View {
     let snapshot: TodaySnapshot
     let dateLine: String
     var weather: (symbol: String, temperature: String)?
+    var openSettings: () -> Void = {}
 
     var body: some View {
-        HStack(alignment: .top, spacing: Tide.s3) {
+        HStack(alignment: .top, spacing: Tide.s2) {
             VStack(alignment: .leading, spacing: Tide.s1) {
                 HStack(spacing: Tide.s2) {
                     Text(dateLine).tideLabel()
@@ -67,6 +68,16 @@ struct TodayHeader: View {
                 .accessibilityLabel("\(snapshot.streakDays) day streak")
                 .accessibilityIdentifier("today.streak")
             }
+            Button(action: openSettings) {
+                Image(systemName: "gearshape.fill")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .glassEffect(.regular.tint(Tide.ink.opacity(0.3)).interactive(), in: .circle)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("today.settings")
         }
     }
 }
@@ -96,7 +107,7 @@ struct TodayHero: View {
             .accessibilityIdentifier("today.score")
 
             VStack(alignment: .leading, spacing: Tide.s2) {
-                Text(snapshot.score == nil ? "Day one" : mood.word)
+                Text(snapshot.score == nil ? "No score yet" : mood.word)
                     .font(Tide.title2)
                     .foregroundStyle(mood.accent)
                 Text(TodayStatus.line(for: snapshot))
@@ -230,32 +241,39 @@ struct TodayBodyRow: View {
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: Tide.s3))
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
-        layout {
-            recovery
-            sleep
+        VStack(spacing: Tide.s3) {
+            layout {
+                recovery
+                sleep
+            }
+            if !snapshot.recovery.hasSource {
+                Button(action: actions.connectWearable) {
+                    Label("Connect Whoop", systemImage: "waveform.path.ecg").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("today.connect")
+            }
         }
     }
 
     @ViewBuilder
     private var recovery: some View {
         let data = snapshot.recovery
-        if data.score == nil, !data.hasSource {
-            TodayTile(label: "Recovery", identifier: "today.shortcut.recovery", action: actions.connectWearable) {
-                Text("No reading yet").font(Tide.headline).foregroundStyle(Tide.text)
-                Text("Connect Whoop to see it.").font(Tide.caption).foregroundStyle(Tide.text2)
-            }
-        } else {
-            TodayTile(label: "Recovery", identifier: "today.shortcut.recovery", action: { actions.open(.recovery) }) {
-                if let score = data.score {
-                    TideNumber("\(score)", unit: "%", size: Tide.numeralM)
-                    TideLevelBar(progress: Double(score) / 100, height: Tide.barSlim)
-                } else {
-                    Text("Waiting for today").font(Tide.headline).foregroundStyle(Tide.text)
-                }
+        TodayTile(label: "Recovery", identifier: "today.shortcut.recovery", action: { actions.open(.recovery) }) {
+            if let score = data.score {
+                TideNumber("\(score)", unit: "%", size: Tide.numeralM)
+                TideLevelBar(progress: Double(score) / 100, height: Tide.barSlim)
                 Text(vitals(data)).font(Tide.caption).foregroundStyle(Tide.text2)
+            } else {
+                Text(data.hasSource ? "Waiting for today" : "No reading yet")
+                    .font(Tide.headline).foregroundStyle(Tide.text)
+                Text(data.hasSource ? "Your tracker has not synced yet." : "Needs a tracker like Whoop.")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .matchedTransitionSource(id: TodayRoute.recovery, in: namespace)
         }
+        .matchedTransitionSource(id: TodayRoute.recovery, in: namespace)
     }
 
     private var sleep: some View {
@@ -263,7 +281,7 @@ struct TodayBodyRow: View {
         return TodayTile(label: "Sleep", identifier: "today.sleep", action: { actions.open(.body) }) {
             if let hours = data.sleepHours {
                 let whole = Int(hours), minutes = Int(((hours - Double(whole)) * 60).rounded())
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber("\(whole)", unit: "h", size: Tide.numeralM)
                     TideNumber(String(format: "%02d", minutes), unit: "m", size: Tide.numeralM)
                 }
@@ -447,10 +465,26 @@ struct TodayTasksCard: View {
     var body: some View {
         if snapshot.tasks.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Daily tasks")
-                Text("Nothing set yet. Pick the few things you do every day and Tempo holds you to them.")
-                    .font(Tide.body).foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    actions.open(.lockdown)
+                } label: {
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        HStack {
+                            Text("Daily tasks").tideLabel()
+                            Spacer(minLength: Tide.s1)
+                            Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
+                                .accessibilityHidden(true)
+                        }
+                        Text("Nothing set yet. Pick the few things you do every day and Tempo holds you to them.")
+                            .font(Tide.body).foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(TodayPressStyle())
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("today.shortcut.lockdown")
                 Button(action: actions.setUpTasks) {
                     Label("Choose tasks", systemImage: "plus")
                 }
@@ -458,6 +492,7 @@ struct TodayTasksCard: View {
                 .accessibilityIdentifier("today.tasks.setup")
             }
             .tideCard()
+            .matchedTransitionSource(id: TodayRoute.lockdown, in: namespace)
         } else {
             Button {
                 actions.open(.lockdown)
@@ -538,28 +573,18 @@ struct TodayMindMoveRow: View {
 
     private var study: some View {
         let data = snapshot.study
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            TodayTile(label: "Study", identifier: "today.study", action: { actions.open(.mind) }) {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                    TideNumber("\(data.minutes)", unit: "min", size: Tide.numeralM)
-                }
-                if data.targetMinutes > 0 {
-                    TideLevelBar(
-                        progress: min(Double(data.minutes) / Double(data.targetMinutes), 1),
-                        color: Tide.carbs, height: Tide.barSlim
-                    )
-                }
-                Text(studyCaption(data)).font(Tide.caption).foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+        return TodayTile(label: "Study", identifier: "today.study", action: { actions.open(.mind) }) {
+            TideNumber("\(data.minutes)", unit: "min", size: Tide.numeralM)
+            if data.targetMinutes > 0 {
+                TideLevelBar(
+                    progress: min(Double(data.minutes) / Double(data.targetMinutes), 1),
+                    color: Tide.carbs, height: Tide.barSlim
+                )
             }
-            .matchedTransitionSource(id: TodayRoute.mind, in: namespace)
-            Button(action: actions.startFocus) {
-                Label("Focus", systemImage: "timer").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tideGlass)
-            .accessibilityLabel("Start focus timer")
-            .accessibilityIdentifier("today.focus")
+            Text(studyCaption(data)).font(Tide.caption).foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .matchedTransitionSource(id: TodayRoute.mind, in: namespace)
     }
 
     private func studyCaption(_ data: TodaySnapshot.Study) -> String {
@@ -569,8 +594,9 @@ struct TodayMindMoveRow: View {
         return data.targetMinutes > 0 ? "of \(data.targetMinutes) min today" : "No target set"
     }
 
+    @ViewBuilder
     private var move: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
+        if snapshot.moveConnected {
             TodayTile(label: "Move", identifier: "today.move", action: { actions.open(.move) }) {
                 if let steps = snapshot.steps {
                     TideNumber(steps.formatted(), unit: "steps", size: Tide.numeralM)
@@ -585,21 +611,15 @@ struct TodayMindMoveRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .matchedTransitionSource(id: TodayRoute.move, in: namespace)
-            if snapshot.moveConnected {
-                Button {
-                    actions.openTab(.train)
-                } label: {
-                    Label("Train", systemImage: "dumbbell.fill").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tideGlass)
-                .accessibilityLabel("Open training")
-                .accessibilityIdentifier("today.train")
-            } else {
-                Button(action: actions.allowHealth) {
-                    Label("Allow Health", systemImage: "heart.text.square").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tideGlass)
-                .accessibilityIdentifier("today.health")
+            .contextMenu {
+                Button("Open training", systemImage: "dumbbell.fill") { actions.openTab(.train) }
+            }
+        } else {
+            TodayTile(label: "Move", identifier: "today.health", action: actions.allowHealth) {
+                Text("Allow Health").font(Tide.headline).foregroundStyle(Tide.text)
+                Text("Steps and workouts come from the Health app.")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

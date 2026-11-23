@@ -155,9 +155,13 @@ struct TodayView: View {
                     )
                 }
             }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
-            .tempoSettingsToolbar(isPresented: $showSettings)
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    DashboardSettingsView()
+                }
+                .persistenceAlert()
+            }
             .navigationDestination(for: TodayRoute.self) { route in
                 destination(route)
                     .navigationTransition(.zoom(sourceID: route, in: zoom))
@@ -248,6 +252,16 @@ struct TodayView: View {
             refreshFuel: { await refreshFuelAfterChange() },
             reloadOwned: reloadOwned
         ))
+        .onChange(of: services.appState.activeTab) { _, tab in
+            // Coming back to Today: another tab may have settled the day
+            // (Training's coach can change today's session). Re-read what
+            // those tabs own so Today says the same thing they do.
+            guard hasAppeared, tab == .today else {
+                return
+            }
+            viewModel?.refreshTrainingStatus(modelContext: modelContext)
+            reloadOwned()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             // Foreground is a sensible moment to re-sync the page and the watch.
             guard hasAppeared, newPhase == .active else {
@@ -272,7 +286,8 @@ struct TodayView: View {
                 TodayHeader(
                     snapshot: snapshot,
                     dateLine: TempoDateFormatters.dashboardHeader.string(from: Date()),
-                    weather: viewModel?.weather.map { ($0.conditionSymbol, $0.formattedTemperature) }
+                    weather: viewModel?.weather.map { ($0.conditionSymbol, $0.formattedTemperature) },
+                    openSettings: { showSettings = true }
                 )
                 TodayHero(snapshot: snapshot, actions: actions)
                 prompts
@@ -299,6 +314,18 @@ struct TodayView: View {
             .animation(Tide.snap, value: snapshot)
         }
         .scrollIndicators(.hidden)
+        // No bar on this page: fade content out under the status bar instead
+        // of letting cards slide behind the clock.
+        .mask {
+            GeometryReader { proxy in
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: proxy.safeAreaInsets.top)
+                    Color.black
+                }
+                .ignoresSafeArea()
+            }
+        }
         .refreshable {
             // Pull-to-refresh is the user asking for fresh data: skip the
             // in-memory Whoop response cache.
@@ -325,6 +352,13 @@ struct TodayView: View {
         TodayActions(
             open: { route in
                 pushes += 1
+                var route = route
+                // The Body detail only knows the live Whoop/Health feed. When
+                // tonight's sleep came from the saved recovery row instead,
+                // open the Recovery page, which shows that same row.
+                if route == .body, let body = viewModel?.body, !body.isConnected, body.sleepHours == nil {
+                    route = .recovery
+                }
                 services.appState.todayPath.append(route)
             },
             openTab: { services.appState.activeTab = $0 },
@@ -510,6 +544,8 @@ struct TodayView: View {
         withAnimation(Tide.snap) {
             hasAppeared = true
         }
+        TempoSignpost.todayContentShown(source: "fresh")
+        TempoSignpost.mark("TodayLive")
         if fuelRefreshPending {
             fuelRefreshPending = false
             await refreshFuelAfterChange()

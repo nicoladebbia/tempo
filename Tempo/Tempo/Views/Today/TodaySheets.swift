@@ -317,4 +317,3 @@ struct ScoreBreakdownSheet: View {
         }
     }
 }
-

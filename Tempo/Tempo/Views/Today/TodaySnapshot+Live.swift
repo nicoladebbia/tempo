@@ -77,7 +77,7 @@ extension TodaySnapshot {
                 waterMl: fuel.hydrationMl,
                 waterTargetMl: owned.waterTargetMl ?? fuel.hydrationTargetMl
             ),
-            tasks: vm.nonNegotiables.map { TaskItem(id: $0.id, title: $0.title, done: $0.isCompleted) },
+            tasks: vm.nonNegotiables.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }.map { TaskItem(id: $0.id, title: $0.title, done: $0.isCompleted) },
             study: Study(
                 minutes: mind.studyMinutesToday,
                 targetMinutes: mind.studyTargetMinutes,
