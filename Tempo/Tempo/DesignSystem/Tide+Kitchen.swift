@@ -490,6 +490,12 @@ extension Tide.Kitchen {
     static let stripe: CGFloat = 4
     /// A small round legend dot.
     static let dot: CGFloat = 8
+    /// Suggestion tile and the wide suggestion's picture on the product page.
+    static let suggestion: CGFloat = 112
+    static let suggestionWide: CGFloat = 72
+    /// Stroke of the verdict ring and the number of ticks around it.
+    static let ringStroke: CGFloat = 10
+    static let tickCount = 60
     /// Ink laid outside the frame of a live camera.
     static let scrim = Tide.ink.opacity(0.5)
 }

@@ -130,16 +130,38 @@ struct FoodScoreBadge: View {
 
 struct FoodScoreRing: View {
     let score: FoodScore
+    var diameter: CGFloat = Tide.Kitchen.verdictDial
 
     var body: some View {
+        let lit = Int((Double(score.total) / 100 * Double(Tide.Kitchen.tickCount)).rounded())
         ZStack {
+            // The scale: one tick per point of 100/60, lit up to the score.
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                let outer = min(size.width, size.height) / 2
+                let length = Tide.s2
+                for index in 0 ..< Tide.Kitchen.tickCount {
+                    let angle = Double(index) / Double(Tide.Kitchen.tickCount) * 2 * .pi - .pi / 2
+                    var path = Path()
+                    path.move(to: CGPoint(x: center.x + cos(angle) * (outer - length), y: center.y + sin(angle) * (outer - length)))
+                    path.addLine(to: CGPoint(x: center.x + cos(angle) * outer, y: center.y + sin(angle) * outer))
+                    context.stroke(
+                        path,
+                        with: .color(index < lit ? score.rating.color : Tide.track),
+                        style: StrokeStyle(lineWidth: Tide.hair, lineCap: .round)
+                    )
+                }
+            }
+            .animation(Tide.settle, value: lit)
             Circle()
-                .stroke(Tide.fill, lineWidth: 12)
+                .stroke(Tide.fill, lineWidth: Tide.Kitchen.ringStroke)
+                .padding(Tide.s4)
             Circle()
                 .trim(from: 0, to: CGFloat(score.total) / 100)
-                .stroke(score.rating.color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                .stroke(score.rating.color, style: StrokeStyle(lineWidth: Tide.Kitchen.ringStroke, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: score.rating.color.opacity(0.5), radius: 8)
+                .shadow(color: score.rating.color.opacity(0.5), radius: Tide.s2)
+                .padding(Tide.s4)
                 .animation(Tide.settle, value: score.total)
             VStack(spacing: 0) {
                 TideNumber("\(score.total)", size: Tide.numeralM, relativeTo: .title)
@@ -149,7 +171,7 @@ struct FoodScoreRing: View {
                     .foregroundStyle(Tide.text3)
             }
         }
-        .frame(width: 112, height: 112)
+        .frame(width: diameter, height: diameter)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Tempo score \(score.total) out of 100")
     }

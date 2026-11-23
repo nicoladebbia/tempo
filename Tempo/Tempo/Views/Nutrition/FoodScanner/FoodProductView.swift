@@ -36,6 +36,8 @@ struct FoodProductView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var grams: Double
@@ -224,7 +226,7 @@ struct FoodProductView: View {
     }
 
     private var heroHeight: CGFloat {
-        280
+        Tide.Kitchen.heroPicture
     }
 
     /// Every page the full-screen viewer can show, in display order.
@@ -297,7 +299,7 @@ struct FoodProductView: View {
                     image
                         .resizable()
                         .scaledToFill()
-                        .blur(radius: 24)
+                        .blur(radius: Tide.s6)
                 }
                 .overlay(Tide.ink.opacity(0.55))
                 .clipped()
@@ -353,36 +355,44 @@ struct FoodProductView: View {
     @ViewBuilder
     private var scoreCard: some View {
         if let score {
-            HStack(spacing: Tide.s5) {
-                FoodScoreRing(score: score)
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    Text(score.rating.label)
-                        .font(Tide.title2)
-                        .foregroundStyle(score.rating.color)
-                        .accessibilityIdentifier("foodScoreRating")
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                    : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
+                layout {
+                    FoodScoreRing(score: score)
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text("Tempo score").tideLabel()
+                        Text(score.rating.label)
+                            .font(Tide.title)
+                            .foregroundStyle(score.rating.color)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("foodScoreRating")
+                        if score.cappedByAdditive {
+                            Text("Capped: contains a high-risk additive")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.danger)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: 0)
+                    }
+                }
+                Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s3) {
                     scorePart("Nutrition", score.nutritionPoints, of: 60)
                     scorePart("Additives", score.additivePoints, of: 30)
                     scorePart("Organic", score.organicPoints, of: 10)
-                    if score.cappedByAdditive {
-                        Text("Capped: contains a high-risk additive")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.danger)
-                    }
                 }
-                Spacer(minLength: 0)
-            }
-            .tideCard()
-        } else {
-            VStack(alignment: .leading, spacing: Tide.s1) {
-                Text("Not enough data to score")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                Text(missingForScore)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
+        } else {
+            KitchenNotice(
+                systemImage: "questionmark.circle.fill",
+                text: "Not enough data to score. \(missingForScore)",
+                tint: Tide.Kitchen.warn
+            )
         }
     }
 
@@ -398,11 +408,11 @@ struct FoodProductView: View {
     }
 
     private func scorePart(_ label: String, _ points: Int, of max: Int) -> some View {
-        HStack(spacing: Tide.s2) {
+        GridRow {
             Text(label)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
-                .frame(width: 72, alignment: .leading)
+                .gridColumnAlignment(.leading)
             TideLevelBar(
                 progress: max > 0 ? Double(points) / Double(max) : 0,
                 color: score?.rating.color ?? mood.accent,
@@ -413,8 +423,9 @@ struct FoodProductView: View {
                 .font(Tide.caption)
                 .monospacedDigit()
                 .foregroundStyle(Tide.text3)
-                .frame(width: 40, alignment: .trailing)
+                .gridColumnAlignment(.trailing)
         }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Macros
@@ -431,7 +442,7 @@ struct FoodProductView: View {
                             .foregroundStyle(slice.color)
                             .cornerRadius(3)
                     }
-                    .frame(width: 108, height: 108)
+                    .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
                     .chartLegend(.hidden)
                     .overlay {
                         VStack(spacing: 0) {
@@ -452,7 +463,7 @@ struct FoodProductView: View {
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
-                    VStack(alignment: .leading, spacing: Tide.s2) {
+                    Grid(alignment: .leading, horizontalSpacing: Tide.s2, verticalSpacing: Tide.s2) {
                         ForEach(split.slices) { slice in
                             macroLegendRow(slice)
                         }
@@ -466,23 +477,27 @@ struct FoodProductView: View {
     }
 
     private func macroLegendRow(_ slice: FoodMacroSplit.Slice) -> some View {
-        HStack(spacing: Tide.s2) {
-            Circle()
-                .fill(slice.color)
-                .frame(width: 8, height: 8)
-            Text(slice.label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .frame(width: 52, alignment: .leading)
+        GridRow {
+            HStack(spacing: Tide.s2) {
+                Circle()
+                    .fill(slice.color)
+                    .frame(width: Tide.Kitchen.dot, height: Tide.Kitchen.dot)
+                Text(slice.label)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
             Text("\(Int(slice.grams.rounded()))g")
                 .font(Tide.bodyStrong)
                 .monospacedDigit()
                 .foregroundStyle(Tide.text)
-            Text("· \(Int((slice.percent * 100).rounded()))%")
+                .gridColumnAlignment(.trailing)
+            Text("\(Int((slice.percent * 100).rounded()))%")
                 .font(Tide.caption)
                 .monospacedDigit()
                 .foregroundStyle(Tide.text3)
+                .gridColumnAlignment(.trailing)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func macroAccessibilityLabel(_ split: FoodMacroSplit, labelKcal: Double?) -> String {
@@ -571,7 +586,7 @@ struct FoodProductView: View {
                         HStack(alignment: .top, spacing: Tide.s2) {
                             Circle()
                                 .fill(additive.risk.color)
-                                .frame(width: 10, height: 10)
+                                .frame(width: Tide.Kitchen.dot, height: Tide.Kitchen.dot)
                                 .padding(.top, Tide.s1)
                             VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text("\(additive.displayCode) · \(additive.name)")
@@ -651,7 +666,7 @@ struct FoodProductView: View {
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(Tide.bodyStrong)
-                    .frame(width: 56)
+                    .frame(width: Tide.Kitchen.row)
                     .accessibilityIdentifier("foodPortionGrams")
                     .onChange(of: gramsText) { _, text in
                         if let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0, value <= 5000 {
@@ -692,7 +707,7 @@ struct FoodProductView: View {
         GridRow {
             HStack(spacing: Tide.s1) {
                 if let level {
-                    Circle().fill(level).frame(width: 8, height: 8)
+                    Circle().fill(level).frame(width: Tide.Kitchen.dot, height: Tide.Kitchen.dot)
                 }
                 Text(label)
             }
@@ -763,13 +778,13 @@ struct FoodProductView: View {
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     RoundedRectangle(cornerRadius: Tide.controlRadius)
                         .fill(Tide.text3.opacity(0.3))
-                        .frame(width: 112, height: 112)
+                        .frame(width: Tide.Kitchen.suggestion, height: Tide.Kitchen.suggestion)
                     RoundedRectangle(cornerRadius: Tide.controlRadius)
                         .fill(Tide.text3.opacity(0.3))
-                        .frame(width: 90, height: 12)
+                        .frame(width: Tide.Kitchen.suggestion * 0.8, height: Tide.s3)
                     RoundedRectangle(cornerRadius: Tide.controlRadius)
                         .fill(Tide.text3.opacity(0.3))
-                        .frame(width: 60, height: 10)
+                        .frame(width: Tide.Kitchen.suggestion * 0.5, height: Tide.s3)
                 }
             }
         }
@@ -779,7 +794,7 @@ struct FoodProductView: View {
     private func suggestionCard(_ item: FoodProduct) -> some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             ZStack(alignment: .topTrailing) {
-                FoodProductThumbnail(product: item, size: 112)
+                FoodProductThumbnail(product: item, size: Tide.Kitchen.suggestion)
                 FoodScoreBadge(product: item)
                     .padding(Tide.s1)
             }
@@ -796,13 +811,13 @@ struct FoodProductView: View {
                     .lineLimit(1)
             }
         }
-        .frame(width: 112, alignment: .leading)
+        .frame(width: Tide.Kitchen.suggestion, alignment: .leading)
     }
 
     private func suggestionCardWide(_ item: FoodProduct) -> some View {
         HStack(spacing: Tide.s3) {
             ZStack(alignment: .topTrailing) {
-                FoodProductThumbnail(product: item, size: 72)
+                FoodProductThumbnail(product: item, size: Tide.Kitchen.suggestionWide)
                 FoodScoreBadge(product: item)
                     .padding(Tide.hair)
             }
