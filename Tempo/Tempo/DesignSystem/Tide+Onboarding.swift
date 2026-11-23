@@ -112,6 +112,7 @@ struct OnboardingScaffold<Content: View>: View {
                 }
             }
             .padding(.horizontal, Tide.edge)
+            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.top, Tide.s6)
             .padding(.bottom, Tide.s2)
             .background {
