@@ -20,64 +20,63 @@ struct UndoMealSheet: View {
 
     var body: some View {
         ScrollView {
-        VStack(spacing: TempoSpacing.lg) {
-            VStack(spacing: TempoSpacing.xs) {
-                Image(systemName: isLog ? "trash.circle.fill" : "arrow.uturn.backward.circle.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(Color.tempoError)
-                    .accessibilityHidden(true)
-                Text(isLog ? "Delete this log?" : "Mark as not eaten?")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text("\(mealName) · \(kcal) kcal")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(1)
-            }
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.s2) {
+                    Image(systemName: isLog ? "trash.circle.fill" : "arrow.uturn.backward.circle.fill")
+                        .font(Tide.title)
+                        .foregroundStyle(Tide.danger)
+                        .accessibilityHidden(true)
+                    Text(isLog ? "Delete this log?" : "Mark as not eaten?")
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                    Text("\(mealName) · \(kcal) kcal")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                consequence("minus.circle.fill", "Removes it from today's totals.")
-                consequence("refrigerator.fill", "Puts pantry items back.")
-                if !isLog {
-                    consequence("calendar.badge.clock", "Goes back on the plan as planned.")
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    consequence("minus.circle.fill", "Removes it from today's totals.")
+                    consequence("refrigerator.fill", "Puts pantry items back.")
+                    if !isLog {
+                        consequence("calendar.badge.clock", "Goes back on the plan as planned.")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+                VStack(spacing: Tide.s2) {
+                    Button(action: onConfirm) {
+                        Text(isLog ? "Delete log" : "Mark as not eaten")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.fuelDestructive)
+                    .accessibilityIdentifier("undoMealConfirm")
+                    Button("Keep it", action: onCancel)
+                        .buttonStyle(.tideGlass)
+                        .accessibilityIdentifier("undoMealCancel")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tempoCard()
-
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button(action: onConfirm) {
-                    Text(isLog ? "Delete log" : "Mark as not eaten")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(Color.tempoError)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("undoMealConfirm")
-                Button("Keep it", action: onCancel)
-                    .buttonStyle(.tempoGhost)
-                    .accessibilityIdentifier("undoMealCancel")
-            }
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.xl)
-        .padding(.bottom, TempoSpacing.md)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s6)
+            .padding(.bottom, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
         .tidePage()
     }
 
     private func consequence(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: icon)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 22)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

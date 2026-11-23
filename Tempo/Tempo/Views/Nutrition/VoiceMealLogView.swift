@@ -20,6 +20,8 @@ struct VoiceMealLogView: View {
     /// Low-confidence fallback: dismiss and open the Search tab pre-filled.
     var onSearchInstead: ((String) -> Void)?
 
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
     @Environment(\.dismiss)
@@ -47,9 +49,10 @@ struct VoiceMealLogView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 switch phase {
-                case .idle, .recording:
+                case .idle,
+                     .recording:
                     micSection
                 case .thinking:
                     thinkingSection
@@ -64,7 +67,7 @@ struct VoiceMealLogView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(TempoSpacing.screenEdge)
+            .padding(Tide.edge)
             .tidePage()
             .navigationTitle("Voice Log")
             .navigationBarTitleDisplayMode(.inline)
@@ -94,43 +97,43 @@ struct VoiceMealLogView: View {
     // MARK: - Mic
 
     private var micSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
 
             Text(transcriber.isListening
                 ? "Listening… describe your meal"
                 : "Tap the mic and say what you ate")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
 
             Button {
                 Task { await toggleRecording() }
             } label: {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.ink)
                     .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
+                    .background(transcriber.isListening ? Tide.danger : mood.accent)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
-                    .padding(TempoSpacing.cardPadding)
+                    .padding(Tide.s4)
                     .frame(maxWidth: .infinity)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .background(Tide.fill)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
             }
 
             if let err = transcriber.error {
                 Text(err)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
             }
 
             Spacer()
@@ -152,19 +155,21 @@ struct VoiceMealLogView: View {
     // MARK: - Thinking
 
     private var thinkingSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             ProgressView()
                 .controlSize(.large)
             Text("Reading your meal…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
             Spacer()
         }
     }
 
     private func runExtraction() async {
-        guard let service else { return }
+        guard let service else {
+            return
+        }
         let transcript = transcriber.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty else {
             phase = .idle
@@ -188,16 +193,16 @@ struct VoiceMealLogView: View {
     // MARK: - Clarifying (one question at a time, tappable answers only)
 
     private var clarifyingSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             Text("Question \(questionIndex + 1) of \(questions.count)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             if questionIndex < questions.count {
                 let q = questions[questionIndex]
                 Text(q.question)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
 
                 ForEach(q.options.prefix(4), id: \.self) { option in
                     Button {
@@ -205,15 +210,15 @@ struct VoiceMealLogView: View {
                         advanceQuestion()
                     } label: {
                         Text(option)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(TempoSpacing.md)
-                            .background(Color.tempoSurfaceCard)
+                            .padding(Tide.s3)
+                            .background(Tide.fill)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.tempoBorder, lineWidth: 1)
+                                    .stroke(Tide.hairline, lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -235,7 +240,9 @@ struct VoiceMealLogView: View {
     // MARK: - Resolve + Confirmation
 
     private func runResolve() async {
-        guard let service else { return }
+        guard let service else {
+            return
+        }
         phase = .thinking
         do {
             resolved = try await service.resolve(
@@ -251,13 +258,13 @@ struct VoiceMealLogView: View {
     }
 
     private var confirmationSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Confirm your meal")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
 
             ScrollView {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     ForEach(Array(resolved.enumerated()), id: \.offset) { _, item in
                         resolvedRow(item)
                     }
@@ -269,28 +276,28 @@ struct VoiceMealLogView: View {
             } label: {
                 Text("Log it")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
         }
     }
 
     private func resolvedRow(_ item: VoiceResolvedItem) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             HStack {
                 Text(item.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 if item.isLowConfidence {
                     Text("Low confidence")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoWarning)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.warn)
                 }
             }
 
             Text("\(Int(item.quantityG)) g · \(Int(item.calories)) kcal · "
                 + "P \(Int(item.proteinG)) / C \(Int(item.carbsG)) / F \(Int(item.fatG))")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
             if item.isLowConfidence {
                 Button {
@@ -299,17 +306,17 @@ struct VoiceMealLogView: View {
                     onSearchInstead?(item.name)
                 } label: {
                     Text("Search instead")
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(mood.accent)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(TempoSpacing.cardPadding)
+        .padding(Tide.s4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .background(Tide.fill)
+        .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
     }
 
     private func logResolvedItems() {
@@ -340,7 +347,7 @@ struct VoiceMealLogView: View {
     // MARK: - Failure
 
     private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             AIBlockerCard(blocker: blocker, onConsentGranted: retry)
             Spacer()
@@ -348,14 +355,14 @@ struct VoiceMealLogView: View {
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoWarning)
+                .font(Tide.title)
+                .foregroundStyle(Tide.warn)
             Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
             Button {
                 // transcriber.start() clears transcribedText itself.
@@ -363,7 +370,7 @@ struct VoiceMealLogView: View {
             } label: {
                 Text("Try again")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             Spacer()
         }
     }

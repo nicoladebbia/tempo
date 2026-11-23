@@ -363,3 +363,31 @@ struct FuelActionTile: View {
         .accessibilityIdentifier(identifier)
     }
 }
+
+// MARK: - FuelDestructiveButtonStyle
+
+/// The main button of a "delete this" confirmation: same shape as the primary
+/// button, filled with the danger colour.
+struct FuelDestructiveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled)
+    private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Tide.headline)
+            .foregroundStyle(Tide.ink)
+            .padding(.horizontal, Tide.s5)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(Tide.danger.opacity(isEnabled ? 1 : 0.4), in: .capsule)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+            .contentShape(.capsule)
+    }
+}
+
+extension ButtonStyle where Self == FuelDestructiveButtonStyle {
+    static var fuelDestructive: FuelDestructiveButtonStyle {
+        FuelDestructiveButtonStyle()
+    }
+}
