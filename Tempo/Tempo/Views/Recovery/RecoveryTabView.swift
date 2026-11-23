@@ -33,8 +33,10 @@ struct RecoveryTabView: View {
                     recoveryContent(viewModel: viewModel)
                 } else {
                     ProgressView()
+                        .controlSize(.large)
+                        .tint(Tide.text2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .tidePage()
+                        .tidePage(energy: 1)
                 }
             }
             .navigationTitle("Recovery")
@@ -57,17 +59,16 @@ struct RecoveryTabView: View {
     private func recoveryContent(viewModel: RecoveryViewModel) -> some View {
         @Bindable
         var vm = viewModel
-        return VStack(spacing: 0) {
-            // Segmented control
+        return VStack(spacing: Tide.s2) {
             // Per MODULE_RECOVERY.md Section 2 — Today / Sleep / Strain / Trends
-            Picker("Recovery Section", selection: $vm.selectedTab) {
-                ForEach(RecoveryTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.sm)
+            TidePillPicker(
+                options: RecoveryTab.allCases,
+                selection: $vm.selectedTab,
+                title: \.rawValue,
+                label: "Recovery section"
+            )
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
 
             // Tab content
             Group {
@@ -82,7 +83,9 @@ struct RecoveryTabView: View {
                     RecoveryTrendsView(viewModel: viewModel)
                 }
             }
+            .transition(.opacity)
         }
-        .tidePage()
+        .animation(Tide.snap, value: viewModel.selectedTab)
+        .tidePage(energy: 1)
     }
 }

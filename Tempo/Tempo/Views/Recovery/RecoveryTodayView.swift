@@ -20,55 +20,46 @@ struct RecoveryTodayView: View {
     @Environment(\.modelContext)
     private var modelContext
 
-    /// Animated recovery score — starts at 0, fills to actual score on appear
-    @State
-    private var animatedScore: Double = 0
-    @State
-    private var hasAppeared = false
-
     /// Metric detail sheet
     @State
     private var selectedMetric: MetricType?
 
+    private let metricColumns = Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2)
+
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                // Hero: Recovery Ring
-                heroSection
+        TideScrollPage(energy: 1) {
+            // Hero: the recovery dial
+            heroSection
 
-                // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
-                MorningCheckInCard()
+            // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
+            MorningCheckInCard()
 
-                // Recovery Score Explanation (Task 1)
-                recoveryExplanationSection
-
-                // Recovery Score Breakdown
-                scoreBreakdownSection
-
-                // Key Metrics Row
-                metricsRow
-
-                // Anomaly Warning Cards (Task 4)
-                if !viewModel.activeAnomalies.isEmpty {
-                    anomalyWarningsSection
-                }
-
-                // Legacy Warnings (if any)
-                if let prescription = viewModel.todayPrescription, !prescription.warnings.isEmpty {
-                    warningsSection(prescription.warnings)
-                }
-
-                // Today's AI-generated recovery read (replaces the old
-                // static 2-day prescription text).
-                RecoveryAIInsightView(recovery: viewModel.todayRecovery)
-
-                // Quick Insights
-                quickInsightsSection
+            // Anomaly Warning Cards
+            if !viewModel.activeAnomalies.isEmpty {
+                anomalyWarningsSection
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+
+            // Legacy Warnings (if any)
+            if let prescription = viewModel.todayPrescription, !prescription.warnings.isEmpty {
+                warningsSection(prescription.warnings)
+            }
+
+            // Key Metrics
+            metricsGrid
+
+            // Recovery Score Explanation
+            recoveryExplanationSection
+
+            // Recovery Score Breakdown
+            scoreBreakdownSection
+
+            // Today's AI-generated recovery read (replaces the old
+            // static 2-day prescription text).
+            RecoveryAIInsightView(recovery: viewModel.todayRecovery)
+
+            // Quick Insights
+            quickInsightsSection
         }
-        .tidePage()
         .refreshable {
             await viewModel.forceRefresh(modelContext: modelContext)
         }
@@ -77,228 +68,169 @@ struct RecoveryTodayView: View {
                 await viewModel.refresh(modelContext: modelContext)
             }
         }
-    }
-
-    // MARK: - Hero Section
-
-    // Per MODULE_RECOVERY.md Section 4.2 — Recovery Ring + comparison label
-
-    private var heroSection: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            // Recovery Ring with zone color
-            ZStack {
-                // Glow effect
-                Circle()
-                    .fill(zoneColor.opacity(0.15))
-                    .frame(width: 240, height: 240)
-                    .blur(radius: 30)
-
-                ScoreRingView(
-                    score: animatedScore,
-                    maxScore: 100,
-                    label: "RECOVERY",
-                    size: 200,
-                    strokeWidth: 14
-                )
-            }
-
-            // Comparison label
-            Text(viewModel.comparisonText)
-                .font(.tempoCaption1)
-                .foregroundStyle(
-                    viewModel.comparisonIsPositive
-                        ? Color.tempoRecoveryGreen
-                        : Color.tempoRecoveryRed
-                )
-
-            // Date label — ticks via TimelineView so it survives midnight rollover.
-            TimelineView(.everyMinute) { context in
-                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-        }
-        .padding(.top, TempoSpacing.lg)
-        .onAppear {
-            guard !hasAppeared else {
-                return
-            }
-            hasAppeared = true
-            animatedScore = 0
-            withAnimation(.easeOut(duration: 1.0)) {
-                animatedScore = viewModel.todayRecovery?.recoveryScore ?? 0
-            }
-        }
-        .onChange(of: viewModel.todayRecovery?.recoveryScore) { _, newValue in
-            withAnimation(.easeOut(duration: 1.0)) {
-                animatedScore = newValue ?? 0
-            }
-        }
-    }
-
-    // MARK: - Recovery Explanation Section (Task 1)
-
-    private var recoveryExplanationSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "brain.head.profile")
-                    .font(.tempoBody)
-                    .foregroundStyle(zoneColor)
-
-                Text("Recovery Analysis")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-            }
-
-            Text(viewModel.recoveryExplanation)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .lineSpacing(3)
-        }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .fill(Color.tempoSurfaceCard)
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                        .stroke(zoneColor.opacity(0.3), lineWidth: 1)
-                )
-        )
-        .tempoShadow(.card)
-    }
-
-    // MARK: - Anomaly Warnings Section (Task 4)
-
-    private var anomalyWarningsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            TempoSectionHeader("Health Alerts", accentColor: Color.tempoRecoveryRed)
-
-            ForEach(viewModel.activeAnomalies) { anomaly in
-                HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                    Image(systemName: anomaly.icon)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(
-                            anomaly.severity == .critical
-                                ? Color.tempoRecoveryRed
-                                : Color.tempoRecoveryYellow
-                        )
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                        Text(anomaly.title)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(
-                                anomaly.severity == .critical
-                                    ? Color.tempoRecoveryRed
-                                    : Color.tempoRecoveryYellow
-                            )
-
-                        Text(anomaly.detail)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .lineSpacing(2)
-                    }
-                }
-                .padding(TempoSpacing.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                        .fill(
-                            anomaly.severity == .critical
-                                ? Color.tempoRecoveryRedBg
-                                : Color.tempoRecoveryYellow.opacity(0.1)
-                        )
-                )
-            }
-        }
-    }
-
-    // MARK: - Key Metrics Row
-
-    // Per MODULE_RECOVERY.md Section 4.3 — HRV, RHR, SpO2, Temp
-
-    private var metricsRow: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            metricTile(
-                icon: "waveform.path.ecg",
-                label: "HRV",
-                value: viewModel.formattedHRV,
-                unit: "ms",
-                metric: .hrv
-            )
-            metricTile(
-                icon: "heart.fill",
-                label: "RHR",
-                value: viewModel.formattedRHR,
-                unit: "bpm",
-                metric: .rhr
-            )
-            metricTile(
-                icon: "lungs.fill",
-                label: "SpO2",
-                value: viewModel.formattedSpO2,
-                unit: "%",
-                metric: .spo2
-            )
-            metricTile(
-                icon: "thermometer.medium",
-                label: "Temp",
-                value: viewModel.formattedSkinTemp,
-                unit: "°C",
-                metric: .temp
-            )
-        }
+        .tideCovered(selectedMetric != nil)
         .sheet(item: $selectedMetric) { metric in
             MetricTrendSheet(
                 metric: metric,
                 viewModel: viewModel
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
     }
 
-    private func metricTile(icon: String, label: String, value: String, unit: String, metric: MetricType) -> some View {
-        Button {
+    // MARK: - Hero Section
+
+    // Per MODULE_RECOVERY.md Section 4.2 — Recovery dial + comparison label
+
+    private var heroSection: some View {
+        VStack(spacing: Tide.s3) {
+            TideDial(
+                score: viewModel.todayRecovery.map { Int($0.recoveryScore.rounded()) },
+                caption: "Recovery",
+                diameter: Tide.dialDetail
+            )
+
+            if viewModel.todayRecovery?.recoveryScore != nil {
+                TideStatusPill(
+                    text: "\(viewModel.recoveryZone.displayName) zone",
+                    tint: zoneColor
+                )
+            }
+
+            // Comparison label
+            Text(viewModel.comparisonText)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(viewModel.comparisonIsPositive ? TideTone.mint : Tide.danger)
+                .multilineTextAlignment(.center)
+
+            // Date label — ticks via TimelineView so it survives midnight rollover.
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s2)
+        .accessibilityElement(children: .contain)
+    }
+
+    // MARK: - Recovery Explanation Section
+
+    private var recoveryExplanationSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
+                Image(systemName: "brain.head.profile")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(zoneColor)
+                    .accessibilityHidden(true)
+                Text("Recovery analysis").tideLabel()
+            }
+
+            Text(viewModel.recoveryExplanation)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .lineSpacing(Tide.s1)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .tideCard()
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Anomaly Warnings Section
+
+    private var anomalyWarningsSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Health alerts")
+
+            ForEach(viewModel.activeAnomalies) { anomaly in
+                let tint = anomaly.severity == .critical ? Tide.danger : TideTone.amber
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    Image(systemName: anomaly.icon)
+                        .font(Tide.headline)
+                        .foregroundStyle(tint)
+                        .frame(width: Tide.icon)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(anomaly.title)
+                            .font(Tide.headline)
+                            .foregroundStyle(tint)
+                        Text(anomaly.detail)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .lineSpacing(Tide.hair)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tideTintedCard(tint, padding: Tide.s4, radius: Tide.tileRadius)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    // MARK: - Key Metrics
+
+    // Per MODULE_RECOVERY.md Section 4.3 — HRV, RHR, SpO2, Temp
+
+    private var metricsGrid: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Vitals")
+            LazyVGrid(columns: metricColumns, spacing: Tide.s3) {
+                metricTile(label: "HRV", value: viewModel.formattedHRV, metric: .hrv)
+                metricTile(label: "Resting HR", value: viewModel.formattedRHR, metric: .rhr)
+                metricTile(label: "SpO2", value: viewModel.formattedSpO2, metric: .spo2)
+                metricTile(label: "Skin temp", value: viewModel.formattedSkinTemp, metric: .temp)
+            }
+        }
+    }
+
+    private func metricTile(label: String, value: String, metric: MetricType) -> some View {
+        let indicator = baselineIndicator(for: metric)
+        return Button {
             selectedMetric = metric
         } label: {
-            VStack(spacing: TempoSpacing.xxs) {
-                Image(systemName: icon)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Text(label)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                HStack(spacing: 2) {
-                    Text(value)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    Text(unit)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(spacing: Tide.s1 + Tide.hair) {
+                    Image(systemName: metric.icon)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text2)
+                        .accessibilityHidden(true)
+                    Text(label)
+                        .tideLabel()
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                 }
 
-                // Baseline indicator
-                if let indicator = baselineIndicator(for: metric) {
-                    HStack(spacing: 2) {
+                TideNumber(value, unit: metric.unit, size: Tide.numeralM, relativeTo: .title2)
+
+                // Baseline indicator: green is the good side of your own average.
+                if let indicator {
+                    HStack(spacing: Tide.s1) {
                         Image(systemName: indicator.isPositive ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 8, weight: .bold))
-                        Text("vs avg")
-                            .font(.system(size: 9))
+                            .font(Tide.label)
+                        Text("vs avg").font(Tide.caption)
                     }
-                    .foregroundStyle(indicator.isPositive ? Color.tempoRecoveryGreen : Color.tempoRecoveryRed)
+                    .foregroundStyle(indicator.isPositive ? TideTone.mint : Tide.danger)
+                } else {
+                    Text("No baseline yet")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.md)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TideCardPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(label) \(value) \(metric.unit)"
+                + (indicator.map { $0.isPositive ? ", better than your average" : ", worse than your average" } ?? "")
+        )
+        .accessibilityHint("Shows the last 7 days")
     }
 
     // MARK: - Warnings Section
@@ -306,21 +238,21 @@ struct RecoveryTodayView: View {
     // Per MODULE_RECOVERY.md — Warnings highlighted in red
 
     private func warningsSection(_ warnings: [String]) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             ForEach(warnings, id: \.self) { warning in
-                HStack(alignment: .top, spacing: TempoSpacing.sm) {
+                HStack(alignment: .top, spacing: Tide.s3) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoRecoveryRed)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.danger)
+                        .accessibilityHidden(true)
 
                     Text(warning)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoRecoveryRed)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(TempoSpacing.md)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoRecoveryRedBg)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .tideTintedCard(Tide.danger, padding: Tide.s4, radius: Tide.tileRadius)
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -330,8 +262,8 @@ struct RecoveryTodayView: View {
     // Per MODULE_RECOVERY.md Section 4.5
 
     private var quickInsightsSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("Quick Insights")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Quick insights")
 
             // Recovery Trends Teaser
             if let avg = viewModel.avgRecovery7d {
@@ -340,12 +272,11 @@ struct RecoveryTodayView: View {
                 } label: {
                     insightCard(
                         icon: "chart.line.uptrend.xyaxis",
-                        title: "Recovery Trends",
-                        detail: "7-day avg: \(Int(avg))%",
-                        action: "See Trends"
+                        title: "Recovery trends",
+                        detail: "7-day avg: \(Int(avg))%"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TideCardPressStyle())
             }
 
             // Sleep Teaser
@@ -355,12 +286,11 @@ struct RecoveryTodayView: View {
                 } label: {
                     insightCard(
                         icon: "moon.zzz.fill",
-                        title: "Last Night's Sleep",
-                        detail: "\(viewModel.formattedSleepHours) · Score: \(viewModel.formattedSleepScore)",
-                        action: "Details"
+                        title: "Last night's sleep",
+                        detail: "\(viewModel.formattedSleepHours) · Score: \(viewModel.formattedSleepScore)"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TideCardPressStyle())
             }
 
             // Strain Teaser
@@ -370,60 +300,51 @@ struct RecoveryTodayView: View {
                 } label: {
                     insightCard(
                         icon: "flame.fill",
-                        title: "Today's Strain",
-                        detail: "\(viewModel.formattedStrain) · Calories: \(viewModel.formattedCalories)",
-                        action: "Details"
+                        title: "Today's strain",
+                        detail: "\(viewModel.formattedStrain) · Calories: \(viewModel.formattedCalories)"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TideCardPressStyle())
             }
         }
     }
 
-    private func insightCard(icon: String, title: String, detail: String, action: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: icon)
-                        .font(.tempoBody)
-                        .foregroundStyle(zoneColor)
+    private func insightCard(icon: String, title: String, detail: String) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: icon, tint: zoneColor)
 
-                    Text(title)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                }
-
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(detail)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            HStack(spacing: TempoSpacing.xxs) {
-                Text(action)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(zoneColor)
-                Image(systemName: "chevron.right")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(zoneColor)
-            }
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .frame(minHeight: Tide.hit)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Score Breakdown Section (Task 2)
+    // MARK: - Score Breakdown Section
 
     // Shows what drove the recovery score: HRV, RHR, Sleep vs 30-day baselines
 
     private var scoreBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            TempoSectionHeader("What Drove Your Score")
+        let hasRows = viewModel.hrvDelta != nil || viewModel.rhrDelta != nil || viewModel.sleepDelta != nil
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "What drove your score")
 
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: 0) {
                 if let hrvDelta = viewModel.hrvDelta, let baseline = viewModel.hrvBaseline30d {
                     scoreDriverRow(
                         label: "HRV",
@@ -435,6 +356,7 @@ struct RecoveryTodayView: View {
                     )
                 }
                 if let rhrDelta = viewModel.rhrDelta, let baseline = viewModel.rhrBaseline30d {
+                    TideDivider()
                     scoreDriverRow(
                         label: "RHR",
                         todayValue: viewModel.formattedRHR,
@@ -445,6 +367,7 @@ struct RecoveryTodayView: View {
                     )
                 }
                 if let sleepDelta = viewModel.sleepDelta {
+                    TideDivider()
                     scoreDriverRow(
                         label: "Sleep",
                         todayValue: viewModel.formattedSleepHours,
@@ -454,11 +377,14 @@ struct RecoveryTodayView: View {
                         isHigherBetter: true
                     )
                 }
+                if !hasRows {
+                    Text("Your drivers show up after a few days of data.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -471,43 +397,38 @@ struct RecoveryTodayView: View {
         isHigherBetter: Bool
     ) -> some View {
         let isPositive = isHigherBetter ? delta >= 0 : delta <= 0
-        return HStack {
+        return HStack(spacing: Tide.s3) {
             Text(label)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 50, alignment: .leading)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text2)
+                .frame(minWidth: Tide.s10, alignment: .leading)
 
-            HStack(spacing: 2) {
-                Text(todayValue)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
+            TideNumber(todayValue, unit: unit.isEmpty ? nil : unit, size: Tide.numeralS, relativeTo: .headline)
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             // Delta arrow
-            HStack(spacing: 4) {
+            HStack(spacing: Tide.s1) {
                 Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(Tide.label)
                 Text(String(format: "%+.0f", delta))
-                    .font(.tempoCaption1)
-                    .fontWeight(.medium)
+                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
             }
-            .foregroundStyle(isPositive ? Color.tempoRecoveryGreen : Color.tempoRecoveryRed)
+            .foregroundStyle(isPositive ? TideTone.mint : Tide.danger)
 
             Text("avg \(baselineValue)")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(width: 65, alignment: .trailing)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .frame(minWidth: Tide.s10 + Tide.s6, alignment: .trailing)
         }
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(label) \(todayValue) \(unit), \(isPositive ? "better" : "worse") than your average of \(baselineValue)"
+        )
     }
 
-    // MARK: - Baseline Indicator Helper (Task 3)
+    // MARK: - Baseline Indicator Helper
 
     private struct BaselineIndicator {
         let isPositive: Bool
@@ -542,11 +463,7 @@ struct RecoveryTodayView: View {
     // MARK: - Helpers
 
     private var zoneColor: Color {
-        switch viewModel.recoveryZone {
-        case .green: Color.tempoRecoveryGreen
-        case .yellow: Color.tempoRecoveryYellow
-        case .red: Color.tempoRecoveryRed
-        }
+        viewModel.recoveryZone.tideColor
     }
 }
 
@@ -591,26 +508,26 @@ struct MetricTrendSheet: View {
     private var dismiss
 
     var body: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        TideScrollPage(spacing: Tide.s5, spacer: Tide.s6) {
             // Header
-            HStack {
-                Image(systemName: metric.icon)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text("\(metric.rawValue) — Last 7 Days")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: metric.icon, tint: sparklineColor)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(metric.rawValue)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                    Text("Last 7 days")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
+                Spacer(minLength: Tide.s2)
+                TideCloseButton { dismiss() }
             }
+            .accessibilityElement(children: .contain)
 
             // Sparkline chart
             if trendData.count >= 2 {
-                TempoLineChart(
+                TideLineChart(
                     data: [
                         TempoLineChartData(
                             id: metric.rawValue,
@@ -621,55 +538,48 @@ struct MetricTrendSheet: View {
                             }
                         ),
                     ],
-                    height: 160
+                    height: Tide.chartHeight
                 )
             } else {
                 Text("Need \(3 - trendData.count) more days of data to show trends.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, TempoSpacing.xxxl)
+                    .padding(.vertical, Tide.s10)
             }
 
             // Summary stats
             if !trendData.isEmpty {
-                HStack(spacing: TempoSpacing.lg) {
+                HStack(spacing: Tide.s3) {
                     summaryItem(label: "Min", value: trendData.map(\.1).min())
                     summaryItem(label: "Avg", value: trendData.map(\.1).reduce(0, +) / Double(trendData.count))
                     summaryItem(label: "Max", value: trendData.map(\.1).max())
                 }
             }
-
-            Spacer()
         }
-        .padding(TempoSpacing.screenEdge)
-        .tidePage()
     }
 
     private func summaryItem(label: String, value: Double?) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Text(value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(metric.unit)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(label).tideLabel()
+            TideNumber(
+                value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--",
+                unit: metric.unit,
+                size: Tide.numeralS + Tide.s1,
+                relativeTo: .title3
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     private var sparklineColor: Color {
         switch metric {
-        case .hrv: Color.tempoSleepREM // #A29BFE
-        case .rhr: Color.tempoRecoveryRed
-        case .spo2: Color.tempoRecoveryGreen
-        case .temp: Color.tempoRecoveryYellow
+        case .hrv: TideSleepStage.rem
+        case .rhr: Tide.danger
+        case .spo2: TideTone.mint
+        case .temp: TideTone.amber
         }
     }
 
