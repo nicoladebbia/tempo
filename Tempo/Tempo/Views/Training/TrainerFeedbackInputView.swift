@@ -58,7 +58,6 @@ struct TrainerFeedbackInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                TidePageBackground()
                 if isProcessing {
                     processingOverlay
                 } else {
@@ -73,7 +72,7 @@ struct TrainerFeedbackInputView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear {
             if feedbackService == nil {
                 feedbackService = TrainerFeedbackService(apiClient: services.apiClient)
@@ -99,29 +98,29 @@ struct TrainerFeedbackInputView: View {
 
     private var formContent: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Paste what your trainer sent")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text(
                         "\"RDL +5kg\", \"skip the sprints Thursday, knee\", \"togli gli sprint giovedì\" — Tempo turns it into changes you review before anything's applied."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 }
 
                 TextEditor(text: $text)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .scrollContentBackground(.hidden)
-                    .padding(TempoSpacing.sm)
+                    .padding(Tide.s2)
                     .frame(minHeight: 140)
-                    .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                    .background(Tide.fill.opacity(TempoOpacity.o40))
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
                     .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xl)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: Tide.controlRadius)
+                            .stroke(Tide.hairline, lineWidth: 1)
                     )
 
                 PhotosPicker(selection: $photosSelection, matching: .images) {
@@ -131,29 +130,29 @@ struct TrainerFeedbackInputView: View {
                 .buttonStyle(.tempoSecondary)
 
                 if let screenshot {
-                    HStack(spacing: TempoSpacing.sm) {
+                    HStack(spacing: Tide.s2) {
                         Image(uiImage: screenshot)
                             .resizable()
                             .scaledToFill()
                             .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm))
+                            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
                         Text("Screenshot added — its text will be read on-device.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                         Spacer()
                         Button {
                             self.screenshot = nil
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                 }
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                 }
 
                 Button {
@@ -162,30 +161,30 @@ struct TrainerFeedbackInputView: View {
                     Text("Read Changes")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(!canSubmit)
 
                 #if DEBUG
                     Button("Load Sample Changes (DEBUG)") {
                         loadSampleReview()
                     }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.md)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .padding(.top, Tide.s3)
                 #endif
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
     }
 
     private var processingOverlay: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             ProgressView().scaleEffect(1.4)
             Text(processingLabel)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
         }
     }
 

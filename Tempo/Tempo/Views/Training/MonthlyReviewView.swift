@@ -46,24 +46,24 @@ struct MonthlyReviewView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     if let summary = summaryText {
                         reportSection(summary)
                     } else {
                         interviewSection
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle(monthDisplayName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.body)
+                        .foregroundStyle(Color.accentColor)
                 }
             }
             .onAppear(perform: seedFromExisting)
@@ -73,10 +73,8 @@ struct MonthlyReviewView: View {
     // MARK: - Interview (§17.1)
 
     private var interviewSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-            Text("MONTH'S OVER. DEBRIEF.")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s5) {
+            Text("Month's over. debrief.").tideLabel(Tide.text3)
 
             question(
                 "What went well?",
@@ -104,11 +102,11 @@ struct MonthlyReviewView: View {
                 placeholder: "Concrete beats vague."
             )
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Next month's emphasis")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                HStack(spacing: TempoSpacing.sm) {
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                HStack(spacing: Tide.s2) {
                     emphasisButton(nil, label: "Keep current")
                     ForEach(BlockEmphasis.allCases, id: \.self) { e in
                         emphasisButton(e, label: e.displayName)
@@ -118,8 +116,8 @@ struct MonthlyReviewView: View {
 
             if generationFailed {
                 Text("Interview saved. Report generation failed — it'll retry next time you open the app.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoWarning)
+                    .font(Tide.caption)
+                    .foregroundStyle(TideTrain.caution)
             }
 
             Button {
@@ -127,31 +125,29 @@ struct MonthlyReviewView: View {
             } label: {
                 HStack {
                     if isGenerating {
-                        ProgressView().tint(Color.tempoTextInverse)
+                        ProgressView().tint(Tide.ink)
                     }
-                    Text(isGenerating ? "WRITING YOUR REPORT…" : "FILE THE REPORT")
-                        .font(.tempoHeadline)
+                    Text(isGenerating ? "Writing your report…" : "File the report")
+                        .font(Tide.headline)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Color.tempoSignal)
-                .foregroundStyle(Color.tempoTextInverse)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .background(Color.accentColor)
+                .foregroundStyle(Tide.ink)
+                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
             }
             .disabled(isGenerating)
         }
     }
 
     private func question(_ title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text(title)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
             TextField(placeholder, text: text, axis: .vertical)
                 .lineLimit(2 ... 4)
-                .padding(TempoSpacing.cardPadding)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -161,29 +157,20 @@ struct MonthlyReviewView: View {
             HapticManager.selection()
         } label: {
             Text(label)
-                .font(.tempoCallout)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(chosenEmphasis == value ? Color.tempoSignal : Color.tempoSurfaceCard)
-                .foregroundStyle(chosenEmphasis == value ? .white : Color.tempoTextPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                .font(Tide.bodyStrong)
         }
+        .buttonStyle(.trainChoice(isSelected: chosenEmphasis == value))
     }
 
     // MARK: - Report (§17.2)
 
     private func reportSection(_ summary: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            Text("THE REPORT")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            Text("The report").tideLabel(Tide.text3)
             Text(summary)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(TempoSpacing.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 

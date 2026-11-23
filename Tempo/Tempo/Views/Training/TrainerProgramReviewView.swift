@@ -170,21 +170,24 @@ struct TrainerProgramReviewView: View {
         NavigationStack {
             Form {
                 programSection
+                    .listRowBackground(Tide.fill)
                 if !importWarnings.isEmpty {
                     Section {
                         ForEach(importWarnings, id: \.self) { warning in
                             Text(warning)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoWarning)
+                                .font(Tide.caption)
+                                .foregroundStyle(TideTrain.caution)
                         }
                     }
+                    .listRowBackground(Tide.fill)
                 }
                 if autoAssignedWeekdays {
                     Section {
                         Text("We placed these around your football — change any day.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
+                    .listRowBackground(Tide.fill)
                 }
                 ForEach($weeks) { $week in
                     WeekEditorSection(
@@ -203,9 +206,10 @@ struct TrainerProgramReviewView: View {
                         Label("Add Week", systemImage: "plus.circle")
                     }
                 }
+                .listRowBackground(Tide.fill)
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -232,15 +236,14 @@ struct TrainerProgramReviewView: View {
         }
         // See TrainerProgramImportView — matches the standalone-screen
         // convention for a modally-presented dark-only screen.
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Program-level section
 
     private var programSection: some View {
-        Section("PROGRAM") {
+        Section("Program") {
             TextField("Program name", text: $name)
-                .font(.tempoBody)
+                .font(Tide.body)
 
             // Weekly-upload feature — decides the duration text, the "New
             // week — upload" prompt/reminders, and (below) how a new upload
@@ -255,8 +258,8 @@ struct TrainerProgramReviewView: View {
                     ? "Tempo reminds you every Sunday to upload the next one."
                     : "Runs for its full length, then repeats or ends."
             )
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
 
             if weeklyAutoTiming == nil {
                 DatePicker(
@@ -272,18 +275,18 @@ struct TrainerProgramReviewView: View {
 
             if weeks.count > 1 {
                 Toggle("Repeats after last week", isOn: $repeats)
-                    .tint(Color.tempoSignal)
+                    .tint(Color.accentColor)
             }
 
             Toggle(isOn: $autoWarmups) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Tempo warm-up sets")
                     Text("Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
-            .tint(Color.tempoSignal)
+            .tint(Color.accentColor)
 
             // Fix #6 — schedule mode, editable here and later on
             // TrainerProgramView.
@@ -293,15 +296,15 @@ struct TrainerProgramReviewView: View {
                 }
             }
             Text(scheduleMode.explanation)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             // Weekly-upload feature (fix #5) — no manual picker: the upload's
             // own weekday decides start/replace timing.
             if let otherActiveProgram, let weeklyAutoTiming {
                 Text(weeklyReplaceExplanation(otherActiveProgram, timing: weeklyAutoTiming))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else if let otherActiveProgram {
                 // Fix #11(b) — queue behind the current program instead of
                 // replacing it immediately (block cadence only).
@@ -326,8 +329,8 @@ struct TrainerProgramReviewView: View {
                 }
                 if startTiming != .now {
                     Text(queueExplanation)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
         }
@@ -470,14 +473,15 @@ private struct WeekEditorSection: View {
             }
         } header: {
             HStack {
-                Text("WEEK \(weekNumber)")
+                Text("Week \(weekNumber)")
                 Spacer()
                 if canRemoveWeek {
                     Button("Remove", role: .destructive, action: onRemoveWeek)
-                        .font(.tempoCaption2)
+                        .font(Tide.caption)
                 }
             }
         }
+        .listRowBackground(Tide.fill)
     }
 
     private var daysInWeekdayOrder: [ProgramDay] {
@@ -585,28 +589,28 @@ private struct DayEditorView: View {
             }
 
             Button("Remove This Day", role: .destructive, action: onRemoveDay)
-                .font(.tempoCaption1)
+                .font(Tide.caption)
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TempoSpacing.xs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(spacing: Tide.s1) {
                     Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
-                        .font(.tempoBodyBold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                     if day.weekdayGuessed == true {
                         Image(systemName: "wand.and.stars")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoWarning)
+                            .font(Tide.caption)
+                            .foregroundStyle(TideTrain.caution)
                             .accessibilityLabel("Day auto-placed")
                     }
                 }
                 if let pairedSessionLabel {
                     Text(pairedSessionLabel)
-                        .font(.tempoCaption2.weight(.semibold))
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.caption.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
                 }
                 Text("\(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s")")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
     }
@@ -719,7 +723,7 @@ private struct ExerciseRowEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack {
                 // Only shown once a library match is resolved — an
                 // unmatched row has no equipment/muscle-group metadata yet
@@ -731,7 +735,7 @@ private struct ExerciseRowEditor: View {
                         .frame(width: 36, height: 36)
                 }
                 TextField("Exercise name", text: $exercise.name)
-                    .font(.tempoBodyBold)
+                    .font(Tide.bodyStrong)
                 Spacer()
                 Button {
                     onMoveUp()
@@ -760,7 +764,7 @@ private struct ExerciseRowEditor: View {
                     TextField("e.g. 35' — 2' slow / 1' fast / 30\" walk", text: stringBinding(for: $exercise.detail), axis: .vertical)
                         .lineLimit(2 ... 4)
                 }
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
                     labeledField("Rest (sec)") {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
@@ -768,7 +772,7 @@ private struct ExerciseRowEditor: View {
                     labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
                 }
             } else {
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     labeledField("Sets") {
                         TextField("sets", text: $setsText)
                             .keyboardType(.numberPad)
@@ -791,10 +795,10 @@ private struct ExerciseRowEditor: View {
                 }
 
                 Toggle("Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
-                    .font(.tempoCaption1)
-                    .tint(Color.tempoSignal)
+                    .font(Tide.caption)
+                    .tint(Color.accentColor)
 
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     labeledField("Weight (\(weightUnit.abbreviation))") {
                         TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
                             .keyboardType(.decimalPad)
@@ -807,7 +811,7 @@ private struct ExerciseRowEditor: View {
                 // "70%" never silently becomes a guessed weight.
                 percentReadingHint
 
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     labeledField("Rest (sec)") {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
                     }
@@ -816,9 +820,9 @@ private struct ExerciseRowEditor: View {
             }
 
             TextField("Notes (optional)", text: stringBinding(for: $exercise.notes))
-                .font(.tempoCaption1)
+                .font(Tide.caption)
         }
-        .padding(.vertical, TempoSpacing.xs)
+        .padding(.vertical, Tide.s1)
         .task(id: exercise.name) {
             autoMatchIfNeeded()
         }
@@ -847,28 +851,28 @@ private struct ExerciseRowEditor: View {
     }
 
     private var matchIndicator: some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s1) {
             if let matchedExercise, let conflictingWrittenEquipment {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(TideTrain.positive)
                 Text(
                     "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
                 )
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
             } else if let matchedExercise {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tempoSuccess)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(TideTrain.positive)
                 Text("Matches \(matchedExercise.name)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
-                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(Color.tempoWarning)
+                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(TideTrain.caution)
                 Text("New exercise — will be added to your library")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
             Spacer()
             Button("Change") { showPicker = true }
-                .font(.tempoCaption2)
+                .font(Tide.caption)
         }
     }
 
@@ -886,12 +890,12 @@ private struct ExerciseRowEditor: View {
                 let maxDisplay = WeightFormat.number(kg: e1RM, unit: weightUnit)
                 let weightDisplay = WeightFormat.number(kg: e1RM * min(pct, 1.1), unit: weightUnit)
                 Text("\(percentLabel) of your \(maxDisplay) \(weightUnit.abbreviation) max = \(weightDisplay) \(weightUnit.abbreviation)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             } else {
                 Text("\(percentLabel) → effort, calibrate first set")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoAmber)
+                    .font(Tide.caption)
+                    .foregroundStyle(TideTrain.caution)
             }
         }
     }
@@ -907,12 +911,12 @@ private struct ExerciseRowEditor: View {
     }
 
     private func labeledField(_ label: String, @ViewBuilder field: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: Tide.hair) {
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             field()
-                .font(.tempoCaption1)
+                .font(Tide.caption)
         }
         .frame(maxWidth: .infinity)
     }
@@ -944,25 +948,25 @@ private struct ExercisePickerSheet: View {
                     onSelect(nil)
                     dismiss()
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .listRowBackground(Tide.fill)
                 ForEach(filtered) { exercise in
                     Button {
                         onSelect(exercise)
                         dismiss()
                     } label: {
                         HStack {
-                            Text(exercise.name).foregroundStyle(Color.tempoTextPrimary)
+                            Text(exercise.name).foregroundStyle(Tide.text)
                             Spacer()
                             Text(exercise.muscleGroup.displayName)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .listRowBackground(Tide.fill)
                 }
             }
             .scrollContentBackground(.hidden)
-            .tidePage()
+            .trainSheetRoot()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Match Exercise")
             .navigationBarTitleDisplayMode(.inline)
@@ -974,7 +978,6 @@ private struct ExercisePickerSheet: View {
         }
         // See TrainerProgramImportView — matches the standalone-screen
         // convention for a modally-presented dark-only screen.
-        .preferredColorScheme(.dark)
     }
 }
 

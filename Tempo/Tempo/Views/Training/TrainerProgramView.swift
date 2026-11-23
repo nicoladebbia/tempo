@@ -82,7 +82,7 @@ struct TrainerProgramView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
+            VStack(alignment: .leading, spacing: Tide.s6) {
                 if let activeProgram {
                     activeCard(activeProgram)
                 } else {
@@ -93,7 +93,7 @@ struct TrainerProgramView: View {
                         actionTitle: "Import from Trainer",
                         action: { showImport = true }
                     )
-                    .padding(.top, TempoSpacing.xxxl)
+                    .padding(.top, Tide.s8)
                 }
 
                 if !queuedPrograms.isEmpty {
@@ -110,22 +110,20 @@ struct TrainerProgramView: View {
                     } label: {
                         HStack {
                             Label("Completion Stats", systemImage: "chart.bar.fill")
-                                .font(.tempoBodyBold)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
-                        .padding(TempoSpacing.cardPaddingCompact)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Trainer Program")
@@ -238,40 +236,40 @@ struct TrainerProgramView: View {
     // MARK: - Active program card
 
     private func activeCard(_ program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.cardGap) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(program.name)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text(summary(for: program))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 Spacer()
                 Text("ACTIVE")
-                    .font(.tempoCaption2.weight(.bold))
-                    .foregroundStyle(Color.tempoSignal)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, TempoSpacing.xxs)
-                    .background(Color.tempoSignal.opacity(TempoOpacity.o15))
+                    .font(Tide.caption.weight(.bold))
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, Tide.s2)
+                    .padding(.vertical, Tide.hair)
+                    .background(Color.accentColor.opacity(TempoOpacity.o15))
                     .clipShape(Capsule())
             }
 
             Text(TrainerProgramDurationText.summary(for: program))
-                .font(.tempoCaption1)
-                .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(program.isFinished(on: Date()) ? TideTrain.caution : Tide.text3)
 
             // Compliance: sessions actually done / scheduled so far.
             if let complianceStats {
                 TrainerComplianceBar(stats: complianceStats, emptyText: "No sessions due yet.")
             }
 
-            Divider().background(Color.tempoDivider)
+            Divider().background(Tide.hairline)
 
             weekList(program)
 
-            Divider().background(Color.tempoDivider)
+            Divider().background(Tide.hairline)
 
             if program.weeks.count > 1 {
                 Toggle(isOn: Binding(
@@ -286,14 +284,14 @@ struct TrainerProgramView: View {
                         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                     }
                 )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Repeats").font(.tempoBodyBold).foregroundStyle(Color.tempoTextPrimary)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text("Repeats").font(Tide.bodyStrong).foregroundStyle(Tide.text)
                         Text("Loop back to Week 1 after the last week.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
-                .tint(Color.tempoSignal)
+                .tint(Color.accentColor)
             }
 
             // §13 — off = trainer days get exactly the sets the trainer
@@ -306,14 +304,14 @@ struct TrainerProgramView: View {
                     NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                 }
             )) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tempo Warm-Up Sets").font(.tempoBodyBold).foregroundStyle(Color.tempoTextPrimary)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Tempo Warm-Up Sets").font(Tide.bodyStrong).foregroundStyle(Tide.text)
                     Text("A 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
-            .tint(Color.tempoSignal)
+            .tint(Color.accentColor)
 
             DatePicker(
                 "Start date (Monday)",
@@ -330,14 +328,14 @@ struct TrainerProgramView: View {
                 ),
                 displayedComponents: .date
             )
-            .font(.tempoBody)
-            .tint(Color.tempoSignal)
+            .font(Tide.body)
+            .tint(Color.accentColor)
 
             // Fix #6 — editable here too (chosen first on the review screen).
             HStack {
                 Text("Schedule")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Picker("Schedule", selection: Binding(
                     get: { program.scheduleMode },
@@ -352,18 +350,18 @@ struct TrainerProgramView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
+                .tint(Color.accentColor)
             }
             Text(program.scheduleMode.explanation)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
 
             // Weekly-upload feature — editable here too (chosen first on the
             // review screen).
             HStack {
                 Text("New program")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Picker("Upload cadence", selection: Binding(
                     get: { program.cadence },
@@ -378,7 +376,7 @@ struct TrainerProgramView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
+                .tint(Color.accentColor)
             }
 
             // Fix #8 — report the athlete's logged sessions back to the trainer.
@@ -389,7 +387,7 @@ struct TrainerProgramView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tempoSecondary)
-            .padding(.top, TempoSpacing.xs)
+            .padding(.top, Tide.s1)
 
             // trainer-feedback-tests — paste/screenshot the trainer's reply,
             // review the resulting diff, apply what's accepted.
@@ -407,20 +405,20 @@ struct TrainerProgramView: View {
                 } label: {
                     HStack {
                         Text("Changes from Trainer")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
                         Spacer()
                         Text("\(program.changeLog.count)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                         Image(systemName: "chevron.right")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
             }
 
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 Button {
                     showEdit = true
                 } label: {
@@ -440,38 +438,36 @@ struct TrainerProgramView: View {
                 .buttonStyle(.tempoSecondary)
                 .accessibilityHint("Stops using this program. You can run it again later.")
             }
-            .padding(.top, TempoSpacing.xs)
+            .padding(.top, Tide.s1)
 
             Button(role: .destructive) {
                 pendingDelete = program
             } label: {
                 Label("Delete program", systemImage: "trash")
-                    .font(.tempoFootnote)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xxs)
+            .padding(.top, Tide.hair)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl))
+        .tideCard(padding: Tide.s4)
     }
 
     private func weekList(_ program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             ForEach(Array(program.weeks.enumerated()), id: \.offset) { index, week in
                 HStack {
                     Text("Week \(index + 1)")
-                        .font(.tempoCaption1.weight(.semibold))
-                        .foregroundStyle(program.weekIndex(on: Date()) == index ? Color.tempoSignal : Color.tempoTextSecondary)
+                        .font(Tide.caption.weight(.semibold))
+                        .foregroundStyle(program.weekIndex(on: Date()) == index ? Color.accentColor : Tide.text2)
                     Text(dayNames(week))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                     Spacer()
                     Text("\(week.days.reduce(0) { $0 + $1.exercises.count }) exercises")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
         }
@@ -508,22 +504,20 @@ struct TrainerProgramView: View {
     // MARK: - Queued programs (fix #11(b))
 
     private var queuedSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("UP NEXT")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.sectionHeaderTop)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Up next").tideLabel(Tide.text3)
+                .padding(.top, Tide.s8)
 
             ForEach(queuedPrograms) { program in
-                HStack(spacing: TempoSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Tide.s2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(program.name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                         if let date = program.queuedActivationDate {
                             Text("Starts \(date.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                     Spacer()
@@ -531,13 +525,11 @@ struct TrainerProgramView: View {
                         pendingDelete = program
                     } label: {
                         Image(systemName: "trash")
-                            .foregroundStyle(Color.tempoError)
+                            .foregroundStyle(Tide.danger)
                     }
                     .accessibilityLabel("Delete \(program.name)")
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
             }
         }
     }
@@ -545,21 +537,19 @@ struct TrainerProgramView: View {
     // MARK: - Past programs
 
     private var pastSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("PAST PROGRAMS")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.sectionHeaderTop)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Past programs").tideLabel(Tide.text3)
+                .padding(.top, Tide.s8)
 
             ForEach(pastPrograms) { program in
-                HStack(spacing: TempoSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Tide.s2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(program.name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                         Text(summary(for: program))
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                     Spacer()
                     Button("Run") {
@@ -570,13 +560,11 @@ struct TrainerProgramView: View {
                         pendingDelete = program
                     } label: {
                         Image(systemName: "trash")
-                            .foregroundStyle(Color.tempoError)
+                            .foregroundStyle(Tide.danger)
                     }
                     .accessibilityLabel("Delete \(program.name)")
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
             }
         }
     }

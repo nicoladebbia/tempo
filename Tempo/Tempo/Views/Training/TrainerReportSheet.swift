@@ -82,7 +82,7 @@ struct TrainerReportSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s4) {
                     Picker("Scope", selection: $scope) {
                         Text("This Week").tag(TrainerReportScope.week)
                         Text("Whole Program").tag(TrainerReportScope.wholeProgram)
@@ -101,11 +101,11 @@ struct TrainerReportSheet: View {
                         shareButtons(document)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s4)
+                .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
             }
-            .tidePage()
+            .trainSheetRoot()
             .navigationTitle("Report to Trainer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -136,43 +136,43 @@ struct TrainerReportSheet: View {
     // MARK: - Preview
 
     private func previewSection(_ document: TrainerReportDocument) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text(document.title)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text(document.dateRangeLabel)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 ForEach(Array(document.summaryLines.enumerated()), id: \.offset) { _, line in
                     Text("• \(line)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
-            .padding(TempoSpacing.md)
+            .padding(Tide.s3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+            .background(Tide.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
 
             if document.sessions.isEmpty {
                 Text(document.strings.noSessionsText)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             } else {
                 ForEach(document.sessions) { session in
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         Text(session.dateLabel)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                         Text(session.title)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text)
                             .lineLimit(1)
                         Spacer()
                         Text(session.statusLabel)
-                            .font(.tempoCaption2.weight(.semibold))
+                            .font(Tide.caption.weight(.semibold))
                             .foregroundStyle(statusColor(session.status))
                     }
                 }
@@ -181,33 +181,31 @@ struct TrainerReportSheet: View {
             // Pause/travel-pain feature — football/pain/pauses/travel-swap
             // sections. See TrainerReportSupplementalSections.swift.
             ForEach(document.extraSections) { section in
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text(section.title.uppercased())
-                        .font(.tempoCaption2.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(section.title).tideLabel()
                     ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
                         Text("• \(line)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
                 }
-                .padding(.top, TempoSpacing.xs)
+                .padding(.top, Tide.s1)
             }
         }
     }
 
     private func statusColor(_ status: TrainerReportSessionStatus) -> Color {
         switch status {
-        case .done: Color.tempoRecoveryGreen
-        case .missed: Color.tempoError
-        case .moved: Color.tempoWarning
+        case .done: TideTrain.positive
+        case .missed: Tide.danger
+        case .moved: TideTrain.caution
         }
     }
 
     // MARK: - Share
 
     private func shareButtons(_ document: TrainerReportDocument) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             Button {
                 shareItem = ShareItem(payload: TrainerReportTextFormatter.text(for: document))
             } label: {
@@ -234,7 +232,7 @@ struct TrainerReportSheet: View {
                 .buttonStyle(.tempoSecondary)
             }
         }
-        .padding(.top, TempoSpacing.sm)
+        .padding(.top, Tide.s2)
         .sheet(item: $shareItem) { item in
             ActivityShareSheet(items: [item.payload]) { completed in
                 if completed {

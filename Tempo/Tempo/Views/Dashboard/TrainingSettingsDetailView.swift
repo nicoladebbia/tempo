@@ -65,22 +65,20 @@ struct TrainingSettingsDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s4) {
                 // Summary hero — what this config means at a glance.
-                VStack(spacing: TempoSpacing.xs) {
+                VStack(spacing: Tide.s1) {
                     Text(trainingSplit.displayName)
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                     Text(footballCount == 0
                         ? "No football days"
                         : "\(footballCount) football day\(footballCount == 1 ? "" : "s") / week")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, TempoSpacing.xl)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                .padding(.vertical, Tide.s5).tideCard(padding: 0)
 
                 SettingsFormCard(title: "Programme") {
                     // Whole-row Menu — fixes the round-1 bug where the bare
@@ -93,21 +91,21 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            SettingsIconTile(systemName: "dumbbell.fill", tint: .tempoSignal)
+                        HStack(spacing: Tide.s3) {
+                            SettingsIconTile(systemName: "dumbbell.fill", tint: Color.accentColor)
                             Text("Split")
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer(minLength: TempoSpacing.sm)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
                             Text(trainingSplit.displayName)
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
                         }
-                        .padding(.horizontal, TempoSpacing.lg)
-                        .padding(.vertical, TempoSpacing.md)
+                        .padding(.horizontal, Tide.s4)
+                        .padding(.vertical, Tide.s3)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
@@ -121,18 +119,18 @@ struct TrainingSettingsDetailView: View {
                         NavigationLink {
                             CustomSplitEditorView()
                         } label: {
-                            HStack(spacing: TempoSpacing.md) {
-                                SettingsIconTile(systemName: "calendar", tint: .tempoViolet)
+                            HStack(spacing: Tide.s3) {
+                                SettingsIconTile(systemName: "calendar", tint: TideTrain.violet)
                                 Text("Customise days")
-                                    .font(.tempoSubheadline)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Spacer(minLength: TempoSpacing.sm)
+                                    .font(Tide.body)
+                                    .foregroundStyle(Tide.text)
+                                Spacer(minLength: Tide.s2)
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.label)
+                                    .foregroundStyle(Tide.text3)
                             }
-                            .padding(.horizontal, TempoSpacing.lg)
-                            .padding(.vertical, TempoSpacing.md)
+                            .padding(.horizontal, Tide.s4)
+                            .padding(.vertical, Tide.s3)
                             .frame(minHeight: 44)
                             .contentShape(Rectangle())
                         }
@@ -140,7 +138,7 @@ struct TrainingSettingsDetailView: View {
 
                     SettingsRowDivider()
 
-                    SettingsControlRow(label: "Weight Unit", icon: "scalemass.fill", iconTint: .tempoElectric) {
+                    SettingsControlRow(label: "Weight Unit", icon: "scalemass.fill", iconTint: Tide.water) {
                         Picker("", selection: Binding(
                             get: { settings?.weightUnit ?? .kg },
                             set: { newValue in
@@ -176,22 +174,22 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            SettingsIconTile(systemName: "figure.strengthtraining.traditional", tint: .tempoAmber)
+                        HStack(spacing: Tide.s3) {
+                            SettingsIconTile(systemName: "figure.strengthtraining.traditional", tint: TideTrain.caution)
                             Text("Experience")
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer(minLength: TempoSpacing.sm)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
                             Text(settings?.experienceLevelRaw ?? "Beginner")
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
                                 .lineLimit(1)
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
                         }
-                        .padding(.horizontal, TempoSpacing.lg)
-                        .padding(.vertical, TempoSpacing.md)
+                        .padding(.horizontal, Tide.s4)
+                        .padding(.vertical, Tide.s3)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
@@ -202,7 +200,7 @@ struct TrainingSettingsDetailView: View {
                     title: "Football days",
                     footnote: "Tempo plans recovery and meal timing around your match/training days."
                 ) {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         ForEach(Array(footballDayLabels.enumerated()), id: \.offset) { index, dayLabel in
                             let bit = 1 << index
                             let isOn = ((settings?.footballDaysRaw ?? 0) & bit) != 0
@@ -213,18 +211,12 @@ struct TrainingSettingsDetailView: View {
                                 HapticManager.selection()
                             } label: {
                                 Text(dayLabel)
-                                    .font(.tempoCaption1)
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 40)
-                                    .background(isOn ? Color.tempoSignal : Color.tempoBgSecondary)
-                                    .foregroundStyle(isOn ? .white : Color.tempoTextSecondary)
-                                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                                    .font(Tide.caption.weight(.semibold))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.trainChoice(isSelected: isOn))
                         }
                     }
-                    .padding(TempoSpacing.lg)
+                    .padding(Tide.s4)
                 }
 
                 // Training block — manual emphasis declaration (§14 Decision 1).
@@ -236,7 +228,7 @@ struct TrainingSettingsDetailView: View {
                         ? "Physique block — hypertrophy primary, soccer held at maintenance. Drives the daily coach and weekly AI plan."
                         : "Soccer block — speed and conditioning primary, strength held at maintenance. Drives the daily coach and weekly AI plan."
                 ) {
-                    SettingsControlRow(label: "Emphasis", icon: "target", iconTint: .tempoElectric) {
+                    SettingsControlRow(label: "Emphasis", icon: "target", iconTint: Tide.water) {
                         Picker("", selection: Binding(
                             get: { currentEmphasis },
                             set: { applyBlockEmphasis($0) }
@@ -261,15 +253,15 @@ struct TrainingSettingsDetailView: View {
                     Button {
                         showWhoopImporter = true
                     } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            SettingsIconTile(systemName: "square.and.arrow.down", tint: .tempoSignal)
+                        HStack(spacing: Tide.s3) {
+                            SettingsIconTile(systemName: "square.and.arrow.down", tint: Color.accentColor)
                             Text("Import Whoop export…")
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer(minLength: TempoSpacing.sm)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
                         }
-                        .padding(.horizontal, TempoSpacing.lg)
-                        .padding(.vertical, TempoSpacing.md)
+                        .padding(.horizontal, Tide.s4)
+                        .padding(.vertical, Tide.s3)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
@@ -295,10 +287,10 @@ struct TrainingSettingsDetailView: View {
                         ? "Every \(deloadWeeks) weeks: \(deloadStyle.blurb)"
                         : "Auto-deload is off — you'll manage recovery weeks manually."
                 ) {
-                    SettingsControlRow(label: "Auto Deload", icon: "arrow.down.right.circle", iconTint: .tempoAmber) {
+                    SettingsControlRow(label: "Auto Deload", icon: "arrow.down.right.circle", iconTint: TideTrain.caution) {
                         Toggle("", isOn: $autoDeload)
                             .labelsHidden()
-                            .tint(Color.tempoAccent)
+                            .tint(Color.accentColor)
                     }
                     .onChange(of: autoDeload) { _, newValue in
                         settings?.autoDeload = newValue
@@ -307,10 +299,10 @@ struct TrainingSettingsDetailView: View {
 
                     if autoDeload {
                         SettingsRowDivider()
-                        SettingsControlRow(label: "Every", icon: "calendar", iconTint: .tempoViolet) {
+                        SettingsControlRow(label: "Every", icon: "calendar", iconTint: TideTrain.violet) {
                             Stepper("\(deloadWeeks) weeks", value: $deloadWeeks, in: 3 ... 8)
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
                                 .fixedSize()
                         }
                         .onChange(of: deloadWeeks) { _, newValue in
@@ -320,14 +312,14 @@ struct TrainingSettingsDetailView: View {
 
                         SettingsRowDivider()
                         // §19.3 — the three deload styles.
-                        SettingsControlRow(label: "Style", icon: "dial.low", iconTint: .tempoAccent) {
+                        SettingsControlRow(label: "Style", icon: "dial.low", iconTint: Color.accentColor) {
                             Picker("", selection: $deloadStyle) {
                                 ForEach(DeloadStyle.allCases, id: \.self) { style in
                                     Text(style.displayName).tag(style)
                                 }
                             }
                             .labelsHidden()
-                            .tint(Color.tempoTextSecondary)
+                            .tint(Tide.text2)
                         }
                         .onChange(of: deloadStyle) { _, newValue in
                             settings?.deloadStyle = newValue
@@ -342,10 +334,10 @@ struct TrainingSettingsDetailView: View {
                         ? "Rest starts automatically after each set. Default \(formatRest(defaultRestSeconds)) — override it per exercise on any exercise's detail screen."
                         : "Rest timer is off — you advance to the next set yourself."
                 ) {
-                    SettingsControlRow(label: "Auto-start timer", icon: "timer", iconTint: .tempoAccent) {
+                    SettingsControlRow(label: "Auto-start timer", icon: "timer", iconTint: Color.accentColor) {
                         Toggle("", isOn: $autoStartRest)
                             .labelsHidden()
-                            .tint(Color.tempoAccent)
+                            .tint(Color.accentColor)
                     }
                     .onChange(of: autoStartRest) { _, newValue in
                         settings?.autoStartRestTimer = newValue
@@ -354,10 +346,10 @@ struct TrainingSettingsDetailView: View {
 
                     if autoStartRest {
                         SettingsRowDivider()
-                        SettingsControlRow(label: "Default rest", icon: "clock.arrow.circlepath", iconTint: .tempoViolet) {
+                        SettingsControlRow(label: "Default rest", icon: "clock.arrow.circlepath", iconTint: TideTrain.violet) {
                             Stepper(formatRest(defaultRestSeconds), value: $defaultRestSeconds, in: 30 ... 300, step: 15)
-                                .font(.tempoSubheadline)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
                                 .fixedSize()
                         }
                         .onChange(of: defaultRestSeconds) { _, newValue in
@@ -367,8 +359,8 @@ struct TrainingSettingsDetailView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s4)
         }
         .scrollContentBackground(.hidden)
         .tidePage()
@@ -473,7 +465,7 @@ struct CustomSplitEditorView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 SettingsFormCard(
                     title: "Your week",
                     footnote: "Assign each day. Football days are set on the Training screen and lock here. Recovery and deload still adjust these automatically."
@@ -484,8 +476,8 @@ struct CustomSplitEditorView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s4)
         }
         .scrollContentBackground(.hidden)
         .tidePage()
@@ -504,11 +496,11 @@ struct CustomSplitEditorView: View {
 
     @ViewBuilder
     private func dayRow(_ i: Int) -> some View {
-        SettingsControlRow(label: dayNames[i], icon: "calendar", iconTint: .tempoViolet) {
+        SettingsControlRow(label: dayNames[i], icon: "calendar", iconTint: TideTrain.violet) {
             if isFootballDay(i) {
                 Text("Football")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
             } else {
                 Menu {
                     Picker("", selection: Binding(
@@ -524,13 +516,13 @@ struct CustomSplitEditorView: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         Text(plan[i].displayName)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                         Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
             }

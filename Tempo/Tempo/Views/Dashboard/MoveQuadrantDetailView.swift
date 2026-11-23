@@ -50,7 +50,7 @@ struct MoveQuadrantDetailView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 if data.isConnected || healthKitAuthorized {
                     workoutHeroSection
                     todayActivitySection
@@ -73,8 +73,8 @@ struct MoveQuadrantDetailView: View {
                     )
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
         }
         .tidePage()
         .navigationTitle("Move")
@@ -136,16 +136,16 @@ struct MoveQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.5 — Workout Hero
 
     private var workoutHeroSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             switch data.workoutStatus {
             case .completed:
                 HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoSuccess)
+                        .font(Tide.headline)
+                        .foregroundStyle(TideTrain.positive)
                     Text(data.workoutName ?? "Workout")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                 }
 
                 HStack(spacing: 0) {
@@ -153,35 +153,35 @@ struct MoveQuadrantDetailView: View {
                     Text(" · ")
                     Text(data.formattedActiveCalories)
                 }
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
 
                 Text(workoutQuip)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .italic()
 
             case .planned:
                 Text(data.workoutName ?? "Workout")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                 Text("Planned. Tap to start.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoAmber)
+                    .font(Tide.body)
+                    .foregroundStyle(TideTrain.caution)
 
             case .restDay:
                 Text("Rest Day")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text2)
                 Text("Growth happens in the recovery.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .italic()
 
             case .none:
                 Text("No workout today")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text3)
 
                 Button {
                     // Was an EMPTY closure — a dead-end that looked tappable.
@@ -195,13 +195,13 @@ struct MoveQuadrantDetailView: View {
                     }
                 } label: {
                     Text("+ Plan Workout")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.body)
+                        .foregroundStyle(TideTrain.caution)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, TempoSpacing.lg)
+        .padding(.top, Tide.s4)
     }
 
     // MARK: - Today's Activity
@@ -209,9 +209,9 @@ struct MoveQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.5 — Today's Activity
 
     private var todayActivitySection: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s3) {
             // Two stat cards
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 activityCard(
                     value: data.formattedSteps,
                     label: "Steps",
@@ -232,31 +232,28 @@ struct MoveQuadrantDetailView: View {
             }
 
             // Steps progress bar
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.tempoBorder).frame(height: 8)
-                        Capsule().fill(Color.tempoAmber)
+                        Capsule().fill(Tide.hairline).frame(height: 8)
+                        Capsule().fill(TideTrain.caution)
                             .frame(width: geo.size.width * min(data.stepsProgress, 1.0), height: 8)
                     }
                 }
                 .frame(height: 8)
 
                 Text("\(Int(min(data.stepsProgress, 1.0) * 100))%")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .frame(width: 40, alignment: .trailing)
             }
 
             // Step pace projection
             Text(stepPaceProjection)
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .foregroundStyle(stepPaceColor)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     private func activityCard(value: String, label: String, subtitle: String?) -> some View {
@@ -264,28 +261,26 @@ struct MoveQuadrantDetailView: View {
         // (no minimumScaleFactor so "1332" and "5.0" render at the same
         // size), and the subtitle line's space is always reserved so a card
         // with no subtitle is exactly as tall as one that has it.
-        VStack(spacing: TempoSpacing.xxs) {
+        VStack(spacing: Tide.hair) {
             Text(value)
-                .font(.tempoTitle3)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(TideTrain.figure(.title2))
+                .foregroundStyle(Tide.text)
                 .lineLimit(1)
             Text(label)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
                 .lineLimit(1)
             Text(subtitle ?? " ")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 92)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                .stroke(Tide.hairline, lineWidth: 0.5)
         )
     }
 
@@ -295,40 +290,34 @@ struct MoveQuadrantDetailView: View {
     // No live HR streaming (no Apple Watch — see build constraints).
 
     private var heartRateSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("HEART RATE")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Heart rate").tideLabel()
 
             switch lastSessionAvgHR {
             case .none:
                 // Not yet loaded — quiet placeholder, no spinner churn.
                 Text("—")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text3)
             case let .some(.some(avg)):
                 Text("Last session avg: \(Int(avg.rounded())) bpm")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 if let last = completedWorkouts.first {
                     Text(last.type.displayName + " · " + (last.finishedAt ?? last.date)
                         .formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             case .some(.none):
                 // Loaded, but no HKWorkout HR for this session.
                 Text("No HR data recorded")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     // MARK: - Workout History
@@ -337,51 +326,45 @@ struct MoveQuadrantDetailView: View {
 
     private var workoutHistorySection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("WORKOUT HISTORY")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.bottom, TempoSpacing.md)
+            Text("Workout history").tideLabel()
+                .padding(.bottom, Tide.s3)
 
             let recent = Array(completedWorkouts.prefix(5))
             if recent.isEmpty {
                 Text("No workouts recorded yet.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, TempoSpacing.lg)
+                    .padding(.vertical, Tide.s4)
             } else {
                 ForEach(Array(recent.enumerated()), id: \.element.id) { index, workout in
-                    HStack(spacing: TempoSpacing.md) {
+                    HStack(spacing: Tide.s3) {
                         Text((workout.finishedAt ?? workout.date)
                             .formatted(.dateTime.weekday(.abbreviated)))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                             .frame(width: 36, alignment: .leading)
 
                         Text(workout.type.displayName)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
 
                         Spacer()
 
                         let dur = workout.durationMinutes ?? workout.actualDurationMinutes
                         Text(Self.volumeHistoryLabel(durationMinutes: dur, volumeKg: workout.totalVolume, unit: weightUnit))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
                     .frame(minHeight: 44)
 
                     if index < recent.count - 1 {
-                        Divider().background(Color.tempoDivider)
+                        Divider().background(Tide.hairline)
                     }
                 }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     /// "52m · 4.2k kg"; a session with no lifted volume (a run, mobility)
@@ -408,25 +391,22 @@ struct MoveQuadrantDetailView: View {
         let totalVol = trend.reduce(0.0) { $0 + $1.volume }
         let workoutDays = trend.count(where: { $0.volume > 0 })
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("WEEKLY VOLUME")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Weekly volume").tideLabel()
 
             if totalVol == 0 {
                 Text("No completed sets this week.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, TempoSpacing.lg)
+                    .padding(.vertical, Tide.s4)
             } else {
                 Chart(trend) { point in
                     BarMark(
                         x: .value("Day", point.date, unit: .day),
                         y: .value("Volume", point.volume)
                     )
-                    .foregroundStyle(Color.tempoAmber)
+                    .foregroundStyle(TideTrain.caution)
                     .cornerRadius(4)
                 }
                 .chartXAxis {
@@ -434,8 +414,8 @@ struct MoveQuadrantDetailView: View {
                         AxisValueLabel {
                             if let date = value.as(Date.self) {
                                 Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
                             }
                         }
                     }
@@ -445,14 +425,11 @@ struct MoveQuadrantDetailView: View {
                 Text(
                     "Total: \(NumberFormatter.localizedString(from: NSNumber(value: Int(totalVol)), number: .decimal)) \(unit) · \(workoutDays) \(workoutDays == 1 ? "session" : "sessions")"
                 )
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard(padding: Tide.s3)
     }
 
     // MARK: - Start Workout Button
@@ -469,15 +446,15 @@ struct MoveQuadrantDetailView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 14))
+                    .font(Tide.caption)
                 Text("Start Workout")
-                    .font(.tempoCallout)
+                    .font(Tide.body)
             }
-            .foregroundStyle(Color.tempoTextInverse)
+            .foregroundStyle(Tide.ink)
             .frame(maxWidth: .infinity)
             .frame(height: 48)
-            .background(Color.tempoAmber)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .background(TideTrain.caution)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         }
     }
 
@@ -509,21 +486,21 @@ struct MoveQuadrantDetailView: View {
 
     private var stepPaceColor: Color {
         guard let steps = data.steps else {
-            return .tempoTextSecondary
+            return Tide.text2
         }
         let calendar = Calendar.current
         let hoursElapsed = Date().timeIntervalSince(calendar.startOfDay(for: Date())) / 3600
         guard hoursElapsed >= 1 else {
-            return .tempoTextSecondary
+            return Tide.text2
         }
         let projected = Int(Double(steps) / hoursElapsed * 16)
         if projected >= data.stepsTarget {
-            return .tempoSuccess
+            return TideTrain.positive
         }
         if projected < Int(Double(data.stepsTarget) * 0.8) {
-            return .tempoWarning
+            return TideTrain.caution
         }
-        return .tempoTextSecondary
+        return Tide.text2
     }
 }
 
