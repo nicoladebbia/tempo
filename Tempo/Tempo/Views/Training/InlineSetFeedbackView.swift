@@ -41,24 +41,22 @@ struct InlineSetFeedbackView: View {
     private var noteFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            Text("HOW WAS THAT SET?")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            Text("How was that set?").tideLabel()
 
             // RPE
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("RPE")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 rpeDial
             }
 
             // Breathing
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Breathing")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 segmentedRow(
                     options: BreathDifficulty.allCases,
                     selection: breath,
@@ -70,10 +68,10 @@ struct InlineSetFeedbackView: View {
             }
 
             // Form
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Form")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 segmentedRow(
                     options: FormQuality.allCases,
                     selection: form,
@@ -86,11 +84,11 @@ struct InlineSetFeedbackView: View {
 
             // Optional note (collapsed by default) — write-through on edit.
             if noteExpanded {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     HStack {
                         Text("Note")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                         Spacer()
                         // Always-visible "Done" while editing — the field is
                         // multi-line (Return = newline) and the keyboard toolbar
@@ -101,9 +99,9 @@ struct InlineSetFeedbackView: View {
                                 noteFocused = false
                                 Self.dismissKeyboard()
                             }
-                            .font(.tempoCaption1)
+                            .font(Tide.caption)
                             .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoSignal)
+                            .foregroundStyle(Color.accentColor)
                         }
                     }
                     TextField(
@@ -113,9 +111,10 @@ struct InlineSetFeedbackView: View {
                     )
                     .lineLimit(2 ... 4)
                     .focused($noteFocused)
-                    .padding(TempoSpacing.cardPadding)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .padding(Tide.s3)
+                    .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
                     .onChange(of: note) { _, newValue in
                         viewModel.updateFeedback(note: newValue, modelContext: modelContext)
                     }
@@ -125,16 +124,15 @@ struct InlineSetFeedbackView: View {
                     withAnimation { noteExpanded = true }
                 } label: {
                     Text("+ Note")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .onAppear(perform: seedFromFeedback)
         // Keyboard-accessory "Done" as well (belt-and-suspenders with the visible
         // in-panel Done button above, which is the guaranteed path on device).
@@ -145,8 +143,8 @@ struct InlineSetFeedbackView: View {
                     noteFocused = false
                     Self.dismissKeyboard()
                 }
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.headline)
+                .foregroundStyle(Color.accentColor)
             }
         }
     }
@@ -179,7 +177,7 @@ struct InlineSetFeedbackView: View {
     private var rpeDial: some View {
         // 6–10 only (below 6 is warmup-easy, not worth logging). Five large
         // buttons instead of ten cramped/stretched ones.
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             ForEach(6 ... 10, id: \.self) { value in
                 Button {
                     rpe = value
@@ -187,13 +185,12 @@ struct InlineSetFeedbackView: View {
                     viewModel.updateFeedback(rpe: value, modelContext: modelContext)
                 } label: {
                     Text("\(value)")
-                        .font(.tempoTitle3)
-                        .monospacedDigit()
+                        .font(TideTrain.figure(.headline))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(rpe == value ? Color.tempoSignal : Color.tempoSurfaceCard)
-                        .foregroundStyle(rpe == value ? .white : Color.tempoTextPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                        .frame(minHeight: 52)
+                        .background(rpe == value ? Color.accentColor : Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                        .foregroundStyle(rpe == value ? Tide.ink : Tide.text)
+                        .contentShape(.rect)
                 }
             }
         }
@@ -207,27 +204,22 @@ struct InlineSetFeedbackView: View {
         label: @escaping (Option) -> String,
         onSelect: @escaping (Option) -> Void
     ) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             ForEach(options, id: \.self) { option in
                 Button {
                     onSelect(option)
                     HapticManager.selection()
                 } label: {
                     Text(label(option))
-                        .font(.tempoHeadline)
+                        .font(Tide.headline)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                        .frame(minHeight: 48)
                         .background(
-                            selection == option
-                                ? Color.tempoSignal
-                                : Color.tempoSurfaceCard
+                            selection == option ? Color.accentColor : Tide.fill,
+                            in: .rect(cornerRadius: Tide.controlRadius)
                         )
-                        .foregroundStyle(
-                            selection == option
-                                ? .white
-                                : Color.tempoTextPrimary
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                        .foregroundStyle(selection == option ? Tide.ink : Tide.text)
+                        .contentShape(.rect)
                 }
             }
         }

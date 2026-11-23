@@ -22,22 +22,17 @@ struct SessionNotesField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("SESSION NOTES")
-                .font(.tempoCaption2)
-                .fontWeight(.bold)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text("Session notes").tideLabel(Tide.text3)
             TextField(
                 "Crowded gym, tight shoulder, felt strong…",
                 text: text,
                 axis: .vertical
             )
             .lineLimit(2 ... 6)
-            .font(.tempoBody)
-            .foregroundStyle(Color.tempoTextPrimary)
-            .padding(TempoSpacing.md)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
+            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
