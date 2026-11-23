@@ -37,8 +37,12 @@ struct LockdownTabView: View {
         settings?.focusTimerEnabled ?? false
     }
 
+    /// True when pushed on another stack (Today): no stack of its own, or the
+    /// nested stack would pop back to the root on every push.
+    var embedded = false
+
     var body: some View {
-        NavigationStack {
+        EmbeddableNavigationStack(embedded: embedded) {
             LockdownMainView(viewModel: viewModel, showFocusTimer: $showFocusTimer)
                 .navigationTitle("LOCKDOWN")
                 .navigationBarTitleDisplayMode(.inline)

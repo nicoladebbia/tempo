@@ -14,7 +14,7 @@ import SwiftUI
 
 // MARK: - Content View
 
-// Per BUILD_PLAN step 3.10 — 5-tab TabView wired to AppState.activeTab.
+// The tab shell lives in Views/Shell/TempoShell.swift (4 tabs + capture), wired to AppState.activeTab.
 // Conditionally shows onboarding if !isOnboardingComplete.
 
 struct ContentView: View {
@@ -176,37 +176,7 @@ struct ContentView: View {
     private var mainTabView: some View {
         @Bindable
         var appState = services.appState
-        return TabView(selection: $appState.activeTab) {
-            DashboardView()
-                .tabItem {
-                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
-                }
-                .tag(Tab.dashboard)
-
-            RecoveryTabView()
-                .tabItem {
-                    Label(Tab.recovery.title, systemImage: Tab.recovery.icon)
-                }
-                .tag(Tab.recovery)
-
-            TrainingTabView()
-                .tabItem {
-                    Label(Tab.training.title, systemImage: Tab.training.icon)
-                }
-                .tag(Tab.training)
-
-            NutritionTabView(viewModel: nutritionViewModel)
-                .tabItem {
-                    Label(Tab.nutrition.title, systemImage: Tab.nutrition.icon)
-                }
-                .tag(Tab.nutrition)
-
-            LockdownTabView()
-                .tabItem {
-                    Label(Tab.lockdown.title, systemImage: Tab.lockdown.icon)
-                }
-                .tag(Tab.lockdown)
-        }
+        return TempoShell(nutritionViewModel: nutritionViewModel)
         .tint(accentColor)
         .toolbarBackground(.hidden, for: .tabBar)
         .onChange(of: appState.activeTab) { _, _ in
@@ -241,7 +211,7 @@ struct ContentView: View {
             }
             hasCheckedScanResume = true
             if let resume = ScanResume.consume() {
-                appState.activeTab = .nutrition
+                appState.activeTab = .fuel
                 nutritionViewModel.apply(NutritionRoute(section: resume.nutritionSection, kitchen: nil))
                 nutritionViewModel.scanResume = resume
             }

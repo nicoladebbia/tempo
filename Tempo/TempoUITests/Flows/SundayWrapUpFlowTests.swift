@@ -33,7 +33,7 @@ final class SundayWrapUpFlowTests: XCTestCase {
         app.launchForTesting(extraArguments: ["--uitesting-weekly-upload-due"])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         let wrapUpButton = app.buttons["Wrap up the week"]
@@ -76,7 +76,7 @@ final class SundayWrapUpFlowTests: XCTestCase {
         app.launchForTesting(extraArguments: ["--uitesting-wrapup-progress"])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         let wrapUpButton = app.buttons["Wrap up the week"]

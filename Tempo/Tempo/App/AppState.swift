@@ -8,14 +8,15 @@
 
 import Foundation
 
-// MARK: - Tab
+// MARK: - AppTab
 
-enum Tab: String, CaseIterable {
-    case dashboard
-    case recovery
-    case training
-    case nutrition
-    case lockdown
+/// The four tabs of the shell. (Named `AppTab` so it never collides with SwiftUI's `Tab`.)
+/// Recovery and Lockdown are not tabs: they open on the Today stack (`TodayRoute`).
+enum AppTab: String, CaseIterable {
+    case today
+    case train
+    case fuel
+    case arena
 
     var title: String {
         rawValue.capitalized
@@ -23,13 +24,20 @@ enum Tab: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .dashboard: "square.grid.2x2.fill"
-        case .recovery: "heart.fill"
-        case .training: "dumbbell.fill"
-        case .nutrition: "leaf.fill"
-        case .lockdown: "lock.fill"
+        case .today: "sun.horizon.fill"
+        case .train: "dumbbell.fill"
+        case .fuel: "fork.knife"
+        case .arena: "trophy.fill"
         }
     }
+}
+
+// MARK: - TodayRoute
+
+/// A full page that opens on top of Today.
+enum TodayRoute: Hashable {
+    case recovery
+    case lockdown
 }
 
 // MARK: - MealRequest
@@ -67,7 +75,13 @@ final class AppState {
         didSet { UserDefaults.standard.set(isOnboardingComplete, forKey: "tempo.onboarding.complete") }
     }
 
-    var activeTab: Tab = .dashboard
+    var activeTab: AppTab = .today
+    /// Pages pushed on the Today stack (Recovery, Lockdown).
+    var todayPath: [TodayRoute] = []
+    /// Today's 0-100 day score, published by the Today screen. Drives the app's mood colours.
+    var dayScore: Int?
+    /// Set to show the "+" capture sheet.
+    var captureRequested = false
     /// Set by the Sunday notification's "Something's different" — ContentView
     /// opens the weekly check-in.
     var weeklyCheckInRequested = false
@@ -82,6 +96,12 @@ final class AppState {
     var isOffline: Bool = false
 
     private let authService: AuthService
+
+    /// Switches to Today and shows `route` on top of it.
+    func openOnToday(_ route: TodayRoute) {
+        activeTab = .today
+        todayPath = [route]
+    }
 
     var authState: AuthState {
         authService.authState

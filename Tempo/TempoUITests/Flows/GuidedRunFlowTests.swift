@@ -54,7 +54,7 @@ final class GuidedRunFlowTests: XCTestCase {
         ])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
 
         let startButton = app.buttons["startGuidedRunButton"]
         var found = startButton.waitForExistence(timeout: 15)

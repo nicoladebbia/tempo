@@ -151,7 +151,10 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
             return
         }
         appState.activeTab = destination.tab
-        if destination.tab == .nutrition {
+        if let route = destination.todayRoute {
+            appState.todayPath = [route]
+        }
+        if destination.tab == .fuel {
             let section = destination.kitchenSection != nil ? NutritionSection.kitchen : destination.nutritionSection
             if let section {
                 appState.requestedNutrition = NutritionRoute(section: section, kitchen: destination.kitchenSection)

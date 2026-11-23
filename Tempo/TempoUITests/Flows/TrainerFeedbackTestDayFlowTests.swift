@@ -39,7 +39,7 @@ final class TrainerFeedbackTestDayFlowTests: XCTestCase {
     }
 
     private func openTrainerProgram() {
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
         app.buttons["More"].tap()
         let trainerProgramItem = app.buttons["Trainer Program"]
@@ -153,7 +153,7 @@ final class TrainerFeedbackTestDayFlowTests: XCTestCase {
         app.navigationBars["Review Program"].buttons["Save"].tap()
         XCTAssertTrue(app.navigationBars["Trainer Program"].waitForExistence(timeout: 15))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         let startButton = app.buttons["START WORKOUT"]

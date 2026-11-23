@@ -22,8 +22,12 @@ struct RecoveryTabView: View {
     @State
     private var viewModel: RecoveryViewModel?
 
+    /// True when pushed on another stack (Today): no stack of its own, or the
+    /// nested stack would pop back to the root on every push.
+    var embedded = false
+
     var body: some View {
-        NavigationStack {
+        EmbeddableNavigationStack(embedded: embedded) {
             Group {
                 if let viewModel {
                     recoveryContent(viewModel: viewModel)

@@ -13,8 +13,10 @@ import UserNotifications
 
 /// Where a notification wants the app to land.
 struct NotificationDestination: Equatable {
-    var tab: Tab
-    /// Nutrition tab section to show (only with `tab == .nutrition`).
+    var tab: AppTab
+    /// A page to open on top of Today (only with `tab == .today`).
+    var todayRoute: TodayRoute?
+    /// Fuel tab section to show (only with `tab == .fuel`).
     var nutritionSection: NutritionSection?
     /// Kitchen sub-section (implies the Kitchen section).
     var kitchenSection: KitchenSection?
@@ -26,14 +28,19 @@ struct NotificationDestination: Equatable {
     /// Pull the server-built plan (the "week is ready" push).
     var syncPlans = false
 
-    static func tab(_ tab: Tab) -> NotificationDestination {
+    static func tab(_ tab: AppTab) -> NotificationDestination {
         NotificationDestination(tab: tab)
+    }
+
+    /// Today, with Recovery or Lockdown opened on top of it.
+    static func today(_ route: TodayRoute) -> NotificationDestination {
+        NotificationDestination(tab: .today, todayRoute: route)
     }
 
     static func nutrition(
         _ section: NutritionSection? = nil, kitchen: KitchenSection? = nil, meal: MealRequest? = nil
     ) -> NotificationDestination {
-        NotificationDestination(tab: .nutrition, nutritionSection: section, kitchenSection: kitchen, meal: meal)
+        NotificationDestination(tab: .fuel, nutritionSection: section, kitchenSection: kitchen, meal: meal)
     }
 }
 
@@ -77,16 +84,18 @@ enum NotificationRouter {
         case "USE_IT_UP":
             return .nutrition(kitchen: .pantry)
         case "TRAINING_REMINDER":
-            return .tab(.training)
+            return .tab(.train)
         case "RECOVERY_REPORT":
-            return .tab(action == "VIEW_WORKOUT" ? .training : .recovery)
+            return action == "VIEW_WORKOUT" ? .tab(.train) : .today(.recovery)
         case "BEDTIME_REMINDER":
-            return .tab(.recovery)
-        case "MORNING_BRIEFING", "WEEKLY_SUMMARY", "ARENA_SOCIAL":
-            return .tab(.dashboard)
+            return .today(.recovery)
+        case "MORNING_BRIEFING", "WEEKLY_SUMMARY":
+            return .tab(.today)
+        case "ARENA_SOCIAL":
+            return .tab(.arena)
         case "STREAK_WARNING", "ACCOUNTABILITY", "ACCOUNTABILITY_GENTLE", "ACCOUNTABILITY_FIRM",
              "ACCOUNTABILITY_URGENT", "ACCOUNTABILITY_FINAL", "ACCOUNTABILITY_CLEAR":
-            return .tab(.lockdown)
+            return .today(.lockdown)
         default:
             return destination(forPushType: type, mealID: mealID, userInfo: userInfo)
         }
@@ -117,15 +126,17 @@ enum NotificationRouter {
         case CoachNotifications.pushType:
             return coach(userInfo: userInfo)
         case "training_reminder":
-            return .tab(.training)
+            return .tab(.train)
         case "recovery_morning":
-            return .tab(.recovery)
+            return .today(.recovery)
         case "bedtime_reminder":
-            return .tab(.recovery)
+            return .today(.recovery)
         case "streak_warning", "accountability_tier1", "accountability_tier2", "accountability_tier3", "accountability_tier4":
-            return .tab(.lockdown)
-        case "weekly_summary", "leaderboard_change", "challenge_invite", "challenge_update", "achievement_unlock":
-            return .tab(.dashboard)
+            return .today(.lockdown)
+        case "weekly_summary":
+            return .tab(.today)
+        case "leaderboard_change", "challenge_invite", "challenge_update", "achievement_unlock":
+            return .tab(.arena)
         default:
             return nil
         }

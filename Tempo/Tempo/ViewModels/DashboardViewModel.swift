@@ -41,8 +41,15 @@ final class DashboardViewModel {
         let id = UUID()
         let title: String
         let icon: String
-        let targetTab: Tab
+        let target: Target
         let color: Color
+
+        /// Where the button goes.
+        enum Target: Equatable {
+            case tab(AppTab)
+            case today(TodayRoute)
+            case logMeal
+        }
     }
 
     /// "Resume" for a session that was started and not finished, else "Start".
@@ -58,7 +65,7 @@ final class DashboardViewModel {
             actions.append(QuickAction(
                 title: Self.workoutActionTitle(name: name, inProgress: move.workoutInProgress),
                 icon: "dumbbell.fill",
-                targetTab: .training,
+                target: .tab(.train),
                 color: .tempoAmber
             ))
         }
@@ -69,7 +76,7 @@ final class DashboardViewModel {
             actions.append(QuickAction(
                 title: "Start Study Timer (\(remaining)m left)",
                 icon: "timer",
-                targetTab: .lockdown,
+                target: .today(.lockdown),
                 color: .tempoElectric
             ))
         }
@@ -79,14 +86,14 @@ final class DashboardViewModel {
             actions.append(QuickAction(
                 title: "Log a Meal",
                 icon: "fork.knife",
-                targetTab: .dashboard,
+                target: .logMeal,
                 color: .tempoViolet
             ))
         } else if !fuel.isConnected {
             actions.append(QuickAction(
                 title: "Log a Meal",
                 icon: "fork.knife",
-                targetTab: .dashboard,
+                target: .logMeal,
                 color: .tempoViolet
             ))
         }
@@ -97,7 +104,7 @@ final class DashboardViewModel {
             actions.append(QuickAction(
                 title: "\(remaining) Non-Negotiable\(remaining > 1 ? "s" : "") Left",
                 icon: "lock.fill",
-                targetTab: .lockdown,
+                target: .today(.lockdown),
                 color: .tempoSignal
             ))
         }
@@ -107,7 +114,7 @@ final class DashboardViewModel {
             actions.append(QuickAction(
                 title: "View Recovery Plan",
                 icon: "heart.fill",
-                targetTab: .recovery,
+                target: .today(.recovery),
                 color: .tempoRecoveryRed
             ))
         }

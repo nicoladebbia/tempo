@@ -20,19 +20,21 @@ final class DashboardPage: BasePage {
     }
 
     var dashboardTab: XCUIElement {
-        app.tabBars.buttons["Dashboard"]
+        app.tabBars.buttons["Today"]
     }
 
     var trainingTab: XCUIElement {
-        app.tabBars.buttons["Training"]
+        app.tabBars.buttons["Train"]
     }
 
+    /// Lockdown has no tab: it opens from Today.
     var lockdownTab: XCUIElement {
-        app.tabBars.buttons["Lockdown"]
+        app.buttons["today.shortcut.lockdown"]
     }
 
+    /// Recovery has no tab: it opens from Today.
     var recoveryTab: XCUIElement {
-        app.tabBars.buttons["Recovery"]
+        app.buttons["today.shortcut.recovery"]
     }
 
     var arenaTab: XCUIElement {

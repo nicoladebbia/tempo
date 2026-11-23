@@ -33,7 +33,7 @@ final class ExerciseImagesScreenshotTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
         attach("01-today-with-thumbnails")
 
@@ -51,7 +51,7 @@ final class ExerciseImagesScreenshotTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()
@@ -75,7 +75,7 @@ final class ExerciseImagesScreenshotTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()

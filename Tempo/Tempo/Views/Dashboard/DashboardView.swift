@@ -85,7 +85,9 @@ struct DashboardView: View {
     private var hasCompletedSetup = false
 
     var body: some View {
-        NavigationStack {
+        @Bindable
+        var appState = services.appState
+        return NavigationStack(path: $appState.todayPath) {
             Group {
                 if let viewModel {
                     switch viewModel.loadState {
@@ -116,6 +118,17 @@ struct DashboardView: View {
             .background(Color.tempoBgPrimary)
             .navigationBarTitleDisplayMode(.inline)
             .tempoSettingsToolbar(isPresented: $showSettings)
+            // Recovery and Lockdown have no tab of their own: they open here.
+            .navigationDestination(for: TodayRoute.self) { route in
+                switch route {
+                case .recovery: RecoveryTabView(embedded: true)
+                case .lockdown: LockdownTabView(embedded: true)
+                }
+            }
+        }
+        // The shell colours itself from the day score.
+        .onChange(of: viewModel?.dailyScore, initial: true) { _, score in
+            services.appState.dayScore = score
         }
         .task {
             if viewModel == nil {
@@ -374,7 +387,7 @@ struct DashboardView: View {
                 quickActionsRow(vm)
                 nonNegotiablesSection(vm)
                 insightRow(vm)
-                arenaQuickAccessCard()
+                todayShortcuts()
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
         }
@@ -874,10 +887,10 @@ struct DashboardView: View {
             VStack(spacing: TempoSpacing.sm) {
                 ForEach(actions) { action in
                     Button {
-                        services.appState.activeTab = action.targetTab
-                        if action.targetTab == .dashboard {
-                            // Special handling for "Log a Meal" — open meal logging sheet
-                            showMealLogging = true
+                        switch action.target {
+                        case let .tab(tab): services.appState.activeTab = tab
+                        case let .today(route): services.appState.openOnToday(route)
+                        case .logMeal: showMealLogging = true
                         }
                     } label: {
                         HStack(spacing: TempoSpacing.sm) {
@@ -928,37 +941,39 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Arena Quick Access
+    // MARK: - Today shortcuts
 
-    private func arenaQuickAccessCard() -> some View {
-        NavigationLink(destination: ArenaTabView()) {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(Color.tempoSignal)
+    // Temporary (UI rework phase 1): Recovery and Lockdown lost their tabs, so
+    // they open from here until the new Today screen replaces this one.
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("ARENA")
-                        .font(.tempoCaption1)
-                        .fontWeight(.bold)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .tracking(0.5)
-                    Text("XP, levels & challenges")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
+    private func todayShortcuts() -> some View {
+        HStack(spacing: TempoSpacing.sm) {
+            todayShortcut("Recovery", icon: "heart.fill", color: .tempoRecoveryGreen, route: .recovery)
+            todayShortcut("Lockdown", icon: "lock.fill", color: .tempoSignal, route: .lockdown)
+        }
+    }
 
-                Spacer()
-
+    private func todayShortcut(_ title: String, icon: String, color: Color, route: TodayRoute) -> some View {
+        NavigationLink(value: route) {
+            HStack(spacing: TempoSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.tempoHeadline)
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.tempoHeadline)
+                    .foregroundStyle(Color.tempoTextPrimary)
+                Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.tempoCaption1)
                     .foregroundStyle(Color.tempoTextTertiary)
             }
             .padding(TempoSpacing.md)
+            .frame(maxWidth: .infinity, minHeight: 56)
             .background(Color.tempoBgSecondary)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("today.shortcut.\(title.lowercased())")
     }
 
     // MARK: - Insight Row

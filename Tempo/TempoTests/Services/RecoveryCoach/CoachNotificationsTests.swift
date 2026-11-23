@@ -32,7 +32,7 @@ final class CoachNotificationsTests: XCTestCase {
         let tap = NotificationRouter.destination(
             category: "POST_WORKOUT_WEIGHIN", action: NotificationRouter.defaultActionID, userInfo: pushInfo
         )
-        XCTAssertEqual(tap?.tab, .nutrition)
+        XCTAssertEqual(tap?.tab, .fuel)
         XCTAssertEqual(tap?.coachSessionID, id)
     }
 
@@ -43,7 +43,7 @@ final class CoachNotificationsTests: XCTestCase {
 
     func testPreMatchTapOpensNutritionToday() {
         let tap = NotificationRouter.destination(category: "PRE_MATCH_WEIGHIN", action: NotificationRouter.defaultActionID, userInfo: [:])
-        XCTAssertEqual(tap?.tab, .nutrition)
+        XCTAssertEqual(tap?.tab, .fuel)
         XCTAssertEqual(tap?.nutritionSection, .today)
         XCTAssertNil(tap?.coachSessionID)
     }

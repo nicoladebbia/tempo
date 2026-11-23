@@ -23,7 +23,7 @@ struct NotificationRouterTests {
     func weekReadyOpensPlanAndSyncs() {
         let serverPush: [AnyHashable: Any] = ["data": ["type": "meal_plan_ready", "jobId": "x"]]
         let dest = route("MEAL_PLAN_READY", nil, serverPush)
-        #expect(dest?.tab == .nutrition)
+        #expect(dest?.tab == .fuel)
         #expect(dest?.nutritionSection == .plan)
         #expect(dest?.syncPlans == true)
     }
@@ -39,7 +39,7 @@ struct NotificationRouterTests {
     func mealReminderTapOpensThatMeal() {
         let dest = route("MEAL_REMINDER", nil, mealInfo)
         #expect(dest?.meal == MealRequest(id: meal, action: .open))
-        #expect(dest?.tab == .nutrition)
+        #expect(dest?.tab == .fuel)
     }
 
     @Test
@@ -81,14 +81,54 @@ struct NotificationRouterTests {
 
     @Test
     func otherModulesLandOnTheirTab() {
-        #expect(route("TRAINING_REMINDER", "VIEW_WORKOUT")?.tab == .training)
-        #expect(route("RECOVERY_REPORT", "VIEW_RECOVERY")?.tab == .recovery)
-        #expect(route("BEDTIME_REMINDER")?.tab == .recovery)
-        #expect(route("ACCOUNTABILITY_FIRM", "START_NOW")?.tab == .lockdown)
-        #expect(route("STREAK_WARNING")?.tab == .lockdown)
-        #expect(route("ARENA_SOCIAL")?.tab == .dashboard)
-        #expect(route("WEEKLY_SUMMARY")?.tab == .dashboard)
-        #expect(route("MORNING_BRIEFING")?.tab == .dashboard)
+        #expect(route("TRAINING_REMINDER", "VIEW_WORKOUT")?.tab == .train)
+        #expect(route("RECOVERY_REPORT", "VIEW_WORKOUT")?.tab == .train)
+        #expect(route("ARENA_SOCIAL")?.tab == .arena)
+        #expect(route("WEEKLY_SUMMARY") == .tab(.today))
+        #expect(route("MORNING_BRIEFING") == .tab(.today))
+    }
+
+    /// Recovery and Lockdown have no tab any more: their notifications open
+    /// that page on top of Today.
+    @Test
+    func recoveryAndLockdownOpenOnToday() {
+        #expect(route("RECOVERY_REPORT", "VIEW_RECOVERY") == .today(.recovery))
+        #expect(route("BEDTIME_REMINDER") == .today(.recovery))
+        #expect(route("STREAK_WARNING") == .today(.lockdown))
+        for category in [
+            "ACCOUNTABILITY", "ACCOUNTABILITY_GENTLE", "ACCOUNTABILITY_FIRM",
+            "ACCOUNTABILITY_URGENT", "ACCOUNTABILITY_FINAL", "ACCOUNTABILITY_CLEAR",
+        ] {
+            #expect(route(category, "START_NOW") == .today(.lockdown))
+        }
+    }
+
+    /// Server pushes with no registered category route by their type.
+    @Test
+    func serverPushTypesStillLand() {
+        func push(_ type: String) -> NotificationDestination? {
+            NotificationRouter.destination(
+                category: "", action: NotificationRouter.defaultActionID, userInfo: ["data": ["type": type]]
+            )
+        }
+        #expect(push("training_reminder") == .tab(.train))
+        #expect(push("recovery_morning") == .today(.recovery))
+        #expect(push("bedtime_reminder") == .today(.recovery))
+        #expect(push("weekly_summary") == .tab(.today))
+        for type in ["streak_warning", "accountability_tier1", "accountability_tier2", "accountability_tier3", "accountability_tier4"] {
+            #expect(push(type) == .today(.lockdown))
+        }
+        for type in ["leaderboard_change", "challenge_invite", "challenge_update", "achievement_unlock"] {
+            #expect(push(type) == .tab(.arena))
+        }
+        #expect(push("meal_plan_ready")?.tab == .fuel)
+    }
+
+    /// A route only makes sense on Today.
+    @Test
+    func todayRouteImpliesTodayTab() {
+        #expect(NotificationDestination.today(.recovery).tab == .today)
+        #expect(NotificationDestination.tab(.arena).todayRoute == nil)
     }
 
     @Test
