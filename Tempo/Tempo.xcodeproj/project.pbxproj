@@ -282,6 +282,7 @@
 		32EA548CE50DD4CCC71E70AA /* WeeklyUploadPromptCardTitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 965DC018380A4EA362531AD1 /* WeeklyUploadPromptCardTitleTests.swift */; };
 		32F4E02C0A889C96EE790C7A /* ReceiptStructuringDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BAAE5E8871F724400475AB /* ReceiptStructuringDTOs.swift */; };
 		32FF0ABDF7B87B6706CFF4FE /* CoachTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D3A8599DF88C6309EA3F37 /* CoachTools.swift */; };
+		33038901F609329E6B66C143 /* Tide+Kitchen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AA57662E0B6672183C6A3C /* Tide+Kitchen.swift */; };
 		331BBFAC55A48EF711897404 /* TrainingViewModel+Computed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C37878C77D9359465AC7DE /* TrainingViewModel+Computed.swift */; };
 		3327808DDC620ECFEBDD6E42 /* TrainerProgramView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4C09885EC54969F9D62DB7 /* TrainerProgramView.swift */; };
 		332EA2B7D9F6AF47C5E3BE85 /* cue_ex_chest_supported_row.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 5439E94C462015A22F80BE47 /* cue_ex_chest_supported_row.mp3 */; };
@@ -2353,6 +2354,7 @@
 		B94FF608576C7C015A2227E6 /* WorkoutSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSummaryView.swift; sourceTree = "<group>"; };
 		B955EB0A1637E8235B0D0462 /* cue_ex_reverse_pec_deck.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_reverse_pec_deck.mp3; sourceTree = "<group>"; };
 		B95BE0F92B0B6302EE2B39E0 /* SupplementNearbyStoresTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementNearbyStoresTests.swift; sourceTree = "<group>"; };
+		B9AA57662E0B6672183C6A3C /* Tide+Kitchen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tide+Kitchen.swift"; sourceTree = "<group>"; };
 		B9B30D3CB7FB538D6935F767 /* PantryDepletionPlanCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryDepletionPlanCheckTests.swift; sourceTree = "<group>"; };
 		B9C12C5F7B946E817EF5B028 /* GroceryStoreLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryStoreLayout.swift; sourceTree = "<group>"; };
 		B9D49789C4D2695933ABFD75 /* FuelQuadrantDetailContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelQuadrantDetailContainer.swift; sourceTree = "<group>"; };
@@ -3703,6 +3705,7 @@
 			isa = PBXGroup;
 			children = (
 				0597EA1F193B3DFC757ACEC1 /* Tide.metal */,
+				B9AA57662E0B6672183C6A3C /* Tide+Kitchen.swift */,
 				70466F4A254B9F82C9FAA0E5 /* TideComponents.swift */,
 				A0AFD51F8198DE6E60C2384F /* TideGallery.swift */,
 				899169DD738BF35AD7FCC2CC /* TideMood.swift */,
@@ -6610,6 +6613,7 @@
 				F39C73E19E14AA4302EC3903 /* TemporaryExclusionsStepView.swift in Sources */,
 				7C1028AFDD1D96B68005C350 /* TermsAcceptanceView.swift in Sources */,
 				1926D115A4B3332150CFC26B /* TestServer.swift in Sources */,
+				33038901F609329E6B66C143 /* Tide+Kitchen.swift in Sources */,
 				08D989951B2D83127DF1EA04 /* Tide.metal in Sources */,
 				B5ADC1D24F3E4FDD62AE498C /* TideComponents.swift in Sources */,
 				C60701040F31DA5AA72470EB /* TideGallery.swift in Sources */,

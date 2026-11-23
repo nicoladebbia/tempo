@@ -18,6 +18,8 @@ struct GroceryListView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
 
     /// True while the AddGroceryItemSheet is presented.
     @State
@@ -43,14 +45,19 @@ struct GroceryListView: View {
     @State
     private var showCheaperSwaps = false
 
+    @State
+    private var ticks = 0
+
+    /// Something is presented over the page: its shaders stop.
+    private var isCovered: Bool {
+        showAddItem || showStoreMode || showDoneShopping || showSpendHistory || showCheaperSwaps
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                headerCard
+            VStack(alignment: .leading, spacing: Tide.s5) {
                 if let list = viewModel.groceryState.latest {
-                    storeModeBar
-                    progressBar(for: list)
-                    budgetSection(for: list)
+                    summaryCard(for: list)
                     ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
                         categorySection(category: category, items: items(in: list, category: category))
                     }
@@ -63,14 +70,19 @@ struct GroceryListView: View {
                 }
                 if let error = viewModel.groceryState.lastError {
                     Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .tidePage()
+        .tideCovered(isCovered)
+        .sensoryFeedback(.selection, trigger: ticks)
         .toolbar {
             // Only surface Add/Sync when a list actually exists — there's
             // nothing to add to or sync against until generation runs.
@@ -104,6 +116,7 @@ struct GroceryListView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
+                    .accessibilityLabel("More")
                 }
             }
         }
@@ -150,20 +163,7 @@ struct GroceryListView: View {
         }
     }
 
-    // MARK: - Store mode entry + picker
-
-    private var storeModeBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Button {
-                HapticManager.lightImpact()
-                showStoreMode = true
-            } label: {
-                Label("Store Mode", systemImage: "figure.walk")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tempoSecondary)
-        }
-    }
+    // MARK: - Store picker
 
     private var storePickerMenu: some View {
         Menu {
@@ -183,47 +183,86 @@ struct GroceryListView: View {
         }
     }
 
-    // MARK: - Budget / cost
+    // MARK: - Summary: progress, cost, the way into Store Mode
 
-    private func budgetSection(for list: GroceryList) -> some View {
+    private func summaryCard(for list: GroceryList) -> some View {
+        let total = max(1, list.itemCount)
+        let progress = Double(list.checkedCount) / Double(total)
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "This week", trailing: progress >= 1 ? "All checked" : nil)
+            TideNumber(
+                "\(list.checkedCount)", unit: "of \(list.itemCount) checked",
+                size: Tide.numeralL, relativeTo: .largeTitle
+            )
+            TideLevelBar(progress: progress, color: mood.accent, height: Tide.bar)
+                .animation(Tide.settle, value: progress)
+                .accessibilityLabel("Checked off")
+            budgetLine(for: list)
+            HStack(spacing: Tide.s3) {
+                Button {
+                    showStoreMode = true
+                } label: {
+                    Label("Store Mode", systemImage: "figure.walk")
+                }
+                .buttonStyle(.tidePrimary)
+                .sensoryFeedback(.impact(weight: .light), trigger: showStoreMode)
+                Button {
+                    viewModel.generateGroceryList()
+                } label: {
+                    if viewModel.groceryState.isGenerating {
+                        ProgressView()
+                            .frame(minHeight: Tide.hit + Tide.s2)
+                    } else {
+                        Image(systemName: "wand.and.stars")
+                            .frame(minHeight: Tide.hit + Tide.s2)
+                    }
+                }
+                .buttonStyle(.tideGlass)
+                .fixedSize()
+                .disabled(viewModel.groceryState.isGenerating)
+                .accessibilityLabel("Generate list")
+            }
+        }
+        .tideCard()
+    }
+
+    private func budgetLine(for list: GroceryList) -> some View {
         let cap = viewModel.groceryBudgetCapUSD
         let total = list.estimatedTotalUSD
         let isOver = viewModel.groceryIsOverBudget()
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total))
-                    .font(.tempoBody)
-                    .foregroundStyle(isOver ? Color.tempoError : Color.tempoTextPrimary)
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
+                    size: Tide.numeralS, relativeTo: .headline,
+                    color: isOver ? Tide.danger : Tide.text
+                )
                 if list.hasUnresolvedPrices {
                     Text("pricing…")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 if let cap {
                     Text("of $\(cap) budget")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
             if isOver {
-                HStack {
-                    Text("Over budget — tighten up or swap something.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                    Spacer()
-                    Button("Cheaper swaps") {
+                HStack(spacing: Tide.s3) {
+                    Text("Over budget. Tighten up or swap something.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
+                    TideChip(title: "Cheaper swaps") {
                         showCheaperSwaps = true
                         Task { await viewModel.fetchCheaperSwaps() }
                     }
-                    .font(.tempoCaption1)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private func formatUSD(_ value: Double) -> String {
@@ -233,78 +272,25 @@ struct GroceryListView: View {
     // MARK: - Bought section (Done-shopping record)
 
     private func boughtSection(for list: GroceryList) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("BOUGHT")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        KitchenGroup(
+            title: "Bought",
+            systemImage: "checkmark.circle.fill",
+            trailing: "\(list.boughtItems.count)",
+            tint: Tide.Kitchen.good
+        ) {
             ForEach(list.boughtItems, id: \.id) { item in
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.tempoSuccess)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.Kitchen.good)
+                        .accessibilityHidden(true)
                     Text(item.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .strikethrough()
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
             }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard.opacity(TempoOpacity.o70))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    // MARK: - Header
-
-    private var headerCard: some View {
-        HStack(alignment: .center, spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("THIS WEEK")
-                    .font(.tempoModuleTag)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                if let list = viewModel.groceryState.latest {
-                    Text("\(list.itemCount) items, \(list.checkedCount) checked")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                } else {
-                    Text("No list generated yet")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-            }
-            Spacer()
-            Button {
-                viewModel.generateGroceryList()
-            } label: {
-                if viewModel.groceryState.isGenerating {
-                    ProgressView().tint(.white)
-                } else {
-                    Label("Generate", systemImage: "wand.and.stars")
-                }
-            }
-            .buttonStyle(.tempoPrimary)
-            .disabled(viewModel.groceryState.isGenerating)
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    private func progressBar(for list: GroceryList) -> some View {
-        let total = max(1, list.itemCount)
-        let progress = Double(list.checkedCount) / Double(total)
-        return VStack(alignment: .leading, spacing: 4) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder.opacity(0.5)).frame(height: 6)
-                    Capsule().fill(Color.tempoSignal).frame(width: geo.size.width * progress, height: 6)
-                }
-            }
-            .frame(height: 6)
-            Text("\(Int(progress * 100))% checked off")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
         }
     }
 
@@ -315,41 +301,23 @@ struct GroceryListView: View {
     }
 
     private func categorySection(category: String, items: [GroceryListItem]) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(category.uppercased())
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        let left = items.filter { !$0.isChecked }.count
+        return KitchenGroup(
+            title: category,
+            trailing: left == 0 ? "Done" : "\(left) left"
+        ) {
             ForEach(items, id: \.id) { item in
                 Button {
                     viewModel.toggleGroceryItem(item)
+                    ticks += 1
                     if item.isChecked {
                         viewModel.recordGroceryCategoryTick(item.category)
                     }
                 } label: {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.isChecked ? Color.tempoSuccess : Color.tempoTextTertiary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.displayName)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .strikethrough(item.isChecked)
-                            // "4 breasts chicken" already carries its amount.
-                            if !item.displayNameEmbedsQuantity {
-                                Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
-                        }
-                        Spacer()
-                        if let price = item.estimatedPriceUSD {
-                            Text(item.priceSource == .estimate ? "≈\(formatUSD(price))" : formatUSD(price))
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
+                    itemRow(item)
                 }
                 .buttonStyle(.plain)
+                .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
                 // Long-press to delete. Can't use SwiftUI swipeActions here
                 // because the list isn't inside a List/Form — these rows
                 // are a custom VStack. The contextMenu works on any tap
@@ -364,10 +332,34 @@ struct GroceryListView: View {
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func itemRow(_ item: GroceryListItem) -> some View {
+        HStack(spacing: Tide.s3) {
+            KitchenCheck(checked: item.isChecked)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(item.displayName)
+                    .font(Tide.headline)
+                    .foregroundStyle(item.isChecked ? Tide.text3 : Tide.text)
+                    .strikethrough(item.isChecked)
+                    .fixedSize(horizontal: false, vertical: true)
+                // "4 breasts chicken" already carries its amount.
+                if !item.displayNameEmbedsQuantity {
+                    Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+            Spacer(minLength: Tide.s2)
+            if let price = item.estimatedPriceUSD {
+                Text(item.priceSource == .estimate ? "≈\(formatUSD(price))" : formatUSD(price))
+                    .font(Tide.numeral(Tide.numeralS, .semibold))
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+        }
+        .contentShape(.rect)
     }
 
     // MARK: - Reminders export
@@ -378,38 +370,52 @@ struct GroceryListView: View {
                 await viewModel.exportGroceryListToReminders()
             }
         } label: {
-            HStack {
+            HStack(spacing: Tide.s2) {
                 if viewModel.groceryState.isExporting {
-                    ProgressView().tint(.white)
+                    ProgressView()
                 }
                 Label(
                     list.exportedToReminders ? "Re-export to Reminders" : "Export to Reminders",
                     systemImage: "list.bullet.rectangle.fill"
                 )
-                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.tempoSecondary)
+        .buttonStyle(.tideGlass)
         .disabled(viewModel.groceryState.isExporting)
     }
 
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s3) {
             Image(systemName: "cart")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.largeTitle)
+                .foregroundStyle(mood.accent)
+                .accessibilityHidden(true)
             Text("No grocery list yet")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
             Text("Generate a meal plan first, then tap Generate to build your shopping list.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                viewModel.generateGroceryList()
+            } label: {
+                if viewModel.groceryState.isGenerating {
+                    ProgressView()
+                } else {
+                    Label("Generate", systemImage: "wand.and.stars")
+                }
+            }
+            .buttonStyle(.tidePrimary)
+            .disabled(viewModel.groceryState.isGenerating)
+            .padding(.top, Tide.s2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        .tideCard(padding: Tide.s6)
     }
 
     private func formatQuantity(_ value: Double) -> String {
@@ -453,6 +459,7 @@ private struct AddGroceryItemSheet: View {
                     TextField("Name (e.g. olive oil)", text: $name)
                         .textInputAutocapitalization(.never)
                 }
+                .kitchenSection()
                 Section("Quantity") {
                     HStack {
                         TextField("Amount", text: $quantityText)
@@ -465,7 +472,9 @@ private struct AddGroceryItemSheet: View {
                         .pickerStyle(.menu)
                     }
                 }
+                .kitchenSection()
             }
+            .kitchenForm()
             .navigationTitle("Add to Grocery")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -481,5 +490,6 @@ private struct AddGroceryItemSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 }

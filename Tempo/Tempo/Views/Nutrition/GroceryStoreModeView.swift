@@ -7,6 +7,9 @@
 // with a prominent "Done shopping" button that hands off to the
 // bought → pantry review sheet.
 //
+// Built for one hand in an aisle: the whole row is the button, names are
+// large, and the way out sits under the thumb.
+//
 
 import SwiftUI
 
@@ -20,11 +23,15 @@ struct GroceryStoreModeView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     /// Categories the user has collapsed manually, IN ADDITION TO the
     /// auto-collapse of fully-checked aisles below.
     @State
     private var manuallyExpanded: Set<String> = []
+    @State
+    private var ticks = 0
 
     private var orderedCategories: [String] {
         viewModel.resolvedGroceryCategoryOrder(for: list)
@@ -45,23 +52,23 @@ struct GroceryStoreModeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     progressHeader
                     ForEach(orderedCategories, id: \.self) { category in
                         aisleSection(category: category, items: items(for: category))
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxxxxl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
-            .tidePage()
-            .safeAreaInset(edge: .bottom) {
+            .scrollIndicators(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .tidePage(energy: 1)
+            .kitchenBottomBar {
                 doneShoppingButton
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.vertical, TempoSpacing.md)
-                    .background(.ultraThinMaterial)
             }
+            .sensoryFeedback(.impact(weight: .light), trigger: ticks)
             .navigationTitle("Store Mode")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -87,18 +94,17 @@ struct GroceryStoreModeView: View {
     private var progressHeader: some View {
         let total = max(1, totalCount)
         let progress = Double(checkedCount) / Double(total)
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("\(checkedCount) of \(totalCount) checked off")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder.opacity(0.5)).frame(height: 10)
-                    Capsule().fill(Color.tempoSignal).frame(width: geo.size.width * progress, height: 10)
-                }
-            }
-            .frame(height: 10)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideNumber(
+                "\(checkedCount)", unit: "of \(totalCount) checked off",
+                size: Tide.numeralL, relativeTo: .largeTitle
+            )
+            TideLevelBar(progress: progress, color: mood.accent, height: Tide.bar)
+                .animation(Tide.settle, value: progress)
+                .accessibilityLabel("Checked off")
         }
+        .padding(.horizontal, Tide.s1)
+        .padding(.top, Tide.s2)
     }
 
     // MARK: - Aisle section (collapses when fully checked)
@@ -107,43 +113,49 @@ struct GroceryStoreModeView: View {
         let isComplete = !items.isEmpty && items.allSatisfy(\.isChecked)
         let isExpanded = !isComplete || manuallyExpanded.contains(category)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
             Button {
                 if isComplete {
-                    if manuallyExpanded.contains(category) {
-                        manuallyExpanded.remove(category)
-                    } else {
-                        manuallyExpanded.insert(category)
+                    withAnimation(Tide.snap) {
+                        if manuallyExpanded.contains(category) {
+                            manuallyExpanded.remove(category)
+                        } else {
+                            manuallyExpanded.insert(category)
+                        }
                     }
                 }
             } label: {
-                HStack {
-                    Text(category.uppercased())
-                        .font(.tempoModuleTag)
-                        .foregroundStyle(isComplete ? Color.tempoSuccess : Color.tempoTextSecondary)
+                HStack(spacing: Tide.s2) {
+                    Text(category).tideLabel(isComplete ? Tide.Kitchen.good : Tide.text2)
                     if isComplete {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Color.tempoSuccess)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.Kitchen.good)
                     }
-                    Spacer()
+                    Spacer(minLength: Tide.s2)
                     if isComplete {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
+                .padding(.horizontal, Tide.s1)
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityHint(isComplete ? (isExpanded ? "Collapse" : "Expand") : "")
 
             if isExpanded {
-                ForEach(items, id: \.id) { item in
-                    storeModeRow(item)
+                KitchenRows {
+                    ForEach(items, id: \.id) { item in
+                        storeModeRow(item)
+                    }
                 }
+                .transition(.opacity)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     // MARK: - Big-tap-target row
@@ -151,33 +163,33 @@ struct GroceryStoreModeView: View {
     private func storeModeRow(_ item: GroceryListItem) -> some View {
         Button {
             viewModel.toggleGroceryItem(item)
-            HapticManager.lightImpact()
+            ticks += 1
             if item.isChecked {
                 viewModel.recordGroceryCategoryTick(item.category)
             }
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 28))
-                    .foregroundStyle(item.isChecked ? Color.tempoSuccess : Color.tempoTextTertiary)
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: Tide.s4) {
+                KitchenCheck(checked: item.isChecked, size: Tide.s10)
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(item.displayName)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.Kitchen.shopName)
+                        .foregroundStyle(item.isChecked ? Tide.text3 : Tide.text)
                         .strikethrough(item.isChecked)
+                        .fixedSize(horizontal: false, vertical: true)
                     // "4 breasts chicken" already carries its amount.
                     if !item.displayNameEmbedsQuantity {
                         Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
                 }
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .frame(minHeight: 56)
-            .contentShape(Rectangle())
+            .frame(minHeight: Tide.Kitchen.shopRow - Tide.s3 * 2)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
     }
 
     // MARK: - Done shopping
@@ -188,9 +200,8 @@ struct GroceryStoreModeView: View {
             onDoneShopping()
         } label: {
             Label("Done Shopping", systemImage: "checkmark.circle.fill")
-                .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.tempoPrimary)
+        .buttonStyle(.tidePrimary)
         .disabled(checkedCount == 0)
     }
 
