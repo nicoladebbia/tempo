@@ -30,7 +30,7 @@ final class FoodScannerFlowTests: XCTestCase {
     private func openScanner(extraArguments: [String] = []) {
         app.launchForTesting(extraArguments: extraArguments)
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
-        app.tabBars.buttons["Nutrition"].tap()
+        app.tabBars.buttons["Fuel"].tap()
         let logSegment = app.segmentedControls.buttons["Log"]
         XCTAssertTrue(logSegment.waitForExistence(timeout: 10))
         logSegment.tap()

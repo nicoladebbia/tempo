@@ -23,7 +23,7 @@ final class SettingsSignInFlowTests: XCTestCase {
 
     func testSignedOutUserCanSignInFromAccountSettings() {
         app.launchForTesting()
-        app.tabBars.buttons["Nutrition"].tap()
+        app.tabBars.buttons["Fuel"].tap()
         app.buttons["Settings"].firstMatch.tap()
 
         let account = app.staticTexts["Not signed in — tap to sign in"]
