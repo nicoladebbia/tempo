@@ -331,7 +331,7 @@ extension View {
     /// A button bar that floats over the bottom of a scroll view: no opaque
     /// strip, the content fades under it.
     func kitchenBottomBar(@ViewBuilder _ bar: () -> some View) -> some View {
-        safeAreaInset(edge: .bottom, spacing: 0) {
+        safeAreaBar(edge: .bottom, spacing: 0) {
             bar()
                 .padding(.horizontal, Tide.edge)
                 .padding(.vertical, Tide.s3)

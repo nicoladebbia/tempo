@@ -111,6 +111,7 @@ struct FoodProductView: View {
             .padding(.bottom, Tide.s10)
         }
         .kitchenPage()
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .navigationTitle(product.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -125,7 +126,7 @@ struct FoodProductView: View {
                 .accessibilityLabel(isFavorite ? "Remove from favourites" : "Add to favourites")
             }
         }
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             switch mode {
             case let .log(onAdd):
                 addBar(onAdd)

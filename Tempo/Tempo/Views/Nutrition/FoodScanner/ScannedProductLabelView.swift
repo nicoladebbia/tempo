@@ -79,8 +79,9 @@ struct ScannedProductLabelView: View {
             .frame(maxWidth: .infinity)
         }
         .kitchenPage()
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .accessibilityIdentifier("scannedProductLabel")
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             FoodProductActionBar(product: product, grams: grams, toast: $toast) {
                 catalog.rememberPortion(grams, for: product, in: modelContext)
             }

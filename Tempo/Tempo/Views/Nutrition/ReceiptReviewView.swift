@@ -116,9 +116,10 @@ struct ReceiptReviewView: View {
         .listStyle(.insetGrouped)
         .scrollIndicators(.hidden)
         .kitchenPage()
+        .scrollEdgeEffectStyle(.soft, for: .all)
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
+        .safeAreaBar(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(item: $editingLine) { line in
             ReceiptLineEditSheet(
                 line: line,
