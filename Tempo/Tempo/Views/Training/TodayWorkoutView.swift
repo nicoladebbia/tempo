@@ -554,29 +554,41 @@ struct TodayWorkoutView: View {
     private func recoveryStatusLine(plan: WorkoutPlan) -> some View {
         // No synced recovery today → say so instead of implying green.
         let hasRecovery = (viewModel.loadRecoveryScore(modelContext: modelContext) ?? 0) > 0
+        let dot = Circle()
+            .fill(hasRecovery ? recoveryDotColor(plan: plan) : Tide.text3)
+            .frame(width: 8, height: 8)
+        let recovery = Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
+            .foregroundStyle(Tide.text)
+        let adjustment = Text(adjustmentLabel(plan: plan))
+            .foregroundStyle(recoveryDotColor(plan: plan))
+        let deload = Text("Deload week")
+            .fontWeight(.semibold)
+            .foregroundStyle(TideTrain.caution)
         return VStack(alignment: .leading, spacing: Tide.hair) {
-            HStack(spacing: Tide.s1) {
-                Circle()
-                    .fill(hasRecovery ? recoveryDotColor(plan: plan) : Tide.text3)
-                    .frame(width: 8, height: 8)
-                Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
-                    .foregroundStyle(Tide.text)
-                Text("·")
-                    .foregroundStyle(Tide.text3)
-                Text(adjustmentLabel(plan: plan))
-                    .foregroundStyle(recoveryDotColor(plan: plan))
-                if viewModel.isDeloadWeek {
-                    Text("·")
-                        .foregroundStyle(Tide.text3)
-                    Text("Deload week")
-                        .fontWeight(.semibold)
-                        .foregroundStyle(TideTrain.caution)
+            // One line when it fits, stacked (never clipped) at big text sizes.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s1) {
+                    dot
+                    recovery
+                    Text("·").foregroundStyle(Tide.text3)
+                    adjustment
+                    if viewModel.isDeloadWeek {
+                        Text("·").foregroundStyle(Tide.text3)
+                        deload
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .lineLimit(1)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    HStack(spacing: Tide.s1) {
+                        dot
+                        recovery
+                    }
+                    adjustment
+                    if viewModel.isDeloadWeek { deload }
+                }
             }
             .font(Tide.caption)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
 
             if viewModel.isDeloadWeek {
                 Text(viewModel.deloadStyle.blurb)
@@ -650,6 +662,8 @@ struct TodayWorkoutView: View {
                 }
                 .font(Tide.caption)
                 .foregroundStyle(Color.accentColor)
+                .frame(minHeight: Tide.hit, alignment: .leading)
+                .contentShape(.rect)
             }
 
             // Blocks (non-gym detail + cues; gym sets render in the exercise
@@ -703,6 +717,8 @@ struct TodayWorkoutView: View {
                     .font(Tide.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.accentColor)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
                 }
             }
 
@@ -728,6 +744,8 @@ struct TodayWorkoutView: View {
                     .font(Tide.caption)
                     .fontWeight(.bold)
                     .foregroundStyle(Color.accentColor)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
                 }
             }
         }
@@ -876,57 +894,69 @@ struct TodayWorkoutView: View {
     // Per MODULE_TRAINING.md Section 2.6
 
     private func workoutMeta(plan: WorkoutPlan) -> some View {
-        HStack(spacing: Tide.s2) {
-            HStack(spacing: Tide.hair) {
-                Image(systemName: "timer")
-                    .font(Tide.caption)
-                // Done day: the real duration, and what was actually done vs
-                // planned — not the plan's estimate ("~0 min · 6 exercises").
-                Text(plan.status == .completed
-                    ? "\(max(1, plan.durationMinutes ?? 0)) min"
-                    : "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min")
-                    .font(Tide.caption)
-            }
+        let duration = HStack(spacing: Tide.hair) {
+            Image(systemName: "timer")
+                .font(Tide.caption)
+            // Done day: the real duration, and what was actually done vs
+            // planned — not the plan's estimate ("~0 min · 6 exercises").
+            Text(plan.status == .completed
+                ? "\(max(1, plan.durationMinutes ?? 0)) min"
+                : "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min")
+                .font(Tide.caption)
+        }
+        .foregroundStyle(Tide.text2)
+
+        let exercises = Text(plan.status == .completed
+            ? "\(plan.performedExerciseCount)/\(plan.orderedExercises.count) exercises"
+            : "\(plan.orderedExercises.count) exercises")
+            .font(Tide.caption)
             .foregroundStyle(Tide.text2)
 
-            Text("·")
-                .foregroundStyle(Tide.text3)
+        let sets = Text(plan.status == .completed
+            ? "\(plan.completedSets)/\(plan.totalSets) sets"
+            : "\(plan.totalSets) sets")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
 
-            Text(plan.status == .completed
-                ? "\(plan.performedExerciseCount)/\(plan.orderedExercises.count) exercises"
-                : "\(plan.orderedExercises.count) exercises")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
+        // §2.15 — reorder entry point. Planned days only: mid-session
+        // reordering would fight currentExerciseIndex, and a completed
+        // day's order is history.
+        let showsReorder = plan.status == .planned && plan.orderedExercises.count > 1
+        let reorder = Button {
+            showReorderSheet = true
+            HapticManager.selection()
+        } label: {
+            HStack(spacing: Tide.hair) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(Tide.label)
+                Text("Reorder")
+                    .font(Tide.caption)
+            }
+            .foregroundStyle(TideTrain.caution)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
+        }
 
-            Text("·")
-                .foregroundStyle(Tide.text3)
-
-            Text(plan.status == .completed
-                ? "\(plan.completedSets)/\(plan.totalSets) sets"
-                : "\(plan.totalSets) sets")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-
-            Spacer()
-
-            // §2.15 — reorder entry point. Planned days only: mid-session
-            // reordering would fight currentExerciseIndex, and a completed
-            // day's order is history.
-            if plan.status == .planned, plan.orderedExercises.count > 1 {
-                Button {
-                    showReorderSheet = true
-                    HapticManager.selection()
-                } label: {
-                    HStack(spacing: Tide.hair) {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .font(Tide.label)
-                        Text("Reorder")
-                            .font(Tide.caption)
-                    }
-                    .foregroundStyle(TideTrain.caution)
-                }
+        // One row when it fits; stacked at the biggest Dynamic Type sizes so
+        // nothing breaks mid-word.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                duration
+                Text("·").foregroundStyle(Tide.text3)
+                exercises
+                Text("·").foregroundStyle(Tide.text3)
+                sets
+                Spacer(minLength: Tide.s2)
+                if showsReorder { reorder }
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                duration
+                exercises
+                sets
+                if showsReorder { reorder }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Monthly Review Card (D4 §17 — the month-boundary ritual)
