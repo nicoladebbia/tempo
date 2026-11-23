@@ -23,16 +23,16 @@ struct TempoSectionHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: TempoSpacing.xs) {
+        HStack(spacing: Tide.s2) {
             if let accentColor {
                 Circle()
                     .fill(accentColor)
-                    .frame(width: 8, height: 8)
+                    .frame(width: Tide.s2, height: Tide.s2)
             }
 
             Text(title)
                 .font(Tide.headline)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .foregroundStyle(Tide.text)
         }
     }
 }

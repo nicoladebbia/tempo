@@ -10,31 +10,33 @@ import SwiftUI
 
 // MARK: - Offline Banner
 
-// Per DESIGN_SYSTEM.md Section 8.8 — Banner:
-// Warning style, full width, yellow tint bg, left accent bar.
+// A slim glass capsule: "you're offline". Amber symbol, one line.
 
 struct OfflineBannerView: View {
     var body: some View {
-        HStack(spacing: 0) {
-            // Left accent bar
-            Color.tempoWarning
-                .frame(width: 4)
+        HStack(spacing: Tide.s3) {
+            Image(systemName: "wifi.slash")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.tempoWarning)
+                .accessibilityHidden(true)
 
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: "wifi.slash")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.tempoWarning)
+            Text("You're offline. Data may be stale.")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Text("You're offline. Data may be stale.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Spacer()
-            }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.vertical, TempoSpacing.md)
+            Spacer(minLength: 0)
         }
-        .frame(minHeight: 56)
-        .background(Color.tempoRecoveryYellowBg)
+        .padding(.horizontal, Tide.s5)
+        .padding(.vertical, Tide.s2)
+        .frame(minHeight: Tide.hit + Tide.s2)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .combine)
     }
+}
+
+#Preview {
+    OfflineBannerView()
+        .tidePage()
 }

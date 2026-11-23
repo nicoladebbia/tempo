@@ -56,8 +56,6 @@ struct NumericEntrySheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
     private var mode: Mode = .type
     @State
@@ -66,6 +64,10 @@ struct NumericEntrySheet: View {
     private var wheelSelection: Double
     @FocusState
     private var keypadFocused: Bool
+    @State
+    private var saved = 0
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var typeSize: CGFloat = Tide.numeralL
 
     enum Mode: String, CaseIterable {
         case type = "Type"
@@ -97,21 +99,17 @@ struct NumericEntrySheet: View {
         return snap(clamped)
     }
 
-    private var fieldBackground: Color {
-        colorScheme == .dark ? Color.tempoInputBgDark : Color.tempoInputBgLight
-    }
-
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.lg) {
+            VStack(spacing: Tide.s5) {
                 Picker("Input method", selection: $mode) {
                     ForEach(Mode.allCases, id: \.self) { m in
                         Text(m.rawValue).tag(m)
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.sm)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
 
                 switch mode {
                 case .type: typeContent
@@ -123,19 +121,16 @@ struct NumericEntrySheet: View {
                 Button {
                     let value = mode == .type ? (parsedValue ?? initialValue) : snap(wheelSelection)
                     onSave(value)
+                    saved += 1
                     dismiss()
                 } label: {
                     Text("Set \(title)")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(saveDisabled ? Color.tempoTextTertiary.opacity(0.3) : Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
+                .buttonStyle(.tidePrimary)
                 .disabled(saveDisabled)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.md)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s3)
+                .sensoryFeedback(.success, trigger: saved)
             }
             .tidePage()
             .navigationTitle(title)
@@ -156,7 +151,7 @@ struct NumericEntrySheet: View {
             }
         }
         .presentationDetents([.medium])
-        .presentationCornerRadius(TempoRadius.xxxxl)
+        .presentationCornerRadius(Tide.cardRadius)
     }
 
     private var saveDisabled: Bool {
@@ -164,14 +159,14 @@ struct NumericEntrySheet: View {
     }
 
     private var typeContent: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TextField("0", text: $text)
                     .keyboardType(.decimalPad)
                     .focused($keypadFocused)
-                    .font(.tempoDataLarge)
+                    .font(Tide.numeral(typeSize))
                     .multilineTextAlignment(.trailing)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .foregroundStyle(Tide.text)
                     .fixedSize()
                     .onChange(of: text) { _, newValue in
                         let sanitized = Self.sanitize(newValue, allowNegative: range.lowerBound < 0)
@@ -181,26 +176,26 @@ struct NumericEntrySheet: View {
                     }
                 if !unit.isEmpty {
                     Text(unit)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
                 }
             }
-            .padding(TempoSpacing.md)
-            .frame(maxWidth: .infinity)
-            .background(fieldBackground)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .frame(maxWidth: .infinity, minHeight: Tide.s10 * 2)
+            .tideFieldSurface(focused: keypadFocused, invalid: !text.isEmpty && parsedValue == nil)
+            .padding(.horizontal, Tide.edge)
 
             if let parsed = parsedValue {
                 Text("Snaps to \(String(format: displayFormat, parsed)) \(unit)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else if !text.isEmpty {
                 Text(
                     "Enter a number between \(String(format: displayFormat, range.lowerBound)) and \(String(format: displayFormat, range.upperBound))"
                 )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoWarning)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.carbs)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Tide.edge)
             }
         }
     }
@@ -209,13 +204,14 @@ struct NumericEntrySheet: View {
         Picker(title, selection: $wheelSelection) {
             ForEach(wheelValues, id: \.self) { value in
                 Text("\(String(format: displayFormat, value)) \(unit)")
-                    .font(.tempoBody)
+                    .font(Tide.headline)
                     .tag(value)
             }
         }
         .pickerStyle(.wheel)
         .frame(maxHeight: 180)
         .clipped()
+        .sensoryFeedback(.selection, trigger: wheelSelection)
     }
 
     /// Keep only digits, at most one decimal separator (comma normalized to

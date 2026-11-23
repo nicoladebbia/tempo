@@ -10,7 +10,8 @@ import SwiftUI
 
 // MARK: - Loading State View
 
-// Per DESIGN_SYSTEM.md Section 11 — Skeleton loading with shimmer animation.
+// Skeletons drawn as the glass cards they stand in for, breathing slowly
+// instead of sweeping. Reduce Motion holds them still.
 
 struct LoadingStateView: View {
     let style: LoadingStyle
@@ -33,8 +34,13 @@ struct LoadingStateView: View {
         self.style = style
     }
 
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var dim = false
+
     var body: some View {
-        Group {
+        GlassEffectContainer(spacing: Tide.s3) {
             switch style {
             case .cards:
                 cardSkeletons
@@ -44,20 +50,24 @@ struct LoadingStateView: View {
                 listSkeletons
             }
         }
-        .shimmer()
+        .opacity(dim ? 0.55 : 1)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: dim)
+        .onAppear { dim = true }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading")
     }
 
     // MARK: - Card Skeletons
 
     private var cardSkeletons: some View {
-        VStack(spacing: TempoSpacing.cardGap) {
+        VStack(spacing: Tide.s3) {
             ForEach(0 ..< style.itemCount, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                    skeletonRect(width: 120, height: 12)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    skeletonRect(width: 96, height: 10)
                     skeletonRect(height: 20)
                     skeletonRect(width: 200, height: 12)
                 }
-                .tempoCard()
+                .tideCard()
             }
         }
     }
@@ -65,18 +75,16 @@ struct LoadingStateView: View {
     // MARK: - Quadrant Skeletons
 
     private var quadrantSkeletons: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: TempoSpacing.cardGap) {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Tide.s3) {
             ForEach(0 ..< style.itemCount, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    skeletonRect(width: 80, height: 12)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    skeletonRect(width: 72, height: 10)
                     Spacer()
                     skeletonRect(width: 60, height: 24)
                     skeletonRect(width: 100, height: 10)
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 .aspectRatio(1, contentMode: .fit)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             }
         }
     }
@@ -86,18 +94,18 @@ struct LoadingStateView: View {
     private var listSkeletons: some View {
         VStack(spacing: 0) {
             ForEach(0 ..< style.itemCount, id: \.self) { _ in
-                HStack(spacing: TempoSpacing.md) {
+                HStack(spacing: Tide.s3) {
                     Circle()
-                        .fill(Color.tempoTextDisabled.opacity(0.3))
-                        .frame(width: 40, height: 40)
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                        .fill(Tide.fill)
+                        .frame(width: Tide.s10, height: Tide.s10)
+                    VStack(alignment: .leading, spacing: Tide.s1) {
                         skeletonRect(width: 140, height: 14)
                         skeletonRect(width: 200, height: 10)
                     }
                     Spacer()
                 }
-                .padding(.horizontal, TempoSpacing.lg)
-                .padding(.vertical, TempoSpacing.listItemVertical)
+                .padding(.horizontal, Tide.s4)
+                .padding(.vertical, Tide.s3)
             }
         }
     }
@@ -105,9 +113,18 @@ struct LoadingStateView: View {
     // MARK: - Helpers
 
     private func skeletonRect(width: CGFloat? = nil, height: CGFloat = 14) -> some View {
-        RoundedRectangle(cornerRadius: TempoRadius.sm)
-            .fill(Color.tempoTextDisabled.opacity(0.3))
+        Capsule()
+            .fill(Tide.fillStrong)
             .frame(width: width, height: height)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
+}
+
+#Preview {
+    VStack(spacing: Tide.s6) {
+        LoadingStateView(style: .cards)
+        LoadingStateView(style: .list)
+    }
+    .padding(Tide.edge)
+    .tidePage()
 }

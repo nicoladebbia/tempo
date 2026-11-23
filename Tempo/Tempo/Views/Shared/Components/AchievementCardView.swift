@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Achievement Card
 
-// Per DESIGN_SYSTEM.md Section 8.2 — Achievement Card:
-// 96pt height, 16pt radius, 16pt padding. Badge icon 40pt circle with tier bg.
+// A badge in its tier colour, the name and what it takes, and the XP it paid.
+// A locked badge dims and shows what to do to unlock it.
 
 struct AchievementCardView: View {
     let name: String
@@ -22,53 +22,37 @@ struct AchievementCardView: View {
     let earnedDate: String?
     let isLocked: Bool
 
-    @Environment(\.colorScheme)
-    private var colorScheme
-
     var body: some View {
-        HStack(spacing: TempoSpacing.cardGap) {
-            // Badge icon
-            ZStack {
-                Circle()
-                    .fill(tierColor.opacity(isLocked ? 0.3 : 1.0))
-                    .frame(width: 40, height: 40)
-                Image(systemName: isLocked ? "lock.fill" : icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(isLocked ? Color.tempoTextDisabled : Color.tempoBone)
-            }
+        HStack(spacing: Tide.s4) {
+            Image(systemName: isLocked ? "lock.fill" : icon)
+                .font(Tide.headline)
+                .foregroundStyle(isLocked ? Tide.text3 : Tide.ink)
+                .frame(width: Tide.s10 + Tide.s1, height: Tide.s10 + Tide.s1)
+                .background(isLocked ? tierColor.opacity(0.28) : tierColor, in: .circle)
+                .accessibilityHidden(true)
 
-            // Text content
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(isLocked ? "Complete to unlock" : description)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let earnedDate, !isLocked {
                     Text(earnedDate)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            // XP value
-            Text("+\(xpValue)")
-                .font(.tempoDataMedium)
-                .foregroundStyle(Color.tempoAmber)
+            TideNumber("+\(xpValue)", unit: "XP", size: Tide.numeralS, relativeTo: .headline, color: Tide.carbs)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(height: 96)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
-                .opacity(colorScheme == .dark ? 1 : 0)
-        )
-        .opacity(isLocked ? 0.5 : 1.0)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .opacity(isLocked ? 0.6 : 1)
+        .accessibilityElement(children: .combine)
     }
 }

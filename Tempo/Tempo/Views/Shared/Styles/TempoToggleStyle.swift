@@ -10,36 +10,24 @@ import SwiftUI
 
 // MARK: - TempoToggleStyle
 
-// Per DESIGN_SYSTEM.md Section 8.5 — Toggle:
-// Signal Red on-color, system standard size 51x31pt, light haptic on toggle.
+// Tide: the system switch, lit in the day's mood colour, in a row at least
+// 44 pt high, with a selection tick when it flips.
 
 struct TempoToggleStyle: ToggleStyle {
-    @Environment(\.colorScheme)
-    private var colorScheme
-
-    private var onColor: Color {
-        colorScheme == .dark
-            ? Color.tempoSignalHighlight
-            : Color.tempoSignal
-    }
-
-    private var offColor: Color {
-        colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-    }
+    @Environment(\.tideMood)
+    private var mood
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack {
+        HStack(spacing: Tide.s3) {
             configuration.label
-            Spacer()
+            Spacer(minLength: Tide.s2)
             Toggle("", isOn: configuration.$isOn)
-                .tint(onColor)
+                .toggleStyle(.switch)
+                .tint(mood.accent)
                 .labelsHidden()
-                .onChange(of: configuration.isOn) { _, _ in
-                    HapticManager.lightImpact()
-                }
         }
+        .frame(minHeight: Tide.hit)
+        .sensoryFeedback(.selection, trigger: configuration.isOn)
     }
 }
 

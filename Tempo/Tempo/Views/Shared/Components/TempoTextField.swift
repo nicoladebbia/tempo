@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Tempo Text Field
 
-// Per DESIGN_SYSTEM.md Section 8.5 — Text Field:
-// 48pt height, 12pt radius, focus animation, error state, optional leading icon.
+// Label above, a soft Tide field below (52 pt, accent ring while focused,
+// danger ring on error), helper or error text under it.
 
 struct TempoTextField: View {
     let label: String
@@ -22,65 +22,32 @@ struct TempoTextField: View {
     var helperText: String?
     var errorText: String?
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @FocusState
     private var isFocused: Bool
 
     private var hasError: Bool {
-        errorText != nil && !errorText!.isEmpty
-    }
-
-    private var fieldBackground: Color {
-        colorScheme == .dark
-            ? Color.tempoInputBgDark
-            : Color.tempoInputBgLight
-    }
-
-    private var borderColor: Color {
-        if hasError {
-            return colorScheme == .dark
-                ? Color.tempoErrorLight
-                : Color.tempoError
-        }
-        if isFocused {
-            return colorScheme == .dark ? Color.tempoBone : Color.tempoInk
-        }
-        return colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-    }
-
-    private var borderWidth: CGFloat {
-        (isFocused || hasError) ? 2 : 1
-    }
-
-    private var placeholderColor: Color {
-        colorScheme == .dark
-            ? Color.tempoPlaceholder
-            : Color.tempoTextDisabled
+        errorText?.isEmpty == false
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.inputLabelGap) {
-            // Label
+        VStack(alignment: .leading, spacing: Tide.s2) {
             if !label.isEmpty {
                 Text(label)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
 
-            // Field
-            HStack(spacing: TempoSpacing.inputHorizontal) {
+            HStack(spacing: Tide.s3) {
                 if let icon = leadingIcon {
                     Image(systemName: icon)
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoConcrete)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
                 }
 
-                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(placeholderColor))
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                TextField("", text: $text, prompt: Text(placeholder).foregroundStyle(Tide.text3))
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text)
                     .focused($isFocused)
 
                 if isFocused, !text.isEmpty {
@@ -88,34 +55,41 @@ struct TempoTextField: View {
                         text = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.tempoAsh)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text3)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear \(label.isEmpty ? "text" : label)")
+                    .padding(.trailing, -Tide.s3)
                 }
             }
-            .padding(.horizontal, TempoSpacing.inputHorizontal)
-            .frame(height: 48)
-            .background(fieldBackground)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .stroke(borderColor, lineWidth: borderWidth)
-            )
-            .animation(.easeInOut(duration: 0.2), value: isFocused)
-            .animation(.easeInOut(duration: 0.2), value: hasError)
+            .tideFieldSurface(focused: isFocused, invalid: hasError)
 
-            // Helper / Error text
             if let error = errorText, !error.isEmpty {
                 Text(error)
-                    .font(.tempoFootnote)
-                    .foregroundStyle(colorScheme == .dark
-                        ? Color.tempoErrorLight
-                        : Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if let helper = helperText, !helper.isEmpty {
                 Text(helper)
-                    .font(.tempoFootnote)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
+}
+
+#Preview {
+    @Previewable @State
+    var text = "Nicola"
+
+    VStack(spacing: Tide.s5) {
+        TempoTextField(label: "Name", placeholder: "Your name", text: $text, leadingIcon: "person", helperText: "Shown on the leaderboard")
+        TempoTextField(label: "Username", placeholder: "@username", text: $text, errorText: "Already taken")
+    }
+    .padding(Tide.edge)
+    .tidePage()
 }

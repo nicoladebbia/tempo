@@ -20,10 +20,8 @@ struct ScoreRingView: View {
     let size: CGFloat
     let strokeWidth: CGFloat
 
-    @Environment(\.colorScheme)
-    private var colorScheme
-    @State
-    private var animatedProgress: Double = 0
+    @Environment(\.tideMood)
+    private var mood
 
     init(
         score: Double,
@@ -46,29 +44,6 @@ struct ScoreRingView: View {
         return min(score / maxScore, 1.0)
     }
 
-    private var trackColor: Color {
-        colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-    }
-
-    /// Per MODULE_DASHBOARD.md — 100pt ring uses 34pt, larger rings use 64pt/48pt.
-    private var scoreFont: Font {
-        if size >= 200 {
-            .tempoScoreDisplay // 64pt for large rings
-        } else if size <= 120 {
-            .tempoXPDisplay // 36pt for dashboard 100pt ring
-        } else {
-            .tempoScoreDisplaySmall // 48pt for medium rings
-        }
-    }
-
-    private var gradientColors: [Color] {
-        colorScheme == .dark
-            ? [Color.tempoSignalHighlight, Color.tempoSignal]
-            : [Color.tempoSignal, Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)]
-    }
-
     var body: some View {
         if size >= 100, maxScore == 100 {
             TideDial(score: Int(score), caption: label.isEmpty ? "Score" : label, diameter: size)
@@ -79,51 +54,24 @@ struct ScoreRingView: View {
 
     private var ring: some View {
         ZStack {
-            // Track
-            Circle()
-                .stroke(trackColor, style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round))
+            TideRing(progress: progress, color: mood.accent, lineWidth: strokeWidth)
 
-            // Fill
-            Circle()
-                .trim(from: 0, to: animatedProgress)
-                .stroke(
-                    AngularGradient(
-                        colors: gradientColors,
-                        center: .center,
-                        startAngle: .degrees(-90),
-                        endAngle: .degrees(animatedProgress * 360 - 90)
-                    ),
-                    style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-
-            // Center content — hidden when ring is too small (e.g. header pill)
+            // Centre content: hidden when the ring is too small (e.g. a header pill).
             if size >= 60 {
-                VStack(spacing: TempoSpacing.xxs) {
-                    Text("\(Int(score))")
-                        .font(scoreFont)
-                        .tracking(size >= 200 ? TempoTracking.scoreDisplay : TempoTracking.scoreDisplaySmall)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
+                VStack(spacing: Tide.hair) {
+                    TideNumber("\(Int(score))", size: size * 0.3, relativeTo: .title)
                     if !label.isEmpty {
                         Text(label)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(1)
                     }
                 }
+                .padding(strokeWidth + Tide.s2)
             }
         }
         .frame(width: size, height: size)
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
-                animatedProgress = progress
-            }
-        }
-        .onChange(of: score) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                animatedProgress = progress
-            }
-        }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label.isEmpty ? "Score" : label): \(Int(score)) out of \(Int(maxScore))")
     }
 }

@@ -10,43 +10,35 @@ import SwiftUI
 
 // MARK: - Prescription Card (Drill Sergeant Message)
 
-// Per DESIGN_SYSTEM.md Section 8.2 — Prescription Card:
-// Ink Black bg (BOTH modes), Signal Red left accent 4pt, drill sergeant glow shadow.
+// The drill sergeant's order of the day on a glass card, with when it was said.
 
 struct PrescriptionCardView: View {
     let message: String
     let timestamp: String
 
-    var body: some View {
-        HStack(spacing: 0) {
-            // Left accent bar
-            Color.tempoSignal
-                .frame(width: 4)
+    @Environment(\.tideMood)
+    private var mood
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text("DRILL SERGEANT")
-                    .font(.tempoDrillLabel)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoAmber)
+    var body: some View {
+        HStack(alignment: .top, spacing: Tide.s3) {
+            TideIconTile(systemName: "megaphone.fill", size: Tide.tile)
+
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Drill sergeant").tideLabel(mood.accent)
+                    Spacer(minLength: Tide.s2)
+                    Text(timestamp)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                }
 
                 Text(message)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoBone)
-
-                HStack {
-                    Spacer()
-                    Text(timestamp)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoAsh)
-                }
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(TempoSpacing.cardPadding)
         }
-        .background(Color.tempoInk)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: Color.tempoSignal.opacity(0.15),
-            radius: 8, x: 0, y: 0
-        )
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 }

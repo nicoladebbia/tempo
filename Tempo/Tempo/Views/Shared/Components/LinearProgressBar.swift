@@ -20,8 +20,6 @@ struct LinearProgressBar: View {
     let height: CGFloat
     let showPercentage: Bool
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @State
     private var animatedProgress: Double = 0
 
@@ -39,30 +37,24 @@ struct LinearProgressBar: View {
         self.showPercentage = showPercentage
     }
 
-    private var trackColor: Color {
-        colorScheme == .dark
-            ? Color.tempoFillTertiary
-            : Color.tempoBorder
-    }
-
     private var fillColor: Color {
         progress > 1.0 ? Color.tempoSuccess : color
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             if !label.isEmpty || showPercentage {
                 HStack {
                     if !label.isEmpty {
                         Text(label)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
                     Spacer()
                     if showPercentage {
                         Text("\(Int(min(progress, 1.0) * 100))%")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.numeral(13, .semibold))
+                            .foregroundStyle(Tide.text3)
                     }
                 }
             }

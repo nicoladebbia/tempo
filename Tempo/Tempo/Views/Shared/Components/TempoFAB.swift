@@ -8,18 +8,18 @@
 
 import SwiftUI
 
-// MARK: - Floating Action Button
+// MARK: - TempoFAB
 
-// Per DESIGN_SYSTEM.md Section 8.1 — 56pt circle, Signal Red, plus icon, elevation 3 shadow.
+// A round floating action button: the mood accent with an ink symbol.
 
 struct TempoFAB: View {
     let icon: String
     let action: () -> Void
 
-    @Environment(\.colorScheme)
-    private var colorScheme
+    @Environment(\.tideMood)
+    private var mood
     @State
-    private var isPressed = false
+    private var taps = 0
 
     init(icon: String = "plus", action: @escaping () -> Void) {
         self.icon = icon
@@ -27,48 +27,29 @@ struct TempoFAB: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            taps += 1
+            action()
+        } label: {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .medium))
-                .foregroundStyle(Color.tempoBone)
-                .frame(width: 56, height: 56)
-                .background(backgroundColor)
-                .clipShape(Circle())
-                .shadow(
-                    color: shadowColor,
-                    radius: 6,
-                    x: 0,
-                    y: 4
-                )
+                .font(Tide.title2)
+                .foregroundStyle(Tide.ink)
+                .frame(width: Tide.s10 + Tide.s4, height: Tide.s10 + Tide.s4)
+                .background(mood.accent, in: .circle)
+                .shadow(color: mood.accent.opacity(0.4), radius: Tide.s3, y: Tide.s1)
         }
-        .buttonStyle(.plain)
-        .scaleEffect(isPressed ? 0.92 : 1.0)
-        .animation(.easeOut(duration: 0.12), value: isPressed)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in
-                    if !isPressed {
-                        isPressed = true
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    }
-                }
-                .onEnded { _ in isPressed = false }
-        )
+        .buttonStyle(TideFABStyle())
+        .sensoryFeedback(.impact(weight: .medium), trigger: taps)
         .accessibilityLabel("Add")
     }
+}
 
-    private var backgroundColor: Color {
-        if isPressed {
-            return Color.tempoSignalPressed // #C1303B
-        }
-        return colorScheme == .dark
-            ? Color.tempoSignalHighlight
-            : Color.tempoSignal
-    }
+// MARK: - TideFABStyle
 
-    private var shadowColor: Color {
-        colorScheme == .dark
-            ? Color.black.opacity(0.40)
-            : Color.tempoInk.opacity(0.20)
+private struct TideFABStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
     }
 }
