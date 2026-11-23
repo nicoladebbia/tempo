@@ -44,6 +44,8 @@ struct MealPlanIntakeWizardView: View {
                 ReviewStepView(coordinator: coordinator)
             }
         }
+        .animation(Tide.snap, value: coordinator.currentStep)
+        .tidePage()
         .interactiveDismissDisabled()
         .onAppear(perform: seedIntakeIfNeeded)
     }
@@ -53,7 +55,9 @@ struct MealPlanIntakeWizardView: View {
     /// wizard already ran). The call site only hands us a snapshot, so the
     /// seed happens here, once, before the user touches anything.
     private func seedIntakeIfNeeded() {
-        guard !didSeed else { return }
+        guard !didSeed else {
+            return
+        }
         didSeed = true
         let settings = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first
         let dailyPlan = UserDailyPlanProfile.current(in: modelContext)
