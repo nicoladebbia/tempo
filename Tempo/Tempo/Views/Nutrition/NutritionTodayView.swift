@@ -61,98 +61,98 @@ struct NutritionTodayView: View {
     @State
     private var supplementTakenRefresh = 0
 
-    // Macro colors per MODULE_DASHBOARD.md
-    private let proteinColor = Color.tempoMacroProtein
-    private let carbsColor = Color.tempoMacroCarbs
-    private let fatColor = Color.tempoMacroFat
-
     var body: some View {
         ScrollViewReader { proxy in
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                actionRow(scrollTo: { id in
-                    withAnimation(TempoAnimation.springData) { proxy.scrollTo(id, anchor: .center) }
-                })
-                if viewModel.showPlanUpdateBanner {
-                    PlanUpdateBanner(viewModel: viewModel)
-                }
-                if let banner = viewModel.lastRedistributionBanner {
-                    redistributionBanner(banner)
-                }
-                RecoveryCoachCard()
-                macroRingsSection
-                UseUpSoonCard(viewModel: viewModel)
-                calorieProgressSection
-                WaterCardView()
-                    .id(Self.waterID)
-                supplementsCard
-                mealsListSection
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: Tide.s4) {
+                    if viewModel.showPlanUpdateBanner {
+                        PlanUpdateBanner(viewModel: viewModel)
+                    }
+                    if let banner = viewModel.lastRedistributionBanner {
+                        redistributionBanner(banner)
+                    }
+                    heroCard
+                    actionRow(scrollTo: { id in
+                        withAnimation(Tide.settle) { proxy.scrollTo(id, anchor: .center) }
+                    })
+                    mealsListSection
+                    WaterCardView()
+                        .id(Self.waterID)
+                    supplementsCard
+                    RecoveryCoachCard()
+                    UseUpSoonCard(viewModel: viewModel)
 
-                // AI disclaimer
-                HStack(spacing: 6) {
-                    Image(systemName: "info.circle")
-                        .font(.caption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    // AI disclaimer
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        Image(systemName: "info.circle")
+                            .font(Tide.caption)
+                            .accessibilityHidden(true)
+                        Text("AI-generated guidance. Not medical or dietetic advice. Consult a professional for personalized plans.")
+                            .font(Tide.caption)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .foregroundStyle(Tide.text3)
+                    .padding(.vertical, Tide.s2)
                 }
-                .padding(.vertical, TempoSpacing.sm)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s8)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe)
-        }
-        // Meal logging now lives solely on the Log tab — the Today page's
-        // floating "Log a Meal" FAB was removed (redundant entry point).
-        .task {
-            // Refresh pantry + recipe suggestions so UseUpSoonCard has FIFO-ranked
-            // candidates without requiring a visit to the Recipes tab first.
-            viewModel.reloadPantry()
-            viewModel.refreshRecipeSuggestions()
-        }
-        // A "Taken" tapped on a notification (or a restock elsewhere) changes
-        // the intake logs behind this card's fetch — re-read so the checkmark
-        // is right and a second tap doesn't undo it.
-        .onReceive(NotificationCenter.default.publisher(for: .tempoSupplementsChanged)) { _ in
-            supplementTakenRefresh += 1
-        }
-        .navigationDestination(item: $detailMeal) { meal in
-            MealDetailView(meal: meal)
-        }
-        .sheet(item: $feedbackMeal, onDismiss: {
-            viewModel.refreshFeedbackPresence(modelContext: modelContext)
-        }) { meal in
-            MealFeedbackSheet(meal: meal)
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            // Meal logging now lives solely on the Log tab — the Today page's
+            // floating "Log a Meal" FAB was removed (redundant entry point).
+            .task {
+                // Refresh pantry + recipe suggestions so UseUpSoonCard has FIFO-ranked
+                // candidates without requiring a visit to the Recipes tab first.
+                viewModel.reloadPantry()
+                viewModel.refreshRecipeSuggestions()
+            }
+            // A "Taken" tapped on a notification (or a restock elsewhere) changes
+            // the intake logs behind this card's fetch — re-read so the checkmark
+            // is right and a second tap doesn't undo it.
+            .onReceive(NotificationCenter.default.publisher(for: .tempoSupplementsChanged)) { _ in
+                supplementTakenRefresh += 1
+            }
+            .navigationDestination(item: $detailMeal) { meal in
+                MealDetailView(meal: meal)
+            }
+            .sheet(item: $feedbackMeal, onDismiss: {
+                viewModel.refreshFeedbackPresence(modelContext: modelContext)
+            }) { meal in
+                MealFeedbackSheet(meal: meal)
+                    .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $markEatenMeal) { meal in
+                MarkEatenSheet(meal: meal) { eatTime, feel, satiety, substitute in
+                    commitMarkEaten(meal: meal, at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
+                }
                 .presentationDetents([.medium, .large])
-        }
-        .sheet(item: $markEatenMeal) { meal in
-            MarkEatenSheet(meal: meal) { eatTime, feel, satiety, substitute in
-                commitMarkEaten(meal: meal, at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
             }
-            .presentationDetents([.medium, .large])
-        }
-        .tempoToast($toast)
-        .aiBlockerAlert($substituteBlocker)
-        .alert("Save as preset", isPresented: Binding(
-            get: { presetSourceMeal != nil },
-            set: { if !$0 { presetSourceMeal = nil } }
-        )) {
-            TextField("Preset name", text: $presetNameDraft)
-            Button("Save") {
-                if let meal = presetSourceMeal {
-                    let name = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let saved = !name.isEmpty
-                        && viewModel.savePreset(from: meal, name: name, modelContext: modelContext)
-                    toast = saved
-                        ? ToastData(message: "\(name) saved. Find it on the Log tab.", style: .success)
-                        : ToastData(message: "Couldn't save that preset.", style: .error)
+            .tempoToast($toast)
+            .aiBlockerAlert($substituteBlocker)
+            .alert("Save as preset", isPresented: Binding(
+                get: { presetSourceMeal != nil },
+                set: {
+                    if !$0 {
+                        presetSourceMeal = nil
+                    }
                 }
-                presetSourceMeal = nil
+            )) {
+                TextField("Preset name", text: $presetNameDraft)
+                Button("Save") {
+                    if let meal = presetSourceMeal {
+                        let name = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let saved = !name.isEmpty
+                            && viewModel.savePreset(from: meal, name: name, modelContext: modelContext)
+                        toast = saved
+                            ? ToastData(message: "\(name) saved. Find it on the Log tab.", style: .success)
+                            : ToastData(message: "Couldn't save that preset.", style: .error)
+                    }
+                    presetSourceMeal = nil
+                }
+                Button("Cancel", role: .cancel) { presetSourceMeal = nil }
+            } message: {
+                Text("Log this meal again in one tap from the Log tab.")
             }
-            Button("Cancel", role: .cancel) { presetSourceMeal = nil }
-        } message: {
-            Text("Log this meal again in one tap from the Log tab.")
-        }
         }
     }
 
@@ -162,47 +162,35 @@ struct NutritionTodayView: View {
 
     /// Four thumb-sized shortcuts at the top of Today.
     private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
-                onQuickLog()
-            }
-            actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
-                onScan()
-            }
-            // One tap logs a glass; the water card (scrolled into view) shows
-            // the new total and its Undo.
-            actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water") {
-                WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
-                scrollTo(Self.waterID)
-            }
-            actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
-                viewModel.openKitchen(.supplements)
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
+                    onQuickLog()
+                }
+                actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
+                    onScan()
+                }
+                // One tap logs a glass; the water card (scrolled into view) shows
+                // the new total and its Undo.
+                actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water", tint: Tide.water) {
+                    WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
+                    scrollTo(Self.waterID)
+                }
+                actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
+                    viewModel.openKitchen(.supplements)
+                }
             }
         }
     }
 
-    private func actionButton(icon: String, label: String, id: String, action: @escaping () -> Void) -> some View {
-        Button {
+    private func actionButton(
+        icon: String, label: String, id: String, tint: Color? = nil, action: @escaping () -> Void
+    ) -> some View {
+        FuelActionTile(icon: icon, label: label, tint: tint, identifier: id) {
             HapticManager.lightImpact()
             action()
-        } label: {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.tempoSignal)
-                Text(label)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(label == "Supps" ? "Supplements" : label == "+250 ml" ? "Log 250 ml of water" : label)
-        .accessibilityIdentifier(id)
     }
 
     // MARK: - Undo / delete / preset
@@ -213,7 +201,8 @@ struct NutritionTodayView: View {
         let name = meal.mealName
         guard let snapshot = viewModel.undoMealEaten(
             meal, modelContext: modelContext, notifications: services.notifications
-        ) else {
+        )
+        else {
             toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
             return
         }
@@ -231,154 +220,46 @@ struct NutritionTodayView: View {
         presetSourceMeal = meal
     }
 
-    // MARK: - Macro Rings
+    // MARK: - Hero
 
-    private var macroRingsSection: some View {
-        HStack(spacing: TempoSpacing.xl) {
-            macroRing(
-                name: "Protein",
-                current: viewModel.todayProteinConsumed,
-                target: viewModel.todayProteinTarget,
-                color: proteinColor
+    /// Calories as the one big number, then the three macros: the same
+    /// figures, colours and structure as the Fuel card on the Today tab.
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(
+                title: "Calories",
+                trailing: FuelCalorieHero.remaining(
+                    consumed: viewModel.todayCaloriesConsumed, target: viewModel.todayCalorieTarget
+                )
             )
-            macroRing(
-                name: "Carbs",
-                current: viewModel.todayCarbsConsumed,
-                target: viewModel.todayCarbsTarget,
-                color: carbsColor
-            )
-            macroRing(
-                name: "Fat",
-                current: viewModel.todayFatConsumed,
-                target: viewModel.todayFatTarget,
-                color: fatColor
-            )
-        }
-        .tempoCard()
-    }
-
-    private func macroRing(name: String, current: Int, target: Int, color: Color) -> some View {
-        let progress = target > 0 ? Double(current) / Double(target) : 0
-
-        return VStack(spacing: TempoSpacing.xs) {
-            ZStack {
-                Circle()
-                    .stroke(color.opacity(0.2), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-
-                Circle()
-                    .trim(from: 0, to: min(progress, 1.0))
-                    .stroke(
-                        progress > 1.0 ? Color.tempoError : color,
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .animation(TempoAnimation.springData, value: progress)
-
-                Text("\(current)")
-                    .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                    // Cap the text to the circle's inner area minus the stroke
-                    // so 3+ digit values shrink instead of clipping over the
-                    // donut edge.
-                    .frame(width: 52)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                FuelCalorieHero(consumed: viewModel.todayCaloriesConsumed, target: viewModel.todayCalorieTarget)
+                Text(calorieQuip)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
-            .frame(width: 64, height: 64)
-
-            Text(name)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .lineLimit(1)
-
-            Text("\(current)/\(target)g")
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                // Worst-case "999/999g" needs to fit a ~64pt column without
-                // overflowing the adjacent ring; cap width so the scale
-                // factor kicks in before the text reaches the next column.
-                .frame(maxWidth: 80)
+            FuelMacroColumns(
+                protein: (viewModel.todayProteinConsumed, viewModel.todayProteinTarget),
+                carbs: (viewModel.todayCarbsConsumed, viewModel.todayCarbsTarget),
+                fat: (viewModel.todayFatConsumed, viewModel.todayFatTarget)
+            )
+            // Why today's target isn't the plain plan number — rest day,
+            // recovery, or yesterday's refund. Same target the Dashboard shows.
+            if let note = viewModel.todayTargetNote {
+                Label(note, systemImage: "slider.horizontal.3")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .accessibilityLabel("Target adjusted: \(note)")
+            }
         }
-        .frame(maxWidth: .infinity)
+        .tideCard()
+        .accessibilityIdentifier("fuel.hero")
     }
 
     // MARK: - Today's Supplements
 
     private var supplementsCard: some View {
         TodaySupplementsCard(viewModel: viewModel, refreshToken: supplementTakenRefresh)
-    }
-
-    // MARK: - Calorie Progress
-
-    private var calorieProgressSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text("CALORIES")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Spacer()
-
-                Text(calorieQuip)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .italic()
-            }
-
-            HStack(spacing: TempoSpacing.sm) {
-                Text("\(viewModel.todayCaloriesConsumed)")
-                    .font(.system(size: 28, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text("/ \(viewModel.todayCalorieTarget) kcal")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-
-            // Progress bar
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.tempoViolet.opacity(0.15))
-                        .frame(height: 10)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.tempoViolet.opacity(0.6), Color.tempoViolet],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: geo.size.width * min(viewModel.calorieProgress, 1.0), height: 10)
-                        .animation(TempoAnimation.springData, value: viewModel.calorieProgress)
-                }
-            }
-            .frame(height: 10)
-
-            let remaining = viewModel.todayCalorieTarget - viewModel.todayCaloriesConsumed
-            if remaining > 0 {
-                Text("\(remaining) kcal remaining")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            } else {
-                Text("\(abs(remaining)) kcal over target")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
-            }
-
-            // Why today's target isn't the plain plan number — rest day,
-            // recovery, or yesterday's refund. Same target the Dashboard shows.
-            if let note = viewModel.todayTargetNote {
-                Label(note, systemImage: "slider.horizontal.3")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .accessibilityLabel("Target adjusted: \(note)")
-            }
-        }
-        .tempoCard()
     }
 
     private var calorieQuip: String {
@@ -396,22 +277,11 @@ struct NutritionTodayView: View {
     // MARK: - Meals List
 
     private var mealsListSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text("TODAY'S MEALS")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Spacer()
-
-                // Extra logs aren't part of the plan, so they stay out of both numbers.
-                let planned = viewModel.todayMeals.filter { !$0.isUnplannedLog }
-                let eaten = planned.count(where: { $0.status == .eaten })
-                Text("\(eaten)/\(planned.count) done")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // Extra logs aren't part of the plan, so they stay out of both numbers.
+            let planned = viewModel.todayMeals.filter { !$0.isUnplannedLog }
+            let eaten = planned.count(where: { $0.status == .eaten })
+            TideSectionLabel(title: "Today's meals", trailing: "\(eaten)/\(planned.count) done")
 
             if viewModel.todayMeals.isEmpty {
                 if let plan = viewModel.weeklyPlan,
@@ -424,6 +294,7 @@ struct NutritionTodayView: View {
             } else {
                 SwipeDeleteList(
                     items: viewModel.todayMeals,
+                    rowGap: Tide.s3,
                     swipe: { meal in
                         meal.status == .eaten
                             ? .init(label: meal.isUnplannedLog ? "Delete" : "Not eaten") { undoMeal(meal) }
@@ -451,7 +322,8 @@ struct NutritionTodayView: View {
                                 meal,
                                 modelContext: modelContext,
                                 notifications: services.notifications
-                            ) else {
+                            )
+                            else {
                                 toast = ToastData(message: "Couldn't skip \(meal.mealName). Try again.", style: .error)
                                 return
                             }
@@ -490,55 +362,24 @@ struct NutritionTodayView: View {
     /// of reasoning + a dismiss button. Cleared by the user; not auto-hidden
     /// so they have time to read it.
     private func redistributionBanner(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color.tempoElectric)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Macros redistributed")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text(text)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            Button {
+        FuelBanner(
+            icon: "sparkles",
+            tint: Tide.water,
+            title: "Macros redistributed",
+            message: text,
+            onDismiss: {
                 viewModel.lastRedistributionBanner = nil
                 HapticManager.lightImpact()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.tempoTextTertiary)
             }
-            .buttonStyle(.plain)
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoElectric.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        )
     }
 
     private var emptyMealsState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "tray")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text("No meals planned today.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text("Generate a weekly plan or log meals manually.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxl)
-        .tempoCard()
+        FuelEmptyState(
+            icon: "tray",
+            title: "No meals planned today.",
+            message: "Generate a weekly plan or log meals manually."
+        )
     }
 
     /// Shown when a `WeeklyMealPlan` exists but its `startDate` is in the
@@ -552,22 +393,11 @@ struct NutritionTodayView: View {
         let startStr = formatter.string(from: plan.startDate)
         let endStr = formatter.string(from: plan.endDate)
 
-        return VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoAmber)
-
-            Text("Your plan starts \(startStr).")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-
-            Text("Covers \(startStr) – \(endStr). Regenerate to anchor it to today.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-
+        return FuelEmptyState(
+            icon: "calendar.badge.clock",
+            title: "Your plan starts \(startStr).",
+            message: "Covers \(startStr) – \(endStr). Regenerate to anchor it to today."
+        ) {
             Button {
                 HapticManager.lightImpact()
                 viewModel.generatePlan(
@@ -580,16 +410,10 @@ struct NutritionTodayView: View {
                 )
             } label: {
                 Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate for Today")
-                    .font(.tempoCallout)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(viewModel.isGeneratingPlan)
-            .padding(.top, TempoSpacing.xs)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxl)
-        .padding(.horizontal, TempoSpacing.lg)
-        .tempoCard()
     }
 
     // MARK: - Mark Eaten Commit
@@ -624,11 +448,25 @@ struct NutritionTodayView: View {
         // NL pipeline and REPLACE the meal's foods/macros (same as the meal
         // detail screen). The planned dish is remembered for Undo. No MealLog
         // (day totals sum PlannedMeal → double-count).
-        Task { await resolveSubstitute(meal: meal, at: eatTime, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
+        Task { await resolveSubstitute(
+            meal: meal,
+            at: eatTime,
+            note: substitute.note,
+            usedPantry: substitute.usedPantry,
+            feel: feel,
+            satiety: satiety
+        ) }
     }
 
     @MainActor
-    private func resolveSubstitute(meal: PlannedMeal, at eatTime: Date, note: String, usedPantry: Bool, feel: MealFeel?, satiety: MealSatiety?) async {
+    private func resolveSubstitute(
+        meal: PlannedMeal,
+        at eatTime: Date,
+        note: String,
+        usedPantry: Bool,
+        feel: MealFeel?,
+        satiety: MealSatiety?
+    ) async {
         let nl = NaturalLanguageLoggingService(apiClient: services.apiClient)
         do {
             let items = try await nl.parseNaturalLanguage(note)
