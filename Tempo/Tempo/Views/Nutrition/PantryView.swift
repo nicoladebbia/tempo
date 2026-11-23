@@ -20,6 +20,8 @@ struct PantryView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showHomeSetting = false
@@ -66,8 +68,12 @@ struct PantryView: View {
                 ForEach(PantryStorageLocation.allCases, id: \.rawValue) { location in
                     section(for: location)
                 }
-                if viewModel.pantryState.items.isEmpty, !viewModel.pantryState.isLoading {
-                    emptyState
+                if viewModel.pantryState.items.isEmpty {
+                    if viewModel.pantryState.isLoading {
+                        LoadingStateView(style: .list)
+                    } else {
+                        emptyState
+                    }
                 }
             }
             .padding(.horizontal, Tide.edge)
@@ -228,26 +234,35 @@ struct PantryView: View {
     /// What you have, what needs using, and the two ways to add more.
     private var hero: some View {
         let state = viewModel.pantryState
+        let soon = state.expiringSoon.count
+        let staples = viewModel.stapleState.staples.count
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .top, spacing: Tide.s4) {
-                KitchenStat(
-                    value: "\(state.items.count)",
-                    label: "In your pantry",
-                    color: Tide.text
-                )
-                if !state.expiringSoon.isEmpty {
-                    KitchenStat(
-                        value: "\(state.expiringSoon.count)",
-                        label: "Use soon",
-                        color: Tide.Kitchen.warn
-                    )
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+            layout {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("In your pantry").tideLabel()
+                    TideNumber("\(state.items.count)", size: Tide.numeralL, relativeTo: .largeTitle)
                 }
-                if !viewModel.stapleState.staples.isEmpty {
-                    KitchenStat(
-                        value: "\(viewModel.stapleState.staples.count)",
-                        label: "Staples"
-                    )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                if soon > 0 || staples > 0 {
+                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s2) {
+                        if soon > 0 {
+                            heroFigure("Use soon", value: soon, color: Tide.Kitchen.warn)
+                        }
+                        if staples > 0 {
+                            heroFigure("Staples", value: staples, color: Tide.text)
+                        }
+                    }
                 }
+            }
+            if state.items.count > 0 {
+                KitchenShelfBar(parts: [
+                    .init(id: "stocked", value: Double(max(state.items.count - soon, 0)), color: mood.accent),
+                    .init(id: "soon", value: Double(soon), color: Tide.Kitchen.warn),
+                ])
             }
             HStack(spacing: Tide.s3) {
                 Button {
@@ -282,6 +297,15 @@ struct PantryView: View {
             }
         }
         .tideCard()
+    }
+
+    /// A small figure beside the big one: a label and a count.
+    private func heroFigure(_ label: String, value: Int, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Text(label).tideLabel()
+            TideNumber("\(value)", size: Tide.numeralS, relativeTo: .headline, color: color)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Staples
@@ -375,32 +399,47 @@ struct PantryView: View {
                 editingItem = item
             } label: {
                 HStack(alignment: .center, spacing: Tide.s3) {
-                    VStack(alignment: .leading, spacing: Tide.s1) {
-                        HStack(spacing: Tide.s2) {
+                    ProductImageView(
+                        url: nil,
+                        fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: item.canonicalName, isNonFood: false),
+                        size: Tide.Kitchen.tile
+                    )
+                    .opacity(item.isDepleted ? 0.5 : 1)
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                        : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
+                    layout {
+                        VStack(alignment: .leading, spacing: Tide.s1) {
                             Text(item.displayName)
                                 .font(Tide.headline)
                                 .foregroundStyle(item.isDepleted ? Tide.text3 : Tide.text)
                                 .lineLimit(2)
                             // Brand distinguishes two rows of the same food (e.g. two
                             // butters of different brands kept as separate stock).
-                            if !item.brand.isEmpty {
-                                KitchenTag(text: item.brand)
+                            if !item.brand.isEmpty || item.isDepleted {
+                                HStack(spacing: Tide.s1) {
+                                    if !item.brand.isEmpty {
+                                        KitchenTag(text: item.brand)
+                                    }
+                                    if item.isDepleted {
+                                        KitchenTag(text: "Used up", tint: Tide.text3)
+                                    }
+                                }
                             }
-                            if item.isDepleted {
-                                KitchenTag(text: "Used up", tint: Tide.text3)
-                            }
+                            detailLine(item)
                         }
-                        detailLine(item)
+                        if !typeSize.isAccessibilitySize {
+                            Spacer(minLength: Tide.s2)
+                        }
+                        TideNumber(
+                            PantryQuantityFormatter.text(
+                                quantity: item.quantity, unit: item.unit,
+                                canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit
+                            ),
+                            size: Tide.numeralS, relativeTo: .headline, weight: .semibold,
+                            color: item.isDepleted ? Tide.text3 : Tide.text
+                        )
                     }
-                    Spacer(minLength: Tide.s2)
-                    Text(PantryQuantityFormatter.text(
-                        quantity: item.quantity, unit: item.unit,
-                        canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit
-                    ))
-                    .font(Tide.numeral(Tide.numeralS, .semibold))
-                    .foregroundStyle(item.isDepleted ? Tide.text3 : Tide.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
                 }
                 .contentShape(.rect)
             }
@@ -463,8 +502,11 @@ struct PantryView: View {
         KitchenEmpty(
             systemImage: "tray",
             title: "No pantry items yet",
-            message: "Scan a grocery receipt or add items manually to start."
-        )
+            message: "Scan a grocery receipt or add items manually to start.",
+            actionTitle: "Add an item"
+        ) {
+            showManualAddSheet = true
+        }
     }
 }
 

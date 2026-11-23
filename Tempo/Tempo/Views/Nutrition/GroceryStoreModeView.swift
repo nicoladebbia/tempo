@@ -8,7 +8,9 @@
 // bought → pantry review sheet.
 //
 // Built for one hand in an aisle: the whole row is the button, names are
-// large, and the way out sits under the thumb.
+// large, the next thing to pick up is lit, and the way out sits under the
+// thumb. Ticking an item fills its circle, strikes its name and moves the
+// bar; finishing an aisle folds it away.
 //
 
 import SwiftUI
@@ -49,11 +51,36 @@ struct GroceryStoreModeView: View {
         list.checkedCount
     }
 
+    /// The first thing still to pick up, in the order of the aisles.
+    private var nextItemID: UUID? {
+        for category in orderedCategories {
+            if let item = items(for: category).first(where: { !$0.isChecked }) {
+                return item.id
+            }
+        }
+        return nil
+    }
+
+    /// How many aisles are finished: a new one is a small win worth a buzz.
+    private var finishedAisles: Int {
+        orderedCategories.filter { category in
+            let rows = items(for: category)
+            return !rows.isEmpty && rows.allSatisfy(\.isChecked)
+        }.count
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     progressHeader
+                    if totalCount == 0 {
+                        KitchenEmpty(
+                            systemImage: "cart",
+                            title: "Nothing left to buy",
+                            message: "The list is empty. Add items on the Groceries list, then come back."
+                        )
+                    }
                     ForEach(orderedCategories, id: \.self) { category in
                         aisleSection(category: category, items: items(for: category))
                     }
@@ -68,7 +95,8 @@ struct GroceryStoreModeView: View {
             .kitchenBottomBar {
                 doneShoppingButton
             }
-            .sensoryFeedback(.impact(weight: .light), trigger: ticks)
+            .sensoryFeedback(.impact(flexibility: .solid), trigger: ticks)
+            .sensoryFeedback(.success, trigger: finishedAisles) { old, new in new > old }
             .navigationTitle("Store Mode")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -94,17 +122,23 @@ struct GroceryStoreModeView: View {
     private var progressHeader: some View {
         let total = max(1, totalCount)
         let progress = Double(checkedCount) / Double(total)
+        let allDone = totalCount > 0 && checkedCount == totalCount
         return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(
+                title: "Your trip",
+                trailing: allDone ? "All checked" : "\(max(totalCount - checkedCount, 0)) left"
+            )
             TideNumber(
                 "\(checkedCount)", unit: "of \(totalCount) checked off",
-                size: Tide.numeralL, relativeTo: .largeTitle
+                size: Tide.numeralL, relativeTo: .largeTitle,
+                color: allDone ? Tide.Kitchen.good : Tide.text
             )
-            TideLevelBar(progress: progress, color: mood.accent, height: Tide.bar)
+            TideLevelBar(progress: progress, color: allDone ? Tide.Kitchen.good : mood.accent, height: Tide.bar)
                 .animation(Tide.settle, value: progress)
                 .accessibilityLabel("Checked off")
         }
-        .padding(.horizontal, Tide.s1)
-        .padding(.top, Tide.s2)
+        .tideCard()
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Aisle section (collapses when fully checked)
@@ -112,6 +146,7 @@ struct GroceryStoreModeView: View {
     private func aisleSection(category: String, items: [GroceryListItem]) -> some View {
         let isComplete = !items.isEmpty && items.allSatisfy(\.isChecked)
         let isExpanded = !isComplete || manuallyExpanded.contains(category)
+        let left = items.filter { !$0.isChecked }.count
 
         return VStack(alignment: .leading, spacing: Tide.s2) {
             Button {
@@ -137,6 +172,11 @@ struct GroceryStoreModeView: View {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(Tide.label)
                             .foregroundStyle(Tide.text3)
+                    } else if !items.isEmpty {
+                        Text("\(left) left")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .contentTransition(.numericText())
                     }
                 }
                 .padding(.horizontal, Tide.s1)
@@ -148,19 +188,37 @@ struct GroceryStoreModeView: View {
             .accessibilityHint(isComplete ? (isExpanded ? "Collapse" : "Expand") : "")
 
             if isExpanded {
-                KitchenRows {
-                    ForEach(items, id: \.id) { item in
-                        storeModeRow(item)
-                    }
-                }
-                .transition(.opacity)
+                aisleRows(items)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
             }
         }
+        .padding(.top, isExpanded ? Tide.s2 : 0)
+        .animation(Tide.snap, value: isExpanded)
+    }
+
+    /// One glass card per aisle; the row to pick up next is lit.
+    private func aisleRows(_ items: [GroceryListItem]) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+        return VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Tide.hairline)
+                        .frame(height: 1)
+                        .padding(.leading, Tide.s4)
+                        .accessibilityHidden(true)
+                }
+                storeModeRow(item, isNext: item.id == nextItemID)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .clipShape(shape)
+        .glassEffect(.regular.tint(Tide.glassCard), in: shape)
     }
 
     // MARK: - Big-tap-target row
 
-    private func storeModeRow(_ item: GroceryListItem) -> some View {
+    private func storeModeRow(_ item: GroceryListItem, isNext: Bool) -> some View {
         Button {
             viewModel.toggleGroceryItem(item)
             ticks += 1
@@ -171,6 +229,9 @@ struct GroceryStoreModeView: View {
             HStack(spacing: Tide.s4) {
                 KitchenCheck(checked: item.isChecked, size: Tide.s10)
                 VStack(alignment: .leading, spacing: Tide.s1) {
+                    if isNext {
+                        Text("Next").tideLabel(mood.accent)
+                    }
                     Text(item.displayName)
                         .font(Tide.Kitchen.shopName)
                         .foregroundStyle(item.isChecked ? Tide.text3 : Tide.text)
@@ -185,10 +246,23 @@ struct GroceryStoreModeView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .frame(minHeight: Tide.Kitchen.shopRow - Tide.s3 * 2)
+            .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s3)
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.shopRow, alignment: .leading)
+            .background(isNext ? mood.accent.opacity(0.14) : Color.clear)
+            .overlay(alignment: .leading) {
+                if isNext {
+                    Capsule()
+                        .fill(mood.accent)
+                        .frame(width: Tide.s1)
+                        .padding(.vertical, Tide.s3)
+                        .padding(.leading, Tide.hair)
+                }
+            }
+            .animation(Tide.snap, value: isNext)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(KitchenRowPressStyle())
         .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
     }
 

@@ -58,7 +58,7 @@ struct KitchenSegmented<Value: Hashable>: View {
                     ForEach(options, id: \.self, content: segment)
                 }
             } else {
-                HStack(spacing: 0) {
+                KitchenSegmentLayout {
                     ForEach(options, id: \.self, content: segment)
                 }
             }
@@ -80,6 +80,7 @@ struct KitchenSegmented<Value: Hashable>: View {
                 .foregroundStyle(selected ? Tide.ink : Tide.text)
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
+                .padding(.horizontal, Tide.s2)
                 .frame(maxWidth: .infinity, minHeight: Tide.hit)
                 .background {
                     if selected {
@@ -91,6 +92,36 @@ struct KitchenSegmented<Value: Hashable>: View {
         .buttonStyle(.plain)
         .sensoryFeedback(.selection, trigger: selected) { _, new in new }
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+// MARK: - KitchenSegmentLayout
+
+/// Lays the options of a segmented control side by side. Each gets the width
+/// its label needs plus an equal share of what is left, so a long word like
+/// "Supplements" is never squeezed to fit the same box as "Pantry".
+private struct KitchenSegmentLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified) }
+        let width = proposal.width ?? ideal.reduce(0) { $0 + $1.width }
+        return CGSize(width: width, height: ideal.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal _: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
+        let ideal = subviews.map { $0.sizeThatFits(.unspecified).width }
+        let total = ideal.reduce(0, +)
+        let extra = max(bounds.width - total, 0) / CGFloat(max(subviews.count, 1))
+        let squeeze = total > bounds.width && total > 0 ? bounds.width / total : 1
+        var x = bounds.minX
+        for (index, subview) in subviews.enumerated() {
+            let width = ideal[index] * squeeze + extra
+            subview.place(
+                at: CGPoint(x: x, y: bounds.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: width, height: bounds.height)
+            )
+            x += width
+        }
     }
 }
 
@@ -132,6 +163,8 @@ struct KitchenGroup<Content: View>: View {
     var systemImage: String?
     var trailing: String?
     var tint: Color = Tide.text2
+    /// A quiet line under the list.
+    var footer: String?
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -153,6 +186,13 @@ struct KitchenGroup<Content: View>: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             KitchenRows { content }
+            if let footer {
+                Text(footer)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s1)
+            }
         }
     }
 }
@@ -202,6 +242,7 @@ struct KitchenCheck: View {
                 .foregroundStyle(Tide.ink)
                 .scaleEffect(checked ? 1 : 0.4)
                 .opacity(checked ? 1 : 0)
+                .symbolEffect(.bounce, value: checked)
         }
         .frame(width: size, height: size)
         .animation(Tide.snap, value: checked)
@@ -423,5 +464,350 @@ private struct KitchenSheetModifier: ViewModifier {
                 TideBackground(energy: Tide.sheetEnergy).environment(\.tideMood, mood)
             }
             .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Tide.Kitchen: sizes for the rework
+
+extension Tide.Kitchen {
+    /// A leading tile in a row (an icon, a product picture).
+    static let tile: CGFloat = 44
+    /// The big glass disc with a symbol on an intro or permission screen.
+    static let heroDisc: CGFloat = 96
+    /// The product picture at the top of a product page.
+    static let heroPicture: CGFloat = 240
+    /// The verdict ring next to the product picture.
+    static let verdictDial: CGFloat = 112
+    /// Arm length and stroke of the corner brackets on a camera frame.
+    static let bracketArm: CGFloat = 28
+    static let bracketStroke: CGFloat = 4
+    /// Height of the light band that sweeps a frame while it looks.
+    static let scanBand: CGFloat = 36
+    /// A receipt thumbnail while it is being read.
+    static let receiptThumbWidth: CGFloat = 150
+    static let receiptThumbHeight: CGFloat = 190
+    /// The thin freshness stripe at the edge of a pantry row.
+    static let stripe: CGFloat = 4
+    /// A small round legend dot.
+    static let dot: CGFloat = 8
+    /// Ink laid outside the frame of a live camera.
+    static let scrim = Tide.ink.opacity(0.5)
+}
+
+// MARK: - KitchenShelfBar
+
+/// One bar split into coloured parts that add up to the whole: how many
+/// items are fresh, how many are about to run out. Parts animate as they change.
+struct KitchenShelfBar: View {
+    struct Part: Identifiable {
+        let id: String
+        let value: Double
+        let color: Color
+    }
+
+    let parts: [Part]
+    var height: CGFloat = Tide.bar
+
+    private var shown: [Part] {
+        parts.filter { $0.value > 0 }
+    }
+
+    var body: some View {
+        let total = shown.reduce(0) { $0 + $1.value }
+        GeometryReader { proxy in
+            let gaps = CGFloat(max(shown.count - 1, 0)) * Tide.hair
+            let room = max(proxy.size.width - gaps, 0)
+            HStack(spacing: Tide.hair) {
+                ForEach(shown) { part in
+                    Capsule()
+                        .fill(part.color)
+                        .frame(width: total > 0 ? room * part.value / total : 0)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: height)
+        .background(Capsule().fill(Tide.track))
+        .clipShape(Capsule())
+        .animation(Tide.settle, value: shown.map(\.value))
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - KitchenFrame
+
+/// The corner brackets of a camera frame.
+private struct KitchenBrackets: Shape {
+    func path(in rect: CGRect) -> Path {
+        let arm = min(Tide.Kitchen.bracketArm, min(rect.width, rect.height) / 2)
+        let radius = min(Tide.controlRadius, arm)
+        var path = Path()
+        for (corner, xs, ys) in [
+            (CGPoint(x: rect.minX, y: rect.minY), 1.0, 1.0),
+            (CGPoint(x: rect.maxX, y: rect.minY), -1.0, 1.0),
+            (CGPoint(x: rect.maxX, y: rect.maxY), -1.0, -1.0),
+            (CGPoint(x: rect.minX, y: rect.maxY), 1.0, -1.0),
+        ] {
+            path.move(to: CGPoint(x: corner.x, y: corner.y + ys * arm))
+            path.addLine(to: CGPoint(x: corner.x, y: corner.y + ys * radius))
+            path.addQuadCurve(
+                to: CGPoint(x: corner.x + xs * radius, y: corner.y),
+                control: corner
+            )
+            path.addLine(to: CGPoint(x: corner.x + xs * arm, y: corner.y))
+        }
+        return path
+    }
+}
+
+/// A camera frame: lit corner brackets, a soft glow and, while it is looking,
+/// a band of light that sweeps it. Holds still under Reduce Motion. Decoration
+/// only, so it is hidden from VoiceOver.
+struct KitchenFrame: View {
+    var width: CGFloat = Tide.Kitchen.viewfinderWidth
+    var height: CGFloat = Tide.Kitchen.viewfinderHeight
+    var looking = true
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var sweep = false
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            KitchenBrackets()
+                .stroke(
+                    mood.accent,
+                    style: StrokeStyle(lineWidth: Tide.Kitchen.bracketStroke, lineCap: .round, lineJoin: .round)
+                )
+                .shadow(color: mood.accent.opacity(0.5), radius: Tide.s2)
+            if looking, !reduceMotion {
+                LinearGradient(
+                    colors: [mood.accent.opacity(0), mood.accent.opacity(0.4), mood.accent.opacity(0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: Tide.Kitchen.scanBand)
+                .padding(.horizontal, Tide.s3)
+                .offset(y: sweep ? height - Tide.Kitchen.scanBand : 0)
+            }
+        }
+        .frame(width: width, height: height)
+        .onAppear {
+            guard !reduceMotion else {
+                return
+            }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                sweep = true
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+extension View {
+    /// Dims a live camera everywhere except a rounded window in the middle.
+    func kitchenScrim(width: CGFloat = Tide.Kitchen.viewfinderWidth, height: CGFloat = Tide.Kitchen.viewfinderHeight) -> some View {
+        overlay {
+            Tide.Kitchen.scrim
+                .mask {
+                    Rectangle()
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                                .frame(width: width, height: height)
+                                .blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                }
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+        }
+    }
+}
+
+// MARK: - KitchenHeroDisc
+
+/// A big glass disc with one symbol: the picture on an intro or permission screen.
+struct KitchenHeroDisc: View {
+    let systemImage: String
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric
+    private var size: CGFloat = Tide.Kitchen.heroDisc
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(Tide.largeTitle)
+            .imageScale(.large)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(tint ?? mood.accent)
+            .frame(width: size, height: size)
+            .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - KitchenSheetHeader
+
+/// The top of a sheet: what this is, in one icon, one title and one line.
+struct KitchenSheetHeader: View {
+    let systemImage: String
+    let title: String
+    var subtitle: String?
+    var tint: Color?
+
+    var body: some View {
+        HStack(alignment: .center, spacing: Tide.s3) {
+            TideIconTile(systemName: systemImage, tint: tint, size: Tide.Kitchen.tile + Tide.s2)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - KitchenFailure
+
+/// Something went wrong, in the same glass card as everything else: what
+/// happened, one way to try again and an optional quieter second way out.
+struct KitchenFailure: View {
+    let title: String
+    let message: String
+    var retryTitle = "Try again"
+    var retry: (() -> Void)?
+    var secondaryTitle: String?
+    var secondary: (() -> Void)?
+
+    @State
+    private var taps = 0
+
+    var body: some View {
+        VStack(spacing: Tide.s4) {
+            TideIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
+            VStack(spacing: Tide.s2) {
+                Text(title)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if retry != nil || secondary != nil {
+                VStack(spacing: Tide.s2) {
+                    if let retry {
+                        Button(retryTitle) {
+                            taps += 1
+                            retry()
+                        }
+                        .buttonStyle(.tidePrimary)
+                    }
+                    if let secondaryTitle, let secondary {
+                        Button(secondaryTitle, action: secondary)
+                            .buttonStyle(.tideGlass)
+                    }
+                }
+                .padding(.top, Tide.s2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s6)
+        .frame(maxWidth: Tide.stateWidth)
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
+    }
+}
+
+// MARK: - KitchenHistoryStrip
+
+/// A row of small marks, one per day, lit when the day counts: a month of doses at a glance.
+struct KitchenHistoryStrip: View {
+    /// Oldest first.
+    let days: [Bool]
+    var color: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        HStack(spacing: Tide.hair) {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, on in
+                Capsule()
+                    .fill(on ? (color ?? mood.accent) : Tide.track)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Tide.s5)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - KitchenNotice
+
+/// A short note inside a page: an icon, what is going on, and optionally one
+/// action. For warnings, errors and things that changed.
+struct KitchenNotice: View {
+    let systemImage: String
+    let text: String
+    var tint: Color = Tide.Kitchen.warn
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Tide.s3) {
+            Image(systemName: systemImage)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(tint)
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(tint)
+                    .frame(minHeight: Tide.hit)
+            }
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder(tint.opacity(0.4), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - KitchenRowPressStyle
+
+/// A full-width row that lights softly under the finger.
+struct KitchenRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Tide.fill : Color.clear)
+            .animation(Tide.snap, value: configuration.isPressed)
     }
 }
