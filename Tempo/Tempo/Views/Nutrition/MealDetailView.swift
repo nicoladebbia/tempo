@@ -1117,12 +1117,11 @@ struct MealDetailView: View {
             ForEach(Array(foods.enumerated()), id: \.offset) { index, food in
                 HStack(spacing: Tide.s2) {
                     VStack(alignment: .leading, spacing: Tide.s1) {
-                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                            Text(food.name)
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: Tide.s2)
+                        let name = Text(food.name)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        let figures = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                             if food.quantityGrams >= 1 {
                                 Text("\(Int(food.quantityGrams))g")
                                     .font(Tide.caption).monospacedDigit()
@@ -1131,6 +1130,21 @@ struct MealDetailView: View {
                             Text("\(Int(food.calories)) kcal")
                                 .font(Tide.bodyStrong).monospacedDigit()
                                 .foregroundStyle(Tide.text)
+                        }
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        // One line while it fits; at large text sizes the figures
+                        // drop under the name so nothing is cut or hyphenated.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                                name
+                                Spacer(minLength: Tide.s2)
+                                figures
+                            }
+                            VStack(alignment: .leading, spacing: Tide.s1) {
+                                name
+                                figures
+                            }
                         }
                         FuelShareBar(progress: totalKcal > 0 ? food.calories / totalKcal : 0)
                     }
