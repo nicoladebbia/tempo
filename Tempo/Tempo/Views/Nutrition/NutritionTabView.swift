@@ -90,6 +90,22 @@ struct NutritionTabView: View {
                 .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s2)
                 .padding(.bottom, Tide.s3)
+                .background(alignment: .top) {
+                    // Ink that fades out under the switcher, so the cards
+                    // scrolling beneath never read through the title.
+                    LinearGradient(
+                        stops: [
+                            .init(color: Tide.ink.opacity(0.92), location: 0),
+                            .init(color: Tide.ink.opacity(0.88), location: 0.8),
+                            .init(color: Tide.ink.opacity(0), location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .padding(.bottom, -Tide.s3)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                }
             }
             .tidePage(energy: 1)
             .toolbar(.hidden, for: .navigationBar)

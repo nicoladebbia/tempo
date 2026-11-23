@@ -81,7 +81,6 @@ struct NutritionLogView: View {
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s8)
         }
-        .scrollEdgeEffectStyle(.soft, for: .top)
         .onAppear {
             // Today's "Quick Log" button lands here with the field focused.
             if viewModel.focusQuickLogRequested {
@@ -118,7 +117,11 @@ struct NutritionLogView: View {
             "Already logged",
             isPresented: Binding(
                 get: { presetDuplicate != nil },
-                set: { if !$0 { presetDuplicate = nil } }
+                set: {
+                    if !$0 {
+                        presetDuplicate = nil
+                    }
+                }
             ),
             presenting: presetDuplicate
         ) { preset in
@@ -182,7 +185,8 @@ struct NutritionLogView: View {
         let name = meal.mealName
         guard let snapshot = viewModel.undoMealEaten(
             meal, modelContext: modelContext, notifications: services.notifications
-        ) else {
+        )
+        else {
             toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
             return
         }
@@ -359,7 +363,8 @@ struct NutritionLogView: View {
             preset,
             modelContext: modelContext,
             notifications: services.notifications
-        ) else {
+        )
+        else {
             toast = ToastData(message: "Couldn't log \(preset.name). Try again.", style: .error)
             return
         }
