@@ -40,7 +40,7 @@ enum CoachInlinePillSource: String, Sendable, CaseIterable {
 /// Small reusable pill. Drop into a tab header HStack:
 ///
 ///     HStack {
-///         Text("Training").font(.tempoTitle1)
+///         Text("Training").font(Tide.title)
 ///         Spacer()
 ///         CoachInlinePill(source: .training) { snapshot, viewModel in
 ///             // Build the system prompt for chat — caller wires the
@@ -54,22 +54,8 @@ struct CoachInlinePill: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: TempoSpacing.xs) {
-                Image(systemName: "bubble.left.and.bubble.right.fill")
-                    .imageScale(.small)
-                Text("Ask Coach")
-                    .font(.tempoCaption1)
-            }
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xs)
-            .foregroundStyle(Color.tempoTextInverse)
-            .background(
-                Capsule().fill(Color.tempoSignal)
-            )
+        TideChip(title: "Ask Coach", systemImage: "bubble.left.and.bubble.right.fill", action: onTap)
             .accessibilityLabel(Text("Ask Coach about \(source.tabLabel)"))
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -90,22 +76,13 @@ struct CoachInlineChatSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Drag handle indicator (purely visual; .presentationDetents
-            // owns the interactive resize).
-            Capsule()
-                .fill(Color.tempoSteel.opacity(0.35))
-                .frame(width: 36, height: 4)
-                .padding(.top, TempoSpacing.sm)
-                .padding(.bottom, TempoSpacing.xs)
-
             HStack {
-                Text("Asking from \(source.tabLabel)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
+                Text("Asking from \(source.tabLabel)").tideLabel()
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.xs)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s5)
+            .padding(.bottom, Tide.s1)
 
             CoachChatView(
                 viewModel: viewModel,
@@ -116,7 +93,7 @@ struct CoachInlineChatSheet: View {
         }
         .tidePage()
         .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.hidden)
+        .presentationDragIndicator(.visible)
     }
 
     /// Prepends the per-tab hint to whatever the base builder returns.

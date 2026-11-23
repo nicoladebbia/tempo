@@ -9,9 +9,8 @@
 // endConversation. Caller (Phase 7c CoachTabView) wires in the system
 // prompt by assembling fresh on every tap via CoachContextAssembler.
 //
-// Voice input (mic button + recording state) lands in Phase 7c —
-// CoachInputBar exposes a placeholder onMicTap handler so 7c can drop
-// in the VoiceTranscriber adapter without re-touching this file.
+// Drawn in Tide: Coach talks in glass bubbles, you talk in accent-filled
+// ones, and the input bar floats in glass over the transcript.
 //
 // Per .plans/coach-v2.1/05-ui-surfaces.md §2.
 //
@@ -37,14 +36,21 @@ struct CoachChatView: View {
     /// at the call site; default tapToggle per the locked Q2 decision.
     var voiceMode: CoachVoiceMode = .tapToggle
 
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @State private var inputText: String = ""
-    @State private var endChatConfirm = false
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var inputText: String = ""
+    @State
+    private var endChatConfirm = false
     /// Snapshot of the last partial transcript pushed into the field so
     /// the user can still type alongside the live mic stream without
     /// having the field overwritten on every partial tick.
-    @State private var lastVoicePartial: String = ""
+    @State
+    private var lastVoicePartial: String = ""
 
     init(
         viewModel: CoachViewModel,
@@ -77,26 +83,13 @@ struct CoachChatView: View {
                 budgetBanner(state)
             }
             transcript
-            aiDisclaimer
-            CoachInputBar(
-                text: $inputText,
-                isThinking: viewModel.isThinking,
-                isRecording: voice.isListening,
-                isDisabled: viewModel.budgetState == .critical,
-                onSend: { send() },
-                onMicPressBegan: { handleMicPressBegan() },
-                onMicPressEnded: { handleMicPressEnded() }
-            )
-            .onChange(of: voice.transcribedText) { _, newValue in
-                pushVoicePartialIntoField(newValue)
-            }
-            .onChange(of: voice.isListening) { _, listening in
-                if !listening { lastVoicePartial = "" }
-            }
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    bottomBar
+                }
         }
         .tidePage()
         .alert("End this chat?", isPresented: $endChatConfirm) {
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {}
             Button("End", role: .destructive) {
                 viewModel.endConversation(context: modelContext)
                 dismiss()
@@ -111,7 +104,11 @@ struct CoachChatView: View {
             "Couldn't reach Coach",
             isPresented: .init(
                 get: { viewModel.pendingError != nil },
-                set: { if !$0 { viewModel.pendingError = nil } }
+                set: {
+                    if !$0 {
+                        viewModel.pendingError = nil
+                    }
+                }
             )
         ) {
             Button("OK") { viewModel.pendingError = nil }
@@ -123,68 +120,75 @@ struct CoachChatView: View {
     // MARK: - Top bar
 
     private var topBar: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Text("Coach")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            if let undoLabel = viewModel.undoLabel {
-                Button {
-                    Task { await viewModel.undoLast() }
-                } label: {
-                    Label(undoLabel, systemImage: "arrow.uturn.backward")
-                        .labelStyle(.iconOnly)
-                        .accessibilityLabel(Text(undoLabel))
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Tide.s2)
+            GlassEffectContainer(spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
+                    if let undoLabel = viewModel.undoLabel {
+                        Button {
+                            Task { await viewModel.undoLast() }
+                        } label: {
+                            Label(undoLabel, systemImage: "arrow.uturn.backward")
+                                .labelStyle(.iconOnly)
+                                .accessibilityLabel(Text(undoLabel))
+                        }
+                        .buttonStyle(.tideCoachCircle)
+                    }
+                    Button(role: .destructive) {
+                        endChatConfirm = true
+                    } label: {
+                        Image(systemName: "xmark")
+                            .accessibilityLabel(Text("End chat"))
+                    }
+                    .buttonStyle(.tideCoachCircle)
                 }
-                .buttonStyle(.tempoGhost)
             }
-            Button(role: .destructive) {
-                endChatConfirm = true
-            } label: {
-                Image(systemName: "xmark")
-                    .accessibilityLabel(Text("End chat"))
-            }
-            .buttonStyle(.tempoGhost)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .tidePage()
+        .padding(.horizontal, Tide.edge)
+        .padding(.vertical, Tide.s2)
     }
 
     // MARK: - Budget banner
 
     private func budgetBanner(_ state: CoachViewModel.BudgetState) -> some View {
         let copy: String
-        let bg: Color
-        let fg: Color
+        let tint: Color
         switch state {
         case .caution:
             copy = "Coach is at 80% of this month's budget."
-            bg = Color.tempoAmber.opacity(0.18)
-            fg = Color.tempoAmber
+            tint = Tide.streak
         case .critical:
-            copy = "Coach is at this month's limit — back in a few days."
-            bg = Color.tempoError.opacity(0.18)
-            fg = Color.tempoError
+            copy = "Coach hit this month's limit. Back in a few days."
+            tint = Tide.danger
         }
-        return HStack(spacing: TempoSpacing.sm) {
+        return HStack(spacing: Tide.s3) {
             Image(systemName: state == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(fg)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
             Text(copy)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(bg)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(tint.opacity(0.22)), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s2)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Transcript
 
     @ViewBuilder
     private var transcript: some View {
-        if viewModel.messages.isEmpty && !viewModel.isThinking {
+        if viewModel.messages.isEmpty, !viewModel.isThinking {
             CoachEmptyState(seeds: emptyStateSeeds) { seed in
                 inputText = seed
                 send()
@@ -192,29 +196,68 @@ struct CoachChatView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: TempoSpacing.md) {
+                    LazyVStack(alignment: .leading, spacing: Tide.s3) {
                         ForEach(visibleMessages, id: \.id) { wrapper in
                             messageRow(wrapper.message)
                                 .id(wrapper.id)
+                                .transition(rowTransition)
                         }
                         if viewModel.isThinking {
                             CoachThinkingBubble()
                                 .id("thinking")
+                                .transition(rowTransition)
                         }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.vertical, TempoSpacing.md)
+                    .animation(reduceMotion ? nil : Tide.snap, value: viewModel.messages.count)
+                    .animation(reduceMotion ? nil : Tide.snap, value: viewModel.isThinking)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.vertical, Tide.s3)
                 }
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .scrollDismissesKeyboard(.interactively)
+                .scrollEdgeEffectStyle(.soft, for: .all)
                 .onChange(of: viewModel.messages.count) { _, _ in
-                    withAnimation { scrollToBottom(proxy: proxy) }
+                    withAnimation(Tide.snap) { scrollToBottom(proxy: proxy) }
                 }
                 .onChange(of: viewModel.isThinking) { _, newValue in
                     if newValue {
-                        withAnimation { proxy.scrollTo("thinking", anchor: .bottom) }
+                        withAnimation(Tide.snap) { proxy.scrollTo("thinking", anchor: .bottom) }
                     }
                 }
             }
         }
+    }
+
+    private var rowTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: Tide.s2))
+    }
+
+    // MARK: - Bottom bar
+
+    /// The input bar and the disclaimer under it. Messages scroll beneath.
+    private var bottomBar: some View {
+        VStack(spacing: Tide.s2) {
+            CoachInputBar(
+                text: $inputText,
+                isThinking: viewModel.isThinking,
+                isRecording: voice.isListening,
+                isDisabled: viewModel.budgetState == .critical,
+                onSend: { send() },
+                onMicPressBegan: { handleMicPressBegan() },
+                onMicPressEnded: { handleMicPressEnded() }
+            )
+            .onChange(of: voice.transcribedText) { _, newValue in
+                pushVoicePartialIntoField(newValue)
+            }
+            .onChange(of: voice.isListening) { _, listening in
+                if !listening {
+                    lastVoicePartial = ""
+                }
+            }
+            aiDisclaimer
+        }
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s1)
     }
 
     // MARK: - Visible messages (filters system_summary)
@@ -227,7 +270,9 @@ struct CoachChatView: View {
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        guard let last = visibleMessages.last else { return }
+        guard let last = visibleMessages.last else {
+            return
+        }
         proxy.scrollTo(last.id, anchor: .bottom)
     }
 
@@ -273,7 +318,9 @@ struct CoachChatView: View {
     }
 
     private func extractAskUser(from toolCalls: [PendingToolCall]?) -> CoachAskUserPayload? {
-        guard let calls = toolCalls else { return nil }
+        guard let calls = toolCalls else {
+            return nil
+        }
         for call in calls where call.name == "askUser" {
             if let parsed = try? JSONDecoder().decode(AskUserPayload.self, from: call.inputJSON) {
                 return CoachAskUserPayload(
@@ -289,12 +336,12 @@ struct CoachChatView: View {
 
     private var aiDisclaimer: some View {
         Text("AI-generated guidance. Not medical advice. Consult a professional.")
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.xs)
+            .font(Tide.label)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, Tide.edge)
             .frame(maxWidth: .infinity, alignment: .center)
-            .tidePage()
     }
 
     // MARK: - Voice
@@ -319,7 +366,9 @@ struct CoachChatView: View {
     /// finger. Tap-toggle ignores this (start/stop both come through
     /// `onMicPressBegan`).
     private func handleMicPressEnded() {
-        guard voiceMode == .holdToRecord else { return }
+        guard voiceMode == .holdToRecord else {
+            return
+        }
         voice.stop()
     }
 
@@ -327,7 +376,9 @@ struct CoachChatView: View {
     /// what the user has already typed. We track the last partial we
     /// pushed in so subsequent partials replace just that suffix.
     private func pushVoicePartialIntoField(_ partial: String) {
-        guard voice.isListening else { return }
+        guard voice.isListening else {
+            return
+        }
         // Strip the previous partial off the tail (if present), then
         // append the new partial. This lets the user keep manual edits
         // on the prefix while voice continues to extend the tail.
@@ -343,8 +394,12 @@ struct CoachChatView: View {
 
     private func send() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if voice.isListening { voice.stop() }
+        guard !text.isEmpty else {
+            return
+        }
+        if voice.isListening {
+            voice.stop()
+        }
         inputText = ""
         lastVoicePartial = ""
         Task {
@@ -357,19 +412,21 @@ struct CoachChatView: View {
     }
 }
 
-// MARK: - IdentifiedMessage (stable id for ForEach)
+// MARK: - IdentifiedMessage
 
 private struct IdentifiedMessage: Identifiable, Equatable {
     let id: Int
     let message: CoachMessage
 }
 
-// MARK: - AskUserPayload (decode shape)
+// MARK: - AskUserPayload
 
 private struct AskUserPayload: Decodable {
     let question: String
     let choices: [String]?
 }
+
+// MARK: - CoachAskUserPayload
 
 private struct CoachAskUserPayload {
     let question: String
@@ -383,16 +440,9 @@ struct CoachUserBubble: View {
 
     var body: some View {
         HStack {
-            Spacer(minLength: TempoSpacing.xxl)
+            Spacer(minLength: TideCoach.bubbleGutter)
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextInverse)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSignal)
-                )
+                .tideCoachBubble(.user)
         }
     }
 }
@@ -413,15 +463,8 @@ struct CoachAssistantBubble: View {
     var body: some View {
         HStack {
             Text(displayText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSurfaceCard)
-                )
-            Spacer(minLength: TempoSpacing.xxl)
+                .tideCoachBubble(.assistant)
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
     }
 }
@@ -433,46 +476,52 @@ struct CoachToolResultCard: View {
     let isError: Bool
     var detail: String?
 
-    @State private var expanded = false
+    @Environment(\.tideMood)
+    private var mood
+    @State
+    private var expanded = false
+
+    private var tint: Color {
+        isError ? Tide.danger : mood.accent
+    }
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                HStack(spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: isError ? "xmark.octagon.fill" : "checkmark.seal.fill")
-                        .foregroundStyle(isError ? Color.tempoError : Color.tempoSuccess)
+                        .foregroundStyle(tint)
+                        .accessibilityHidden(true)
                     Text(summary)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
                     if detail != nil {
                         Button {
-                            withAnimation { expanded.toggle() }
+                            withAnimation(Tide.snap) { expanded.toggle() }
                         } label: {
                             Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(expanded ? "Hide details" : "Show details")
                     }
                 }
                 if expanded, let detail {
                     Text(detail)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                    .strokeBorder(
-                        isError ? Color.tempoError.opacity(0.4) : Color.tempoSuccess.opacity(0.4),
-                        lineWidth: 1
-                    )
-                    .background(Color.tempoSurfaceCard.opacity(0.6))
-            )
-            Spacer(minLength: TempoSpacing.xxl)
+            .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s2)
+            .glassEffect(.regular.tint(tint.opacity(0.2)), in: .rect(cornerRadius: Tide.tileRadius))
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
     }
 }
@@ -485,29 +534,23 @@ struct CoachPendingQuestionBubble: View {
     let onChoiceTap: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack {
                 Text(question)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
+                    .tideCoachBubble(.assistant)
+                Spacer(minLength: TideCoach.bubbleGutter)
             }
             if !choices.isEmpty {
-                FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
-                    ForEach(choices, id: \.self) { choice in
-                        Button(choice) { onChoiceTap(choice) }
-                            .buttonStyle(.tempoSecondary)
+                GlassEffectContainer(spacing: Tide.s2) {
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(choices, id: \.self) { choice in
+                            Button(choice) { onChoiceTap(choice) }
+                                .buttonStyle(.tideGlass)
+                        }
                     }
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                .strokeBorder(Color.tempoSignal.opacity(0.4), lineWidth: 1)
-                .background(Color.tempoSurfaceCard)
-        )
     }
 }
 
@@ -516,22 +559,17 @@ struct CoachPendingQuestionBubble: View {
 struct CoachThinkingBubble: View {
     var body: some View {
         HStack {
-            HStack(spacing: TempoSpacing.sm) {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.tempoSignal)
+            HStack(spacing: Tide.s2) {
+                Image(systemName: "sparkle")
+                    .accessibilityHidden(true)
                 Text("Thinking…")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                    .fill(Color.tempoSurfaceCard)
-            )
-            Spacer(minLength: TempoSpacing.xxl)
+            .foregroundStyle(Tide.text2)
+            .tideCoachShimmer()
+            .tideCoachBubble(.assistant)
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Coach is thinking"))
     }
 }
@@ -542,44 +580,64 @@ struct CoachEmptyState: View {
     let seeds: [String]
     let onSeedTap: (String) -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+    @State
+    private var taps = 0
+
     var body: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Text("👋")
-                .font(.system(size: 56))
-                .accessibilityHidden(true)
-            Text("I know enough to start. Try one of these,\nor say something else.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-            VStack(spacing: TempoSpacing.sm) {
-                ForEach(seeds, id: \.self) { seed in
-                    Button { onSeedTap(seed) } label: {
-                        HStack {
-                            Text(seed)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .multilineTextAlignment(.leading)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .foregroundStyle(Color.tempoTextTertiary)
+        ScrollView {
+            VStack(spacing: Tide.s6) {
+                VStack(spacing: Tide.s3) {
+                    Image(systemName: "bubble.left.and.text.bubble.right.fill")
+                        .font(Tide.largeTitle)
+                        .foregroundStyle(mood.accent)
+                        .accessibilityHidden(true)
+                    Text("Ask Coach anything")
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                    Text("I know enough to start. Try one of these, or say something else.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+
+                GlassEffectContainer(spacing: Tide.s3) {
+                    VStack(spacing: Tide.s3) {
+                        ForEach(seeds, id: \.self) { seed in
+                            Button {
+                                taps += 1
+                                onSeedTap(seed)
+                            } label: {
+                                HStack(spacing: Tide.s3) {
+                                    Text(seed)
+                                        .font(Tide.bodyStrong)
+                                        .foregroundStyle(Tide.text)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: Tide.s2)
+                                    Image(systemName: "arrow.up.right")
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text2)
+                                        .accessibilityHidden(true)
+                                }
+                                .frame(minHeight: Tide.hit - Tide.s5)
+                                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                                .contentShape(.rect(cornerRadius: Tide.tileRadius))
+                            }
+                            .buttonStyle(TideCoachPressStyle())
                         }
-                        .padding(.horizontal, TempoSpacing.md)
-                        .padding(.vertical, TempoSpacing.sm)
-                        .background(
-                            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                                .strokeBorder(Color.tempoSteel.opacity(0.4), lineWidth: 1)
-                                .background(Color.tempoSurfaceCard)
-                        )
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            Spacer()
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s6)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .defaultScrollAnchor(.center)
+        .scrollBounceBehavior(.basedOnSize)
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
     }
 }
 
@@ -598,42 +656,70 @@ struct CoachInputBar: View {
     /// tap-toggle ignores it.
     let onMicPressEnded: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var pressInFlight: Bool = false
+    @State
+    private var sends = 0
+
     var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            micButton
-
-            TextField("Type a message…", text: $text, axis: .vertical)
-                .lineLimit(1...4)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, TempoSpacing.sm)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSurfaceCard)
-                )
-                .submitLabel(.send)
-                .onSubmit { onSend() }
-                .disabled(isDisabled || isThinking)
-
-            Button { onSend() } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .imageScale(.large)
-                    .foregroundStyle(
-                        canSend ? Color.tempoSignal : Color.tempoTextDisabled
-                    )
-                    .accessibilityLabel(Text("Send message"))
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(alignment: .bottom, spacing: Tide.s2) {
+                micButton
+                field
+                sendButton
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend || isDisabled || isThinking)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .tidePage()
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.tempoSteel.opacity(0.2))
-                .frame(height: 0.5)
+        .padding(.horizontal, Tide.edge)
+        .sensoryFeedback(.impact(weight: .medium), trigger: sends)
+    }
+
+    private var field: some View {
+        TextField(
+            text: $text,
+            prompt: Text("Type a message…").foregroundStyle(Tide.text3),
+            axis: .vertical
+        ) {
+            Text("Message Coach")
         }
+        .lineLimit(1 ... 4)
+        .textFieldStyle(.plain)
+        .font(Tide.body)
+        .foregroundStyle(Tide.text)
+        .tint(mood.accent)
+        .submitLabel(.send)
+        .onSubmit { fire() }
+        .disabled(isDisabled || isThinking)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.hit / 2))
+        .opacity(isDisabled ? 0.5 : 1)
+    }
+
+    private var sendButton: some View {
+        Button {
+            fire()
+        } label: {
+            Image(systemName: "arrow.up")
+                .font(Tide.headline)
+                .foregroundStyle(canSend ? Tide.ink : Tide.text3)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .background {
+                    if canSend {
+                        Circle().fill(mood.accent)
+                    }
+                }
+                .glassEffect(canSend ? .identity : .regular.tint(Tide.glassControl), in: .circle)
+                .contentShape(.circle)
+                .animation(reduceMotion ? nil : Tide.snap, value: canSend)
+                .accessibilityLabel(Text("Send message"))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSend || isDisabled || isThinking)
     }
 
     private var micButton: some View {
@@ -642,29 +728,54 @@ struct CoachInputBar: View {
         // DragGesture(minimumDistance: 0) to differentiate press vs
         // release so the caller can map .ended → stop.
         Image(systemName: isRecording ? "mic.fill" : "mic")
-            .foregroundStyle(isRecording ? Color.tempoError : Color.tempoTextSecondary)
-            .imageScale(.large)
-            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
-            .padding(.horizontal, TempoSpacing.xs)
-            .contentShape(Rectangle())
+            .font(Tide.headline)
+            .foregroundStyle(isRecording ? Tide.danger : Tide.text)
+            .symbolEffect(.pulse, isActive: isRecording && !reduceMotion)
+            .frame(width: Tide.hit, height: Tide.hit)
+            .glassEffect(
+                .regular.tint(isRecording ? Tide.danger.opacity(0.28) : Tide.glassControl),
+                in: .circle
+            )
+            .scaleEffect(pressInFlight ? Tide.pressButton : 1)
+            .animation(reduceMotion ? nil : Tide.snap, value: pressInFlight)
+            .opacity(isDisabled ? 0.5 : 1)
+            .contentShape(.circle)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
-                        guard !pressInFlight else { return }
+                        guard !pressInFlight else {
+                            return
+                        }
                         pressInFlight = true
-                        if !isDisabled { onMicPressBegan() }
+                        if !isDisabled {
+                            onMicPressBegan()
+                        }
                     }
                     .onEnded { _ in
                         pressInFlight = false
-                        if !isDisabled { onMicPressEnded() }
+                        if !isDisabled {
+                            onMicPressEnded()
+                        }
                     }
             )
+            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                if !isDisabled {
+                    onMicPressBegan()
+                }
+            }
     }
-
-    @State private var pressInFlight: Bool = false
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func fire() {
+        if canSend {
+            sends += 1
+        }
+        onSend()
     }
 }
 
