@@ -75,6 +75,9 @@ struct TempoShell: View {
             }
             .environment(\.tideMood, TideMood(score: appState.dayScore))
             .captureHost(isPresented: $appState.captureRequested, nutritionViewModel: nutritionViewModel)
+            .onChange(of: appState.activeTab, initial: true) { _, tab in
+                TempoSignpost.tabPicked(tab)
+            }
             .task {
                 TideShaders.prewarm()
             }
@@ -104,16 +107,19 @@ struct TempoShell: View {
     @TabContentBuilder<Slot>
     private var mainTabs: some TabContent<Slot> {
         SwiftUI.Tab(AppTab.today.title, systemImage: AppTab.today.icon, value: Slot.today) {
-            DashboardView()
+            TodayView()
         }
         SwiftUI.Tab(AppTab.train.title, systemImage: AppTab.train.icon, value: Slot.train) {
             TrainingTabView()
+                .onAppear { TempoSignpost.tabContentShown(.train) }
         }
         SwiftUI.Tab(AppTab.fuel.title, systemImage: AppTab.fuel.icon, value: Slot.fuel) {
             NutritionTabView(viewModel: nutritionViewModel)
+                .onAppear { TempoSignpost.tabContentShown(.fuel) }
         }
         SwiftUI.Tab(AppTab.arena.title, systemImage: AppTab.arena.icon, value: Slot.arena) {
             ArenaTabView()
+                .onAppear { TempoSignpost.tabContentShown(.arena) }
         }
     }
 

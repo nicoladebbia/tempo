@@ -70,6 +70,7 @@ struct TempoApp: App {
     private var coldLaunch = ColdLaunchActivation()
 
     init() {
+        TempoSignpost.launchBegan()
         do {
             // UI tests that need a first-run store (the app-group store
             // survives uninstalling the app) start from an empty in-memory one.

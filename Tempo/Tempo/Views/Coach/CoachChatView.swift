@@ -668,6 +668,6 @@ struct CoachInputBar: View {
     }
 }
 
-// Note: `FlowLayout` is defined in Tempo/Tempo/Views/Dashboard/DashboardView.swift
+// Note: `FlowLayout` is defined in Tempo/Tempo/Views/Shared/FlowLayout.swift
 // and reused here for the askUser choice-chip row via `FlowLayout(spacing:
 // lineSpacing:)`.

@@ -52,6 +52,20 @@ enum Tide {
     static let tileRadius: CGFloat = 20
     static let controlRadius: CGFloat = 14
 
+    // MARK: Sizes
+
+    /// The hero dial on Today.
+    static let dialHero: CGFloat = 164
+    /// Numeral sizes at the default text size: hero figure, tile figure, inline figure.
+    static let numeralL: CGFloat = 44
+    static let numeralM: CGFloat = 34
+    static let numeralS: CGFloat = 20
+    /// Leading symbol in a card or row.
+    static let icon: CGFloat = 28
+    /// Level bars: standard and slim.
+    static let bar: CGFloat = 6
+    static let barSlim: CGFloat = 4
+
     // MARK: Type (all scale with Dynamic Type)
 
     static let largeTitle = Font.system(.largeTitle, weight: .bold)

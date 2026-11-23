@@ -38,6 +38,14 @@ enum AppTab: String, CaseIterable {
 enum TodayRoute: Hashable {
     case recovery
     case lockdown
+    /// Sleep, HRV and strain in detail.
+    case body
+    /// Steps, sessions and training history.
+    case move
+    /// Study time and exams.
+    case mind
+    /// Today's nutrition in detail.
+    case fuel
 }
 
 // MARK: - MealRequest
@@ -115,6 +123,7 @@ final class AppState {
         if args.contains("--uitesting-reset") {
             UserDefaults.standard.removeObject(forKey: "tempo.onboarding.complete")
             UserDefaults.standard.removeObject(forKey: "dashboard.signInNudgeDismissedAt")
+            TodayCache.shared.clear()
         }
         if args.contains("--uitesting-skip-onboarding") {
             isOnboardingComplete = true
