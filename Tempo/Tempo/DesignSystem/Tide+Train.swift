@@ -716,6 +716,8 @@ extension TideTrain {
     static let dot: CGFloat = 8
     /// The narrowest a stat cell gets before the grid wraps to a new row.
     static let statColumn: CGFloat = 96
+    /// The widest the body figure on the Muscle Map is drawn.
+    static let figureWidth: CGFloat = 176
     /// The widest a compact tab control is allowed to get.
     static let tabsCompact: CGFloat = 230
     /// The tall field of a multi-line text input.
