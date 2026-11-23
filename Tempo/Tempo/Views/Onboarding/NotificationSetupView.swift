@@ -24,35 +24,10 @@ struct NotificationSetupView: View {
     @State private var locationAuthorizer = LocationAuthorizer()
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Text("THE DRILL SERGEANT\nNEEDS YOUR ATTENTION.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Image(systemName: "bell.badge.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoAmber)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                benefitRow(icon: "sunrise.fill", text: "Morning briefings")
-                benefitRow(icon: "clock.fill", text: "Accountability check-ins")
-                benefitRow(icon: "flame.fill", text: "Streak protection alerts")
-                benefitRow(icon: "trophy.fill", text: "Achievement celebrations")
-                benefitRow(icon: "cloud.sun.fill", text: "Weather-aware hydration & training tips")
-            }
-            .padding(.horizontal, TempoSpacing.xxl)
-
-            Text("You control exactly what and when.\nAdjust anytime in Settings.")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-                .multilineTextAlignment(.center)
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "ENABLE NOTIFICATIONS", enabled: true) {
+        OnboardingScaffold(
+            title: "THE DRILL SERGEANT\nNEEDS YOUR ATTENTION.",
+            primaryTitle: "ENABLE NOTIFICATIONS",
+            primaryAction: {
                 Task {
                     let center = UNUserNotificationCenter.current()
                     let granted = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
@@ -62,23 +37,22 @@ struct NotificationSetupView: View {
                     await locationAuthorizer.requestWhenInUseIfNeeded()
                     viewModel.advance()
                 }
+            },
+            skipAction: { viewModel.skip() },
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "bell.badge.fill")
+
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingBenefitRow(systemImage: "sunrise.fill", text: "Morning briefings")
+                OnboardingBenefitRow(systemImage: "clock.fill", text: "Accountability check-ins")
+                OnboardingBenefitRow(systemImage: "flame.fill", text: "Streak protection alerts")
+                OnboardingBenefitRow(systemImage: "trophy.fill", text: "Achievement celebrations")
+                OnboardingBenefitRow(systemImage: "cloud.sun.fill", text: "Weather-aware hydration & training tips")
             }
+            .onboardingCard()
 
-            OnboardingSkipButton { viewModel.skip() }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
-        }
-    }
-
-    private func benefitRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoAmber)
-                .frame(width: 24)
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundStyle(.white.opacity(0.8))
+            OnboardingNote("You control exactly what and when. Adjust anytime in Settings.")
         }
     }
 }
@@ -122,6 +96,5 @@ final class LocationAuthorizer: NSObject, CLLocationManagerDelegate {
     var vm = OnboardingViewModel()
 
     NotificationSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

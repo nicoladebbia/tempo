@@ -28,43 +28,39 @@ struct OnboardingAuthView: View {
     private var pendingNonce: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        // Per WIREFRAMES.md Screen 44 — "STOP MANAGING YOUR LIFE IN 5 DIFFERENT APPS."
+        OnboardingScaffold(
+            title: "STOP MANAGING YOUR LIFE\nIN 5 DIFFERENT APPS.",
+            centered: true
+        ) {
+            Text("Training. Nutrition.\nRecovery. Academics.\nOne system. One score.\nZero excuses.")
+                .font(Tide.headline.weight(.regular))
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .lineSpacing(Tide.s1)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            signInFooter
+        }
+    }
 
-            // Value prop
-            // Per WIREFRAMES.md Screen 44 — "STOP MANAGING YOUR LIFE IN 5 DIFFERENT APPS."
-            VStack(spacing: TempoSpacing.xl) {
-                Text("STOP MANAGING YOUR LIFE\nIN 5 DIFFERENT APPS.")
-                    .font(.system(size: 26, weight: .black))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-
-                Text("Training. Nutrition.\nRecovery. Academics.\nOne system. One score.\nZero excuses.")
-                    .font(.system(size: 16))
-                    .foregroundStyle(.white.opacity(0.7))
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-
-            Spacer()
-
-            // Error message
+    private var signInFooter: some View {
+        VStack(spacing: Tide.s3) {
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.red.opacity(0.8))
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xl)
-                    .padding(.bottom, TempoSpacing.lg)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Sign in with Apple
             if isSigningIn {
                 ProgressView()
-                    .tint(.white)
+                    .tint(Tide.text)
                     .scaleEffect(1.2)
+                    .frame(height: Tide.fieldHeight)
             } else {
                 // Use SignInWithAppleButton's OWN flow. Wrapping it in an
                 // outer Button (even with allowsHitTesting(false) on the
@@ -83,10 +79,9 @@ struct OnboardingAuthView: View {
                     Task { await handleAppleResult(result) }
                 }
                 .signInWithAppleButtonStyle(.white)
-                .frame(height: 50)
-                .frame(maxWidth: 320)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .padding(.horizontal, TempoSpacing.xl)
+                .frame(height: Tide.fieldHeight)
+                .frame(maxWidth: .infinity)
+                .clipShape(.capsule)
                 .accessibilityLabel("Sign in with Apple")
             }
 
@@ -97,15 +92,17 @@ struct OnboardingAuthView: View {
                     viewModel.advance()
                 }) {
                     Text("Skip Sign In (Debug Only)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.4))
-                        .padding(.top, TempoSpacing.md)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
             #endif
-
-            Spacer().frame(height: TempoSpacing.xxxxl)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s2)
     }
 
     private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
@@ -140,7 +137,6 @@ struct OnboardingAuthView: View {
 
 #Preview {
     OnboardingAuthView(viewModel: OnboardingViewModel())
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
         .environment(ServiceContainer.mock())
 }

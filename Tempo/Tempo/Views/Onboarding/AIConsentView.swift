@@ -20,84 +20,48 @@ struct AIConsentView: View {
     @State private var isSubmitting = false
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
+        OnboardingScaffold(
+            title: "ENABLE AI\nCOACHING.",
+            primaryTitle: "ENABLE AI FEATURES",
+            primaryEnabled: !isSubmitting,
+            primaryAction: { submit(consent: true) },
+            skipTitle: "Skip — use rule-based only",
+            skipAction: isSubmitting ? nil : { submit(consent: false) },
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "brain.head.profile")
 
-            Text("ENABLE AI\nCOACHING.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Image(systemName: "brain.head.profile")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoAmber)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                benefitRow(icon: "chart.line.uptrend.xyaxis", text: "Weekly intelligence reports")
-                benefitRow(icon: "sparkles", text: "Pattern detection across modules")
-                benefitRow(icon: "fork.knife", text: "AI-generated meal plans & coach")
-                benefitRow(icon: "bolt.heart.fill", text: "Recovery-adjusted prescriptions")
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingBenefitRow(systemImage: "chart.line.uptrend.xyaxis", text: "Weekly intelligence reports")
+                OnboardingBenefitRow(systemImage: "sparkles", text: "Pattern detection across modules")
+                OnboardingBenefitRow(systemImage: "fork.knife", text: "AI-generated meal plans & coach")
+                OnboardingBenefitRow(systemImage: "bolt.heart.fill", text: "Recovery-adjusted prescriptions")
             }
-            .padding(.horizontal, TempoSpacing.xxl)
+            .onboardingCard()
 
-            Text("Tempo sends your training, sleep, and nutrition data to Anthropic only when you trigger an AI feature. Your data is never used to train their models. Toggle this off anytime in Settings.")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
+            OnboardingNote(
+                "Tempo sends your training, sleep, and nutrition data to Anthropic only when you trigger an AI feature. Your data is never used to train their models. Toggle this off anytime in Settings.",
+                systemImage: "lock.fill"
+            )
 
             if let err = viewModel.aiConsentError {
                 Text(err)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.lg)
             }
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "ENABLE AI FEATURES", enabled: !isSubmitting) {
-                Task {
-                    isSubmitting = true
-                    await viewModel.setAIConsent(
-                        true,
-                        apiClient: services.apiClient,
-                        isSignedIn: services.authService.accessToken != nil
-                    )
-                    isSubmitting = false
-                }
-            }
-
-            Button {
-                Task {
-                    isSubmitting = true
-                    await viewModel.setAIConsent(
-                        false,
-                        apiClient: services.apiClient,
-                        isSignedIn: services.authService.accessToken != nil
-                    )
-                    isSubmitting = false
-                }
-            } label: {
-                Text("Skip — use rule-based only")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .disabled(isSubmitting)
-
-            Spacer().frame(height: TempoSpacing.xxxl)
         }
     }
 
-    private func benefitRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoAmber)
-                .frame(width: 24)
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundStyle(.white.opacity(0.8))
+    private func submit(consent: Bool) {
+        Task {
+            isSubmitting = true
+            await viewModel.setAIConsent(
+                consent,
+                apiClient: services.apiClient,
+                isSignedIn: services.authService.accessToken != nil
+            )
+            isSubmitting = false
         }
     }
 }
@@ -107,7 +71,6 @@ struct AIConsentView: View {
     var vm = OnboardingViewModel()
 
     AIConsentView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
         .environment(ServiceContainer.mock())
 }

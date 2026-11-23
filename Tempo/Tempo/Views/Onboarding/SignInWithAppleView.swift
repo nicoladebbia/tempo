@@ -22,20 +22,21 @@ struct SignInWithAppleView: View {
     private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s8) {
             Spacer()
 
             // App logo and title
-            VStack(spacing: TempoSpacing.md) {
-                TempoLogoView(size: 80, showGlow: true)
+            VStack(spacing: Tide.s4) {
+                TempoLogoView(size: 96, showGlow: true)
 
                 Text("TEMPO")
-                    .font(.tempoLargeTitle)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.numeral(34, .heavy))
+                    .tracking(6)
+                    .foregroundStyle(Tide.text)
 
                 Text("Your Life Operating System")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
             }
 
             Spacer()
@@ -43,34 +44,37 @@ struct SignInWithAppleView: View {
             // Error message
             if let errorMessage {
                 Text(errorMessage)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .padding(.horizontal, Tide.edge)
             }
 
             // Sign in button
             if isSigningIn {
                 ProgressView()
-                    .tint(Color.tempoTextSecondary)
-                    .padding(.bottom, TempoSpacing.xl)
+                    .tint(Tide.text)
+                    .frame(height: Tide.fieldHeight)
+                    .padding(.bottom, Tide.s5)
             } else {
                 Button(action: {
                     Task { await signIn() }
                 }) {
                     SignInWithAppleButton(.signIn, onRequest: { _ in }, onCompletion: { _ in })
+                        .signInWithAppleButtonStyle(.white)
                         .allowsHitTesting(false)
-                        .frame(height: 50)
-                        .frame(maxWidth: 320)
+                        .frame(height: Tide.fieldHeight)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(.capsule)
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal, TempoSpacing.xl)
-                .padding(.bottom, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s5)
                 .accessibilityLabel("Sign in with Apple")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .tidePage()
+        .tidePage(energy: 1)
     }
 
     private func signIn() async {

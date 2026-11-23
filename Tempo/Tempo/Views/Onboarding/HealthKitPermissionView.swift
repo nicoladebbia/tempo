@@ -19,56 +19,33 @@ struct HealthKitPermissionView: View {
     private var services
 
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Text("LET'S CONNECT\nYOUR HEALTH DATA.")
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .multilineTextAlignment(.center)
-
-            Image(systemName: "heart.text.square.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoError)
-
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                benefitRow(icon: "figure.walk", text: "Steps & active calories")
-                benefitRow(icon: "heart.fill", text: "Heart rate data")
-                benefitRow(icon: "bed.double.fill", text: "Sleep tracking")
-                benefitRow(icon: "flame.fill", text: "Workout integration")
-            }
-            .padding(.horizontal, TempoSpacing.xxl)
-
-            Text("Your health data stays on your device.\nTempo never uploads raw HealthKit data.")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-                .multilineTextAlignment(.center)
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "ALLOW HEALTHKIT", enabled: true) {
+        OnboardingScaffold(
+            title: "LET'S CONNECT\nYOUR HEALTH DATA.",
+            primaryTitle: "ALLOW HEALTHKIT",
+            primaryAction: {
                 Task {
                     try? await services.healthKit.requestAuthorization()
                     viewModel.healthkitGranted = true
                     viewModel.advance()
                 }
+            },
+            skipAction: { viewModel.skip() },
+            centered: true
+        ) {
+            OnboardingHeroTile(systemName: "heart.text.square.fill", tint: Tide.protein)
+
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingBenefitRow(systemImage: "figure.walk", text: "Steps & active calories", tint: Tide.protein)
+                OnboardingBenefitRow(systemImage: "heart.fill", text: "Heart rate data", tint: Tide.protein)
+                OnboardingBenefitRow(systemImage: "bed.double.fill", text: "Sleep tracking", tint: Tide.protein)
+                OnboardingBenefitRow(systemImage: "flame.fill", text: "Workout integration", tint: Tide.protein)
             }
+            .onboardingCard()
 
-            OnboardingSkipButton { viewModel.skip() }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
-        }
-    }
-
-    private func benefitRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.tempoError)
-                .frame(width: 24)
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundStyle(.white.opacity(0.8))
+            OnboardingNote(
+                "Your health data stays on your device. Tempo never uploads raw HealthKit data.",
+                systemImage: "lock.fill"
+            )
         }
     }
 }
@@ -78,7 +55,6 @@ struct HealthKitPermissionView: View {
     var vm = OnboardingViewModel()
 
     HealthKitPermissionView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
         .environment(ServiceContainer.mock())
 }

@@ -12,67 +12,47 @@
 
 import SwiftUI
 
-// MARK: - DailyRhythmView (wake time + sleep target + chronotype)
+// MARK: - DailyRhythmView
 
 struct DailyRhythmView: View {
     @Bindable var viewModel: OnboardingViewModel
+    @Environment(\.tideMood) private var mood
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-                title("YOUR DAILY\nRHYTHM.")
+        OnboardingScaffold(
+            title: "YOUR DAILY\nRHYTHM.",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() }
+        ) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Wake time")
+                minutesTimePicker(minutes: $viewModel.wakeTimeMinutes)
+            }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    sectionLabel("Wake time")
-                    minutesTimePicker(minutes: $viewModel.wakeTimeMinutes)
-                }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Sleep target: \(formatHours(viewModel.sleepTargetHours))")
+                Slider(value: $viewModel.sleepTargetHours, in: 6.0 ... 10.0, step: 0.25)
+                    .tint(mood.accent)
+                    .frame(minHeight: Tide.hit)
+                    .accessibilityLabel("Sleep target")
+                    .accessibilityValue(formatHours(viewModel.sleepTargetHours))
+            }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    sectionLabel("Sleep target: \(formatHours(viewModel.sleepTargetHours))")
-                    Slider(value: $viewModel.sleepTargetHours, in: 6.0 ... 10.0, step: 0.25)
-                        .tint(Color.tempoAmber)
-                }
-
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    sectionLabel("When are you sharpest?")
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                OnboardingSectionLabel("When are you sharpest?")
+                VStack(spacing: Tide.s2) {
                     ForEach(Chronotype.allCases, id: \.self) { option in
-                        chronotypeRow(option)
+                        OnboardingOptionRow(title: option.label, isSelected: viewModel.chronotype == option) {
+                            viewModel.chronotype = option
+                        }
                     }
                 }
-
-                Spacer().frame(height: TempoSpacing.xl)
-
-                OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                    viewModel.advance()
-                }
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.top, TempoSpacing.xl)
-        }
-    }
-
-    private func chronotypeRow(_ option: Chronotype) -> some View {
-        let selected = viewModel.chronotype == option
-        return Button {
-            viewModel.chronotype = option
-        } label: {
-            HStack {
-                Text(option.label)
-                    .foregroundStyle(.white)
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark")
-                        .foregroundStyle(Color.tempoAmber)
-                }
-            }
-            .padding(TempoSpacing.md)
-            .background(selected ? Color.tempoAmber.opacity(0.15) : Color.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 }
 
-// MARK: - ClassScheduleView (term-bounded weekly classes)
+// MARK: - ClassScheduleView
 
 struct ClassScheduleView: View {
     @Bindable var viewModel: OnboardingViewModel
@@ -80,47 +60,37 @@ struct ClassScheduleView: View {
     @State private var showAdd = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                title("CLASS\nSCHEDULE.")
+        OnboardingScaffold(
+            title: "CLASS\nSCHEDULE.",
+            subtitle: "Tempo schedules study + training around your classes. Add the ones that repeat weekly.",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() },
+            skipTitle: "Skip — I'll add classes later",
+            skipAction: { viewModel.skip() }
+        ) {
+            termWindow
 
-                Text("Tempo schedules study + training around your classes. Add the ones that repeat weekly.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.5))
-
-                termWindow
-
-                if viewModel.classBlocks.isEmpty {
-                    Text("No classes added yet.")
-                        .foregroundStyle(.white.opacity(0.4))
-                        .padding(.vertical, TempoSpacing.md)
-                } else {
-                    ForEach(viewModel.classBlocks) { block in
-                        classRow(block)
+            if viewModel.classBlocks.isEmpty {
+                Text("No classes added yet.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                GlassEffectContainer(spacing: Tide.s2) {
+                    VStack(spacing: Tide.s2) {
+                        ForEach(viewModel.classBlocks) { block in
+                            classRow(block)
+                        }
                     }
                 }
-
-                Button {
-                    showAdd = true
-                } label: {
-                    Label("Add class", systemImage: "plus.circle.fill")
-                        .foregroundStyle(Color.tempoAmber)
-                }
-
-                Spacer().frame(height: TempoSpacing.xl)
-
-                OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                    viewModel.advance()
-                }
-                Button("Skip — I'll add classes later") {
-                    viewModel.skip()
-                }
-                .font(.system(size: 14))
-                .foregroundStyle(.white.opacity(0.5))
-                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.top, TempoSpacing.xl)
+
+            Button {
+                showAdd = true
+            } label: {
+                Label("Add class", systemImage: "plus")
+            }
+            .buttonStyle(.tideGlass)
         }
         .sheet(isPresented: $showAdd) {
             ClassBlockEditor(
@@ -152,57 +122,76 @@ struct ClassScheduleView: View {
     }
 
     private var termWindow: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("Term window (optional)")
-            HStack {
-                DatePicker(
-                    "Starts",
-                    selection: Binding(
-                        get: { viewModel.termStartDate ?? Date() },
-                        set: { viewModel.termStartDate = $0 }
-                    ),
-                    displayedComponents: .date
-                )
-                .labelsHidden()
-                Spacer()
-                DatePicker(
-                    "Ends",
-                    selection: Binding(
-                        get: { viewModel.termEndDate ?? Date().addingTimeInterval(90 * 86_400) },
-                        set: { viewModel.termEndDate = $0 }
-                    ),
-                    displayedComponents: .date
-                )
-                .labelsHidden()
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            OnboardingSectionLabel("Term window (optional)")
+            HStack(alignment: .top, spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Starts")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                    DatePicker(
+                        "Starts",
+                        selection: Binding(
+                            get: { viewModel.termStartDate ?? Date() },
+                            set: { viewModel.termStartDate = $0 }
+                        ),
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .frame(minHeight: Tide.hit)
+                }
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Ends")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                    DatePicker(
+                        "Ends",
+                        selection: Binding(
+                            get: { viewModel.termEndDate ?? Date().addingTimeInterval(90 * 86400) },
+                            set: { viewModel.termEndDate = $0 }
+                        ),
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .frame(minHeight: Tide.hit)
+                }
+                Spacer(minLength: 0)
             }
         }
     }
 
     private func classRow(_ block: OnboardingClassBlock) -> some View {
-        Button {
-            editing = block
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 0) {
+            Button {
+                editing = block
+            } label: {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(block.courseCode)
-                        .foregroundStyle(.white)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                     Text("\(weekdayLabel(block.weekday)) · \(formatTime(block.startMinuteOfDay))–\(formatTime(block.endMinuteOfDay))")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                Spacer()
-                Button(role: .destructive) {
-                    viewModel.classBlocks.removeAll { $0.id == block.id }
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(Color.tempoError)
-                }
+                .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s3, alignment: .leading)
+                .padding(.leading, Tide.s4)
+                .contentShape(.rect)
             }
-            .padding(TempoSpacing.md)
-            .background(Color.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .buttonStyle(.plain)
+
+            Button(role: .destructive) {
+                viewModel.classBlocks.removeAll { $0.id == block.id }
+            } label: {
+                Image(systemName: "trash")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.danger)
+                    .frame(width: Tide.hit + Tide.s2, height: Tide.hit + Tide.s3)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(block.courseCode)")
         }
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
     }
 }
 
@@ -225,43 +214,56 @@ private struct ClassBlockEditor: View {
     @State private var courseName: String = ""
     @State private var location: String = ""
 
+    private var canSave: Bool {
+        !courseCode.trimmingCharacters(in: .whitespaces).isEmpty
+            && endMinutes > startMinutes
+            && !weekdays.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Course") {
-                    TextField("Course code (e.g. STAT 101)", text: $courseCode)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.characters)
-                    TextField("Full name (optional)", text: $courseName)
-                    TextField("Location (optional)", text: $location)
-                }
-                Section("Days") {
-                    // Tap each weekday the class meets (e.g. Mon/Wed/Fri).
-                    HStack(spacing: 6) {
-                        ForEach(1 ... 7, id: \.self) { d in
-                            let on = weekdays.contains(d)
-                            Button {
-                                if on { weekdays.remove(d) } else { weekdays.insert(d) }
-                            } label: {
-                                Text(weekdayShort(d))
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(on ? .black : .white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 38)
-                                    .background(on ? Color.tempoAmber : Color.white.opacity(0.1))
-                                    .clipShape(Capsule())
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s6) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        OnboardingSectionLabel("Course")
+                        field("Course code (e.g. STAT 101)", text: $courseCode)
+                            .textInputAutocapitalization(.characters)
+                        field("Full name (optional)", text: $courseName)
+                        field("Location (optional)", text: $location)
+                    }
+
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        OnboardingSectionLabel("Days")
+                        // Tap each weekday the class meets (e.g. Mon/Wed/Fri).
+                        // Equal-width cells always fit the row.
+                        HStack(spacing: Tide.s1) {
+                            ForEach(1 ... 7, id: \.self) { d in
+                                OnboardingChip(title: weekdayShort(d), isSelected: weekdays.contains(d), expands: true) {
+                                    if weekdays.contains(d) {
+                                        weekdays.remove(d)
+                                    } else {
+                                        weekdays.insert(d)
+                                    }
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        OnboardingSectionLabel("Time")
+                        VStack(spacing: 0) {
+                            minutesTimePickerRow("Starts", minutes: $startMinutes)
+                            Divider().overlay(Tide.hairline)
+                            minutesTimePickerRow("Ends", minutes: $endMinutes)
+                        }
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    }
                 }
-                Section("Time") {
-                    minutesTimePickerRow("Starts", minutes: $startMinutes)
-                    minutesTimePickerRow("Ends", minutes: $endMinutes)
-                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
+            .scrollDismissesKeyboard(.interactively)
+            .tidePage()
             .navigationTitle(existing == nil ? "Add class" : "Edit class")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -288,11 +290,7 @@ private struct ClassBlockEditor: View {
                         }
                         onSave(blocks)
                     }
-                    .disabled(
-                        courseCode.trimmingCharacters(in: .whitespaces).isEmpty
-                            || endMinutes <= startMinutes
-                            || weekdays.isEmpty
-                    )
+                    .disabled(!canSave)
                 }
             }
         }
@@ -307,6 +305,14 @@ private struct ClassBlockEditor: View {
             }
         }
     }
+
+    private func field(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField("", text: text, prompt: Text(placeholder).foregroundStyle(Tide.text3))
+            .font(Tide.headline.weight(.regular))
+            .foregroundStyle(Tide.text)
+            .autocorrectionDisabled()
+            .tideFieldSurface()
+    }
 }
 
 // MARK: - EatingWindowView
@@ -315,68 +321,49 @@ struct EatingWindowView: View {
     @Bindable var viewModel: OnboardingViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-                title("EATING\nWINDOW.")
-
-                Text("Tempo plans meals inside this window. Pick a preset or set your own.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white.opacity(0.5))
-
-                VStack(spacing: TempoSpacing.sm) {
-                    ForEach(EatingWindowPreset.allCases, id: \.self) { preset in
-                        presetRow(preset)
+        OnboardingScaffold(
+            title: "EATING\nWINDOW.",
+            subtitle: "Tempo plans meals inside this window. Pick a preset or set your own.",
+            primaryTitle: "CONTINUE",
+            primaryEnabled: viewModel.eatingWindowEndMinutes > viewModel.eatingWindowStartMinutes,
+            primaryAction: { viewModel.advance() }
+        ) {
+            VStack(spacing: Tide.s2) {
+                ForEach(EatingWindowPreset.allCases, id: \.self) { preset in
+                    OnboardingOptionRow(title: preset.label, isSelected: viewModel.eatingWindowPreset == preset) {
+                        viewModel.eatingWindowPreset = preset
+                        if let window = preset.defaultWindow {
+                            viewModel.eatingWindowStartMinutes = window.start
+                            viewModel.eatingWindowEndMinutes = window.end
+                        }
                     }
                 }
+            }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    sectionLabel("Window")
-                    HStack {
-                        minutesTimePicker(minutes: $viewModel.eatingWindowStartMinutes)
-                        Text("to")
-                            .foregroundStyle(.white.opacity(0.5))
-                        minutesTimePicker(minutes: $viewModel.eatingWindowEndMinutes)
-                    }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Window")
+                HStack(spacing: Tide.s3) {
+                    minutesTimePicker(minutes: $viewModel.eatingWindowStartMinutes)
+                    Text("to")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                    minutesTimePicker(minutes: $viewModel.eatingWindowEndMinutes)
+                    Spacer(minLength: 0)
                 }
+            }
 
+            VStack(spacing: 0) {
                 Toggle("I skip breakfast", isOn: $viewModel.breakfastSkipped)
-                    .tint(Color.tempoAmber)
-                    .foregroundStyle(.white)
-
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .toggleStyle(.tempo)
+                Divider().overlay(Tide.hairline)
                 Toggle("Post-workout meal is mandatory", isOn: $viewModel.postWorkoutMandatory)
-                    .tint(Color.tempoAmber)
-                    .foregroundStyle(.white)
-
-                Spacer().frame(height: TempoSpacing.xl)
-
-                OnboardingPrimaryButton(title: "CONTINUE", enabled: viewModel.eatingWindowEndMinutes > viewModel.eatingWindowStartMinutes) {
-                    viewModel.advance()
-                }
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .toggleStyle(.tempo)
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.top, TempoSpacing.xl)
-        }
-    }
-
-    private func presetRow(_ preset: EatingWindowPreset) -> some View {
-        let selected = viewModel.eatingWindowPreset == preset
-        return Button {
-            viewModel.eatingWindowPreset = preset
-            if let window = preset.defaultWindow {
-                viewModel.eatingWindowStartMinutes = window.start
-                viewModel.eatingWindowEndMinutes = window.end
-            }
-        } label: {
-            HStack {
-                Text(preset.label).foregroundStyle(.white)
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark").foregroundStyle(Color.tempoAmber)
-                }
-            }
-            .padding(TempoSpacing.md)
-            .background(selected ? Color.tempoAmber.opacity(0.15) : Color.white.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .onboardingCard()
         }
     }
 }
@@ -385,27 +372,31 @@ struct EatingWindowView: View {
 
 struct StudyPreferencesView: View {
     @Bindable var viewModel: OnboardingViewModel
+    @Environment(\.tideMood) private var mood
 
     private let presets: [Int] = [25, 50, 90]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-            title("STUDY\nSESSIONS.")
-
-            Text("How long do you focus before a break?")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-
-            HStack(spacing: TempoSpacing.sm) {
+        OnboardingScaffold(
+            title: "STUDY\nSESSIONS.",
+            subtitle: "How long do you focus before a break?",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() }
+        ) {
+            HStack(spacing: Tide.s2) {
                 ForEach(presets, id: \.self) { p in
-                    chip(label: "\(p) min", selected: viewModel.studySessionLengthMinutes == p) {
+                    OnboardingChip(
+                        title: "\(p) min",
+                        isSelected: viewModel.studySessionLengthMinutes == p,
+                        expands: true
+                    ) {
                         viewModel.studySessionLengthMinutes = p
                     }
                 }
             }
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                sectionLabel("Custom: \(viewModel.studySessionLengthMinutes) min")
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Custom: \(viewModel.studySessionLengthMinutes) min")
                 Slider(
                     value: Binding(
                         get: { Double(viewModel.studySessionLengthMinutes) },
@@ -414,17 +405,12 @@ struct StudyPreferencesView: View {
                     in: 5 ... 120,
                     step: 5
                 )
-                .tint(Color.tempoAmber)
-            }
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                viewModel.advance()
+                .tint(mood.accent)
+                .frame(minHeight: Tide.hit)
+                .accessibilityLabel("Session length")
+                .accessibilityValue("\(viewModel.studySessionLengthMinutes) minutes")
             }
         }
-        .padding(.horizontal, TempoSpacing.xl)
-        .padding(.top, TempoSpacing.xl)
     }
 }
 
@@ -434,41 +420,20 @@ struct TrainingPreferencesView: View {
     @Bindable var viewModel: OnboardingViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-            title("TRAIN\nWHEN?")
-
-            Text("When do you prefer to train? The planner respects this when free windows allow.")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-
-            VStack(spacing: TempoSpacing.sm) {
+        OnboardingScaffold(
+            title: "TRAIN\nWHEN?",
+            subtitle: "When do you prefer to train? The planner respects this when free windows allow.",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() }
+        ) {
+            VStack(spacing: Tide.s2) {
                 ForEach(TrainingTimePreference.allCases, id: \.self) { pref in
-                    let selected = viewModel.trainingTimePreference == pref
-                    Button {
+                    OnboardingOptionRow(title: pref.label, isSelected: viewModel.trainingTimePreference == pref) {
                         viewModel.trainingTimePreference = pref
-                    } label: {
-                        HStack {
-                            Text(pref.label).foregroundStyle(.white)
-                            Spacer()
-                            if selected {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tempoAmber)
-                            }
-                        }
-                        .padding(TempoSpacing.md)
-                        .background(selected ? Color.tempoAmber.opacity(0.15) : Color.white.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                viewModel.advance()
-            }
         }
-        .padding(.horizontal, TempoSpacing.xl)
-        .padding(.top, TempoSpacing.xl)
     }
 }
 
@@ -478,69 +443,24 @@ struct WeekendModeView: View {
     @Bindable var viewModel: OnboardingViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-            title("WEEKENDS.")
-
-            Text("How different are your weekends from weekdays?")
-                .font(.system(size: 13))
-                .foregroundStyle(.white.opacity(0.5))
-
-            VStack(spacing: TempoSpacing.sm) {
+        OnboardingScaffold(
+            title: "WEEKENDS.",
+            subtitle: "How different are your weekends from weekdays?",
+            primaryTitle: "CONTINUE",
+            primaryAction: { viewModel.advance() }
+        ) {
+            VStack(spacing: Tide.s2) {
                 ForEach(WeekendDifferential.allCases, id: \.self) { mode in
-                    let selected = viewModel.weekendDifferential == mode
-                    Button {
+                    OnboardingOptionRow(title: mode.label, isSelected: viewModel.weekendDifferential == mode) {
                         viewModel.weekendDifferential = mode
-                    } label: {
-                        HStack {
-                            Text(mode.label).foregroundStyle(.white)
-                            Spacer()
-                            if selected {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tempoAmber)
-                            }
-                        }
-                        .padding(TempoSpacing.md)
-                        .background(selected ? Color.tempoAmber.opacity(0.15) : Color.white.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
             }
-
-            Spacer()
-
-            OnboardingPrimaryButton(title: "CONTINUE", enabled: true) {
-                viewModel.advance()
-            }
         }
-        .padding(.horizontal, TempoSpacing.xl)
-        .padding(.top, TempoSpacing.xl)
     }
 }
 
 // MARK: - Shared helpers
-
-private func title(_ s: String) -> some View {
-    Text(s)
-        .font(.system(size: 28, weight: .bold))
-        .foregroundStyle(.white)
-}
-
-private func sectionLabel(_ s: String) -> some View {
-    Text(s)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(.white.opacity(0.6))
-}
-
-private func chip(label: String, selected: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-        Text(label)
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(selected ? Color.black : .white)
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(selected ? Color.tempoAmber : Color.white.opacity(0.08))
-            .clipShape(Capsule())
-    }
-}
 
 private func minutesTimePicker(minutes: Binding<Int>) -> some View {
     DatePicker(
@@ -558,11 +478,11 @@ private func minutesTimePicker(minutes: Binding<Int>) -> some View {
         displayedComponents: .hourAndMinute
     )
     .labelsHidden()
+    .frame(minHeight: Tide.hit)
 }
 
 private func minutesTimePickerRow(_ label: String, minutes: Binding<Int>) -> some View {
     DatePicker(
-        label,
         selection: Binding(
             get: {
                 let cal = Calendar.current
@@ -574,7 +494,12 @@ private func minutesTimePickerRow(_ label: String, minutes: Binding<Int>) -> som
             }
         ),
         displayedComponents: .hourAndMinute
-    )
+    ) {
+        Text(label)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
+    }
+    .frame(minHeight: Tide.hit)
 }
 
 private func weekdayLabel(_ weekday: Int) -> String {

@@ -73,91 +73,49 @@ struct ProfileSetupView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.12)
+        OnboardingScaffold(
+            title: "WHO ARE YOU?",
+            primaryTitle: "CONTINUE",
+            primaryEnabled: viewModel.canContinue && isUsernameValid && usernameError == nil,
+            primaryAction: { viewModel.advance() }
+        ) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Display Name")
 
-                Text("WHO ARE YOU?")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.08)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                    Text("Display Name")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    TextField("Your name", text: $viewModel.displayName)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white)
-                        .padding(TempoSpacing.md)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-                        .focused($focusedField, equals: .displayName)
-                }
-                .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.04)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("Username")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    TextField("@username", text: $viewModel.username)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .padding(TempoSpacing.md)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    usernameError != nil ? Color.tempoError.opacity(0.6) : Color.white.opacity(0.15),
-                                    lineWidth: 1
-                                )
-                        )
-                        .focused($focusedField, equals: .username)
-                        .onChange(of: viewModel.username) { _, _ in
-                            checkUsernameAvailability()
-                        }
-
-                    if let usernameError {
-                        Text(usernameError)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoError)
-                    } else if isUsernameValid {
-                        Text("Available")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoSuccess)
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-
-                OnboardingPrimaryButton(
-                    title: "CONTINUE",
-                    enabled: viewModel.canContinue && isUsernameValid && usernameError == nil
-                ) {
-                    viewModel.advance()
-                }
-
-                Spacer()
-                    .frame(height: max(geometry.safeAreaInsets.bottom + 20, 40))
+                TextField("", text: $viewModel.displayName, prompt: Text("Your name").foregroundStyle(Tide.text3))
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text)
+                    .focused($focusedField, equals: .displayName)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .username }
+                    .tideFieldSurface(focused: focusedField == .displayName)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Username")
+
+                TextField("", text: $viewModel.username, prompt: Text("@username").foregroundStyle(Tide.text3))
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .username)
+                    .submitLabel(.done)
+                    .onChange(of: viewModel.username) { _, _ in
+                        checkUsernameAvailability()
+                    }
+                    .tideFieldSurface(focused: focusedField == .username, invalid: usernameError != nil)
+
+                if let usernameError {
+                    Text(usernameError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                } else if isUsernameValid {
+                    Text("Available")
+                        .font(Tide.caption)
+                        .foregroundStyle(Color.tempoSuccess)
+                }
+            }
         }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -172,8 +130,7 @@ struct ProfileSetupView: View {
     var vm = OnboardingViewModel()
 
     ProfileSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }
 
 #Preview("Filled") {
@@ -186,6 +143,5 @@ struct ProfileSetupView: View {
     }()
 
     ProfileSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

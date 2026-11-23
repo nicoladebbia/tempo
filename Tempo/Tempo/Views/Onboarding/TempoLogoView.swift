@@ -16,49 +16,41 @@ struct TempoLogoView: View {
     var size: CGFloat = 60
     var showGlow: Bool = true
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         ZStack {
-            // Outer circle with gradient
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.tempoSignal,
-                            Color.tempoSignal.opacity(0.7),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: size, height: size)
+            // Soft light behind the mark
+            if showGlow {
+                Circle()
+                    .fill(mood.accent.opacity(0.35))
+                    .frame(width: size * 1.1, height: size * 1.1)
+                    .blur(radius: size * 0.22)
+            }
 
-            // Inner circle (darker)
+            // Glass disc with an accent rim
             Circle()
-                .fill(Color.tempoBgPrimary)
-                .frame(width: size * 0.7, height: size * 0.7)
+                .fill(.clear)
+                .frame(width: size, height: size)
+                .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
+                .overlay {
+                    Circle().strokeBorder(mood.accent.opacity(0.7), lineWidth: max(1.5, size * 0.03))
+                }
 
             // Stylized lightning bolt
             BoltShape()
                 .fill(
                     LinearGradient(
-                        colors: [
-                            Color.tempoSignal.opacity(0.9),
-                            Color.tempoSignal,
-                        ],
+                        colors: [Tide.text, mood.accent],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(width: size * 0.4, height: size * 0.5)
-
-            // Glow effect
-            if showGlow {
-                Circle()
-                    .fill(Color.tempoSignal.opacity(0.2))
-                    .frame(width: size * 1.2, height: size * 1.2)
-                    .blur(radius: 10)
-            }
+                .frame(width: size * 0.38, height: size * 0.5)
         }
+        .frame(width: size * 1.2, height: size * 1.2)
+        .accessibilityHidden(true)
     }
 }
 
@@ -107,23 +99,23 @@ struct BoltShape: Shape {
 
 #Preview("Default Logo") {
     TempoLogoView()
-        .padding()
+        .padding(Tide.edge)
         .tidePage()
 }
 
 #Preview("Different Sizes") {
-    VStack(spacing: 30) {
+    VStack(spacing: Tide.s8) {
         TempoLogoView(size: 40)
         TempoLogoView(size: 60)
         TempoLogoView(size: 80)
         TempoLogoView(size: 120)
     }
-    .padding()
+    .padding(Tide.edge)
     .tidePage()
 }
 
 #Preview("No Glow") {
     TempoLogoView(size: 80, showGlow: false)
-        .padding()
+        .padding(Tide.edge)
         .tidePage()
 }

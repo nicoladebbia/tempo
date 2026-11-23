@@ -11,42 +11,48 @@ import SwiftUI
 // MARK: - Onboarding Splash View
 
 // Per STATE_MACHINES.md Section 10 — Animated splash, 1.8s, auto-advances.
+// The mark rises out of the field, the wordmark follows.
 
 struct OnboardingSplashView: View {
     let viewModel: OnboardingViewModel
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     @State
-    private var opacity: Double = 0
+    private var markShown = false
     @State
-    private var scale: Double = 0.8
+    private var wordShown = false
 
     var body: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s5) {
             Spacer()
 
-            TempoLogoView(size: 80, showGlow: true)
-                .scaleEffect(scale)
-                .opacity(opacity)
+            TempoLogoView(size: 96, showGlow: true)
+                .scaleEffect(markShown ? 1 : 0.8)
+                .opacity(markShown ? 1 : 0)
 
             Text("TEMPO")
-                .font(.system(size: 28, weight: .black))
-                .tracking(3)
-                .foregroundStyle(.white)
-                .opacity(opacity)
+                .font(Tide.numeral(34, .heavy))
+                .tracking(6)
+                .foregroundStyle(Tide.text)
+                .opacity(wordShown ? 1 : 0)
+                .offset(y: wordShown ? 0 : Tide.s2)
 
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.8)) {
-                opacity = 1
-                scale = 1
+            guard !reduceMotion else {
+                markShown = true
+                wordShown = true
+                return
             }
+            withAnimation(Tide.lively) { markShown = true }
+            withAnimation(Tide.lively.delay(0.25)) { wordShown = true }
         }
     }
 }
 
 #Preview {
     OnboardingSplashView(viewModel: OnboardingViewModel())
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }
