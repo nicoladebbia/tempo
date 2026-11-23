@@ -31,7 +31,7 @@ struct TempoSectionHeader: View {
             }
 
             Text(title)
-                .font(.tempoTitle3)
+                .font(Tide.headline)
                 .foregroundStyle(Color.tempoTextPrimary)
         }
     }

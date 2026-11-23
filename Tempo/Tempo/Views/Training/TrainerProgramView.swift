@@ -127,7 +127,7 @@ struct TrainerProgramView: View {
             .padding(.top, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Trainer Program")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: complianceKey) {

@@ -95,7 +95,7 @@ struct SupplementsView: View {
                 .padding(.bottom, TempoSpacing.bottomSafe)
             }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .navigationDestination(item: $detailTarget) { supplement in
             SupplementDetailView(supplement: supplement)
         }

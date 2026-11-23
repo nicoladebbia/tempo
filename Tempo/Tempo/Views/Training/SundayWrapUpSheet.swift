@@ -72,7 +72,7 @@ struct SundayWrapUpSheet: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .task { rebuildReportData() }
     }
 

@@ -205,7 +205,7 @@ struct TrainerProgramReviewView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -962,7 +962,7 @@ private struct ExercisePickerSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Match Exercise")
             .navigationBarTitleDisplayMode(.inline)

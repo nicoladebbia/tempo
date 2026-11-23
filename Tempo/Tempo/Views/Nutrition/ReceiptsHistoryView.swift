@@ -51,7 +51,7 @@ struct ReceiptsHistoryView: View {
         .scrollContentBackground(.hidden)
         // Insets rows to the same 20pt gutter as every other Fuel screen.
         .contentMargins(.horizontal, TempoSpacing.screenEdge, for: .scrollContent)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .overlay {
             // Outside the List so the empty state isn't wrapped in a list row.
             if viewModel.receiptState.receipts.isEmpty {

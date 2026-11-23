@@ -50,7 +50,7 @@ struct WeeklyCheckInView: View {
                 }
                 .padding(TempoSpacing.screenEdge)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -94,7 +94,7 @@ struct FoodSearchView: View {
                     }
                 }
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Search Food")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(

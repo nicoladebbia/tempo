@@ -38,7 +38,7 @@ struct CoachMemoryView: View {
                 groupedList
                 footer
             }
-            .background(Color.tempoBgPrimary.ignoresSafeArea())
+            .tidePage()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

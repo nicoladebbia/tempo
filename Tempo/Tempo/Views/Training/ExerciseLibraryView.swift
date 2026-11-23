@@ -85,7 +85,7 @@ struct ExerciseLibraryView: View {
             }
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -281,7 +281,7 @@ struct ExerciseLibraryView: View {
         }
         .padding(.vertical, TempoSpacing.xs)
         .padding(.horizontal, TempoSpacing.xs)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     /// §11.9 — row: demo thumb, name, equipment/type line, and YOUR numbers
@@ -499,7 +499,7 @@ struct CustomExerciseFormView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("New Exercise")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

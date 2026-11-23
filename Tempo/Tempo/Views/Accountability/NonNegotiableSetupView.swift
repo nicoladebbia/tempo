@@ -36,8 +36,7 @@ struct NonNegotiableSetupView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
-
+                TidePageBackground()
                 if nonNegotiables.isEmpty {
                     emptyState
                 } else {
@@ -157,7 +156,7 @@ struct NonNegotiableSetupView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .environment(\.editMode, .constant(.active))
     }
 
@@ -528,7 +527,7 @@ struct NonNegotiableEditSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(editing != nil ? "Edit Non-Negotiable" : "Add Non-Negotiable")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -806,7 +805,7 @@ struct IconPickerSheet: View {
                 }
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Choose Icon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

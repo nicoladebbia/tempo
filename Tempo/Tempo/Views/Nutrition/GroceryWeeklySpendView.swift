@@ -38,7 +38,7 @@ struct GroceryWeeklySpendView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Spend History")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -133,7 +133,7 @@ struct CheaperSwapsSheet: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Cheaper Swaps")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

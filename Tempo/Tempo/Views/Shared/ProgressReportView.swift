@@ -83,7 +83,7 @@ struct ProgressReportView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Progress Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

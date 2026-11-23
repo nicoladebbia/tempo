@@ -76,7 +76,7 @@ struct ScannedProductLabelView: View {
             .padding(.bottom, TempoSpacing.xl)
             .frame(maxWidth: .infinity)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .accessibilityIdentifier("scannedProductLabel")
         .safeAreaInset(edge: .bottom) {
             FoodProductActionBar(product: product, grams: grams, toast: $toast) {

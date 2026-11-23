@@ -55,7 +55,7 @@ struct StreakCalendarView: View {
             }
             .padding(.top, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Streak")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {

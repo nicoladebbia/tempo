@@ -141,6 +141,6 @@ struct GoalSetupView: View {
     var vm = OnboardingViewModel()
 
     GoalSetupView(viewModel: vm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .preferredColorScheme(.dark)
 }

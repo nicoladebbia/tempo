@@ -86,7 +86,7 @@ struct FoodProductActionBar: View {
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.md)
         .padding(.bottom, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {
             logSheet
@@ -132,7 +132,7 @@ struct FoodProductActionBar: View {
         }
         .padding(TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.md)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     // MARK: - Actions

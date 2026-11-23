@@ -47,7 +47,7 @@ struct LeaderboardView: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("LEADERBOARD")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadMockData() }

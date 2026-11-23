@@ -262,7 +262,7 @@ struct DashboardSettingsView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -676,7 +676,7 @@ struct ProfileSettingsDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadProfile() }
@@ -1051,7 +1051,7 @@ struct ScheduleSettingsDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Schedule")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadSettings() }
@@ -1179,7 +1179,7 @@ struct FocusTimerSettingsDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Focus Timer")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -1301,7 +1301,7 @@ struct ModesSettingsDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Modes")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -1402,7 +1402,7 @@ struct SubscriptionDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Subscription")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showPaywall) { PaywallView() }
@@ -1522,7 +1522,7 @@ struct AccountDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Delete your account?", isPresented: $showDeleteConfirm) {

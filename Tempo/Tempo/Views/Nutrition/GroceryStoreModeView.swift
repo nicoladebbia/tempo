@@ -55,7 +55,7 @@ struct GroceryStoreModeView: View {
                 .padding(.vertical, TempoSpacing.lg)
                 .padding(.bottom, TempoSpacing.xxxxxl)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .safeAreaInset(edge: .bottom) {
                 doneShoppingButton
                     .padding(.horizontal, TempoSpacing.screenEdge)

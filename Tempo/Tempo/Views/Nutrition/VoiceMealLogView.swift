@@ -65,7 +65,7 @@ struct VoiceMealLogView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Voice Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

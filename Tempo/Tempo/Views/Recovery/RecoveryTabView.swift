@@ -34,7 +34,7 @@ struct RecoveryTabView: View {
                 } else {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.tempoBgPrimary)
+                        .tidePage()
                 }
             }
             .navigationTitle("Recovery")
@@ -83,6 +83,6 @@ struct RecoveryTabView: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 }

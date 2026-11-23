@@ -67,7 +67,7 @@ struct UndoMealSheet: View {
         .padding(.bottom, TempoSpacing.md)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     private func consequence(_ icon: String, _ text: String) -> some View {

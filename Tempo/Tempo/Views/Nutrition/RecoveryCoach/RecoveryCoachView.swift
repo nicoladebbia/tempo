@@ -35,7 +35,7 @@ struct RecoveryCoachView: View {
             // Own task: SwiftUI cancels a refreshable body when the view updates mid-load.
             .refreshable { await Task { await model.refresh(requestedID: model.session?.id) }.value }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .sheet(isPresented: $showWeighIn) {
             if let session = model.session {
                 ManualWeighInSheet(session: session, startsWithAfter: model.result?.missingPost ?? true) { kg, time in

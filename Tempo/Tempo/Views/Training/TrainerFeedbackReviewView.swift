@@ -94,7 +94,7 @@ struct TrainerFeedbackReviewView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Review Changes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

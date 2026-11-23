@@ -63,7 +63,7 @@ struct PantryView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if showsStaplesPeek, !showStaples {
                 StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {

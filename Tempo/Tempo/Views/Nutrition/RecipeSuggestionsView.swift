@@ -55,7 +55,7 @@ struct RecipeSuggestionsView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Recipes")
         .toolbar {
             // Refresh stays as a one-tap action (it's the most common one
@@ -239,7 +239,7 @@ struct RecipeDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(recipe.name)
         .navigationBarTitleDisplayMode(.inline)
     }

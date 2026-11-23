@@ -57,7 +57,7 @@ struct SupplementPicksView: View {
             .padding(.top, TempoSpacing.md)
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .navigationTitle("Best \(supplement.kind.displayName)")
         .navigationBarTitleDisplayMode(.inline)
         .task {

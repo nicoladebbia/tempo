@@ -48,7 +48,7 @@ struct CoachInterviewView: View {
                 Spacer()
                 footer
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationBarBackButtonHidden(true)
             .toolbar(.hidden, for: .navigationBar)
         }

@@ -65,7 +65,7 @@ struct UniversalScanView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
+                TidePageBackground()
                 content
                     .id(mode)
             }
@@ -139,7 +139,7 @@ struct UniversalScanView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.sm)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     /// Photo modes still work from the library; only the camera is blocked.

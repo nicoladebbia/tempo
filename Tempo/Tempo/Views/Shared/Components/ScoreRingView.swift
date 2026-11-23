@@ -70,6 +70,14 @@ struct ScoreRingView: View {
     }
 
     var body: some View {
+        if size >= 100, maxScore == 100 {
+            TideDial(score: Int(score), caption: label.isEmpty ? "Score" : label, diameter: size)
+        } else {
+            ring
+        }
+    }
+
+    private var ring: some View {
         ZStack {
             // Track
             Circle()

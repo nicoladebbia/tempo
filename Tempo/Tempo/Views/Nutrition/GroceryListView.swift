@@ -70,7 +70,7 @@ struct GroceryListView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .toolbar {
             // Only surface Add/Sync when a list actually exists — there's
             // nothing to add to or sync against until generation runs.

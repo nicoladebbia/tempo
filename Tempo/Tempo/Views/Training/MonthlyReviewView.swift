@@ -56,7 +56,7 @@ struct MonthlyReviewView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(monthDisplayName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -127,7 +127,7 @@ struct MonthlyReviewView: View {
             } label: {
                 HStack {
                     if isGenerating {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(Color.tempoTextInverse)
                     }
                     Text(isGenerating ? "WRITING YOUR REPORT…" : "FILE THE REPORT")
                         .font(.tempoHeadline)
@@ -135,7 +135,7 @@ struct MonthlyReviewView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
             .disabled(isGenerating)

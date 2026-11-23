@@ -108,7 +108,7 @@ struct ValueDemoView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     // MARK: - Sample Card

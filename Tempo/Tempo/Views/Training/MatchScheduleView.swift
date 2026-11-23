@@ -74,7 +74,7 @@ struct MatchScheduleView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Matches")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -193,7 +193,7 @@ private struct MatchEntrySheet: View {
                 .listRowBackground(Color.tempoSurfaceCard)
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Add Match")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

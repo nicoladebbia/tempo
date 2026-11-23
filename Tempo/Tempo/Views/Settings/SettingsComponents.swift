@@ -236,7 +236,7 @@ struct SettingsActionRow: View {
 
 #Preview {
     ZStack {
-        Color.tempoBgPrimary.ignoresSafeArea()
+        TidePageBackground()
         ScrollView {
             VStack(spacing: TempoSpacing.lg) {
                 SettingsGroupCard(title: "You & your day") {

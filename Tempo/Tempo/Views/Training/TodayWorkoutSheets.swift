@@ -51,7 +51,7 @@ struct ExerciseReorderSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .environment(\.editMode, .constant(.active))
             .navigationTitle("Reorder")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,7 +106,7 @@ struct SwapExerciseSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Swap \(target.exercise?.name ?? "Exercise")")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -175,7 +175,7 @@ struct AddExerciseSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)

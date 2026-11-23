@@ -39,7 +39,7 @@ struct RequestedMealView: View {
                     }
                     .padding(TempoSpacing.screenEdge)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.tempoBgPrimary)
+                    .tidePage()
                     .accessibilityIdentifier("requestedMealMissing")
                 }
             }

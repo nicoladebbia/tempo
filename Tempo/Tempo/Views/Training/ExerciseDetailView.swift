@@ -106,7 +106,7 @@ struct ExerciseDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)
         // §10.6 — custom exercises can be deleted; seeded library ones can't.

@@ -85,7 +85,7 @@ struct TellAIRecipeView: View {
                 Spacer()
             }
             .padding(.vertical, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Tell AI")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -196,7 +196,7 @@ private struct RecipePreviewSheet: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Preview")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -59,7 +59,7 @@ struct WeeklyRecoverySummaryView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Weekly Summary")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {

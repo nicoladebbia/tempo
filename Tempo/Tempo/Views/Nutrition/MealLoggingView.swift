@@ -131,9 +131,7 @@ struct MealLoggingView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
-
+                TidePageBackground()
                 VStack(spacing: 0) {
                     // Meal type picker
                     mealTypePicker
@@ -695,7 +693,7 @@ struct PortionEditorView: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Edit portion")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

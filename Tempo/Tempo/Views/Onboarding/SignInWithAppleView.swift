@@ -70,7 +70,7 @@ struct SignInWithAppleView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     private func signIn() async {

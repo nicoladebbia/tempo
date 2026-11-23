@@ -76,7 +76,7 @@ struct ParsedFoodReviewSheet: View {
                 .padding(.bottom, TempoSpacing.lg)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Confirm meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

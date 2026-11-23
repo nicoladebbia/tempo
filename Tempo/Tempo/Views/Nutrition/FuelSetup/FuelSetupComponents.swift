@@ -64,7 +64,7 @@ struct FuelFlowScaffold<Content: View>: View {
             }
             bottomBar
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .dismissKeyboardOnTapOutside()
     }
 
@@ -163,7 +163,7 @@ struct FuelFlowScaffold<Content: View>: View {
                 .accessibilityIdentifier("fuelFlowSkip")
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 }
 

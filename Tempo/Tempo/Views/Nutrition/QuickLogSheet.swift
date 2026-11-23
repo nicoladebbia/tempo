@@ -74,7 +74,7 @@ struct QuickLogSheet: View {
             }
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.top, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Quick Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

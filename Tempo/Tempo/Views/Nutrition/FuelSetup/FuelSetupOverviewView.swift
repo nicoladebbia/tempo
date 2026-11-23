@@ -68,7 +68,7 @@ struct FuelSetupOverviewView: View {
                 saveAllBar(primaryActionTitle)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     // MARK: - Pieces
@@ -248,7 +248,7 @@ struct FuelSetupOverviewView: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     /// Plan generation can't go on: one message naming what's missing, one button.
@@ -271,6 +271,6 @@ struct FuelSetupOverviewView: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 }

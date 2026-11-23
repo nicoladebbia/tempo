@@ -323,5 +323,5 @@ struct PlannedMealCardView: View {
         )
     }
     .padding()
-    .background(Color.tempoBgPrimary)
+    .tidePage()
 }

@@ -113,7 +113,7 @@ struct ReceiptReviewView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }

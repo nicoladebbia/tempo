@@ -80,7 +80,7 @@ struct VoicePantryView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Add to Pantry by Voice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

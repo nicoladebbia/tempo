@@ -56,9 +56,7 @@ struct NutritionTabView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
-
+                TidePageBackground()
                 VStack(spacing: 0) {
                     // Segmented control
                     sectionPicker

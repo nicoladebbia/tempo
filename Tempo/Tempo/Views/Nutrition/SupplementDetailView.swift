@@ -66,7 +66,7 @@ struct SupplementDetailView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(supplement.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

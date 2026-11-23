@@ -41,7 +41,7 @@ struct SleepDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Sleep")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {

@@ -40,7 +40,7 @@ struct WeeklyMealReviewView: View {
             .padding(.vertical, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Week in Review")
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }

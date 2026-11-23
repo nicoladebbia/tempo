@@ -176,7 +176,7 @@ struct MealDetailView: View {
             .padding(.top, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
@@ -323,7 +323,7 @@ struct MealDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.top, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.md)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Edit eat time")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

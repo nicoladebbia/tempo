@@ -68,7 +68,7 @@ struct WizardStepScaffold<Content: View>: View {
             }
             footer
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
     }
 
     private var header: some View {
@@ -143,6 +143,6 @@ struct WizardStepScaffold<Content: View>: View {
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.sm)
         .padding(.bottom, TempoSpacing.bottomSafe)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 }

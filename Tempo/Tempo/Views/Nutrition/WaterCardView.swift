@@ -199,7 +199,7 @@ private struct CustomWaterSheet: View {
             .accessibilityIdentifier("water.customAdd")
         }
         .padding(.top, TempoSpacing.xl)
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .onAppear { focused = true }
     }
 }

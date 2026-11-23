@@ -36,7 +36,7 @@ struct CoachHistoryView: View {
                     list
                 }
             }
-            .background(Color.tempoBgPrimary.ignoresSafeArea())
+            .tidePage()
             .navigationTitle("Past Conversations")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -148,7 +148,7 @@ private struct CoachConversationDetailView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.md)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(conversation.titleSummary.isEmpty ? "Chat" : conversation.titleSummary)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

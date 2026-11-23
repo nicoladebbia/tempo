@@ -87,7 +87,7 @@ struct PrivacyInfoView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
     }

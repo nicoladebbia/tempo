@@ -64,9 +64,7 @@ struct PhotoAnalysisView: View {
     /// plain `Group`, so the title/toolbar attach to the scanner's stack.
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             if showCamera, capturedImage == nil {
                 // Camera capture
                 CameraPickerView(image: $capturedImage) {
@@ -768,7 +766,7 @@ struct PhotoAlternativesSheet: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Other Guesses")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -64,7 +64,7 @@ struct AchievementsView: View {
                 .padding(.bottom, TempoSpacing.xxxl)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("ACHIEVEMENTS")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $selectedAchievement) { achievement in
@@ -284,7 +284,7 @@ struct AchievementsView: View {
             Spacer()
         }
         .padding(.horizontal, TempoSpacing.xxl)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }

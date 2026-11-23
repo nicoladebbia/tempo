@@ -200,7 +200,7 @@ struct TodayWorkoutView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.bottom, 120) // space for floating button
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             // §2.16 — pull-to-refresh: full reload through the same coalesced
             // pipeline the .task uses (an in-flight load absorbs the pull).
             .refreshable {
@@ -1011,7 +1011,7 @@ struct TodayWorkoutView: View {
                         .monospacedDigit()
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
-                        .background(Color.tempoBgPrimary)
+                        .tidePage()
                         .foregroundStyle(Color.tempoTextPrimary)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                 }
@@ -1771,7 +1771,7 @@ struct TodayWorkoutView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
         .padding(.top, TempoSpacing.sm)

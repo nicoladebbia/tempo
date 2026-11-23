@@ -75,7 +75,7 @@ struct RoutinesView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("My Routines")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -207,7 +207,7 @@ struct RoutineEditorView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .environment(\.editMode, .constant(.active))
             .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)
@@ -362,7 +362,7 @@ private struct RoutineExercisePicker: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)

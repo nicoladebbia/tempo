@@ -40,7 +40,7 @@ struct FocusHistoryView: View {
             }
             .padding(.top, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Focus History")
         .navigationBarTitleDisplayMode(.large)
     }

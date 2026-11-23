@@ -49,7 +49,7 @@ struct CoachTabView: View {
                     .controlSize(.large)
                     .tint(Color.tempoSignal)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.tempoBgPrimary)
+                    .tidePage()
             }
         }
         .task {

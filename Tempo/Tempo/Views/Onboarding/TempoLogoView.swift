@@ -108,7 +108,7 @@ struct BoltShape: Shape {
 #Preview("Default Logo") {
     TempoLogoView()
         .padding()
-        .background(Color.tempoBgPrimary)
+        .tidePage()
 }
 
 #Preview("Different Sizes") {
@@ -119,11 +119,11 @@ struct BoltShape: Shape {
         TempoLogoView(size: 120)
     }
     .padding()
-    .background(Color.tempoBgPrimary)
+    .tidePage()
 }
 
 #Preview("No Glow") {
     TempoLogoView(size: 80, showGlow: false)
         .padding()
-        .background(Color.tempoBgPrimary)
+        .tidePage()
 }

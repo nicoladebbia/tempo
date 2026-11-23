@@ -157,7 +157,7 @@ struct AddProductView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .onAppear(perform: applyPrefill)
         .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)

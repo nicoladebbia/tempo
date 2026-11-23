@@ -113,7 +113,7 @@ struct ChallengesView: View {
                 .padding(.bottom, TempoSpacing.xxxl)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("CHALLENGES")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -372,7 +372,7 @@ struct ChallengesView: View {
                 Button(action: action) {
                     Text(ctaTitle)
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .padding(.horizontal, TempoSpacing.xxl)
                         .padding(.vertical, TempoSpacing.md)
                         .background(Color.tempoSignal)
@@ -483,7 +483,7 @@ struct ChallengeCreationSheet: View {
             }
             .padding(.horizontal, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("START A CHALLENGE")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

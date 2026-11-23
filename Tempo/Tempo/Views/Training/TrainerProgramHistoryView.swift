@@ -45,7 +45,7 @@ struct TrainerProgramHistoryView: View {
                 .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Program History")
         .navigationBarTitleDisplayMode(.inline)
     }

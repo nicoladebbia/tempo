@@ -48,7 +48,7 @@ struct SupplementLabelCaptureSheet: View {
             }
             .padding(.horizontal, TempoSpacing.xxl)
             .frame(maxWidth: .infinity)
-            .background(Color.tempoBgPrimary.ignoresSafeArea())
+            .tidePage()
             .navigationTitle("Read a label")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

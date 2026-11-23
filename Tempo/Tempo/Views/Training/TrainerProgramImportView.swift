@@ -87,7 +87,7 @@ struct TrainerProgramImportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
+                TidePageBackground()
                 if isProcessing {
                     processingOverlay
                 } else {
@@ -773,7 +773,7 @@ private struct PasteTextSheet: View {
 
                 Spacer()
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Paste Text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

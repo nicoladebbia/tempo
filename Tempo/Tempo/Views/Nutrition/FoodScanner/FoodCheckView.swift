@@ -99,7 +99,7 @@ struct FoodCheckView: View {
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Check Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -52,7 +52,7 @@ struct PantryVoiceEditView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Pantry Voice Edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

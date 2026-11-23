@@ -136,5 +136,5 @@ struct FoodGroupArt: View {
         }
     }
     .padding()
-    .background(Color.tempoBgPrimary)
+    .tidePage()
 }

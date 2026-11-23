@@ -77,7 +77,7 @@ struct ArenaMainView: View {
                         } label: {
                             Text("Retry")
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.tempoTextInverse)
                                 .padding(.horizontal, TempoSpacing.xxl)
                                 .padding(.vertical, TempoSpacing.md)
                                 .background(Color.tempoSignal)
@@ -117,7 +117,7 @@ struct ArenaMainView: View {
                 freezeSavedOverlay
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("ARENA")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { refreshData() }
@@ -881,7 +881,7 @@ struct ArenaMainView: View {
                 }
                 .padding(.horizontal, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }

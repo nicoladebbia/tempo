@@ -76,7 +76,7 @@ struct MoveQuadrantDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Move")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: completedWorkouts.first?.id) {

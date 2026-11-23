@@ -67,7 +67,7 @@ struct FriendSystemView: View {
             .padding(.horizontal, TempoSpacing.lg)
             .padding(.bottom, TempoSpacing.xxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("FRIENDS")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -141,7 +141,7 @@ struct FriendSystemView: View {
 
                     Button("Accept") { acceptRequest(request) }
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.tempoSignal)
@@ -292,7 +292,7 @@ struct FriendSystemView: View {
             }
             .padding(.horizontal, TempoSpacing.lg)
             .padding(.top, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Add Friends")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

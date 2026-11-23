@@ -220,7 +220,7 @@ private struct OverrideSelectionView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Override")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Activate Override", isPresented: $showOverrideConfirmation) {

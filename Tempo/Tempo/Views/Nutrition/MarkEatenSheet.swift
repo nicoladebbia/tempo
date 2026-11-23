@@ -117,9 +117,9 @@ struct MarkEatenSheet: View {
                 saveButton
                     .padding(.horizontal, TempoSpacing.screenEdge)
                     .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.md)
-                    .background(Color.tempoBgPrimary)
+                    .tidePage()
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(meal.mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -286,7 +286,7 @@ struct MarkEatenSheet: View {
                         .foregroundStyle(Color.tempoTextPrimary)
                         .lineLimit(2 ... 4)
                         .padding(TempoSpacing.sm)
-                        .background(Color.tempoBgPrimary)
+                        .tidePage()
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
                     }
                     VStack(alignment: .leading, spacing: 6) {

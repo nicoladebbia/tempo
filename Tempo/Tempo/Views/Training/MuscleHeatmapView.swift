@@ -202,7 +202,7 @@ struct MuscleHeatmapView: View {
             .padding(.bottom, 120)
             .animation(.spring(duration: 0.3), value: selectedMuscle)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Muscle Map")
         .navigationBarTitleDisplayMode(.inline)
     }

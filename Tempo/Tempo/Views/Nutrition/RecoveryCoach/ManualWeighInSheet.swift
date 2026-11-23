@@ -120,7 +120,7 @@ struct ManualWeighInSheet: View {
                 .padding(.top, TempoSpacing.xl)
             }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .onAppear { focused = true }
     }
 

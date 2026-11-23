@@ -110,7 +110,7 @@ struct FluidSheet: View {
                 .padding(.bottom, TempoSpacing.xl)
             }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .onAppear {
             bottleText = String(model.bottleMl)
             bottleAtOpen = model.bottleMl

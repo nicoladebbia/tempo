@@ -103,7 +103,7 @@ struct WorkoutSummaryView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationBarBackButtonHidden()
         .toolbar {
             if viewModel.todayPlan?.programSessionKey != nil {
@@ -426,7 +426,7 @@ struct WorkoutSummaryView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
     }

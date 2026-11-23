@@ -105,7 +105,7 @@ struct TrainerReportSheet: View {
                 .padding(.top, TempoSpacing.lg)
                 .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Report to Trainer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

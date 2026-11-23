@@ -79,13 +79,6 @@ struct StatCardView: View {
         }
         .padding(TempoSpacing.cardPaddingCompact)
         .frame(height: 80)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .tempoShadow(.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: TempoElevation.cardDarkBorderWidth)
-                .opacity(colorScheme == .dark ? 1 : 0)
-        )
+        .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.tileRadius))
     }
 }

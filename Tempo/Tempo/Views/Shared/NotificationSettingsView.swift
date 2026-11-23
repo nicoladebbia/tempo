@@ -100,7 +100,7 @@ struct NotificationSettingsView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -298,7 +298,7 @@ struct NotificationSettingsView: View {
                                         Text("REC")
                                             .font(.tempoModuleTag)
                                             .fontWeight(.bold)
-                                            .foregroundStyle(Color.tempoBone)
+                                            .foregroundStyle(Color.tempoTextInverse)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 2)
                                             .background(Color.tempoSignal)

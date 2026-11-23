@@ -57,7 +57,7 @@ struct GuidedRunSummaryView: View {
                 }
                 .padding(TempoSpacing.screenEdge)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Session Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

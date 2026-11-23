@@ -26,7 +26,7 @@ struct RestTimerView: View {
             .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     /// Whole seconds left — drives the end-of-rest color shift and pulse.
@@ -97,7 +97,7 @@ struct RestTimerView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 56)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
         .padding(.horizontal, TempoSpacing.screenEdge)

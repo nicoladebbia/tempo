@@ -58,7 +58,7 @@ struct TrainerFeedbackInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
+                TidePageBackground()
                 if isProcessing {
                     processingOverlay
                 } else {

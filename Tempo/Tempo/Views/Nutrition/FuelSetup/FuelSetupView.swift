@@ -140,7 +140,7 @@ struct FuelSetupView: View {
                     )
                 }
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Fuel setup")
             .navigationBarTitleDisplayMode(.inline)
         }

@@ -110,7 +110,7 @@ struct DayRoutineEditor: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.inline)
     }

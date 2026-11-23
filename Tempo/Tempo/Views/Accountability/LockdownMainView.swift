@@ -105,7 +105,7 @@ struct LockdownMainView: View {
                 leisureStatusBar
             }
             .background(
-                Color.tempoBgPrimary
+                TidePageBackground()
                     .opacity(0.95)
                     .background(.ultraThinMaterial)
             )
@@ -115,7 +115,7 @@ struct LockdownMainView: View {
                 unlockCelebrationOverlay
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .sheet(isPresented: $showNonNegotiableSetup) {
             NonNegotiableSetupView()
                 .onDisappear {
@@ -604,7 +604,7 @@ struct LockdownMainView: View {
         .background(
             leisureBackgroundTint
                 .opacity(0.03)
-                .background(Color.tempoBgPrimary)
+                .tidePage()
         )
     }
 

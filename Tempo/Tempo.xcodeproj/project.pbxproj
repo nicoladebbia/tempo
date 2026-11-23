@@ -1309,6 +1309,7 @@
 		F903E2EF64DF1CE1970EBA2A /* OnboardingContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8457A0C1E5AD157EF2DDE996 /* OnboardingContainerView.swift */; };
 		F9B5944C7AC35D6C90EC46E9 /* cue_ex_conventional_deadlift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1FA963958ABC11DDDA931663 /* cue_ex_conventional_deadlift.mp3 */; };
 		FA0EA9473A095414CECCF7A2 /* TrainerFeedbackMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14962528201F74863174B20 /* TrainerFeedbackMigrationTests.swift */; };
+		FA4A14263139B3AAD7CD5137 /* TidePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 556E6A98828CCA89AFBA812B /* TidePage.swift */; };
 		FA6592AB7FC51605C79C9493 /* GuidedRunActivitySnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1155D639044D3DC63A9E23B9 /* GuidedRunActivitySnapshot.swift */; };
 		FA6DC8DFA487FB79718429A7 /* BackgroundSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0EEE1F7D1B6D39B8F5103E /* BackgroundSyncService.swift */; };
 		FA7E7514ED95B5A5C738A967 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B9A3BCA3AB54AD01D0758E3 /* DesignTokens.swift */; };
@@ -1823,6 +1824,7 @@
 		54D72E0EE5B60729EAFA65AF /* cue_ex_face_pull.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_face_pull.mp3; sourceTree = "<group>"; };
 		5529D4C0FEEFAE512079D447 /* ExerciseDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseDeletionTests.swift; sourceTree = "<group>"; };
 		55649A7CB5C3E7107AD0AC41 /* CoachInterviewServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachInterviewServiceTests.swift; sourceTree = "<group>"; };
+		556E6A98828CCA89AFBA812B /* TidePage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TidePage.swift; sourceTree = "<group>"; };
 		55C14A2AFD70ACD88AA55433 /* DailyHydrationTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyHydrationTarget.swift; sourceTree = "<group>"; };
 		55EB01321CEE061E3C677AC7 /* TempoModelContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoModelContainer.swift; sourceTree = "<group>"; };
 		5608309001FB1AA004E0F234 /* MealOrdering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealOrdering.swift; sourceTree = "<group>"; };
@@ -3705,6 +3707,7 @@
 				A0AFD51F8198DE6E60C2384F /* TideGallery.swift */,
 				899169DD738BF35AD7FCC2CC /* TideMood.swift */,
 				9FB14BF5512845F8EF7A9028 /* TideMotion.swift */,
+				556E6A98828CCA89AFBA812B /* TidePage.swift */,
 				D6E1D05D93EB78021CEA7D74 /* TideTokens.swift */,
 			);
 			path = DesignSystem;
@@ -6612,6 +6615,7 @@
 				C60701040F31DA5AA72470EB /* TideGallery.swift in Sources */,
 				594708180C2DC48907A9F931 /* TideMood.swift in Sources */,
 				4CC3EE622D806CE1E8DCB678 /* TideMotion.swift in Sources */,
+				FA4A14263139B3AAD7CD5137 /* TidePage.swift in Sources */,
 				49054C090A96E1958F96D13F /* TideTokens.swift in Sources */,
 				155362927371A714BDF709CD /* TodayCache.swift in Sources */,
 				15DBD956C408D1B6AB640964 /* TodaySections.swift in Sources */,

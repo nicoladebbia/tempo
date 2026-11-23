@@ -69,8 +69,7 @@ struct GuidedRunView: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
-
+            TidePageBackground()
             if let session, session.phase == .finished || session.phase == .endedEarly {
                 GuidedRunSummaryView(
                     plan: plan,

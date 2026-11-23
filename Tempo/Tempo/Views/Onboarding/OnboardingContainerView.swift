@@ -24,8 +24,7 @@ struct OnboardingContainerView: View {
         ZStack {
             // Onboarding follows the main app's bg token so the transition into
             // the dashboard isn't a visual jump from pure black to grey-black.
-            Color.tempoBgPrimary.ignoresSafeArea()
-
+            TidePageBackground()
             VStack(spacing: 0) {
                 // Progress bar — hidden during splash, valueDemo, and complete
                 if viewModel.currentStep != .splash, viewModel.currentStep != .valueDemo, viewModel.currentStep != .complete {

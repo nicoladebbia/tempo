@@ -58,7 +58,7 @@ struct ReceiptCaptureView: View {
     /// the scanner's stack, and its toolbar owns Cancel.
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
+            TidePageBackground()
             if isScanning {
                 ReceiptProcessingView(images: scanPages, progress: scanProgress)
             } else {

@@ -114,7 +114,7 @@ struct CoachInlineChatSheet: View {
                 voiceMode: voiceMode
             )
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
     }

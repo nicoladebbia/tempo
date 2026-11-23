@@ -107,7 +107,7 @@ struct WeeklyHabitsSettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Weekly habits")
         .navigationBarTitleDisplayMode(.inline)
         .task {

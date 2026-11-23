@@ -37,7 +37,7 @@ struct StrainDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Strain")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {

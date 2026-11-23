@@ -32,7 +32,7 @@ struct StaplesPeekCard: View {
                 Image(systemName: "chevron.up")
                     .font(.footnote.weight(.bold))
             }
-            .foregroundStyle(Color.tempoBone)
+            .foregroundStyle(Color.tempoTextInverse)
             .padding(TempoSpacing.cardPadding)
             .background(Color.tempoSignal, in: RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             .shadow(color: .black.opacity(0.2), radius: 10, y: 3)
@@ -103,7 +103,7 @@ struct StaplesSheet: View {
                 Spacer(minLength: 0)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     static let peekHeight: CGFloat = 140

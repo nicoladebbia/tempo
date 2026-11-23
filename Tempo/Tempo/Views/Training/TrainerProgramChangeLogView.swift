@@ -91,7 +91,7 @@ struct TrainerProgramChangeLogView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Changes from Trainer")
         .navigationBarTitleDisplayMode(.inline)
         .alert(

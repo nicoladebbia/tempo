@@ -82,7 +82,7 @@ struct VenueProposalCard: View {
                             .frame(maxWidth: .infinity)
                             .frame(height: 40)
                             .background(Color.tempoSignal)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tempoTextInverse)
                             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -145,7 +145,7 @@ struct VenueProposalCard: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
                     .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tempoTextInverse)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
             }
             .buttonStyle(.plain)

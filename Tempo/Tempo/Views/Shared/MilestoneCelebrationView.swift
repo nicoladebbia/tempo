@@ -20,8 +20,7 @@ struct MilestoneCelebrationView: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
-
+            TidePageBackground()
             VStack(spacing: TempoSpacing.xl) {
                 Spacer()
 

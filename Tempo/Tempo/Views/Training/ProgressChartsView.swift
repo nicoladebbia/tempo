@@ -88,7 +88,7 @@ struct ProgressChartsView: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
         // NOTE: there is deliberately NO orphan-purge on appearance. A prior

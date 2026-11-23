@@ -87,7 +87,7 @@ struct WhoopConnectionView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Whoop Connection")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -142,7 +142,7 @@ struct WhoopConnectionView: View {
                     if whoop.isDemoMode, isConnected {
                         Text("DEMO")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tempoTextInverse)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.tempoAmber)
@@ -325,7 +325,7 @@ struct WhoopConnectionView: View {
         HStack(alignment: .top, spacing: TempoSpacing.sm) {
             Text(number)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .frame(width: 24, height: 24)
                 .background(Color.tempoSignal)
                 .clipShape(Circle())
@@ -379,7 +379,7 @@ struct WhoopConnectionView: View {
                 HStack(spacing: TempoSpacing.sm) {
                     if isConnecting {
                         ProgressView()
-                            .tint(.white)
+                            .tint(Color.tempoTextInverse)
                     }
                     Text(isConnecting ? "Connecting..." : "Connect Whoop")
                         .font(.tempoHeadline)
@@ -387,7 +387,7 @@ struct WhoopConnectionView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
             .disabled(isConnecting)
@@ -433,7 +433,7 @@ struct WhoopConnectionView: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
                 .background(Color.tempoSignal)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tempoTextInverse)
                 .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
     }

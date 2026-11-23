@@ -143,7 +143,7 @@ struct WeeklyPlanPreviewView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

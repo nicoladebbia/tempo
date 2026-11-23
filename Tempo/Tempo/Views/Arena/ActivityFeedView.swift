@@ -38,7 +38,7 @@ struct ActivityFeedView: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("ACTIVITY")
         .navigationBarTitleDisplayMode(.inline)
     }

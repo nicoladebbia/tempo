@@ -140,7 +140,7 @@ struct WorkoutHistoryView: View {
                 .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         #if DEBUG
         // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
         // path as the file picker (parse off-main, unit prompt, progress).

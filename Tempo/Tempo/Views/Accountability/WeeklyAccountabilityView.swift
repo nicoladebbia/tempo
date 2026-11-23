@@ -32,7 +32,7 @@ struct WeeklyAccountabilityView: View {
                 emptyState
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("WEEKLY REPORT CARD")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadWeekData() }

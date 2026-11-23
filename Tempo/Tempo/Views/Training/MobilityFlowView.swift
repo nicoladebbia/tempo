@@ -41,7 +41,7 @@ struct MobilityFlowPickerView: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.top, TempoSpacing.md)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Mobility Flows")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -126,7 +126,7 @@ struct MobilityFlowPlayerView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(flow.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -256,7 +256,7 @@ struct MobilityFlowPlayerView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tempoTextInverse)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
             .padding(.bottom, TempoSpacing.xxl)

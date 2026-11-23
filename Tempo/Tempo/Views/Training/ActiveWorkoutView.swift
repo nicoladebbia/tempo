@@ -226,8 +226,7 @@ struct ActiveWorkoutView: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
-
+            TidePageBackground()
             VStack(spacing: 0) {
                 // Timer bar
                 timerBar
@@ -259,7 +258,7 @@ struct ActiveWorkoutView: View {
                     // Transient states (cooldown/summary/saved/discarded/idle):
                     // the cover is being dismissed — show the app background, not
                     // a blank "broken"-looking view, during the teardown frame.
-                    Color.tempoBgPrimary
+                    TidePageBackground()
                 }
             }
         }
@@ -291,7 +290,7 @@ struct ActiveWorkoutView: View {
                     SessionNotesField(plan: plan)
                         .padding(TempoSpacing.screenEdge)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .background(Color.tempoBgPrimary)
+                        .tidePage()
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
@@ -851,7 +850,7 @@ struct ActiveWorkoutView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 56)
                     .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tempoTextInverse)
                     .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
             }
         }
@@ -965,7 +964,7 @@ struct ActiveWorkoutView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
 
@@ -1043,7 +1042,7 @@ struct ActiveWorkoutView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
                 .padding(.horizontal, TempoSpacing.screenEdge)
@@ -1326,7 +1325,7 @@ struct ActiveWorkoutView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
 
@@ -1406,7 +1405,7 @@ struct ActiveWorkoutView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 56)
                         .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
 

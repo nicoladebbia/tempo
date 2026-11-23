@@ -94,7 +94,7 @@ struct CoachChatView: View {
                 if !listening { lastVoicePartial = "" }
             }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .alert("End this chat?", isPresented: $endChatConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("End", role: .destructive) {
@@ -148,7 +148,7 @@ struct CoachChatView: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     // MARK: - Budget banner
@@ -294,7 +294,7 @@ struct CoachChatView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.xs)
             .frame(maxWidth: .infinity, alignment: .center)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
     }
 
     // MARK: - Voice
@@ -628,7 +628,7 @@ struct CoachInputBar: View {
         }
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.tempoSteel.opacity(0.2))

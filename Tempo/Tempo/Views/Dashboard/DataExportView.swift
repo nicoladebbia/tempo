@@ -96,7 +96,7 @@ struct DataExportView: View {
             .listRowBackground(Color.tempoSurfaceCard)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Export Data")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showShareSheet) {

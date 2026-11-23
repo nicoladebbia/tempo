@@ -48,7 +48,7 @@ struct RunHistoryView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Runs")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -232,7 +232,7 @@ struct RunDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Run")
         .navigationBarTitleDisplayMode(.inline)
     }

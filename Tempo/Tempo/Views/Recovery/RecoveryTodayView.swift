@@ -68,7 +68,7 @@ struct RecoveryTodayView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .refreshable {
             await viewModel.forceRefresh(modelContext: modelContext)
         }
@@ -643,7 +643,7 @@ struct MetricTrendSheet: View {
             Spacer()
         }
         .padding(TempoSpacing.screenEdge)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     private func summaryItem(label: String, value: Double?) -> some View {

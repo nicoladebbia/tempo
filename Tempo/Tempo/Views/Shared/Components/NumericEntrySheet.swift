@@ -137,7 +137,7 @@ struct NumericEntrySheet: View {
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.bottom, TempoSpacing.md)
             }
-            .background(Color.tempoBgPrimary.ignoresSafeArea())
+            .tidePage()
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

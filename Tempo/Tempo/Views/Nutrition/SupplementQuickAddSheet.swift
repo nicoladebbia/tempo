@@ -108,10 +108,10 @@ struct SupplementQuickAddSheet: View {
                 .disabled(selectedIDs.isEmpty)
                 .padding(.horizontal, TempoSpacing.screenEdge)
                 .padding(.vertical, TempoSpacing.md)
-                .background(Color.tempoBgPrimary)
+                .tidePage()
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     private var emptyAllOnShelf: some View {
@@ -198,7 +198,7 @@ struct SupplementQuickAddSheet: View {
             .buttonStyle(.tempoPrimary)
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.vertical, TempoSpacing.md)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
         }
     }
 

@@ -54,7 +54,7 @@ struct BodyQuadrantDetailView: View {
             .padding(.horizontal, TempoSpacing.screenEdge)
             .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Body")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showWhoopConnect) {

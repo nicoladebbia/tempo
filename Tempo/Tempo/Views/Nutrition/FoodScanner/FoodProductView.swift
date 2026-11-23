@@ -108,7 +108,7 @@ struct FoodProductView: View {
             .padding(.top, TempoSpacing.sm)
             .padding(.bottom, TempoSpacing.xxxxl)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle(product.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -973,7 +973,7 @@ struct FoodProductView: View {
         .padding(.horizontal, TempoSpacing.screenEdge)
         .padding(.top, TempoSpacing.md)
         .padding(.bottom, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
     }
 
     // MARK: - Helpers

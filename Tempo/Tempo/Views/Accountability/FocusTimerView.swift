@@ -55,9 +55,7 @@ struct FocusTimerView: View {
     var body: some View {
         ZStack {
             // Background
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             // Phase-tinted background
             phaseBackground
                 .ignoresSafeArea()
@@ -449,7 +447,7 @@ struct FocusTimerView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Study Subject")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -622,7 +620,7 @@ struct FocusTimerView: View {
                         if viewModel.distractionCount > 0 {
                             Text("\(viewModel.distractionCount)")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.tempoTextInverse)
                                 .frame(width: 16, height: 16)
                                 .background(Color.tempoSignal)
                                 .clipShape(Circle())
@@ -842,7 +840,7 @@ struct FocusTimerView: View {
                 } label: {
                     Text("DONE")
                         .font(.tempoHeadline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tempoTextInverse)
                         .frame(width: 160, height: 52)
                         .background(Color.tempoElectric)
                         .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
@@ -857,9 +855,7 @@ struct FocusTimerView: View {
 
     private var reviewOverlay: some View {
         ZStack {
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             ScrollView {
                 VStack(spacing: TempoSpacing.lg) {
                     Text("Session Review")
@@ -906,7 +902,7 @@ struct FocusTimerView: View {
                     } label: {
                         Text("DONE")
                             .font(.tempoHeadline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tempoTextInverse)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .background(Color.tempoElectric)
@@ -1089,7 +1085,7 @@ struct FocusTimerView: View {
                 .listRowBackground(Color.tempoSurfaceCard)
             }
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Focus Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

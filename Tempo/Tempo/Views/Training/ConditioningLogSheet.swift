@@ -86,7 +86,7 @@ struct ConditioningLogSheet: View {
                 }
                 .padding(TempoSpacing.screenEdge)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Log Block")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

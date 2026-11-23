@@ -371,7 +371,7 @@ struct TrainingSettingsDetailView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Training")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -488,7 +488,7 @@ struct CustomSplitEditorView: View {
             .padding(.vertical, TempoSpacing.lg)
         }
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Custom Split")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

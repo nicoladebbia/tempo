@@ -130,7 +130,7 @@ struct ReceiptProductPickerView: View {
                 .buttonStyle(.tempoSecondary)
                 .padding(TempoSpacing.screenEdge)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Find Product")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

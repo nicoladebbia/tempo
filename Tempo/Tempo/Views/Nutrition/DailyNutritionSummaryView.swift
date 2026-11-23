@@ -137,7 +137,7 @@ struct DailyNutritionSummaryView: View {
             .padding(.bottom, TempoSpacing.bottomSafe)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {

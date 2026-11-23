@@ -64,9 +64,7 @@ struct FoodBarcodeFlow: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(

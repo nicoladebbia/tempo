@@ -67,23 +67,9 @@ struct LinearProgressBar: View {
                 }
             }
 
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    // Track
-                    Capsule()
-                        .fill(trackColor)
-                        .frame(height: height)
-
-                    // Fill
-                    Capsule()
-                        .fill(fillColor)
-                        .frame(
-                            width: min(animatedProgress, 1.0) * geometry.size.width,
-                            height: height
-                        )
-                }
-            }
-            .frame(height: height)
+            TideLevelBar(progress: min(animatedProgress, 1.0), color: fillColor, height: height)
+                .background(Tide.fill, in: .capsule)
+                .accessibilityHidden(true)
         }
         .onAppear {
             withAnimation(TempoAnimation.springData.delay(0.1)) {

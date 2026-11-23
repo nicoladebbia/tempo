@@ -67,7 +67,7 @@ struct PaywallView: View {
             .padding(.top, TempoSpacing.xxl)
             .padding(.bottom, 40)
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .overlay(alignment: .topTrailing) {
             dismissButton
         }
@@ -319,7 +319,7 @@ struct PaywallView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .foregroundStyle(Color.tempoBone)
+            .foregroundStyle(Color.tempoTextInverse)
             .background(Color.tempoSignal)
             .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
         }
