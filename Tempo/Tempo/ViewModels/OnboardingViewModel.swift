@@ -218,7 +218,8 @@ final class OnboardingViewModel {
     func complete() {
         UserDefaults.standard.set(true, forKey: "tempo.onboarding.complete")
         UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
-        UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data")
+        // "tempo.onboarding.data" stays until ContentView has built the
+        // profile from it (name, split, experience); it clears it then.
         onComplete?()
     }
 

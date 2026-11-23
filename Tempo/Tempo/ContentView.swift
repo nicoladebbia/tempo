@@ -94,6 +94,9 @@ struct ContentView: View {
     private func ensureUserProfile() {
         // Runs every launch (cheap when there's nothing to heal).
         dedupeUserSettings()
+        // Onboarding leaves its answers for this function to read; they are
+        // not needed once the profile exists.
+        defer { UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data") }
         let descriptor = FetchDescriptor<UserProfile>()
         guard (try? modelContext.fetchCount(descriptor)) == 0 else {
             return
