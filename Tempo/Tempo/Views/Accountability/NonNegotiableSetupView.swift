@@ -406,19 +406,13 @@ struct NonNegotiableEditSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                // Name
+                // Name, type and icon: one group
                 Section {
                     TextField("Name", text: $name)
                         .font(Tide.body)
                         .foregroundStyle(Tide.text)
                         .frame(minHeight: Tide.hit)
-                } header: {
-                    Text("Name").tideLabel(Tide.text3)
-                }
-                .tideListRow()
 
-                // Type
-                Section {
                     Picker("Type", selection: $selectedType) {
                         ForEach(NonNegotiableType.allCases, id: \.self) { type in
                             Text(type.displayName)
@@ -427,13 +421,7 @@ struct NonNegotiableEditSheet: View {
                     }
                     .font(Tide.body)
                     .frame(minHeight: Tide.hit)
-                } header: {
-                    Text("Type").tideLabel(Tide.text3)
-                }
-                .tideListRow()
 
-                // Icon
-                Section {
                     Button {
                         showIconPicker = true
                     } label: {
@@ -457,24 +445,14 @@ struct NonNegotiableEditSheet: View {
                     .buttonStyle(.plain)
                     .accessibilityHint("Choose an icon")
                 } header: {
-                    Text("Icon").tideLabel(Tide.text3)
+                    Text("Details").tideLabel(Tide.text3)
                 }
                 .tideListRow()
 
-                // Target
+                // Target and how it is tracked
                 Section {
                     targetEditor
-                } header: {
-                    Text("Target").tideLabel(Tide.text3)
-                } footer: {
-                    Text(targetHelpText)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                }
-                .tideListRow()
 
-                // Tracking
-                Section {
                     Picker("Tracking", selection: $trackingMethod) {
                         Text("Manual").tag(TrackingMethod.manual)
                         Text("Timer").tag(TrackingMethod.timer)
@@ -484,21 +462,20 @@ struct NonNegotiableEditSheet: View {
                     .font(Tide.body)
                     .frame(minHeight: Tide.hit)
                 } header: {
-                    Text("Tracking method").tideLabel(Tide.text3)
+                    Text("Target").tideLabel(Tide.text3)
+                } footer: {
+                    Text(targetHelpText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
                 .tideListRow()
 
-                // Active days
+                // Schedule
                 Section {
                     activeDaysPicker
-                } header: {
-                    Text("Active days").tideLabel(Tide.text3)
-                }
-                .tideListRow()
 
-                // Active toggle (edit only)
-                if editing != nil {
-                    Section {
+                    // Active toggle (edit only)
+                    if editing != nil {
                         Toggle(isOn: $isActive) {
                             Text("Active")
                                 .font(Tide.body)
@@ -507,8 +484,10 @@ struct NonNegotiableEditSheet: View {
                         .tint(mood.accent)
                         .frame(minHeight: Tide.hit)
                     }
-                    .tideListRow()
+                } header: {
+                    Text("Active days").tideLabel(Tide.text3)
                 }
+                .tideListRow()
             }
             .tidePage()
             .navigationTitle(editing != nil ? "Edit Non-Negotiable" : "Add Non-Negotiable")

@@ -59,11 +59,8 @@ struct ArenaMainView: View {
         ZStack {
             switch viewModel?.loadState ?? .loading {
             case .loading:
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Tide.text2)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityLabel("Loading Arena")
+                // The page's own shape, breathing, instead of a bare spinner.
+                RecoverySkeleton(label: "Loading Arena")
 
             case let .error(message):
                 TideEmptyPanel(
@@ -185,38 +182,34 @@ struct ArenaMainView: View {
     private func heroCard(_ vm: ArenaViewModel) -> some View {
         let nextLevel = vm.level + 1
         let nextName = nextLevel <= LevelSystem.definitions.count ? LevelSystem.definition(for: nextLevel).name : "Max"
-        return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Level").tideLabel()
-                Spacer(minLength: Tide.s2)
-                TideStatusPill(
-                    text: vm.currentLeague.displayName, tint: vm.currentLeague.tideTint,
-                    systemImage: vm.currentLeague.iconName
-                )
-            }
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                TideNumber("\(vm.level)", size: Tide.numeralHero, relativeTo: .largeTitle)
-                Text(vm.levelTitle)
-                    .font(Tide.title2)
-                    .foregroundStyle(mood.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
-            }
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                TideLevelBar(progress: vm.xpProgress, height: Tide.bar)
-                HStack(alignment: .firstTextBaseline) {
-                    Text("\(vm.xpForNextLevel.formatted()) XP to level \(nextLevel)")
-                        .font(Tide.caption).foregroundStyle(Tide.text2)
-                    Spacer(minLength: Tide.s2)
-                    Text(nextName).font(Tide.caption).foregroundStyle(Tide.text2)
+        return RecoveryHero {
+            // The ring is the way to the next level, lit like the focus dial.
+            TideTimerDial(progress: vm.xpProgress, accent: mood.accent, diameter: Tide.dialHero) {
+                VStack(spacing: 0) {
+                    Text("Level").tideLabel()
+                    TideNumber("\(vm.level)", size: Tide.numeralL, relativeTo: .title)
                 }
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
             }
-            TideDivider()
+        } side: {
+            TideStatusPill(
+                text: vm.currentLeague.displayName, tint: vm.currentLeague.tideTint,
+                systemImage: vm.currentLeague.iconName
+            )
+            Text(vm.levelTitle)
+                .font(Tide.title2)
+                .foregroundStyle(mood.accent)
+                .lineLimit(2)
+                .minimumScaleFactor(Tide.labelShrink)
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(vm.xpForNextLevel.formatted()) XP to level \(nextLevel)")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                Spacer(minLength: Tide.s2)
+                Text(nextName).font(Tide.caption).foregroundStyle(Tide.text2)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(Tide.labelShrink)
             TideNumber(vm.totalXP.formatted(), unit: "XP total", size: Tide.numeralS, relativeTo: .headline)
         }
-        .tideCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "Level \(vm.level), \(vm.levelTitle), \(vm.currentLeague.displayName) league. "

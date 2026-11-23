@@ -482,6 +482,9 @@ extension Tide {
 /// lines of text, then three cards. It breathes slowly and holds still when
 /// Reduce Motion is on.
 struct RecoverySkeleton: View {
+    /// What VoiceOver says while the page loads.
+    var label = "Loading"
+
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
     @State
@@ -518,7 +521,7 @@ struct RecoverySkeleton: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading")
+        .accessibilityLabel(label)
     }
 }
 
