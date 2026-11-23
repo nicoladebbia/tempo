@@ -20,85 +20,108 @@
 //
 
 #if DEBUG
-import SwiftUI
+    import SwiftUI
 
-struct DailyReadinessHarnessView: View {
-    @Environment(ServiceContainer.self) private var services
+    struct DailyReadinessHarnessView: View {
+        @Environment(ServiceContainer.self) private var services
+        @Environment(\.tideMood) private var mood
 
-    @State private var running = false
-    @State private var output = "Tap Run to fire ~20 synthetic pictures through the real Haiku endpoint.\n\nThis spends up to 20 Haiku calls. Read the verdict before starting D1."
-    @State private var verdict = ""
+        @State private var running = false
+        @State private var output = "Tap Run to fire ~20 synthetic pictures through the real Haiku endpoint.\n\nThis spends up to 20 Haiku calls. Read the verdict before starting D1."
+        @State private var verdict = ""
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("D0 Prompt Harness")
-                .font(.title2.bold())
-            Text("Proves Haiku returns sensible, parseable sessions before D1 is built. ≤20 Haiku calls/run.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            Button {
-                Task { await run() }
-            } label: {
-                HStack {
-                    if running { ProgressView().padding(.trailing, 4) }
-                    Text(running ? "Running…" : "Run harness (≤20 Haiku calls)")
-                }
-            }
-            .disabled(running)
-            .buttonStyle(.borderedProminent)
-
-            if !verdict.isEmpty {
-                Text(verdict)
-                    .font(.headline)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(verdictColor.opacity(0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
+        var body: some View {
             ScrollView {
-                Text(output)
-                    .font(.system(.caption, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: Tide.s4) {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        Text("D0 prompt harness")
+                            .font(Tide.title)
+                            .foregroundStyle(Tide.text)
+                            .accessibilityAddTraits(.isHeader)
+                        Text("Proves Haiku returns sensible, parseable sessions before D1 is built. Up to 20 Haiku calls per run.")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        Task { await run() }
+                    } label: {
+                        HStack(spacing: Tide.s2) {
+                            if running {
+                                ProgressView().tint(Tide.ink)
+                            }
+                            Text(running ? "Running…" : "Run harness (≤20 Haiku calls)")
+                        }
+                    }
+                    .disabled(running)
+                    .buttonStyle(.tidePrimary)
+
+                    if !verdict.isEmpty {
+                        Text(verdict)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(Tide.s4)
+                            .glassEffect(.regular.tint(verdictColor.opacity(0.28)), in: .rect(cornerRadius: Tide.tileRadius))
+                    }
+
+                    Text(output)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(Tide.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s8)
             }
+            .scrollEdgeEffectStyle(.soft, for: .all)
+            .tidePage()
+            .navigationTitle("D0 Harness")
+            .navigationBarTitleDisplayMode(.inline)
         }
-        .padding()
-        .navigationTitle("D0 Harness")
-    }
 
-    private var verdictColor: Color {
-        if verdict.contains("PASS") { return .green }
-        if verdict.contains("FAIL") { return .red }
-        return .orange
-    }
-
-    @MainActor
-    private func run() async {
-        running = true
-        defer { running = false }
-        verdict = ""
-        output = "Running…"
-
-        let result = await DailyReadinessHarness.run(apiClient: services.apiClient)
-
-        verdict = result.verdict
-        var lines: [String] = []
-        lines.append("PROMPT QUALITY (sensible unaided): \(result.sensibleUnaided)/\(result.total)")
-        lines.append("Parsed cleanly:                   \(result.parsed)/\(result.total)")
-        lines.append("Floor had to rescue:              \(result.floorRescued) (high = unsafe prompt)")
-        lines.append("Longest shortWhy:                 \(result.maxShortWhyLen)/120 budget (shown in full; word-cut only past 240)")
-        lines.append("Anti-patterns passed:             \(result.antiPatternPassed)/\(result.antiPatternTotal)")
-        lines.append("  └ PROMPT-ONLY gate (the real one): \(result.promptOnlyAntiPatternPassed)/\(result.promptOnlyAntiPatternTotal)  (floor-caught misses are safe by design)")
-        lines.append("")
-        if result.failures.isEmpty {
-            lines.append("No failures. 🎯")
-        } else {
-            lines.append("FAILURES (triage: prompt-fail vs too-strict-judge):")
-            lines.append(contentsOf: result.failures)
+        private var verdictColor: Color {
+            if verdict.contains("PASS") {
+                return mood.accent
+            }
+            if verdict.contains("FAIL") {
+                return Tide.danger
+            }
+            return Tide.streak
         }
-        output = lines.joined(separator: "\n")
+
+        @MainActor
+        private func run() async {
+            running = true
+            defer { running = false }
+            verdict = ""
+            output = "Running…"
+
+            let result = await DailyReadinessHarness.run(apiClient: services.apiClient)
+
+            verdict = result.verdict
+            var lines: [String] = []
+            lines.append("PROMPT QUALITY (sensible unaided): \(result.sensibleUnaided)/\(result.total)")
+            lines.append("Parsed cleanly:                   \(result.parsed)/\(result.total)")
+            lines.append("Floor had to rescue:              \(result.floorRescued) (high = unsafe prompt)")
+            lines.append("Longest shortWhy:                 \(result.maxShortWhyLen)/120 budget (shown in full; word-cut only past 240)")
+            lines.append("Anti-patterns passed:             \(result.antiPatternPassed)/\(result.antiPatternTotal)")
+            lines
+                .append(
+                    "  └ PROMPT-ONLY gate (the real one): \(result.promptOnlyAntiPatternPassed)/\(result.promptOnlyAntiPatternTotal)  (floor-caught misses are safe by design)"
+                )
+            lines.append("")
+            if result.failures.isEmpty {
+                lines.append("No failures. 🎯")
+            } else {
+                lines.append("FAILURES (triage: prompt-fail vs too-strict-judge):")
+                lines.append(contentsOf: result.failures)
+            }
+            output = lines.joined(separator: "\n")
+        }
     }
-}
 #endif

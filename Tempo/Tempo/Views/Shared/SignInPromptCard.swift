@@ -3,9 +3,9 @@
 // Tempo
 //
 // One Sign in with Apple surface for every signed-out entry point: Settings
-// → Account and the Dashboard nudge. Apple's own button (black in light
-// mode, white in dark — App Review wants the official look) as a full-width
-// pill inside a Tempo card, with a one-line reason to sign in. Same SIWA
+// → Account and the Dashboard nudge. Apple's own button (the white one,
+// since the app is dark — App Review wants the official look) as a
+// full-width pill inside a Tide glass card, with a one-line reason to sign in. Same SIWA
 // flow as onboarding: nonce set in onRequest, token exchanged through
 // AuthService.
 //
@@ -14,8 +14,9 @@ import AuthenticationServices
 import SwiftUI
 
 struct SignInPromptCard: View {
-    /// Which design language the card is drawn in: `tempo` for the screens
-    /// not rebuilt yet (Settings), `tide` for rebuilt ones (Today).
+    /// Which screen the card is drawn for: `tempo` for the screens not
+    /// rebuilt yet (Settings), `tide` for rebuilt ones (Today). Both are drawn
+    /// in Tide; the only difference is the identifier Today's tests look for.
     enum Style {
         case tempo
         case tide
@@ -27,8 +28,6 @@ struct SignInPromptCard: View {
 
     @Environment(ServiceContainer.self)
     private var services
-    @Environment(\.colorScheme)
-    private var colorScheme
     @Environment(\.tideMood)
     private var mood
     @State
@@ -44,14 +43,14 @@ struct SignInPromptCard: View {
 
     var body: some View {
         switch style {
-        case .tempo: tempoCard
-        case .tide: tideCard
+        case .tempo: card
+        case .tide: card.accessibilityIdentifier("today.signin")
         }
     }
 
-    // MARK: Tide
+    // MARK: Card
 
-    private var tideCard: some View {
+    private var card: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(alignment: .top, spacing: Tide.s3) {
                 Image(systemName: "sparkles")
@@ -91,63 +90,6 @@ struct SignInPromptCard: View {
             }
         }
         .tideCard()
-        .accessibilityIdentifier("today.signin")
-    }
-
-    // MARK: Tempo (screens not rebuilt yet)
-
-    private var tempoCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 36, height: 36)
-                    .background(Color.tempoSignal.opacity(TempoOpacity.o15))
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text(Self.title)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text(Self.detail)
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                if let onDismiss {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.tempoCaption1.weight(.semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .frame(width: 28, height: 28)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Not now")
-                }
-            }
-
-            appleButton(colorScheme == .dark ? .white : .black)
-                // Re-create on scheme change: the style is read once at init.
-                .id(colorScheme)
-
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.circle")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
-            }
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoSignal.opacity(TempoOpacity.o15), lineWidth: 1)
-        )
     }
 
     // MARK: Shared
@@ -174,6 +116,7 @@ struct SignInPromptCard: View {
 
             if isSigningIn {
                 ProgressView()
+                    .tint(Tide.text)
             }
         }
         .frame(height: Self.appleButtonHeight)
