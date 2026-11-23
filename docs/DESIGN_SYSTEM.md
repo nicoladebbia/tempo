@@ -327,7 +327,7 @@ No literal colours, point sizes, paddings or durations in a Tide screen: add a t
 
 ### 18.4 Motion and power
 
-Shaders get their time from `TideClock`. It stops (and the shader draws one still frame) under Reduce Motion, in Low Power Mode, when the app is not active and while the view is off screen. Do not drive a shader from your own timer. `TideShaders.prewarm()` compiles the shaders after the first frame so the first screen that uses one does not stall.
+Shaders get their time from `TideClock`. It stops (and the shader draws one still frame) under Reduce Motion, in Low Power Mode, when the app is not active, while the view is off screen (another tab, scrolled away) and while something covers it. SwiftUI still reports a view under a sheet, a full-screen cover or a pushed page as visible, so whoever presents marks what it covers with `.tideCovered(_:)`, placed below the `.sheet`/`.fullScreenCover` so the presented content keeps its own clock. Every new sheet or cover over a Tide screen needs this. Do not drive a shader from your own timer. `TideShaders.prewarm()` compiles the shaders after the first frame so the first screen that uses one does not stall.
 
 ### 18.5 Rules for a rebuilt screen
 
