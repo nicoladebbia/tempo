@@ -54,13 +54,15 @@ struct ScanBarcodeSurface: View {
                 scanner
             case .notDetermined:
                 VStack(spacing: Tide.s4) {
-                    ProgressView().controlSize(.large).tint(mood.accent)
+                    KitchenHeroDisc(systemImage: "camera.fill")
                     Text("Allow the camera to scan.")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
                     Button("Allow camera") { Task { await ask() } }
                         .buttonStyle(.tidePrimary)
                 }
+                .frame(maxWidth: .infinity)
                 .padding(Tide.s6)
                 .kitchenCameraPanel()
                 .padding(.horizontal, Tide.edge)
@@ -112,16 +114,15 @@ struct ScanBarcodeSurface: View {
         ZStack {
             ScanBarcodeCamera(onBarcode: onBarcode)
                 .ignoresSafeArea()
-
+                .kitchenScrim()
+            // Same container as the scrim's window, so the brackets sit exactly on it.
+            KitchenFrame()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
             VStack {
                 if isOffline {
                     offlineBanner
                 }
-                Spacer()
-                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
-                    .strokeBorder(mood.accent, lineWidth: 3)
-                    .frame(width: Tide.Kitchen.viewfinderWidth, height: Tide.Kitchen.viewfinderHeight)
-                    .accessibilityHidden(true)
                 Spacer()
                 VStack(spacing: Tide.s2) {
                     Text(prompt)
@@ -134,11 +135,14 @@ struct ScanBarcodeSurface: View {
                             .foregroundStyle(Tide.text2)
                             .multilineTextAlignment(.center)
                     }
-                    Button("Type the barcode instead") { showManualEntry = true }
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(mood.accent)
-                        .frame(minHeight: Tide.hit)
-                        .accessibilityIdentifier("scanTypeBarcode")
+                    Button {
+                        showManualEntry = true
+                    } label: {
+                        Label("Type the barcode instead", systemImage: "keyboard")
+                    }
+                    .buttonStyle(.tideGlass)
+                    .padding(.top, Tide.s1)
+                    .accessibilityIdentifier("scanTypeBarcode")
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, Tide.s5)
@@ -179,10 +183,10 @@ struct ScanBarcodeSurface: View {
         return VStack(spacing: Tide.s4) {
             Spacer()
             VStack(spacing: Tide.s4) {
-                Image(systemName: isUnsupported ? "camera.metering.unknown" : "camera.fill")
-                    .font(Tide.largeTitle)
-                    .foregroundStyle(Tide.text3)
-                    .accessibilityHidden(true)
+                KitchenHeroDisc(
+                    systemImage: isUnsupported ? "camera.metering.unknown" : "camera.fill",
+                    tint: isUnsupported ? Tide.text3 : Tide.Kitchen.warn
+                )
                 Text(Self.title(for: permission))
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)

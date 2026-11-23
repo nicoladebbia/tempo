@@ -88,6 +88,8 @@ struct PantryVoiceEditView: View {
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
 
             Button {
                 Task { await toggleRecording() }
@@ -95,14 +97,18 @@ struct PantryVoiceEditView: View {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
                     .font(Tide.largeTitle)
                     .foregroundStyle(Tide.ink)
-                    .frame(width: 112, height: 112)
+                    .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
                     .glassEffect(
                         .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
                         in: .circle
                     )
                     .contentTransition(.symbolEffect(.replace))
+                    .background {
+                        KitchenListeningRing(active: transcriber.isListening, tint: Tide.danger)
+                    }
             }
             .buttonStyle(.plain)
+            .padding(.vertical, Tide.s6)
             .sensoryFeedback(.impact, trigger: transcriber.isListening)
             .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
 
@@ -116,9 +122,7 @@ struct PantryVoiceEditView: View {
             }
 
             if let err = transcriber.error {
-                Text(err)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
+                KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: err, tint: Tide.danger)
             }
             Spacer()
         }
@@ -155,9 +159,7 @@ struct PantryVoiceEditView: View {
 
     private var confirmSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Confirm these changes")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
+            TideSectionLabel(title: "Confirm these changes", trailing: "\(intents.count) to apply")
             Text("Nothing has been changed yet.")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -165,11 +167,21 @@ struct PantryVoiceEditView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     ForEach(Array(intents.enumerated()), id: \.offset) { _, intent in
-                        Text(describe(intent))
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                        HStack(spacing: Tide.s3) {
+                            Image(systemName: icon(for: intent))
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(tint(for: intent))
+                                .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
+                                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                                .accessibilityHidden(true)
+                            Text(describe(intent))
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                     }
                 }
             }
@@ -181,6 +193,22 @@ struct PantryVoiceEditView: View {
                 Text("Apply \(intents.count) change\(intents.count == 1 ? "" : "s")")
             }
             .buttonStyle(.tidePrimary)
+        }
+    }
+
+    private func tint(for intent: PantryEditIntent) -> Color {
+        if case .discard = intent {
+            return Tide.danger
+        }
+        return mood.accent
+    }
+
+    private func icon(for intent: PantryEditIntent) -> String {
+        switch intent {
+        case .markDepleted: "cart.badge.plus"
+        case .decrement: "minus.circle"
+        case .move: "arrow.right.circle"
+        case .discard: "trash"
         }
     }
 
@@ -214,10 +242,8 @@ struct PantryVoiceEditView: View {
     private var appliedSection: some View {
         VStack(spacing: Tide.s4) {
             Spacer()
-            Image(systemName: "checkmark.circle.fill")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.Kitchen.good)
-                .accessibilityHidden(true)
+            KitchenHeroDisc(systemImage: "checkmark.circle.fill", tint: Tide.Kitchen.good)
+                .symbolEffect(.bounce, value: appliedSummaries.count)
             ForEach(appliedSummaries, id: \.self) { summary in
                 Text(summary)
                     .font(Tide.body)
@@ -229,6 +255,7 @@ struct PantryVoiceEditView: View {
                 dismiss()
             }
             .buttonStyle(.tidePrimary)
+            .padding(.top, Tide.s2)
             Spacer()
         }
     }
@@ -236,20 +263,13 @@ struct PantryVoiceEditView: View {
     // MARK: - Failure
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: Tide.s4) {
+        VStack {
             Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.Kitchen.warn)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            Button("Try again") {
-                phase = .idle
-            }
-            .buttonStyle(.tidePrimary)
+            KitchenFailure(
+                title: "That didn't work",
+                message: message,
+                retry: { phase = .idle }
+            )
             Spacer()
         }
     }

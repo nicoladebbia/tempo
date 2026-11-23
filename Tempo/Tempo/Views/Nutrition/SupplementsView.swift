@@ -75,14 +75,13 @@ struct SupplementsView: View {
         let sections = shelfSections(logs: logs)
         return ScrollView(.vertical) {
             VStack(spacing: Tide.s5) {
-                shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                if !supplements.isEmpty {
+                    shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                }
                 if let catalogNote {
-                    Label(catalogNote, systemImage: "checkmark.circle")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, Tide.s1)
+                    KitchenNotice(systemImage: "checkmark.circle.fill", text: catalogNote, tint: Tide.Kitchen.good)
                         .accessibilityIdentifier("supplementCatalogNote")
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
                 SupplementReorderBanner()
                 if supplements.isEmpty {
@@ -101,6 +100,7 @@ struct SupplementsView: View {
         .scrollEdgeEffectStyle(.soft, for: .all)
         .tidePage()
         .tideCovered(isCovered)
+        .animation(Tide.snap, value: catalogNote)
         .navigationDestination(item: $detailTarget) { supplement in
             SupplementDetailView(supplement: supplement)
         }
@@ -229,12 +229,19 @@ struct SupplementsView: View {
     // MARK: - Header
 
     private func shelfHeader(lowCount: Int) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
+        let total = supplements.count
+        return VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(alignment: .top, spacing: Tide.s4) {
-                KitchenStat(value: "\(supplements.count)", label: supplements.count == 1 ? "Supplement" : "Supplements")
+                KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
                 if lowCount > 0 {
                     KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
                 }
+            }
+            if lowCount > 0 {
+                KitchenShelfBar(parts: [
+                    .init(id: "stocked", value: Double(max(total - lowCount, 0)), color: mood.accent),
+                    .init(id: "low", value: Double(lowCount), color: Tide.Kitchen.warn),
+                ])
             }
             Menu {
                 addMenuItems
@@ -284,10 +291,7 @@ struct SupplementsView: View {
 
     private var emptyState: some View {
         VStack(spacing: Tide.s3) {
-            Image(systemName: "pills")
-                .font(Tide.largeTitle)
-                .foregroundStyle(mood.accent)
-                .accessibilityHidden(true)
+            KitchenHeroDisc(systemImage: "pills")
             Text("No supplements yet")
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text)
@@ -343,7 +347,7 @@ struct SupplementsView: View {
                     Image(systemName: row.supplement.kind.icon)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(mood.accent)
-                        .frame(width: Tide.hit, height: Tide.hit)
+                        .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
                         .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Tide.hair) {
@@ -382,10 +386,13 @@ struct SupplementsView: View {
                 Button {
                     reorderTarget = row.supplement
                 } label: {
+                    let tone = row.daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn
                     Label(row.stockLine ?? "Low", systemImage: "cart")
                         .font(Tide.label)
-                        .foregroundStyle(row.daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn)
-                        .padding(.horizontal, Tide.s2)
+                        .foregroundStyle(tone)
+                        .padding(.horizontal, Tide.s3)
+                        .padding(.vertical, Tide.s1)
+                        .background(tone.opacity(0.14), in: .capsule)
                         .frame(minHeight: Tide.hit)
                         .contentShape(.rect)
                 }

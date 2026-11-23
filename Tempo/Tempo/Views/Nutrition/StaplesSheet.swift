@@ -18,6 +18,8 @@ struct StaplesPeekCard: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         Button(action: onTap) {
@@ -33,6 +35,7 @@ struct StaplesPeekCard: View {
                     Text("\(remaining) quick yes/no taps. Salt, oil, spices.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
+                        .lineLimit(typeSize.isAccessibilitySize ? 1 : nil)
                 }
                 Spacer(minLength: Tide.s2)
                 Image(systemName: "chevron.up")
@@ -66,6 +69,8 @@ struct StaplesSheet: View {
     private var customFocused: Bool
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     private var suggestions: [(canonicalName: String, displayName: String)] {
         viewModel.stapleSuggestions
@@ -115,7 +120,7 @@ struct StaplesSheet: View {
         .kitchenSheet()
     }
 
-    static let peekHeight: CGFloat = 140
+    static let peekHeight: CGFloat = 152
 
     // MARK: Header
 
@@ -129,6 +134,7 @@ struct StaplesSheet: View {
                     Text(unanswered == 0 ? "All answered." : "\(unanswered) left. Do you have it?")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
+                        .contentTransition(.numericText())
                 }
                 Spacer()
                 Button("Done") {
@@ -137,6 +143,14 @@ struct StaplesSheet: View {
                 }
                 .buttonStyle(.tidePrimary)
                 .fixedSize()
+            }
+            if !suggestions.isEmpty {
+                TideLevelBar(
+                    progress: Double(max(0, suggestions.count - unanswered)) / Double(suggestions.count),
+                    color: unanswered == 0 ? Tide.Kitchen.good : mood.accent
+                )
+                .animation(Tide.snap, value: unanswered)
+                .accessibilityHidden(true)
             }
             HStack {
                 Button("Skip for now") {
@@ -167,20 +181,30 @@ struct StaplesSheet: View {
 
     private func row(_ suggestion: (canonicalName: String, displayName: String)) -> some View {
         let current = answer(for: suggestion.canonicalName)
-        return HStack(spacing: Tide.s2) {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             Text(suggestion.displayName)
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text)
-            Spacer()
-            answerButton("Yes", selected: current == true, tint: Tide.Kitchen.good) {
-                viewModel.answerStaple(suggestion, have: true)
-                HapticManager.selection()
+                .fixedSize(horizontal: false, vertical: true)
+            if !stacked {
+                Spacer()
             }
-            answerButton("No", selected: current == false, tint: Tide.text2) {
-                viewModel.answerStaple(suggestion, have: false)
-                HapticManager.selection()
+            HStack(spacing: Tide.s2) {
+                answerButton("Yes", selected: current == true, tint: Tide.Kitchen.good) {
+                    viewModel.answerStaple(suggestion, have: true)
+                    HapticManager.selection()
+                }
+                answerButton("No", selected: current == false, tint: Tide.text2) {
+                    viewModel.answerStaple(suggestion, have: false)
+                    HapticManager.selection()
+                }
             }
         }
+        .padding(.vertical, stacked ? Tide.s2 : 0)
         .frame(minHeight: Tide.Kitchen.row - Tide.s3)
         .accessibilityElement(children: .combine)
     }

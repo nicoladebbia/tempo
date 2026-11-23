@@ -108,16 +108,31 @@ struct CheaperSwapsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     if viewModel.groceryStoreModeState.isFetchingSwaps {
-                        ProgressView("Thinking of cheaper swaps…")
-                            .tint(mood.accent)
-                            .foregroundStyle(Tide.text2)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, Tide.s10)
+                        // The shape of the answer, shimmering, with the line that says what is happening.
+                        VStack(alignment: .leading, spacing: Tide.s3) {
+                            VStack(spacing: Tide.s3) {
+                                ForEach(0 ..< 3, id: \.self) { _ in
+                                    RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                                        .fill(Tide.fill)
+                                        .frame(height: Tide.Kitchen.row + Tide.s4)
+                                }
+                            }
+                            .shimmer()
+                            Text("Thinking of cheaper swaps…")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Thinking of cheaper swaps")
                     } else if let error = viewModel.groceryStoreModeState.swapsError {
-                        Text(error)
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.danger)
-                            .tideCard(padding: Tide.s4)
+                        KitchenFailure(
+                            title: "Couldn't find swaps",
+                            message: error,
+                            retry: { Task { await viewModel.fetchCheaperSwaps() } }
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, Tide.s6)
                     } else if viewModel.groceryStoreModeState.cheaperSwaps.isEmpty {
                         KitchenEmpty(
                             systemImage: "checkmark.seal",

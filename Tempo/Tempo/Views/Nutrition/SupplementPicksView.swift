@@ -68,34 +68,32 @@ struct SupplementPicksView: View {
     // MARK: - Loading / error
 
     private var loadingState: some View {
-        VStack {
-            ProgressView()
+        VStack(spacing: Tide.s3) {
+            // The shape of the answer while it loads: two pick cards.
+            VStack(spacing: Tide.s3) {
+                ForEach(0 ..< 2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                        .fill(Tide.fill)
+                        .frame(height: Tide.Kitchen.suggestion + Tide.s10)
+                }
+            }
+            .shimmer()
             Text("Finding the best picks…")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Finding the best picks")
     }
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: Tide.s2) {
-            // Icon size/color per DESIGN_SYSTEM.md §12.5 (Full-Screen Error) —
-            // same convention as the shared ErrorStateView component.
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.danger)
-            Text(message)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            Button("Try Again") {
-                Task { await loadPicks() }
-            }
-            .buttonStyle(.tideGlass)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s8)
+        KitchenFailure(
+            title: "Picks unavailable",
+            message: message,
+            retryTitle: "Try Again",
+            retry: { Task { await loadPicks() } }
+        )
     }
 
     // MARK: - Content
@@ -136,24 +134,18 @@ struct SupplementPicksView: View {
     }
 
     private var unverifiedBanner: some View {
-        HStack(alignment: .top, spacing: Tide.s2) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(Tide.Kitchen.warn)
-                .accessibilityHidden(true)
-            Text("AI suggestions, not verified. Double-check any certification claim yourself before buying.")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        KitchenNotice(
+            systemImage: "sparkles",
+            text: "AI suggestions, not verified. Double-check any certification claim yourself before buying."
+        )
     }
 
     private var emptyPicksState: some View {
-        Text("No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself.")
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tideCard(padding: Tide.s4)
+        KitchenEmpty(
+            systemImage: "magnifyingglass",
+            title: "No picks right now",
+            message: "No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself."
+        )
     }
 
     private func pickCard(_ pick: SupplementPicksDTO.Pick) -> some View {
@@ -182,10 +174,22 @@ struct SupplementPicksView: View {
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
 
-            if pick.approxPricePerServingUSD != nil {
-                Text(priceLine(for: pick))
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+            if let price = pick.approxPricePerServingUSD {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        String(format: "$%.2f", price),
+                        unit: "/serving",
+                        size: Tide.numeralS,
+                        relativeTo: .headline
+                    )
+                    if let priceAsOf = pick.priceAsOf, let formatted = Self.formatPriceAsOf(priceAsOf) {
+                        Text("approx. \(formatted)")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(priceLine(for: pick))
             }
 
             if !pick.buyLinks.isEmpty {
@@ -243,22 +247,32 @@ struct SupplementPicksView: View {
                 .buttonStyle(.tideGlass)
 
             case .loading:
-                HStack {
-                    ProgressView()
-                    Text("Searching nearby…")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                VStack(spacing: Tide.s2) {
+                    ForEach(0 ..< 3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(height: Tide.Kitchen.tile)
+                    }
                 }
+                .shimmer()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Searching nearby")
 
             case .denied:
-                Text("Location access is off, so we can't search nearby. Enable it in Settings to find stores.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+                KitchenNotice(
+                    systemImage: "location.slash",
+                    text: "Location access is off, so we can't search nearby. Enable it in Settings to find stores.",
+                    tint: Tide.text2
+                )
 
             case .failed:
-                Text("Couldn't search nearby stores right now.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+                KitchenNotice(
+                    systemImage: "wifi.exclamationmark",
+                    text: "Couldn't search nearby stores right now.",
+                    tint: Tide.text2,
+                    actionTitle: "Try again",
+                    action: { Task { await loadNearby() } }
+                )
 
             case let .loaded(results):
                 if results.isEmpty {
@@ -295,7 +309,8 @@ struct SupplementPicksView: View {
                     .foregroundStyle(Tide.text)
                 Spacer()
                 Text(Self.formatDistance(result.distanceMeters))
-                    .font(Tide.caption)
+                    .font(Tide.numeral(Tide.numeralS, .semibold))
+                    .monospacedDigit()
                     .foregroundStyle(Tide.text2)
                 Image(systemName: "chevron.right")
                     .font(Tide.caption)

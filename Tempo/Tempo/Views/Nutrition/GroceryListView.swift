@@ -20,6 +20,8 @@ struct GroceryListView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// True while the AddGroceryItemSheet is presented.
     @State
@@ -47,6 +49,8 @@ struct GroceryListView: View {
 
     @State
     private var ticks = 0
+    @Namespace
+    private var zoom
 
     /// Something is presented over the page: its shaders stop.
     private var isCovered: Bool {
@@ -69,9 +73,7 @@ struct GroceryListView: View {
                     emptyState
                 }
                 if let error = viewModel.groceryState.lastError {
-                    Text(error)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
                 }
             }
             .padding(.horizontal, Tide.edge)
@@ -142,6 +144,7 @@ struct GroceryListView: View {
                     showStoreMode = false
                     showDoneShopping = true
                 }
+                .navigationTransition(.zoom(sourceID: "storeMode", in: zoom))
             }
         }
         .alert("Pantry Sync", isPresented: Binding(
@@ -192,9 +195,10 @@ struct GroceryListView: View {
             TideSectionLabel(title: "This week", trailing: progress >= 1 ? "All checked" : nil)
             TideNumber(
                 "\(list.checkedCount)", unit: "of \(list.itemCount) checked",
-                size: Tide.numeralL, relativeTo: .largeTitle
+                size: Tide.numeralL, relativeTo: .largeTitle,
+                color: progress >= 1 ? Tide.Kitchen.good : Tide.text
             )
-            TideLevelBar(progress: progress, color: mood.accent, height: Tide.bar)
+            TideLevelBar(progress: progress, color: progress >= 1 ? Tide.Kitchen.good : mood.accent, height: Tide.bar)
                 .animation(Tide.settle, value: progress)
                 .accessibilityLabel("Checked off")
             budgetLine(for: list)
@@ -205,6 +209,7 @@ struct GroceryListView: View {
                     Label("Store Mode", systemImage: "figure.walk")
                 }
                 .buttonStyle(.tidePrimary)
+                .matchedTransitionSource(id: "storeMode", in: zoom)
                 .sensoryFeedback(.impact(weight: .light), trigger: showStoreMode)
                 Button {
                     viewModel.generateGroceryList()
@@ -226,15 +231,18 @@ struct GroceryListView: View {
         .tideCard()
     }
 
+    /// What the list costs against what you set aside: the total, and a bar
+    /// that fills toward the budget and turns red when it passes it.
     private func budgetLine(for list: GroceryList) -> some View {
         let cap = viewModel.groceryBudgetCapUSD
         let total = list.estimatedTotalUSD
         let isOver = viewModel.groceryIsOverBudget()
+        let spent = cap.map { $0 > 0 ? min(total / Double($0), 1) : 0 } ?? 0
         return VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber(
                     list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
-                    size: Tide.numeralS, relativeTo: .headline,
+                    size: Tide.numeralM, relativeTo: .title,
                     color: isOver ? Tide.danger : Tide.text
                 )
                 if list.hasUnresolvedPrices {
@@ -249,13 +257,24 @@ struct GroceryListView: View {
                         .foregroundStyle(Tide.text2)
                 }
             }
+            if cap != nil {
+                TideLevelBar(progress: spent, color: isOver ? Tide.danger : Tide.water, height: Tide.barSlim)
+                    .animation(Tide.settle, value: spent)
+                    .accessibilityLabel("Budget used")
+            }
             if isOver {
-                HStack(spacing: Tide.s3) {
+                let stacked = typeSize.isAccessibilitySize
+                let layout = stacked
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
                     Text("Over budget. Tighten up or swap something.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.danger)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Tide.s2)
+                    if !stacked {
+                        Spacer(minLength: Tide.s2)
+                    }
                     TideChip(title: "Cheaper swaps") {
                         showCheaperSwaps = true
                         Task { await viewModel.fetchCheaperSwaps() }

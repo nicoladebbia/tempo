@@ -103,15 +103,12 @@ struct ReceiptReviewView: View {
             }
             if let ingestError {
                 Section {
-                    Text(ingestError)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: ingestError, tint: Tide.danger)
+                        .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
             }
-            Color.clear.frame(height: 90)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
         }
         .listStyle(.insetGrouped)
         .scrollIndicators(.hidden)
@@ -138,18 +135,27 @@ struct ReceiptReviewView: View {
     // MARK: - Header
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(receipt.store.isEmpty ? "Receipt" : receipt.store)
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(2)
-                Spacer()
+        let needsLook = model.needsLookCount
+        let ready = max(model.includedCount - needsLook, 0)
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(receipt.purchaseDate, format: .dateTime.month().day().year()).tideLabel()
+                    Text(receipt.store.isEmpty ? "Receipt" : receipt.store)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: Tide.s2)
                 TideNumber(String(format: "$%.2f", receipt.totalAmount), size: Tide.numeralM, relativeTo: .title)
             }
+            if receipt.lineItemCount > 0 {
+                KitchenShelfBar(parts: [
+                    .init(id: "ready", value: Double(ready), color: Tide.Kitchen.good),
+                    .init(id: "look", value: Double(needsLook), color: Tide.Kitchen.warn),
+                ])
+            }
             HStack(spacing: Tide.s2) {
-                Text(receipt.purchaseDate, format: .dateTime.month().day().year())
-                Text("·")
                 Text("\(receipt.lineItemCount) items")
                 if let savings = receipt.savingsAmount, savings > 0 {
                     Text("·")
@@ -159,8 +165,8 @@ struct ReceiptReviewView: View {
             }
             .font(Tide.caption)
             .foregroundStyle(Tide.text2)
-            if model.needsLookCount > 0 {
-                Label("\(model.needsLookCount) need a look", systemImage: "exclamationmark.circle.fill")
+            if needsLook > 0 {
+                Label("\(needsLook) need a look", systemImage: "exclamationmark.circle.fill")
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.Kitchen.warn)
                     .padding(.horizontal, Tide.s3)
@@ -179,11 +185,7 @@ struct ReceiptReviewView: View {
     }
 
     private func banner(text: String, icon: String) -> some View {
-        Label(text, systemImage: icon)
-            .font(Tide.caption)
-            .foregroundStyle(Tide.Kitchen.warn)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        KitchenNotice(systemImage: icon, text: text)
             .padding(.bottom, Tide.s1)
     }
 
@@ -199,7 +201,8 @@ struct ReceiptReviewView: View {
             HStack(spacing: Tide.s3) {
                 ProductImageView(
                     url: model.photoURL(for: line),
-                    fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood)
+                    fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood),
+                    size: Tide.Kitchen.tile
                 )
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(line.displayName.isEmpty ? line.rawText : line.displayName)
@@ -213,9 +216,10 @@ struct ReceiptReviewView: View {
                 }
                 Spacer(minLength: Tide.s2)
                 VStack(alignment: .trailing, spacing: Tide.s1) {
-                    Text(line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—")
-                        .font(Tide.bodyStrong.monospacedDigit())
-                        .foregroundStyle(Tide.text)
+                    TideNumber(
+                        line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—",
+                        size: Tide.numeralS, relativeTo: .headline, weight: .semibold
+                    )
                     if notFood && !included {
                         chip("Excluded", icon: "minus.circle", color: Tide.text3)
                     } else {
@@ -253,19 +257,12 @@ struct ReceiptReviewView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: Tide.s2) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.Kitchen.warn)
-            Text("No line items detected")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-            Text("Try rescanning with a clearer photo.")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s8)
+        KitchenEmpty(
+            systemImage: "exclamationmark.triangle.fill",
+            title: "No line items detected",
+            message: "Try rescanning with a clearer photo."
+        )
+        .padding(.vertical, Tide.s4)
     }
 
     // MARK: - Bottom bar

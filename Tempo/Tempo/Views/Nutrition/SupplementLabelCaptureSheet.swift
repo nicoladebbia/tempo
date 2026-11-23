@@ -136,7 +136,9 @@ struct SupplementLabelCaptureSheet: View {
 
     private var readingContent: some View {
         VStack(spacing: Tide.s4) {
-            ProgressView().controlSize(.large)
+            KitchenHeroDisc(systemImage: "text.viewfinder")
+                .background { KitchenListeningRing(active: true) }
+                .padding(.vertical, Tide.s5)
             Text("Reading your label…")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
@@ -150,9 +152,10 @@ struct SupplementLabelCaptureSheet: View {
 
     private func failureContent(_ failure: SupplementLabelPhotoModel.Failure) -> some View {
         VStack(spacing: Tide.s4) {
-            Image(systemName: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
+            KitchenHeroDisc(
+                systemImage: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder",
+                tint: Tide.Kitchen.warn
+            )
             Text(failure == .unreadable ? "Couldn't read that one" : "Couldn't read the label")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)

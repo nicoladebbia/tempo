@@ -74,6 +74,14 @@ struct AddProductView: View {
     private var labelBlocker: AIBlocker?
     @State
     private var picker: PickerTarget?
+    @ScaledMetric
+    private var photoSize: CGFloat = Tide.Kitchen.heroDisc
+    @ScaledMetric
+    private var fieldWidth: CGFloat = Tide.Kitchen.thumb + Tide.s8
+    @ScaledMetric
+    private var unitWidth: CGFloat = Tide.s8
+    @ScaledMetric
+    private var labelMaxHeight: CGFloat = Tide.Kitchen.heroPicture
 
     private enum PickerTarget: Identifiable {
         case front(UIImagePickerController.SourceType)
@@ -140,6 +148,7 @@ struct AddProductView: View {
                 "Per 100 \(isBeverage ? "ml" : "g")",
                 footer: "Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score."
             ) {
+                coreMeter
                 numberField("Calories", text: $kcal, unit: "kcal", id: "addProductKcal")
                 numberField("Protein", text: $protein, unit: "g", id: "addProductProtein")
                 numberField("Carbs", text: $carbs, unit: "g", id: "addProductCarbs")
@@ -227,7 +236,7 @@ struct AddProductView: View {
                     ProgressView()
                 }
             }
-            .frame(width: 88, height: 88)
+            .frame(width: photoSize, height: photoSize)
             // White on purpose: the studio shot is a cut-out on white.
             .background(photo == nil ? Tide.fill : Color.white)
             .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
@@ -268,12 +277,12 @@ struct AddProductView: View {
                 Image(uiImage: labelImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxHeight: 220)
+                    .frame(maxHeight: labelMaxHeight)
                     .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                     .overlay {
                         if isReadingLabel {
                             ZStack {
-                                Tide.ink.opacity(0.55)
+                                Tide.Kitchen.scrim
                                 VStack(spacing: Tide.s2) {
                                     ProgressView().tint(Tide.text)
                                     Text("Reading the label…")
@@ -429,13 +438,40 @@ struct AddProductView: View {
                 .font(Tide.bodyStrong)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 80)
+                .monospacedDigit()
+                .frame(width: fieldWidth)
                 .accessibilityIdentifier(id)
             Text(unit)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
-                .frame(width: 32, alignment: .leading)
+                .frame(width: unitWidth, alignment: .leading)
         }
+        .frame(minHeight: Tide.hit)
+    }
+
+    /// How many of the four values needed to log this product are filled in, as a live meter.
+    private var coreFilled: Int {
+        [kcal, protein, carbs, fat].filter { Self.number($0) != nil }.count
+    }
+
+    private var coreMeter: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Needed to log it")
+                    .tideLabel()
+                Spacer()
+                Text("\(coreFilled) of 4")
+                    .font(Tide.numeral(Tide.numeralS))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .foregroundStyle(coreFilled == 4 ? Tide.Kitchen.good : Tide.text)
+            }
+            TideLevelBar(progress: Double(coreFilled) / 4, color: coreFilled == 4 ? Tide.Kitchen.good : mood.accent)
+                .animation(Tide.snap, value: coreFilled)
+        }
+        .padding(.vertical, Tide.s1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(coreFilled) of 4 values needed to log this product")
     }
 
     static func number(_ text: String) -> Double? {

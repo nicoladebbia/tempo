@@ -37,8 +37,7 @@ struct SupplementDetailView: View {
         let low = SupplementReorderService.needsReorder(for: supplement, recentLogs: logs)
 
         KitchenForm {
-            hero
-            tookItSection(takenToday: takenToday, dose: dose)
+            hero(daysLeft: daysLeft, low: low, history: history)
             scheduleSection(dose: dose)
             SupplementTimingSection(supplement: supplement)
             stockSection(daysLeft: daysLeft, low: low)
@@ -68,6 +67,9 @@ struct SupplementDetailView: View {
             }
         }
         .kitchenPage()
+        .kitchenBottomBar {
+            tookItBar(takenToday: takenToday, dose: dose)
+        }
         .navigationTitle(supplement.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -108,34 +110,77 @@ struct SupplementDetailView: View {
 
     // MARK: - Sections
 
-    private var hero: some View {
-        Section {
-            HStack(spacing: Tide.s4) {
-                Image(systemName: supplement.kind.icon)
-                    .font(Tide.title2)
-                    .foregroundStyle(mood.accent)
-                    .frame(width: Tide.s10 + Tide.s3, height: Tide.s10 + Tide.s3)
-                    .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    if let brand = supplement.brand, !brand.isEmpty {
-                        Text(brand).tideLabel(Tide.text3)
-                    }
-                    Text(supplement.name)
+    private func hero(daysLeft: Int?, low: Bool, history: SupplementHistory) -> some View {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let strip: [Bool] = (0 ..< history.windowDays).reversed().map { offset in
+            let day = calendar.date(byAdding: .day, value: -offset, to: today) ?? today
+            return history.recent.contains { calendar.isDate($0, inSameDayAs: day) }
+        }
+        let tone = low ? Tide.Kitchen.warn : Tide.text
+        return Section {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                HStack(spacing: Tide.s4) {
+                    Image(systemName: supplement.kind.icon)
                         .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                    Text([supplement.kind.displayName, supplement.dosePerServing.isEmpty ? nil : supplement.dosePerServing]
-                        .compactMap { $0 }.joined(separator: " · "))
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                        .foregroundStyle(mood.accent)
+                        .frame(width: Tide.s10 + Tide.s3, height: Tide.s10 + Tide.s3)
+                        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        if let brand = supplement.brand, !brand.isEmpty {
+                            Text(brand).tideLabel(Tide.text3)
+                        }
+                        Text(supplement.name)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                        Text([supplement.kind.displayName, supplement.dosePerServing.isEmpty ? nil : supplement.dosePerServing]
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
                 }
+                if let daysLeft {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        TideSectionLabel(title: "Stock", trailing: low ? "Reorder soon" : nil)
+                        TideNumber(
+                            daysLeft <= 0 ? "Out" : "\(daysLeft)",
+                            unit: daysLeft <= 0 ? nil : "days left",
+                            size: Tide.numeralL, relativeTo: .largeTitle, color: tone
+                        )
+                        if let per = supplement.servingsPerContainer, per > 0, supplement.servingsRemaining > 0 {
+                            TideLevelBar(
+                                progress: min(supplement.servingsRemaining / per, 1),
+                                color: low ? Tide.Kitchen.warn : mood.accent,
+                                height: Tide.bar
+                            )
+                            .accessibilityHidden(true)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    TideSectionLabel(title: "Last \(history.windowDays) days", trailing: "\(history.takenDays) taken")
+                    KitchenHistoryStrip(days: strip)
+                }
+                .accessibilityElement(children: .combine)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard()
+            .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
         }
     }
 
-    private func tookItSection(takenToday: Bool, dose: SupplementDose) -> some View {
-        Section {
+    /// The one primary action, under the thumb. A tick here is what Today shows.
+    private func tookItBar(takenToday: Bool, dose: SupplementDose) -> some View {
+        VStack(spacing: Tide.s2) {
+            if !dose.take {
+                Text("Your plan says skip it today. You can still log it.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             Button {
                 SupplementIntakeStore.toggle(supplementID: supplement.id, name: supplement.name, in: modelContext)
                 notify()
@@ -143,16 +188,10 @@ struct SupplementDetailView: View {
                 refreshToken += 1
             } label: {
                 Label(takenToday ? "Taken today. Tap to undo" : "Took it", systemImage: takenToday ? "checkmark.circle.fill" : "circle")
-                    .frame(maxWidth: .infinity)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.tidePrimary)
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
             .accessibilityIdentifier("supplementTookIt")
-        } footer: {
-            if !dose.take {
-                Text("Your plan says skip it today. You can still log it.")
-            }
         }
     }
 

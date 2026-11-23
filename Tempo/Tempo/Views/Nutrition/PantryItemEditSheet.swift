@@ -18,6 +18,8 @@ struct PantryItemEditSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var quantityText: String
     @State private var unit: PantryUnit
@@ -40,6 +42,12 @@ struct PantryItemEditSheet: View {
     var body: some View {
         NavigationStack {
             KitchenForm {
+                Section {
+                    header
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
                 KitchenFormSection("Item") {
                     LabeledContent("Name", value: item.displayName)
                     TextField("Brand (optional)", text: $brand)
@@ -94,6 +102,49 @@ struct PantryItemEditSheet: View {
             }
         }
         .kitchenSheet()
+    }
+
+    /// What is being edited, at a glance: the item, how much is left, and how soon it must be used.
+    private var header: some View {
+        HStack(spacing: Tide.s4) {
+            Image(systemName: Self.icon(for: item.storageLocation))
+                .font(Tide.title2)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.Kitchen.heroDisc - Tide.s8, height: Tide.Kitchen.heroDisc - Tide.s8)
+                .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.tileRadius))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(item.displayName)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                TideNumber(
+                    PantryQuantityFormatter.number(item.quantity),
+                    unit: item.unit.displayName,
+                    size: Tide.numeralM,
+                    relativeTo: .title
+                )
+                if let days = item.daysUntilUseBy {
+                    KitchenTag(
+                        text: days < 0 ? "Past use-by" : (days == 0 ? "Use today" : "\(days) \(days == 1 ? "day" : "days") left"),
+                        tint: days <= 1 ? Tide.danger : (days <= 3 ? Tide.Kitchen.warn : Tide.text2)
+                    )
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Tide.s1)
+        .padding(.vertical, Tide.s2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private static func icon(for location: PantryStorageLocation) -> String {
+        switch location {
+        case .fridge: "thermometer.snowflake"
+        case .freezer: "snowflake"
+        case .pantry,
+             .cupboard: "archivebox"
+        }
     }
 
     private func save() {

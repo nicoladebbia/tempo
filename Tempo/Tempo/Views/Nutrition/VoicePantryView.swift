@@ -129,6 +129,8 @@ struct VoicePantryView: View {
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
 
             Button {
                 Task { await toggleRecording() }
@@ -136,14 +138,18 @@ struct VoicePantryView: View {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
                     .font(Tide.largeTitle)
                     .foregroundStyle(Tide.ink)
-                    .frame(width: 112, height: 112)
+                    .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
                     .glassEffect(
                         .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
                         in: .circle
                     )
                     .contentTransition(.symbolEffect(.replace))
+                    .background {
+                        KitchenListeningRing(active: transcriber.isListening, tint: Tide.danger)
+                    }
             }
             .buttonStyle(.plain)
+            .padding(.vertical, Tide.s6)
             .sensoryFeedback(.impact, trigger: transcriber.isListening)
             .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
 
@@ -154,16 +160,16 @@ struct VoicePantryView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .tideCard(padding: Tide.s4)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
 
             if let err = transcriber.error {
-                Text(err)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
+                KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: err, tint: Tide.danger)
             }
 
             Spacer()
         }
+        .animation(Tide.snap, value: transcriber.transcribedText.isEmpty)
     }
 
     private func toggleRecording() async {
@@ -191,14 +197,21 @@ struct VoicePantryView: View {
 
     private var thinkingSection: some View {
         VStack(spacing: Tide.s4) {
-            Spacer()
-            ProgressView()
-                .controlSize(.large)
             Text("Reading your pantry…")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
+                .padding(.top, Tide.s6)
+            // The shape of what is coming: a confirm card per item.
+            ForEach(0 ..< 3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.Kitchen.row + Tide.s6)
+            }
+            .shimmer()
             Spacer()
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Reading your pantry")
     }
 
     // MARK: - Resolve → editable confirm card (no clarifying phase)
@@ -247,9 +260,7 @@ struct VoicePantryView: View {
 
     private var confirmationSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Confirm your pantry")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
+            TideSectionLabel(title: "Confirm your pantry", trailing: "\(editable.count) found")
             Text("Edit anything, remove what's wrong, then save.")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -282,6 +293,7 @@ struct VoicePantryView: View {
                 Text(item.name)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 if item.isLowConfidence {
                     KitchenTag(text: "Low confidence", tint: Tide.Kitchen.warn)
@@ -321,7 +333,7 @@ struct VoicePantryView: View {
                 TextField("Qty", text: row.quantityText)
                     .keyboardType(.decimalPad)
                     .font(Tide.body)
-                    .frame(maxWidth: 90, minHeight: Tide.hit - Tide.s4)
+                    .frame(maxWidth: Tide.Kitchen.row + Tide.s8, minHeight: Tide.hit - Tide.s4)
                     .padding(Tide.s2)
                     .background(Tide.fill)
                     .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
@@ -446,23 +458,14 @@ struct VoicePantryView: View {
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: Tide.s4) {
+        VStack {
             Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.Kitchen.warn)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            Button {
-                // transcriber.start() clears transcribedText itself.
-                phase = .idle
-            } label: {
-                Text("Try again")
-            }
-            .buttonStyle(.tidePrimary)
+            // transcriber.start() clears transcribedText itself.
+            KitchenFailure(
+                title: "That didn't work",
+                message: message,
+                retry: { phase = .idle }
+            )
             Spacer()
         }
     }

@@ -111,22 +111,21 @@ struct ReceiptCaptureView: View {
 
     private var captureOptions: some View {
         VStack(spacing: Tide.s5) {
-            Spacer()
-            Image(systemName: "receipt")
-                .font(Tide.largeTitle).imageScale(.large)
-                .foregroundStyle(mood.accent)
-                .frame(width: 96, height: 96)
-                .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
-                .accessibilityHidden(true)
+            Spacer(minLength: 0)
+            KitchenHeroDisc(systemImage: "receipt")
 
-            Text("Snap your receipt")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-            Text("On-device OCR plus AI structuring. Review each line before it goes in your pantry.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Tide.s5)
+            VStack(spacing: Tide.s2) {
+                Text("Snap your receipt")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .accessibilityAddTraits(.isHeader)
+                Text("On-device OCR plus AI structuring. Review each line before it goes in your pantry.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, Tide.s5)
 
             if documentScannerAvailable {
                 Text("Long receipt? Tap + after the first page to add more — they're stitched together automatically.")
@@ -146,14 +145,13 @@ struct ReceiptCaptureView: View {
                     self.scanBlocker = nil
                     scanError = nil
                 }
-                .padding(.horizontal, Tide.s5)
+                .padding(.horizontal, Tide.edge)
             } else if let scanError {
-                Text(scanError)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Tide.s5)
+                KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: scanError, tint: Tide.danger)
+                    .padding(.horizontal, Tide.edge)
             }
+
+            Spacer(minLength: 0)
 
             VStack(spacing: Tide.s3) {
                 Button {
@@ -179,7 +177,7 @@ struct ReceiptCaptureView: View {
                 .buttonStyle(.tideGlass)
             }
             .padding(.horizontal, Tide.edge)
-            Spacer()
+            .padding(.bottom, Tide.s4)
         }
     }
 
