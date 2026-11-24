@@ -350,34 +350,43 @@ struct SupplementsView: View {
     }
 
     private func shelfRow(_ row: SupplementShelfRow) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        // At the accessibility sizes the icon goes and the stock line joins the text, so the words get the width.
+        let stacked = typeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 0) {
             Button {
                 detailTarget = row.supplement
             } label: {
                 HStack(spacing: Tide.s3) {
-                    Image(systemName: row.supplement.kind.icon)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(mood.accent)
-                        .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
-                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-                        .accessibilityHidden(true)
+                    if !stacked {
+                        Image(systemName: row.supplement.kind.icon)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
+                            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                            .accessibilityHidden(true)
+                    }
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.supplement.name)
                             .font(Tide.headline)
                             .foregroundStyle(Tide.text)
-                            .lineLimit(2)
+                            .lineLimit(stacked ? 3 : 2)
                         Text(row.brandDoseLine)
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
-                            .lineLimit(1)
+                            .lineLimit(stacked ? 2 : 1)
                         Label(row.statusLine, systemImage: "clock")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
-                            .lineLimit(1)
+                            .lineLimit(stacked ? 2 : 1)
+                        if stacked, let stock = row.stockLine, !row.needsReorder {
+                            Text(stock)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
                     }
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: Tide.s1) {
-                        if let stock = row.stockLine, !row.needsReorder {
+                        if !stacked, let stock = row.stockLine, !row.needsReorder {
                             Text(stock)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
@@ -410,7 +419,7 @@ struct SupplementsView: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .padding(.leading, Tide.Kitchen.tile + Tide.s3)
+                .padding(.leading, stacked ? 0 : Tide.Kitchen.tile + Tide.s3)
                 .accessibilityLabel("\(row.supplement.name) running low, reorder")
                 .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }

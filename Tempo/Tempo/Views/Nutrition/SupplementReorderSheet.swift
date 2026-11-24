@@ -71,15 +71,7 @@ struct SupplementReorderSheet: View {
                         .tideCard(padding: Tide.s4)
                     }
                     .buttonStyle(.plain)
-                }
-                .padding(.horizontal, Tide.edge)
-                .padding(.top, Tide.s2)
-                .padding(.bottom, Tide.s6)
-            }
-            .scrollIndicators(.hidden)
-            // Two ways to deal with it, under the thumb: the main one filled, the other glass.
-            .kitchenBottomBar {
-                VStack(spacing: Tide.s2) {
+                    // What the two buttons do, in the scroll so the bar under the thumb stays slim.
                     Text(
                         supplement.servingsPerContainer != nil
                             ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
@@ -89,6 +81,16 @@ struct SupplementReorderSheet: View {
                     .foregroundStyle(Tide.text3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s2)
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+            }
+            .scrollIndicators(.hidden)
+            // Two ways to deal with it, under the thumb: the main one filled, the other glass.
+            .kitchenBottomBar {
+                VStack(spacing: Tide.s2) {
                     Button {
                         addToGroceryList()
                     } label: {
@@ -96,6 +98,8 @@ struct SupplementReorderSheet: View {
                             addedToList ? "Added to grocery list" : "Add to grocery list",
                             systemImage: addedToList ? "checkmark.circle.fill" : "cart.badge.plus"
                         )
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                         .contentTransition(.symbolEffect(.replace))
                     }
                     .buttonStyle(.kitchenBar)
@@ -108,6 +112,8 @@ struct SupplementReorderSheet: View {
                             restocked ? "Restocked" : "I already restocked",
                             systemImage: restocked ? "checkmark.circle.fill" : "shippingbox"
                         )
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                         .frame(maxWidth: .infinity)
                         .contentTransition(.symbolEffect(.replace))
                     }
