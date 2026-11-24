@@ -26,43 +26,67 @@ struct RecoveryTodayView: View {
     @State
     private var selectedMetric: MetricType?
 
+    @State
+    private var showWhoopConnect = false
+
     private var metricColumns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: typeSize.isAccessibilitySize ? 1 : 2)
     }
 
+    /// True once a night of readings is in. Before that the day holds a record
+    /// with a score of 0 and nothing else, which must not read as a red day.
+    private var hasData: Bool {
+        guard let recovery = viewModel.todayRecovery else {
+            return false
+        }
+        return recovery.hrvRmssd != nil || recovery.restingHR != nil
+            || recovery.sleepHours != nil || recovery.strain != nil
+    }
+
     var body: some View {
         TideScrollPage(energy: 1) {
-            // Hero: the recovery dial
-            heroSection
+            if hasData {
+                // Hero: the recovery dial
+                heroSection
 
-            // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
-            MorningCheckInCard()
+                // Anomaly Warning Cards
+                if !viewModel.activeAnomalies.isEmpty {
+                    anomalyWarningsSection
+                }
 
-            // Anomaly Warning Cards
-            if !viewModel.activeAnomalies.isEmpty {
-                anomalyWarningsSection
+                // Legacy Warnings (if any)
+                if let prescription = viewModel.todayPrescription, !prescription.warnings.isEmpty {
+                    warningsSection(prescription.warnings)
+                }
+
+                // Today's AI-generated recovery read: the why, right under the
+                // score (replaces the old static 2-day prescription text).
+                RecoveryAIInsightView(recovery: viewModel.todayRecovery)
+
+                // Key Metrics
+                metricsGrid
+
+                // Recovery Score Breakdown
+                scoreBreakdownSection
+
+                // Recovery Score Explanation
+                recoveryExplanationSection
+
+                // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
+                MorningCheckInCard()
+
+                // Quick Insights
+                quickInsightsSection
+            } else if viewModel.loadState == .loading {
+                // The page's own shape while the first read is on its way.
+                RecoverySkeleton(label: "Loading recovery")
+                    .padding(.horizontal, -Tide.edge)
+            } else {
+                noDataSection
+
+                // How you feel does not need a wearable.
+                MorningCheckInCard()
             }
-
-            // Legacy Warnings (if any)
-            if let prescription = viewModel.todayPrescription, !prescription.warnings.isEmpty {
-                warningsSection(prescription.warnings)
-            }
-
-            // Key Metrics
-            metricsGrid
-
-            // Recovery Score Explanation
-            recoveryExplanationSection
-
-            // Recovery Score Breakdown
-            scoreBreakdownSection
-
-            // Today's AI-generated recovery read (replaces the old
-            // static 2-day prescription text).
-            RecoveryAIInsightView(recovery: viewModel.todayRecovery)
-
-            // Quick Insights
-            quickInsightsSection
         }
         .refreshable {
             await viewModel.forceRefresh(modelContext: modelContext)
@@ -72,7 +96,7 @@ struct RecoveryTodayView: View {
                 await viewModel.refresh(modelContext: modelContext)
             }
         }
-        .tideCovered(selectedMetric != nil)
+        .tideCovered(selectedMetric != nil || showWhoopConnect)
         .sheet(item: $selectedMetric) { metric in
             MetricTrendSheet(
                 metric: metric,
@@ -80,6 +104,46 @@ struct RecoveryTodayView: View {
             )
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showWhoopConnect, onDismiss: {
+            Task { await viewModel.forceRefresh(modelContext: modelContext) }
+        }) {
+            NavigationStack {
+                WhoopConnectionView()
+            }
+        }
+    }
+
+    // MARK: - No Data
+
+    // Before the first night of readings: the dial at rest, one line on what to
+    // do, and the button to do it.
+
+    private var noDataSection: some View {
+        VStack(spacing: Tide.s4) {
+            RecoveryHero {
+                TideDial(score: nil, caption: "Recovery", diameter: Tide.dialHero)
+            } side: {
+                TimelineView(.everyMinute) { context in
+                    Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                        .tideLabel(Tide.text3)
+                }
+
+                Text("No recovery yet")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+
+                Text("Connect WHOOP, then pull down to refresh. Your first score lands after one night of data.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .contain)
+
+            Button("Connect WHOOP") {
+                showWhoopConnect = true
+            }
+            .buttonStyle(.tidePrimary)
         }
     }
 
@@ -265,53 +329,66 @@ struct RecoveryTodayView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Quick insights")
 
-            // Recovery Trends Teaser
-            if let avg = viewModel.avgRecovery7d {
-                NavigationLink {
-                    RecoveryTrendsView(viewModel: viewModel)
-                } label: {
-                    insightCard(
-                        icon: "chart.line.uptrend.xyaxis",
-                        title: "Recovery trends",
-                        detail: "7-day avg: \(Int(avg))%"
-                    )
+            // Three ways into the other tabs read as one list, not three cards.
+            VStack(spacing: 0) {
+                // Recovery Trends Teaser
+                if let avg = viewModel.avgRecovery7d {
+                    NavigationLink {
+                        RecoveryTrendsView(viewModel: viewModel)
+                    } label: {
+                        insightRow(
+                            icon: "chart.line.uptrend.xyaxis",
+                            title: "Recovery trends",
+                            detail: "7-day avg: \(Int(avg))%"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(TideCardPressStyle())
-            }
 
-            // Sleep Teaser
-            if viewModel.todayRecovery?.sleepHours != nil {
-                NavigationLink {
-                    SleepDetailView(viewModel: viewModel)
-                } label: {
-                    insightCard(
-                        icon: "moon.zzz.fill",
-                        title: "Last night's sleep",
-                        detail: "\(viewModel.formattedSleepHours) · Score: \(viewModel.formattedSleepScore)"
-                    )
+                // Sleep Teaser
+                if viewModel.todayRecovery?.sleepHours != nil {
+                    if viewModel.avgRecovery7d != nil {
+                        TideDivider()
+                    }
+                    NavigationLink {
+                        SleepDetailView(viewModel: viewModel)
+                    } label: {
+                        insightRow(
+                            icon: "moon.zzz.fill",
+                            title: "Last night's sleep",
+                            detail: "\(viewModel.formattedSleepHours) · Score: \(viewModel.formattedSleepScore)"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(TideCardPressStyle())
-            }
 
-            // Strain Teaser
-            if viewModel.todayRecovery?.strain != nil {
-                NavigationLink {
-                    StrainDetailView(viewModel: viewModel)
-                } label: {
-                    insightCard(
-                        icon: "flame.fill",
-                        title: "Today's strain",
-                        detail: "\(viewModel.formattedStrain) · Calories: \(viewModel.formattedCalories)"
-                    )
+                // Strain Teaser
+                if viewModel.todayRecovery?.strain != nil {
+                    if viewModel.avgRecovery7d != nil || viewModel.todayRecovery?.sleepHours != nil {
+                        TideDivider()
+                    }
+                    NavigationLink {
+                        StrainDetailView(viewModel: viewModel)
+                    } label: {
+                        insightRow(
+                            icon: "flame.fill",
+                            title: "Today's strain",
+                            detail: "\(viewModel.formattedStrain) · Calories: \(viewModel.formattedCalories)"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(TideCardPressStyle())
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
-    private func insightCard(icon: String, title: String, detail: String) -> some View {
+    private func insightRow(icon: String, title: String, detail: String) -> some View {
         HStack(spacing: Tide.s3) {
-            TideAreaIconTile(systemName: icon, tint: zoneColor)
+            // At the largest text sizes the words need the whole row, not the icon tile.
+            if !typeSize.isAccessibilitySize {
+                TideAreaIconTile(systemName: icon, tint: zoneColor)
+            }
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
@@ -329,9 +406,9 @@ struct RecoveryTodayView: View {
                 .foregroundStyle(Tide.text3)
                 .accessibilityHidden(true)
         }
+        .padding(.vertical, Tide.s3)
         .frame(minHeight: Tide.hit)
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }
 
@@ -396,6 +473,9 @@ struct RecoveryTodayView: View {
         baselineValue: String,
         isHigherBetter: Bool
     ) -> some View {
+        // A change that rounds to nothing is "on average", not an arrow with "-0".
+        let rounded = delta.rounded()
+        let isFlat = rounded == 0
         let isPositive = isHigherBetter ? delta >= 0 : delta <= 0
         return HStack(spacing: Tide.s3) {
             Text(label)
@@ -409,12 +489,12 @@ struct RecoveryTodayView: View {
 
             // Delta arrow
             HStack(spacing: Tide.s1) {
-                Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
+                Image(systemName: isFlat ? "equal" : (isPositive ? "arrow.up.right" : "arrow.down.right"))
                     .font(Tide.label)
-                Text(String(format: "%+.0f", delta))
+                Text(isFlat ? "0" : String(format: "%+.0f", rounded))
                     .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
             }
-            .foregroundStyle(isPositive ? TideTone.mint : Tide.danger)
+            .foregroundStyle(isFlat ? Tide.text2 : (isPositive ? TideTone.mint : Tide.danger))
 
             Text("avg \(baselineValue)")
                 .font(Tide.caption)
@@ -424,7 +504,7 @@ struct RecoveryTodayView: View {
         .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(label) \(todayValue) \(unit), \(isPositive ? "better" : "worse") than your average of \(baselineValue)"
+            "\(label) \(todayValue) \(unit), \(isFlat ? "right at" : (isPositive ? "better than" : "worse than")) your average of \(baselineValue)"
         )
     }
 

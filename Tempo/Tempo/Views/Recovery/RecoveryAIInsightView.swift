@@ -35,16 +35,24 @@ struct RecoveryAIInsightView: View {
     @State private var weeklyRecap: String?
     @State private var isLoadingWeekly = false
 
+    /// A reply of only blanks is no reply: it must not draw an empty card.
+    private static func text(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             // Weekly recap first (reflection on last week), Mondays only.
-            if isLoadingWeekly || weeklyRecap != nil {
+            if isLoadingWeekly || Self.text(weeklyRecap) != nil {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     TideSectionLabel(title: "Last week")
                     insightCard {
                         if isLoadingWeekly {
                             loadingSkeleton
-                        } else if let weeklyRecap {
+                        } else if let weeklyRecap = Self.text(weeklyRecap) {
                             Text(weeklyRecap)
                                 .font(Tide.body)
                                 .foregroundStyle(Tide.text)
@@ -89,12 +97,24 @@ struct RecoveryAIInsightView: View {
                 insightCard {
                     if isLoading {
                         loadingSkeleton
-                    } else if let paragraph {
+                    } else if let paragraph = Self.text(paragraph) {
                         Text(paragraph)
                             .font(Tide.body)
                             .foregroundStyle(Tide.text)
                             .lineSpacing(Tide.hair)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else if self.paragraph != nil {
+                        // The reply came back empty.
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Text("No read for today")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                            Text("Your coach had nothing to add this time.")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
                     } else if let errorText {
                         // A short headline first, the reason underneath it quieter.
                         VStack(alignment: .leading, spacing: Tide.s1) {

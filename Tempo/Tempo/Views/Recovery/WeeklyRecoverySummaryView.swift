@@ -137,15 +137,17 @@ struct WeeklyRecoverySummaryView: View {
         current: Double, previous: Double?, unit: String, higherIsBetter: Bool, suffix: String = ""
     ) -> some View {
         let delta = previous.map { current - $0 }
+        // A change that rounds to nothing is "the same", not a red or green arrow with "-0".
+        let isFlat = delta.map { unit == "h" ? ($0 * 10).rounded() == 0 : $0.rounded() == 0 } ?? false
         let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
-        let tint = isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3
+        let tint = isFlat ? Tide.text2 : (isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3)
         let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
         return HStack(spacing: Tide.s1) {
-            Image(systemName: isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
+            Image(systemName: isFlat ? "equal" : (isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus"))
                 .font(Tide.label)
                 .accessibilityHidden(true)
-            Text(formatted.map { "\($0)\(unit)\(suffix)" } ?? "No last week")
-                .font(Tide.numeral(Tide.axisSize + 1, .semibold))
+            Text(isFlat ? "Same\(suffix)" : (formatted.map { "\($0)\(unit)\(suffix)" } ?? "No last week"))
+                .font(Tide.caption.weight(.semibold).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
         }
@@ -157,6 +159,10 @@ struct WeeklyRecoverySummaryView: View {
         let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
         let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
         let value = unit == "h" ? String(format: "%.1f", current) : "\(Int(current))"
+        let isFlat = delta.map { unit == "h" ? ($0 * 10).rounded() == 0 : $0.rounded() == 0 } ?? false
+        if isFlat {
+            return "\(label) \(value) \(unit), the same as last week"
+        }
         return formatted.map {
             "\(label) \(value) \(unit), \($0) \(unit), \(isPositive == true ? "better" : "worse") than last week"
         } ?? "\(label) \(value) \(unit), no data for last week"
@@ -254,10 +260,10 @@ struct WeeklyRecoverySummaryView: View {
         if let sleep = recovery.sleepHours, sleep >= 7.5 {
             reasons.append("\(String(format: "%.1f", sleep))h of quality sleep")
         }
-        if let hrv = recovery.hrvRmssd, let baseline = viewModel.hrvBaseline30d, hrv > baseline {
+        if let hrv = recovery.hrvRmssd, let baseline = viewModel.hrvBaseline30d, Int(hrv - baseline) >= 1 {
             reasons.append("HRV \(Int(hrv - baseline))ms above baseline")
         }
-        if let rhr = recovery.restingHR, let baseline = viewModel.rhrBaseline30d, rhr < baseline {
+        if let rhr = recovery.restingHR, let baseline = viewModel.rhrBaseline30d, Int(baseline - rhr) >= 1 {
             reasons.append("RHR \(Int(baseline - rhr))bpm below average")
         }
         return reasons.isEmpty ? "Strong recovery across all metrics." : reasons.joined(separator: ", ") + "."

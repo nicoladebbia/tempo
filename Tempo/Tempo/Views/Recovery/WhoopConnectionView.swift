@@ -127,8 +127,11 @@ struct WhoopConnectionView: View {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 // Connection status: the state in the colour of the state
                 HStack(spacing: Tide.s3) {
-                    TideAreaIconTile(systemName: "sensor.tag.radiowaves.forward.fill", tint: statusDotColor)
-                        .accessibilityHidden(true)
+                    // At the largest text sizes the words need the whole row, not the icon tile.
+                    if !typeSize.isAccessibilitySize {
+                        TideAreaIconTile(systemName: "sensor.tag.radiowaves.forward.fill", tint: statusDotColor)
+                            .accessibilityHidden(true)
+                    }
 
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Status").tideLabel(Tide.text3)
@@ -384,7 +387,6 @@ struct WhoopConnectionView: View {
     // MARK: - Pinned action
 
     /// The one step that fits where the page is: save the keys, connect, or sync.
-    @ViewBuilder
     private var pinnedAction: some View {
         VStack(spacing: Tide.s2) {
             if isConnected {
@@ -412,7 +414,10 @@ struct WhoopConnectionView: View {
             }
         }
         .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
         .padding(.bottom, Tide.s2)
+        // Large text makes the page scroll under the button: the scrim keeps it readable.
+        .pinnedBarScrim()
     }
 
     // MARK: - Sync Button
