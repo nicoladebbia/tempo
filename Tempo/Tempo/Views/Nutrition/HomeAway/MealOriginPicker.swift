@@ -35,10 +35,19 @@ struct MealOriginPicker: View {
     private var showHomeSetting = false
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    private var tileLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(spacing: Tide.s2) {
+            // Side by side; stacked at accessibility sizes so neither name shrinks.
+            tileLayout {
                 tile(.kitchen, title: "Kitchen", icon: "refrigerator.fill")
                 tile(.out, title: "Ate out", icon: "takeoutbag.and.cup.and.straw.fill")
             }

@@ -38,13 +38,10 @@ struct LoggedMealsList: View {
                 title: "Logged today",
                 trailing: meals.count == 1 ? "1 meal" : "\(meals.count) meals"
             )
-            TideNumber("\(Int(kcal.rounded()))", unit: "kcal", size: Tide.numeralM)
-            // Wraps instead of running off the card at large text sizes.
-            FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
-                MacroChip(letter: "P", grams: protein, color: Tide.protein)
-                MacroChip(letter: "C", grams: carbs, color: Tide.carbs)
-                MacroChip(letter: "F", grams: fat, color: Tide.fat)
-            }
+            TideNumber("\(Int(kcal.rounded()))", unit: "kcal", size: Tide.numeralL)
+            // How the day's calories divide, then the grams (stacked at large text sizes).
+            FuelMacroSplitBar(protein: Int(protein.rounded()), carbs: Int(carbs.rounded()), fat: Int(fat.rounded()))
+            FuelMacroInline(protein: Int(protein.rounded()), carbs: Int(carbs.rounded()), fat: Int(fat.rounded()))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
@@ -93,8 +90,15 @@ struct LoggedMealsList: View {
 struct LoggedMealRow: View {
     let meal: PlannedMeal
 
-    @Environment(\.tideMood)
-    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    /// Name and kcal side by side; the kcal drops under the name at accessibility sizes.
+    private var titleLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s2))
+    }
 
     private var type: MealType? {
         MealType.inferred(fromName: meal.mealName)
@@ -106,20 +110,17 @@ struct LoggedMealRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: Tide.s3) {
-            Image(systemName: type?.icon ?? "fork.knife")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(mood.accent)
-                .frame(width: Tide.hit - Tide.s2, height: Tide.hit - Tide.s2)
-                .background(mood.accent.opacity(0.14), in: .circle)
-                .accessibilityHidden(true)
+            TideIconTile(systemName: type?.icon ?? "fork.knife", tint: Tide.good)
 
             VStack(alignment: .leading, spacing: Tide.s1) {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                titleLayout {
                     Text(meal.mealName)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
-                        .lineLimit(2)
-                    Spacer(minLength: Tide.s1)
+                        .lineLimit(3)
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s1)
+                    }
                     TideNumber(
                         "\(Int(meal.totalCalories.rounded()))", unit: "kcal",
                         size: Tide.numeralS, relativeTo: .headline
@@ -143,11 +144,12 @@ struct LoggedMealRow: View {
                         originBadge(origin)
                     }
                 }
-                FlowLayout(spacing: Tide.s1, lineSpacing: Tide.s1) {
-                    MacroChip(letter: "P", grams: meal.totalProtein, color: Tide.protein)
-                    MacroChip(letter: "C", grams: meal.totalCarbs, color: Tide.carbs)
-                    MacroChip(letter: "F", grams: meal.totalFat, color: Tide.fat)
-                }
+                FuelMacroInline(
+                    protein: Int(meal.totalProtein.rounded()),
+                    carbs: Int(meal.totalCarbs.rounded()),
+                    fat: Int(meal.totalFat.rounded())
+                )
+                .padding(.top, Tide.hair)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

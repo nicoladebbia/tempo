@@ -24,6 +24,8 @@ struct MealLoggingView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var selectedMealType: MealType = .init(EatenMealRecorder.defaultMealType())
@@ -131,15 +133,8 @@ struct MealLoggingView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Meal type picker
                 mealTypePicker
-
-                // Food items list or empty state
-                if foodItems.isEmpty {
-                    emptyState
-                } else {
-                    foodItemsList
-                }
+                mealScroll
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .fuelBottomBar { stickyBottomBar }
@@ -225,26 +220,95 @@ struct MealLoggingView: View {
 
     // MARK: - Meal Type Picker
 
+    /// Four answers with their symbols: the one picked lights up in the accent.
     private var mealTypePicker: some View {
-        Picker("Meal Type", selection: $selectedMealType) {
+        // Four across; two by two at accessibility sizes so no name is cut.
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s2),
+            count: typeSize.isAccessibilitySize ? 2 : MealType.allCases.count
+        )
+        return LazyVGrid(columns: columns, spacing: Tide.s2) {
             ForEach(MealType.allCases) { type in
-                Text(type.rawValue).tag(type)
+                let selected = selectedMealType == type
+                Button {
+                    selectedMealType = type
+                } label: {
+                    VStack(spacing: Tide.s1) {
+                        Image(systemName: FuelMealStyle.icon(forName: type.rawValue))
+                            .font(Tide.bodyStrong)
+                            .accessibilityHidden(true)
+                        Text(type.rawValue)
+                            .font(Tide.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s2)
+                    .fuelChoice(selected: selected, minHeight: Tide.hit + Tide.s2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, Tide.edge)
         .padding(.vertical, Tide.s2)
         .sensoryFeedback(.selection, trigger: selectedMealType)
     }
 
-    // MARK: - Empty State
+    // MARK: - Page
 
-    private var emptyState: some View {
+    /// The meal so far, then the ways to add to it. The numbers lead: they
+    /// move as food comes in, so the page reads as a live total.
+    private var mealScroll: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Tide.s5) {
-                VStack(alignment: .leading, spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                mealHero
+                if foodItems.isEmpty {
+                    emptyMethods
+                } else {
+                    TideSectionLabel(
+                        title: "In this meal",
+                        trailing: foodItems.count == 1 ? "1 item" : "\(foodItems.count) items"
+                    )
+                    VStack(spacing: 0) {
+                        ForEach(foodItems) { item in
+                            foodItemRow(item)
+                            if item.id != foodItems.last?.id {
+                                Divider().overlay(Tide.hairline)
+                            }
+                        }
+                    }
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    inputMethodButtons
+                    originPicker
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
+            .animation(Tide.snap, value: foodItems.isEmpty)
+        }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+    }
+
+    // MARK: - Hero
+
+    private var mealHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    "\(totalCalories)", unit: "kcal", size: Tide.numeralL,
+                    color: foodItems.isEmpty ? Tide.text3 : Tide.text
+                )
+                Spacer(minLength: Tide.s2)
+                Text(selectedMealType.rawValue)
+                    .tideLabel()
+            }
+            FuelMacroSplitBar(protein: Int(totalProtein), carbs: Int(totalCarbs), fat: Int(totalFat))
+            if foodItems.isEmpty {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Nothing here yet. That's on you.")
-                        .font(Tide.title2)
+                        .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Search, scan, or snap a photo to add food.")
@@ -252,15 +316,14 @@ struct MealLoggingView: View {
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, Tide.s6)
-
-                // Input method buttons
-                inputMethodButtons
+            } else {
+                FuelMacroInline(protein: Int(totalProtein), carbs: Int(totalCarbs), fat: Int(totalFat))
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.bottom, Tide.s8)
         }
-        .scrollEdgeEffectStyle(.soft, for: .top)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mealLog.hero")
     }
 
     /// Where the meal was eaten: only once there is something to place.
@@ -272,42 +335,68 @@ struct MealLoggingView: View {
         )
     }
 
-    // MARK: - Food Items List
+    // MARK: - Ways to add (empty page)
 
-    private var foodItemsList: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: Tide.s4) {
-                originPicker
-
-                // Input method buttons at top
-                inputMethodButtons
-
-                TideSectionLabel(
-                    title: "In this meal",
-                    trailing: foodItems.count == 1 ? "1 item" : "\(foodItems.count) items"
-                )
-                .padding(.top, Tide.s2)
-
-                // Items
-                VStack(spacing: 0) {
-                    ForEach(foodItems) { item in
-                        foodItemRow(item)
-
-                        if item.id != foodItems.last?.id {
-                            Divider().overlay(Tide.hairline)
-                        }
-                    }
+    /// Four big doors into the meal, each with a line on what it does.
+    private var emptyMethods: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Add food")
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)],
+                spacing: Tide.s3
+            ) {
+                methodTile(icon: "magnifyingglass", label: "Search", hint: "Type a food or brand") {
+                    showFoodSearch = true
                 }
-                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                methodTile(icon: "camera.fill", label: "Photo", hint: "Snap your plate") {
+                    showPhotoAnalysis = true
+                }
+                methodTile(icon: "barcode.viewfinder", label: "Scan", hint: "Read a barcode") {
+                    showBarcodeScanner = true
+                }
+                methodTile(icon: "mic.fill", label: "Voice", hint: "Say what you ate") {
+                    showVoiceLog = true
+                }
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.top, Tide.s2)
-            .padding(.bottom, Tide.s8)
         }
-        .scrollEdgeEffectStyle(.soft, for: .top)
+    }
+
+    private func methodTile(icon: String, label: String, hint: String, action: @escaping () -> Void) -> some View {
+        Button {
+            HapticManager.lightImpact()
+            action()
+        } label: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideIconTile(systemName: icon)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(label)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                    Text(hint)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s10, alignment: .topLeading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(FuelPressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier("mealLog.input.\(label.lowercased())")
     }
 
     // MARK: - Food Item Row
+
+    private var itemRowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+    }
 
     private func foodItemRow(_ item: FoodItem) -> some View {
         HStack(spacing: Tide.s2) {
@@ -317,12 +406,14 @@ struct MealLoggingView: View {
             Button {
                 editingItem = item
             } label: {
-                HStack(spacing: Tide.s3) {
+                // Name and kcal side by side; the kcal drops under the name at
+                // accessibility sizes so the name keeps the full width.
+                itemRowLayout {
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(item.name)
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
-                            .lineLimit(2)
+                            .lineLimit(3)
                             .multilineTextAlignment(.leading)
 
                         Text(item.portionDescription)
@@ -330,18 +421,16 @@ struct MealLoggingView: View {
                             .foregroundStyle(Tide.text2)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
+
+                        FuelMacroInline(protein: Int(item.protein), carbs: Int(item.carbs), fat: Int(item.fat))
+                            .padding(.top, Tide.s1)
                     }
 
-                    Spacer(minLength: Tide.s2)
-
-                    VStack(alignment: .trailing, spacing: Tide.hair) {
-                        TideNumber("\(item.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
-
-                        Text("P \(Int(item.protein)) g")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.protein)
-                            .monospacedDigit()
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
                     }
+
+                    TideNumber("\(item.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
                 }
                 .frame(minHeight: Tide.hit + Tide.s3)
                 .contentShape(.rect)
@@ -368,7 +457,14 @@ struct MealLoggingView: View {
 
     private var inputMethodButtons: some View {
         GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
+            // Four across; two by two at accessibility sizes.
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: Tide.s2),
+                    count: typeSize.isAccessibilitySize ? 2 : 4
+                ),
+                spacing: Tide.s2
+            ) {
                 inputMethodButton(icon: "magnifyingglass", label: "Search") {
                     showFoodSearch = true
                 }
@@ -398,27 +494,19 @@ struct MealLoggingView: View {
     // MARK: - Sticky Bottom Bar
 
     private var stickyBottomBar: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            // Running totals
-            if !foodItems.isEmpty {
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralM)
-                    FuelMacroInline(
-                        protein: Int(totalProtein), carbs: Int(totalCarbs), fat: Int(totalFat)
-                    )
-                }
-                .accessibilityElement(children: .combine)
-            }
-
-            // Log Meal button
-            Button {
-                logMeal()
-            } label: {
-                Text("Log Meal")
-            }
-            .buttonStyle(.tidePrimary)
-            .disabled(foodItems.isEmpty || didLog)
+        Button {
+            logMeal()
+        } label: {
+            // The total is already the hero; at accessibility sizes the bar
+            // keeps just the verb so it stays one line and out of the way.
+            Text(foodItems.isEmpty || typeSize.isAccessibilitySize ? "Log Meal" : "Log Meal · \(totalCalories) kcal")
+                .contentTransition(.numericText())
         }
+        .buttonStyle(.tidePrimary)
+        .disabled(foodItems.isEmpty || didLog)
+        .accessibilityLabel("Log Meal")
+        .accessibilityValue(foodItems.isEmpty ? "" : "\(totalCalories) kilocalories")
+        .animation(Tide.snap, value: totalCalories)
     }
 
     // MARK: - Actions
