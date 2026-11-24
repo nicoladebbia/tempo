@@ -131,51 +131,17 @@ struct TrainerFeedbackInputView: View {
             .buttonStyle(.trainPlanSecondary)
 
             if let screenshot {
-                HStack(spacing: Tide.s3) {
-                    Image(uiImage: screenshot)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: TideTrain.rowThumb, height: TideTrain.rowThumb)
-                        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
-                        .accessibilityHidden(true)
-                    Text("Screenshot added — its text will be read on-device.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Tide.s2)
-                    Button {
-                        self.screenshot = nil
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(Tide.title2)
-                            .foregroundStyle(Tide.text3)
-                            .frame(width: Tide.hit, height: Tide.hit)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Remove screenshot")
-                }
-                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+                screenshotRow(screenshot)
             }
 
             if let errorMessage {
-                Text(errorMessage)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity)
-                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                TrainBanner(
+                    systemImage: "exclamationmark.triangle.fill",
+                    label: "Couldn't read it",
+                    tint: Tide.danger,
+                    message: errorMessage
+                ) {}
             }
-
-            Button {
-                Task { await submit() }
-            } label: {
-                Text("Read Changes")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tidePrimary)
-            .disabled(!canSubmit)
 
             #if DEBUG
                 Button("Load Sample Changes (DEBUG)") {
@@ -187,6 +153,62 @@ struct TrainerFeedbackInputView: View {
             #endif
         }
         .scrollDismissesKeyboard(.interactively)
+        .safeAreaBar(edge: .bottom) {
+            // Reading the changes is the one action here, so it sits under the thumb.
+            Button {
+                Task { await submit() }
+            } label: {
+                Text("Read Changes")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tidePrimary)
+            .disabled(!canSubmit)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        }
+    }
+
+    /// The screenshot that will be read: its picture, a line saying so, and a
+    /// way to take it back. The three stack at large text sizes.
+    private func screenshotRow(_ screenshot: UIImage) -> some View {
+        let picture = Image(uiImage: screenshot)
+            .resizable()
+            .scaledToFill()
+            .frame(width: TideTrain.rowThumb, height: TideTrain.rowThumb)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
+            .accessibilityHidden(true)
+        let note = Text("Screenshot added — its text will be read on-device.")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .fixedSize(horizontal: false, vertical: true)
+        let remove = Button {
+            self.screenshot = nil
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text3)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove screenshot")
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                picture
+                note
+                Spacer(minLength: Tide.s2)
+                remove
+            }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack {
+                    picture
+                    Spacer(minLength: Tide.s2)
+                    remove
+                }
+                note
+            }
+        }
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     private var processingOverlay: some View {

@@ -198,28 +198,27 @@ struct TrainerProgramImportView: View {
                 }
 
                 if let quotaExceededMessage {
-                    VStack(spacing: Tide.s3) {
-                        Text(quotaExceededMessage)
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.danger)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
+                    TrainBanner(
+                        systemImage: "ticket.fill",
+                        label: "Free imports used",
+                        tint: TideTrain.caution,
+                        message: quotaExceededMessage
+                    ) {
                         Button("Upgrade to Tempo Pro") {
                             showPaywall = true
                         }
                         .buttonStyle(.trainPlanSecondary)
                     }
-                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                     .padding(.horizontal, Tide.edge)
                 }
 
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    TrainBanner(
+                        systemImage: "exclamationmark.triangle.fill",
+                        label: "Couldn't read it",
+                        tint: Tide.danger,
+                        message: errorMessage
+                    ) {}
                         .padding(.horizontal, Tide.edge)
                 }
 
@@ -228,23 +227,6 @@ struct TrainerProgramImportView: View {
                 }
 
                 addSourceButtons
-
-                if !sources.isEmpty {
-                    Button {
-                        guard !isQuotaExhausted else {
-                            quotaExceededMessage = quotaExhaustedMessage
-                            return
-                        }
-                        quotaExceededMessage = nil
-                        importTask?.cancel()
-                        importTask = Task { await readProgram() }
-                    } label: {
-                        Text("Read Program")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tidePrimary)
-                    .padding(.horizontal, Tide.edge)
-                }
 
                 #if DEBUG
                     Button("Load Sample Program (DEBUG)") {
@@ -268,7 +250,28 @@ struct TrainerProgramImportView: View {
                     .frame(minHeight: Tide.hit)
                 #endif
             }
-            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+            .padding(.bottom, Tide.s5)
+        }
+        .safeAreaBar(edge: .bottom) {
+            // Reading the program is the one thing to do once something is added,
+            // so it sits under the thumb instead of at the end of the scroll.
+            if !sources.isEmpty {
+                Button {
+                    guard !isQuotaExhausted else {
+                        quotaExceededMessage = quotaExhaustedMessage
+                        return
+                    }
+                    quotaExceededMessage = nil
+                    importTask?.cancel()
+                    importTask = Task { await readProgram() }
+                } label: {
+                    Text("Read Program")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
         }
     }
 
@@ -276,7 +279,7 @@ struct TrainerProgramImportView: View {
 
     private var sourceListSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            Text("Sources").tideLabel(Tide.text3)
+            Text(sources.count == 1 ? "1 source added" : "\(sources.count) sources added").tideLabel(Tide.text3)
 
             ForEach(sources) { source in
                 HStack(spacing: Tide.s3) {
@@ -284,7 +287,7 @@ struct TrainerProgramImportView: View {
                     Text(source.displayName)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
-                        .lineLimit(2)
+                        .lineLimit(3)
                     Spacer(minLength: Tide.s2)
                     Button {
                         removeSource(source.id)
@@ -306,13 +309,12 @@ struct TrainerProgramImportView: View {
 
     private var addSourceButtons: some View {
         VStack(spacing: Tide.s3) {
-            Button {
-                showCameraPicker = true
-            } label: {
-                Label("Take Photo", systemImage: "camera.fill")
-                    .frame(maxWidth: .infinity)
+            // The lead way in while nothing is added; one more way in after that.
+            if sources.isEmpty {
+                takePhotoButton.buttonStyle(.tidePrimary)
+            } else {
+                takePhotoButton.buttonStyle(.trainPlanSecondary)
             }
-            .buttonStyle(.tidePrimary)
 
             PhotosPicker(
                 selection: $photosSelection,
@@ -343,12 +345,26 @@ struct TrainerProgramImportView: View {
         .padding(.horizontal, Tide.edge)
     }
 
+    private var takePhotoButton: some View {
+        Button {
+            showCameraPicker = true
+        } label: {
+            Label("Take Photo", systemImage: "camera.fill")
+                .frame(maxWidth: .infinity)
+        }
+    }
+
     private var processingOverlay: some View {
         VStack(spacing: Tide.s4) {
             ProgressView().controlSize(.large)
             Text(processingLabel)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(sources.count == 1 ? "1 source, read as one program" : "\(sources.count) sources, read as one program")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }

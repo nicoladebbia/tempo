@@ -60,6 +60,7 @@ struct TrainerFeedbackReviewView: View {
                         .padding(.top, Tide.s4)
                 }
                 if !matchedEdits.isEmpty {
+                    reviewHero
                     TrainPlanCard(label: "Changes") {
                         ForEach(Array(matchedEdits.enumerated()), id: \.element.id) { index, edit in
                             if index > 0 {
@@ -98,16 +99,27 @@ struct TrainerFeedbackReviewView: View {
                     }
                 }
             }
+            .safeAreaBar(edge: .bottom) {
+                // Apply under the thumb, saying how many changes it will make.
+                if !matchedEdits.isEmpty {
+                    Button {
+                        apply()
+                    } label: {
+                        Text(applyTitle)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(acceptedIDs.isEmpty)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
+                }
+            }
             .trainSheetRoot()
             .navigationTitle("Review Changes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") { apply() }
-                        .disabled(acceptedIDs.isEmpty)
                 }
             }
             .alert(
@@ -123,6 +135,33 @@ struct TrainerFeedbackReviewView: View {
                 Text(applyError ?? "")
             }
         }
+    }
+
+    private var applyTitle: String {
+        switch acceptedIDs.count {
+        case 0: "Pick a change to apply"
+        case 1: "Apply 1 change"
+        default: "Apply \(acceptedIDs.count) changes"
+        }
+    }
+
+    /// How many of the trainer's edits are switched on, as a figure and a tick each.
+    private var reviewHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Trainer sent changes").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(acceptedIDs.count)/\(matchedEdits.count)", size: Tide.numeralM, relativeTo: .title)
+                Text("switched on")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            TrainSetTicks(done: acceptedIDs.count, total: matchedEdits.count, label: "Changes switched on")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Trainer sent changes")
+        .accessibilityValue("\(acceptedIDs.count) of \(matchedEdits.count) switched on")
     }
 
     private func binding(for id: UUID) -> Binding<Bool> {
