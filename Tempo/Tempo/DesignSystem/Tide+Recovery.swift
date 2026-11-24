@@ -564,3 +564,48 @@ struct RecoveryChartPlaceholder: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+// MARK: - RecoveryErrorPanel
+
+/// A refresh failed and there is nothing to show: what went wrong, and a button
+/// to try again.
+struct RecoveryErrorPanel: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        TideEmptyPanel(
+            systemImage: "wifi.exclamationmark",
+            title: "Recovery isn't loading",
+            message: message,
+            actionTitle: "Try again",
+            action: retry
+        )
+        .tideCard()
+        .accessibilityIdentifier("recovery-error")
+    }
+}
+
+// MARK: - RecoveryErrorBanner
+
+/// The same failure with numbers already on screen: a line above them, not a
+/// takeover. Pull down to try again.
+struct RecoveryErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(TideTone.amber)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recovery-error-banner")
+    }
+}
