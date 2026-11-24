@@ -122,11 +122,14 @@ struct FuelQuadrantDetailView: View {
 
             // The three macros as lit rings against their targets; the "% of
             // calories" reading sits in the split bar below, as one object.
-            FuelMacroRings(
-                protein: (data.proteinGrams ?? 0, data.proteinTarget ?? 0),
-                carbs: (data.carbsGrams ?? 0, data.carbsTarget ?? 0),
-                fat: (data.fatGrams ?? 0, data.fatTarget ?? 0)
-            )
+            // No macro values at all (nothing connected): no rings of zeros.
+            if data.proteinGrams != nil || data.carbsGrams != nil || data.fatGrams != nil {
+                FuelMacroRings(
+                    protein: (data.proteinGrams ?? 0, data.proteinTarget ?? 0),
+                    carbs: (data.carbsGrams ?? 0, data.carbsTarget ?? 0),
+                    fat: (data.fatGrams ?? 0, data.fatTarget ?? 0)
+                )
+            }
 
             if let consumed = data.caloriesConsumed, consumed > 0 {
                 VStack(alignment: .leading, spacing: Tide.s2) {

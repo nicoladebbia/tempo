@@ -251,6 +251,8 @@ struct MealLoggingView: View {
         }
         .padding(.horizontal, Tide.edge)
         .padding(.vertical, Tide.s2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Meal Type")
         .sensoryFeedback(.selection, trigger: selectedMealType)
     }
 

@@ -279,7 +279,8 @@ struct MarkEatenSheet: View {
                     Image(systemName: ateSomethingElse ? "checkmark.circle.fill" : "arrow.triangle.swap")
                         .font(Tide.headline)
                         .foregroundStyle(ateSomethingElse ? mood.accent : Tide.text2)
-                        .frame(width: Tide.icon, alignment: .leading)
+                        // A minimum, not a fixed width: the symbol grows with the text.
+                        .frame(minWidth: Tide.icon, alignment: .leading)
                         .accessibilityHidden(true)
                     Text("Ate something else")
                         .font(Tide.bodyStrong)

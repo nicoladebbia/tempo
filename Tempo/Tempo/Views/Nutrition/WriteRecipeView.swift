@@ -94,6 +94,14 @@ struct WriteRecipeView: View {
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .lineLimit(1 ... 3)
+                .submitLabel(.done)
+                // A name is one line of words: Return never adds a line break.
+                .onChange(of: name) { _, new in
+                    if new.contains("\n") {
+                        name = new.replacingOccurrences(of: "\n", with: " ")
+                            .trimmingCharacters(in: .whitespaces)
+                    }
+                }
                 .frame(minHeight: Tide.hit + Tide.s3)
             numberRow("Servings", placeholder: "2", text: $servingsText)
             numberRow("Prep time (min)", placeholder: "optional", text: $prepMinutesText)
