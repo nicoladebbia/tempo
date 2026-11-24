@@ -125,9 +125,12 @@ struct NutritionWeeklyPlanView: View {
                     }
                 }
             })
+            // A sheet draws its own field; it must not inherit "already on a page".
+            .environment(\.tideInsidePage, false)
         }
         .sheet(isPresented: $showEditSetup) {
             FuelSetupView(startInReview: true)
+                .environment(\.tideInsidePage, false)
         }
         .sheet(item: $wizardSnapshot) { snapshot in
             MealPlanIntakeWizardView(
@@ -157,6 +160,7 @@ struct NutritionWeeklyPlanView: View {
                     wizardSnapshot = nil
                 }
             )
+            .environment(\.tideInsidePage, false)
         }
     }
 
