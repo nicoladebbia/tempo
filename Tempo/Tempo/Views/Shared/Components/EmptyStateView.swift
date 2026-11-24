@@ -10,8 +10,8 @@ import SwiftUI
 
 // MARK: - Empty State View
 
-// A calm glass card with a symbol, one line of what is missing and, when there
-// is a next step, one button. The spacers stay outside the card so a screen
+// A calm glass card with a breathing symbol, one line of what is missing and,
+// when there is a next step, one button. The spacers stay outside the card so a screen
 // that is only this view centres it.
 
 struct EmptyStateView: View {
@@ -40,7 +40,7 @@ struct EmptyStateView: View {
             Spacer()
 
             VStack(spacing: Tide.s4) {
-                TideIconTile(systemName: icon, size: Tide.tileLarge)
+                TideStateMark(systemName: icon)
 
                 VStack(spacing: Tide.s2) {
                     Text(title)

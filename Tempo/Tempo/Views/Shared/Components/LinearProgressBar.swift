@@ -22,6 +22,8 @@ struct LinearProgressBar: View {
 
     @State
     private var animatedProgress: Double = 0
+    @ScaledMetric(relativeTo: .footnote)
+    private var percentSize: CGFloat = 13
 
     init(
         progress: Double,
@@ -53,7 +55,7 @@ struct LinearProgressBar: View {
                     Spacer()
                     if showPercentage {
                         Text("\(Int(min(progress, 1.0) * 100))%")
-                            .font(Tide.numeral(13, .semibold))
+                            .font(Tide.numeral(percentSize, .semibold))
                             .foregroundStyle(Tide.text3)
                     }
                 }

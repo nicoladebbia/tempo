@@ -23,6 +23,8 @@ struct HeatmapCalendarView: View {
     private var mood
     @State
     private var selectedDate: Date?
+    @ScaledMetric(relativeTo: .headline)
+    private var tipSize: CGFloat = 17
 
     /// Day label column width
     private let dayLabelWidth: CGFloat = 20
@@ -207,7 +209,7 @@ struct HeatmapCalendarView: View {
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
             Text(String(format: "%.0f%%", value * 100))
-                .font(Tide.numeral(17))
+                .font(Tide.numeral(tipSize))
                 .foregroundStyle(Tide.text)
         }
     }

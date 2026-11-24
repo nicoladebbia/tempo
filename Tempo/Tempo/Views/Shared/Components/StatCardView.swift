@@ -19,6 +19,9 @@ struct StatCardView: View {
     let trendValue: String?
     let trendDirection: TrendDirection
 
+    @ScaledMetric(relativeTo: .footnote)
+    private var trendSize: CGFloat = 13
+
     enum TrendDirection {
         case up
         case down
@@ -67,7 +70,7 @@ struct StatCardView: View {
                     Image(systemName: trendDirection.icon)
                         .font(Tide.caption)
                     Text(trendValue)
-                        .font(Tide.numeral(13, .semibold))
+                        .font(Tide.numeral(trendSize, .semibold))
                 }
                 .foregroundStyle(trendDirection.color)
             }
