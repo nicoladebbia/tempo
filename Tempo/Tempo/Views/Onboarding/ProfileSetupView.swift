@@ -28,6 +28,9 @@ struct ProfileSetupView: View {
     private var focusedField: Field?
     @State
     private var usernameError: String?
+    /// The person has typed in the handle field: stop filling it from the name.
+    @State
+    private var usernameEdited = false
     @ScaledMetric(relativeTo: .title)
     private var avatarSize: CGFloat = Tide.tileLarge + Tide.s2
 
@@ -37,18 +40,7 @@ struct ProfileSetupView: View {
     }
 
     private var isUsernameValid: Bool {
-        let username = viewModel.username.trimmingCharacters(in: .whitespaces)
-        guard !username.isEmpty else {
-            return false
-        }
-        if username.count < 3 {
-            return false
-        }
-        if username.count > 30 {
-            return false
-        }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
-        return username.unicodeScalars.allSatisfy { allowed.contains($0) }
+        OnboardingViewModel.isValidUsername(viewModel.username)
     }
 
     private func checkUsernameAvailability() {
@@ -81,9 +73,9 @@ struct ProfileSetupView: View {
 
     var body: some View {
         OnboardingScaffold(
-            title: "WHO ARE YOU?",
+            title: "ABOUT YOU.",
             primaryTitle: "CONTINUE",
-            primaryEnabled: viewModel.canContinue && isUsernameValid && usernameError == nil,
+            primaryEnabled: viewModel.canContinue && usernameError == nil,
             primaryAction: { viewModel.advance() }
         ) {
             profileCard
@@ -95,8 +87,12 @@ struct ProfileSetupView: View {
                     .font(Tide.headline.weight(.regular))
                     .foregroundStyle(Tide.text)
                     .focused($focusedField, equals: .displayName)
+                    .textContentType(.name)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .username }
+                    .onChange(of: viewModel.displayName) { _, name in
+                        suggestUsername(from: name)
+                    }
                     .tideFieldSurface(focused: focusedField == .displayName)
             }
 
@@ -113,6 +109,12 @@ struct ProfileSetupView: View {
                     .onChange(of: viewModel.username) { _, _ in
                         checkUsernameAvailability()
                     }
+                    .onChange(of: focusedField) { _, field in
+                        // Once the person touches the handle, it is theirs: stop suggesting.
+                        if field == .username {
+                            usernameEdited = true
+                        }
+                    }
                     .tideFieldSurface(focused: focusedField == .username, invalid: usernameError != nil)
 
                 if let usernameError {
@@ -126,11 +128,62 @@ struct ProfileSetupView: View {
                 }
             }
             .animation(Tide.snap, value: usernameError)
+
+            identityMenu
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                focusedField = .displayName
+            // A handle that is not the one we would suggest was typed by the person (or kept from a
+            // run that was interrupted): leave it alone.
+            let suggested = OnboardingViewModel.suggestedUsername(from: viewModel.displayName)
+            usernameEdited = !viewModel.username.isEmpty && viewModel.username != suggested
+            if viewModel.displayName.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    focusedField = .displayName
+                }
             }
+            checkUsernameAvailability()
+        }
+    }
+
+    /// Fills the handle from the name until the person edits the handle themselves.
+    private func suggestUsername(from name: String) {
+        guard !usernameEdited else {
+            return
+        }
+        viewModel.username = OnboardingViewModel.suggestedUsername(from: name)
+    }
+
+    // MARK: - Identity
+
+    /// "What best describes you?" as one menu: 20 options do not need a page of their own.
+    private var identityMenu: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            OnboardingSectionLabel("What best describes you?")
+            Menu {
+                Picker("What best describes you?", selection: $viewModel.identityLabel) {
+                    ForEach(OnboardingViewModel.identityLabels, id: \.self) { label in
+                        Text(label).tag(label)
+                    }
+                }
+            } label: {
+                HStack(spacing: Tide.s2) {
+                    Text(viewModel.identityLabel)
+                        .font(Tide.headline.weight(.regular))
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                }
+                .tideFieldSurface(focused: false)
+                .contentShape(.rect)
+            }
+            .accessibilityIdentifier("onboardingIdentityMenu")
+            .accessibilityLabel("What best describes you")
+            .accessibilityValue(viewModel.identityLabel)
         }
     }
 

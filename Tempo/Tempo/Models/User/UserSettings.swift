@@ -79,6 +79,16 @@ final class UserSettings {
     /// completion, so reading experienceLevel from there returned nil forever.
     var experienceLevelRaw: String?
 
+    /// The one goal picked in onboarding (`PrimaryGoal` raw value). Optional + no default so
+    /// lightweight migration is happy for existing stores; nil = never chosen. Editable in
+    /// Settings > Profile.
+    var primaryGoalRaw: String?
+
+    var primaryGoal: PrimaryGoal? {
+        get { PrimaryGoal(saved: primaryGoalRaw) }
+        set { primaryGoalRaw = newValue?.rawValue }
+    }
+
     var showPlateCalculator: Bool
 
     var autoDeload: Bool

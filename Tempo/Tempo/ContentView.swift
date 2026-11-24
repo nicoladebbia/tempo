@@ -123,7 +123,13 @@ struct ContentView: View {
             } else if let days = data?["daysPerWeek"] as? Int {
                 settings.trainingSplit = TrainingSplit.forDaysPerWeek(days)
             }
+            settings.primaryGoal = PrimaryGoal(saved: data?["primaryGoal"] as? String)
             modelContext.insert(settings)
+        } else if let goal = PrimaryGoal(saved: data?["primaryGoal"] as? String),
+                  let existing = try? modelContext.fetch(settingsDescriptor).first, existing.primaryGoalRaw == nil
+        {
+            // Settings were created before the profile (another screen got there first).
+            existing.primaryGoal = goal
         }
 
         try? modelContext.save()

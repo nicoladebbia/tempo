@@ -70,7 +70,7 @@ struct OnboardingCompleteView: View {
                     .minimumScaleFactor(Tide.labelShrink)
                     .accessibilityAddTraits(.isHeader)
 
-                Text("Welcome to Tempo.\nYour operating system starts now.")
+                Text("Welcome to Tempo.\nYour operating system starts now.\nThe rest is asked when you need it.")
                     .font(Tide.headline.weight(.regular))
                     .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
