@@ -60,20 +60,7 @@ extension TodayWorkoutView {
 
         let unit = trainerDay?.isStrength == false ? "blocks" : "exercises"
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .top, spacing: Tide.s3) {
-                TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet, size: TideTrain.askTile)
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("Late night").tideLabel(TideTrain.violet)
-                    Text("It's past midnight. Get to bed.")
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Sleep is part of the plan. The session waits for the morning.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            TrainBedtimeHead()
 
             // What the morning holds, with its size as a figure like the day hero.
             VStack(alignment: .leading, spacing: Tide.s1) {
@@ -103,6 +90,33 @@ extension TodayWorkoutView {
             .buttonStyle(.tideGlass)
         }
         .tideCard(padding: Tide.s4)
-        .padding(.horizontal, Tide.s4)
+    }
+}
+
+// MARK: - TrainBedtimeHead
+
+/// The bedtime card's opening: tile beside the words, stacked above them at big text sizes.
+private struct TrainBedtimeHead: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        layout {
+            TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet, size: TideTrain.askTile)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Late night").tideLabel(TideTrain.violet)
+                Text("It's past midnight. Get to bed.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Sleep is part of the plan. The session waits for the morning.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
