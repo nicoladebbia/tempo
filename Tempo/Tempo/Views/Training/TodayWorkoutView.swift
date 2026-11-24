@@ -1304,6 +1304,7 @@ struct TodayWorkoutView: View {
         // UI tests (and VoiceOver users of the old build) know this button by
         // its old name.
         .accessibilityLabel("START WORKOUT")
+        .workoutZoomSource(.train)
         .padding(.horizontal, Tide.edge)
         .padding(.bottom, Tide.s2)
     }
