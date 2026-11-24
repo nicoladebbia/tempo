@@ -351,6 +351,8 @@ struct RecoveryHero<Gauge: View, Side: View>: View {
             : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
         layout {
             gauge
+                // What sits inside a dial stops growing before it touches the ring.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             VStack(alignment: .leading, spacing: Tide.s2) {
                 side
             }

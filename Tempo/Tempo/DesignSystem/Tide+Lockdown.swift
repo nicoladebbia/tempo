@@ -22,6 +22,11 @@ struct TideStreakDots: View {
     @ScaledMetric(relativeTo: .body)
     private var disc: CGFloat = 32
 
+    /// Seven discs share one row, so they stop growing before the row outgrows the screen.
+    private var discSize: CGFloat {
+        min(disc, Tide.avatar)
+    }
+
     var body: some View {
         HStack(spacing: Tide.s1) {
             ForEach(Array(days.enumerated()), id: \.offset) { index, status in
@@ -47,7 +52,7 @@ struct TideStreakDots: View {
                 .fill(Tide.danger.opacity(0.16))
                 .overlay(Circle().strokeBorder(Tide.danger.opacity(0.55), lineWidth: Tide.rule))
                 .overlay(Image(systemName: "xmark").font(Tide.label).foregroundStyle(Tide.danger))
-                .frame(width: disc, height: disc)
+                .frame(width: discSize, height: discSize)
         case let .today(completed):
             if completed {
                 lit
@@ -56,12 +61,12 @@ struct TideStreakDots: View {
                     .fill(mood.accent.opacity(0.14))
                     .overlay(Circle().strokeBorder(mood.accent, lineWidth: Tide.hair))
                     .overlay(Circle().fill(mood.accent).frame(width: Tide.s2, height: Tide.s2))
-                    .frame(width: disc, height: disc)
+                    .frame(width: discSize, height: discSize)
             }
         case .future:
             Circle()
                 .strokeBorder(Tide.hairline, lineWidth: Tide.rule)
-                .frame(width: disc, height: disc)
+                .frame(width: discSize, height: discSize)
         }
     }
 
@@ -69,7 +74,7 @@ struct TideStreakDots: View {
         Circle()
             .fill(TideTone.mint)
             .overlay(Image(systemName: "checkmark").font(Tide.label).foregroundStyle(Tide.ink))
-            .frame(width: disc, height: disc)
+            .frame(width: discSize, height: discSize)
     }
 
     private func spoken(_ status: StreakDotsView.DayStatus) -> String {

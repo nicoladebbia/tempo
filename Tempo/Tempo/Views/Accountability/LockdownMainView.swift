@@ -67,6 +67,13 @@ struct LockdownMainView: View {
                 // Status banner
                 statusBanner
 
+                // At accessibility sizes the bar is too tall to pin; it scrolls
+                // with the page, right under the status it belongs to.
+                if typeSize.isAccessibilitySize {
+                    leisureStatusBar
+                        .padding(.horizontal, -Tide.edge)
+                }
+
                 // Progress prediction
                 progressPredictionSection
 
@@ -84,7 +91,9 @@ struct LockdownMainView: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 // Pinned bottom: quick action + leisure status
-                leisureStatusBar
+                if !typeSize.isAccessibilitySize {
+                    leisureStatusBar
+                }
             }
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)

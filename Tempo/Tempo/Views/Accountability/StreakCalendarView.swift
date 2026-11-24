@@ -283,11 +283,16 @@ struct StreakCalendarView: View {
             }
             .frame(width: Tide.icon)
 
-            HStack(alignment: .top, spacing: Tide.s2) {
+            // The "to go" pill drops under the title at accessibility sizes.
+            let textRow = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s2))
+            textRow {
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(milestone.title)
                         .font(Tide.headline)
                         .foregroundStyle(achieved || isNext ? Tide.text : Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     if milestone.xpBonus > 0 {
                         Text("+\(milestone.xpBonus) XP")
@@ -303,7 +308,9 @@ struct StreakCalendarView: View {
                     }
                 }
 
-                Spacer(minLength: Tide.s2)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
 
                 if isNext {
                     TideStatusPill(text: "\(milestone.rawValue - viewModel.streakCount) to go", tint: mood.accent)

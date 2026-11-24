@@ -23,6 +23,11 @@ struct WeeklyAccountabilityView: View {
     private var mood
     @ScaledMetric(relativeTo: .body)
     private var dayDisc: CGFloat = 32
+
+    /// Seven discs share one row, so they stop growing before the row outgrows the screen.
+    private var discSize: CGFloat {
+        min(dayDisc, Tide.avatar)
+    }
     @State
     private var weekData: WeeklyAccountabilityData?
     @State
@@ -188,7 +193,7 @@ struct WeeklyAccountabilityView: View {
             Circle()
                 .fill(TideTone.mint)
                 .overlay(Image(systemName: "checkmark").font(Tide.label).foregroundStyle(Tide.ink))
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         } else if day.completionRate > 0 {
             Circle()
                 .fill(TideTone.amber.opacity(0.18))
@@ -198,12 +203,12 @@ struct WeeklyAccountabilityView: View {
                         .font(Tide.numeral(Tide.axisSize, .bold))
                         .foregroundStyle(TideTone.amber)
                 )
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         } else {
             Circle()
                 .strokeBorder(Tide.hairline, lineWidth: Tide.rule)
                 .overlay(Text("--").font(Tide.numeral(Tide.axisSize, .bold)).foregroundStyle(Tide.text3))
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         }
     }
 
