@@ -131,15 +131,26 @@ struct WizardStepScaffold<Content: View>: View {
                     HapticManager.selection()
                     onBack()
                 } label: {
-                    Text("Back")
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
-                        .padding(.horizontal, Tide.s5)
-                        .frame(minHeight: Tide.hit + Tide.s2)
-                        .background(Tide.fill, in: .capsule)
-                        .contentShape(.capsule)
+                    // At accessibility sizes Back shrinks to an arrow so the main
+                    // button keeps room and its label never breaks mid-word.
+                    Group {
+                        if typeSize.isAccessibilitySize {
+                            Image(systemName: "chevron.left")
+                                .font(Tide.bodyStrong)
+                                .frame(width: Tide.hit + Tide.s2)
+                        } else {
+                            Text("Back")
+                                .font(Tide.bodyStrong)
+                                .padding(.horizontal, Tide.s5)
+                        }
+                    }
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit + Tide.s2)
+                    .background(Tide.fill, in: .capsule)
+                    .contentShape(.capsule)
                 }
                 .buttonStyle(FuelPressStyle())
+                .accessibilityLabel("Back")
             }
 
             Button {

@@ -61,11 +61,14 @@ struct RequestedMealView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: Tide.stateWidth)
-            Button("Back to Fuel") { dismiss() }
-                .buttonStyle(.tideGlass)
         }
         .padding(.horizontal, Tide.edge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The one way out sits under the thumb.
+        .fuelBottomBar {
+            Button("Back to Fuel") { dismiss() }
+                .buttonStyle(.tidePrimary)
+        }
         .tidePage()
         .accessibilityIdentifier("requestedMealMissing")
     }
