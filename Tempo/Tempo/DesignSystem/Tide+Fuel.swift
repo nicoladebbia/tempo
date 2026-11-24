@@ -980,13 +980,21 @@ struct FuelShareBar: View {
 /// How a meal looks wherever it appears: its symbol and the colour of its status.
 enum FuelMealStyle {
     static func icon(forName name: String) -> String {
-        switch name.lowercased() {
-        case "breakfast": "sunrise.fill"
-        case "lunch": "sun.max.fill"
-        case "dinner": "moon.stars.fill"
-        case "snack": "carrot.fill"
-        default: "fork.knife"
+        // "Afternoon Snack", "Pre-workout snack" and "Snack" all read as a snack.
+        let lowered = name.lowercased()
+        if lowered.contains("breakfast") {
+            return "sunrise.fill"
         }
+        if lowered.contains("lunch") {
+            return "sun.max.fill"
+        }
+        if lowered.contains("dinner") {
+            return "moon.stars.fill"
+        }
+        if lowered.contains("snack") {
+            return "carrot.fill"
+        }
+        return "fork.knife"
     }
 
     static func tone(for status: MealStatus, accent: Color) -> Color {

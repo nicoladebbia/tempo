@@ -71,6 +71,15 @@ struct DailyNutritionSummaryView: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    /// In, out and the balance side by side; stacked at accessibility sizes.
+    private var balanceLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s2))
+    }
 
     // MARK: - Computed
 
@@ -136,6 +145,7 @@ struct DailyNutritionSummaryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
+        .fuelBottomBar { logMealBar }
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
@@ -196,19 +206,24 @@ struct DailyNutritionSummaryView: View {
     // MARK: - Empty State
 
     private var emptyStateSection: some View {
+        // The button for it is the bar at the bottom of the page.
         FuelEmptyState(
             icon: "fork.knife",
             title: "Nothing logged yet",
             message: "Log your first meal. The numbers below start moving."
-        ) {
-            Button {
-                showMealLogging = true
-                HapticManager.lightImpact()
-            } label: {
-                Label("Log a meal", systemImage: "plus")
-            }
-            .buttonStyle(.tidePrimary)
+        )
+    }
+
+    /// The one action of this page, in the thumb zone.
+    private var logMealBar: some View {
+        Button {
+            showMealLogging = true
+            HapticManager.lightImpact()
+        } label: {
+            Label("Log a meal", systemImage: "plus")
         }
+        .buttonStyle(.tidePrimary)
+        .accessibilityIdentifier("nutritionSummary.logMeal")
     }
 
     // MARK: - Calorie Hero Section
@@ -301,13 +316,15 @@ struct DailyNutritionSummaryView: View {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 TideSectionLabel(title: "Energy balance")
 
-                HStack(alignment: .top, spacing: Tide.s2) {
+                balanceLayout {
                     balanceFigure("\(balance.caloriesIn)", label: "In")
-                    Image(systemName: "arrow.left.arrow.right")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .frame(height: Tide.numeralS)
-                        .accessibilityHidden(true)
+                    if !typeSize.isAccessibilitySize {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .frame(height: Tide.numeralS)
+                            .accessibilityHidden(true)
+                    }
                     balanceFigure("\(balance.caloriesOut)", label: "Out")
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(balance.balanceText)
@@ -389,54 +406,54 @@ struct DailyNutritionSummaryView: View {
                     }
                 }
             }
-
-            // Log meal button
-            Button {
-                showMealLogging = true
-                HapticManager.lightImpact()
-            } label: {
-                Label("Log a meal", systemImage: "plus")
-            }
-            .buttonStyle(.tideGlass)
         }
         .tideCard()
     }
 
     private func mealRow(_ meal: NutritionMealEntry) -> some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: meal.statusIcon)
-                .font(Tide.headline)
-                .foregroundStyle(meal.statusColor)
-                .frame(width: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+        HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
+            // The meal's own symbol, tinted by how it went.
+            TideIconTile(
+                systemName: FuelMealStyle.icon(forName: meal.type),
+                tint: meal.statusColor,
+                size: Tide.hit - Tide.s2
+            )
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(meal.type)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
+                    .lineLimit(2)
 
-                HStack(spacing: Tide.s1) {
-                    Text(meal.time)
+                Text(meal.time)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .monospacedDigit()
+
+                if !meal.items.isEmpty {
+                    Text(meal.items.joined(separator: ", "))
                         .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .monospacedDigit()
-
-                    if !meal.items.isEmpty {
-                        Text(meal.items.joined(separator: ", "))
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                            .lineLimit(1)
-                    }
+                        .foregroundStyle(Tide.text3)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
                 }
             }
 
             Spacer(minLength: Tide.s2)
 
-            if let calories = meal.calories {
-                TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
-            } else {
-                Text("--").font(Tide.body).foregroundStyle(Tide.text3)
+            VStack(alignment: .trailing, spacing: Tide.s1) {
+                if let calories = meal.calories {
+                    TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                } else {
+                    Text("--").font(Tide.body).foregroundStyle(Tide.text3)
+                }
+                if meal.status != .planned {
+                    FuelPill(
+                        text: meal.status == .logged ? "Eaten" : "Skipped",
+                        color: meal.statusColor
+                    )
+                }
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .frame(minHeight: Tide.hit + Tide.s3)
         .accessibilityElement(children: .combine)
@@ -470,13 +487,21 @@ struct DailyNutritionSummaryView: View {
                     y: .value("Calories", point.calories)
                 )
                 .foregroundStyle(point.calories > calorieTarget ? Tide.danger : mood.accent)
+                // Today is the bar to read; the days before sit back.
+                .opacity(Calendar.current.isDateInToday(point.date) ? 1 : 0.55)
                 .cornerRadius(Tide.s1)
             }
 
             RuleMark(y: .value("Target", calorieTarget))
                 .foregroundStyle(Tide.text3)
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                .annotation(position: .top, alignment: .leading, spacing: Tide.hair) {
+                    Text("Target")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
         }
+        .accessibilityLabel("Calories eaten per day over the last 7 days")
         .chartXScale(domain: trendDomain)
         .chartXAxis {
             AxisMarks(values: .stride(by: .day)) { value in
@@ -550,16 +575,15 @@ struct DailyNutritionSummaryView: View {
         let timeString = timeFormatter.string(from: Date())
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(spacing: Tide.s2) {
-                Image(systemName: "brain.head.profile")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(mood.accent)
-                    .accessibilityHidden(true)
-                Text("Coach").tideLabel()
-                Spacer(minLength: Tide.s2)
-                Text("Updated today at \(timeString)")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: "brain.head.profile", size: Tide.hit - Tide.s2)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Coach").tideLabel()
+                    Text("Updated today at \(timeString)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
+                Spacer(minLength: 0)
             }
 
             Text(message)
