@@ -86,7 +86,7 @@ struct PlannedMealCardView: View {
                     Button {
                         onSavePreset?()
                     } label: {
-                        Label("Save as preset", systemImage: "bookmark")
+                        Label("Save as favourite", systemImage: "star")
                     }
                 }
                 if onUndo != nil {

@@ -89,8 +89,8 @@ final class MealOutcomeServiceTests: XCTestCase {
 
         XCTAssertEqual(snap.kind, .removed)
         XCTAssertTrue(meals().isEmpty)
-        XCTAssertEqual((try context.fetch(FetchDescriptor<MealLog>())).count, 0)
-        XCTAssertEqual((try context.fetch(FetchDescriptor<MealFeedback>())).count, 0)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealLog>())).count, 0)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealFeedback>())).count, 0)
     }
 
     func testRestoreAfterRemovalBringsAdHocLogBack() throws {
@@ -125,7 +125,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertNil(lunch.actualEatenAt)
         XCTAssertNil(lunch.linkedMealLogID)
         XCTAssertEqual(meals().count, 1)
-        XCTAssertEqual((try context.fetch(FetchDescriptor<MealLog>())).count, 0)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealLog>())).count, 0)
     }
 
     func testDeleteThenRestoreReappliesLog() throws {
@@ -225,7 +225,7 @@ final class MealOutcomeServiceTests: XCTestCase {
 
         let snack = try EatenMealRecorder.record(
             [food("Bar", kcal: 200)], type: .snack,
-            eatenAt: Calendar.current.date(bySettingHour: 16, minute: 5, second: 0, of: Date())!,
+            eatenAt: XCTUnwrap(Calendar.current.date(bySettingHour: 16, minute: 5, second: 0, of: Date())),
             source: .manual, modelContext: context
         )
         XCTAssertTrue(snack.meal === s2, "Closest snack by time")
@@ -280,19 +280,22 @@ final class MealOutcomeServiceTests: XCTestCase {
         )
         XCTAssertEqual(preset.totalCalories, 300)
         XCTAssertEqual(preset.foodItems.map(\.name), ["Oats"])
-        XCTAssertEqual((try context.fetch(FetchDescriptor<MealPreset>())).count, 1)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 1)
     }
 
     func testPresetLogGoesThroughRecorderAndHitsCanonicalReaders() throws {
-        let vm = NutritionTabViewModel()
         let preset = MealPreset(
             name: "Usual", foodItems: [food("Oats", kcal: 300)], totalCalories: 300,
             totalProtein: 10, totalCarbs: 20, totalFat: 5, mealType: .breakfast
         )
         context.insert(preset)
-        let r = vm.logFromPreset(preset, modelContext: context)
-        XCTAssertNotNil(r)
+        let r = try EatenMealRecorder.record(
+            preset.foodItems, type: preset.mealType, eatenAt: Date(), source: .preset,
+            modelContext: context, notifications: nil
+        )
         XCTAssertEqual(CanonicalMeals.eatenMeals(on: Date(), in: context).count, 1)
+        XCTAssertEqual(r.meal.planBaseline, .zero, "A preset log never raises the target")
+        XCTAssertNotNil(r.meal.actualEatenAt)
     }
 
     // MARK: - Serving-size grams (the "2 eggs" bug)
@@ -368,7 +371,7 @@ final class MealOutcomeServiceTests: XCTestCase {
     }
 
     func testRestoredLogKeepsItsFeedbackAndItsDay() throws {
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         let result = try EatenMealRecorder.record(
             [food("Toast", kcal: 200)], type: .breakfast, eatenAt: yesterday, source: .manual,
             modelContext: context, now: yesterday
@@ -429,7 +432,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         let breakfast = slot("Breakfast", number: 1, time: "08:00", in: p)
         let lunch = slot("Lunch", number: 2, time: "13:00", in: p)
         let dinner = slot("Dinner", number: 3, time: "19:30", in: p)
-        let lateBreakfast = Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date())!
+        let lateBreakfast = try XCTUnwrap(Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date()))
 
         try MealOutcomeService.markEaten(breakfast, at: lateBreakfast, env: env)
         XCTAssertNotEqual(lunch.scheduledTime, "13:00", "Eating 3.5 h late pushes lunch back")
@@ -441,7 +444,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertNil(lunch.originalScheduledTime)
     }
 
-    func testOverdueNotificationButtonsUseTheSharedPath() throws {
+    func testOverdueNotificationButtonsUseTheSharedPath() {
         let p = plan()
         let lunch = slot("Lunch", number: 2, time: "12:00", in: p)
         let dinner = slot("Dinner", number: 3, time: "19:00", in: p)
@@ -460,7 +463,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertFalse(TempoNotificationDelegate.resolveOverdueMeal(id: "not-a-uuid", ate: true, env: live))
     }
 
-    func testRebalanceUsesWhoopTDEEAndStoredRecoveryLikeTheTodayRing() throws {
+    func testRebalanceUsesWhoopTDEEAndStoredRecoveryLikeTheTodayRing() {
         let whoop = MockWhoopService()
         let live = MealOutcomeService.Env.live(modelContext: context, notifications: nil, whoop: whoop)
         XCTAssertEqual(live.whoopAvgTDEE, whoop.weeklyTDEEAverage)
@@ -475,7 +478,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         let breakfast = slot("Breakfast", number: 1, time: "08:00", kcal: 600, in: p)
         let lunch = slot("Lunch", number: 2, time: "13:00", kcal: 700, in: p)
         lunch.status = .modified
-        let lateBreakfast = Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date())!
+        let lateBreakfast = try XCTUnwrap(Calendar.current.date(bySettingHour: 11, minute: 30, second: 0, of: Date()))
 
         try MealOutcomeService.markEaten(
             breakfast, at: lateBreakfast, replacingWith: [
@@ -495,7 +498,7 @@ final class MealOutcomeServiceTests: XCTestCase {
         let m = slot("Lunch", number: 2, dish: "Chicken", in: p)
         try context.save()
         try MealOutcomeService.markEaten(m, env: env)
-        for _ in 0..<2 {
+        for _ in 0 ..< 2 {
             _ = try MealOutcomeService.undo(m, env: env)
             try MealOutcomeService.markEaten(m, env: env)
         }

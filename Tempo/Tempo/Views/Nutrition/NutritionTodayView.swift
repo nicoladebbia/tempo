@@ -17,8 +17,8 @@ import SwiftUI
 struct NutritionTodayView: View {
     @Bindable
     var viewModel: NutritionTabViewModel
-    /// Opens the Quick Log sheet (stays on Today).
-    var onQuickLog: () -> Void = {}
+    /// Opens the capture screen (stays on Today).
+    var onLogMeal: () -> Void = {}
     /// Opens the scanner. Owned by the tab root so it can be swapped in one place.
     var onScan: () -> Void = {}
     @Environment(\.dynamicTypeSize)
@@ -140,7 +140,7 @@ struct NutritionTodayView: View {
             }
             .tempoToast($toast)
             .aiBlockerAlert($substituteBlocker)
-            .alert("Save as preset", isPresented: Binding(
+            .alert("Save as favourite", isPresented: Binding(
                 get: { presetSourceMeal != nil },
                 set: {
                     if !$0 {
@@ -148,21 +148,21 @@ struct NutritionTodayView: View {
                     }
                 }
             )) {
-                TextField("Preset name", text: $presetNameDraft)
+                TextField("Name", text: $presetNameDraft)
                 Button("Save") {
                     if let meal = presetSourceMeal {
                         let name = presetNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
                         let saved = !name.isEmpty
-                            && viewModel.savePreset(from: meal, name: name, modelContext: modelContext)
+                            && viewModel.savePreset(from: meal, name: name, modelContext: modelContext, pinned: true)
                         toast = saved
-                            ? ToastData(message: "\(name) saved. Find it on the Log tab.", style: .success)
-                            : ToastData(message: "Couldn't save that preset.", style: .error)
+                            ? ToastData(message: "\(name) saved. It's at the top of Log meal.", style: .success)
+                            : ToastData(message: "Couldn't save that favourite.", style: .error)
                     }
                     presetSourceMeal = nil
                 }
                 Button("Cancel", role: .cancel) { presetSourceMeal = nil }
             } message: {
-                Text("Log this meal again in one tap from the Log tab.")
+                Text("It sits at the top of Log meal, one tap to log again.")
             }
         }
     }
@@ -173,16 +173,16 @@ struct NutritionTodayView: View {
 
     /// Four thumb-sized shortcuts at the top of Today.
     private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
-        let quickLog = actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
-            onQuickLog()
+        let quickLog = actionButton(icon: "fork.knife", label: "Log meal", id: "today.action.logmeal") {
+            onLogMeal()
         }
         let scan = actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
             onScan()
         }
         // One tap logs a glass; the water card (scrolled into view) shows
-        // the new total and its Undo.
+        // the new total, and the toast takes back exactly that glass.
         let water = actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water", tint: Tide.water) {
-            WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
+            addGlassOfWater()
             scrollTo(Self.waterID)
         }
         let supplements = actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
@@ -222,6 +222,22 @@ struct NutritionTodayView: View {
     }
 
     // MARK: - Undo / delete / preset
+
+    /// +250 ml with a few seconds to take back exactly that glass.
+    private func addGlassOfWater() {
+        let store = WaterStore(context: modelContext, healthKit: services.healthKit)
+        guard let log = store.add(ml: 250) else {
+            toast = ToastData(message: "Couldn't save that water. Try again.", style: .error)
+            return
+        }
+        let id = log.id
+        toast = ToastData(message: "250 ml of water added.", style: .success, actionTitle: "Undo") {
+            let undone = WaterStore(context: modelContext, healthKit: services.healthKit).remove(id: id)
+            toast = undone
+                ? ToastData(message: "Water taken back.", style: .info)
+                : ToastData(message: "Couldn't undo that water. Use Undo on the water card.", style: .error)
+        }
+    }
 
     /// Undo an eaten/skipped meal (plan slot → planned, ad-hoc log → deleted)
     /// with a 5-second Undo toast.

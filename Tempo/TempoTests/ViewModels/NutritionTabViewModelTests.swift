@@ -138,26 +138,6 @@ final class NutritionTabViewModelTests: XCTestCase {
         XCTAssertEqual(fetched.calories, 2000)
     }
 
-    // MARK: - Preset logging order
-
-    func testLogFromPreset_insertsInChronologicalOrder() throws {
-        let ctx = container.mainContext
-        viewModel._testSetTodayMeals([
-            makePlanned(meal: 1, p: 0, c: 0, f: 0, kcal: 0, status: .planned, scheduled: "00:00"),
-            makePlanned(meal: 2, p: 0, c: 0, f: 0, kcal: 0, status: .planned, scheduled: "23:59"),
-        ])
-        let preset = MealPreset(name: "Oats", mealType: .breakfast)
-        ctx.insert(preset)
-        viewModel.logFromPreset(preset, modelContext: ctx)
-        let names = viewModel.todayMeals.map(\.scheduledTime)
-        XCTAssertEqual(viewModel.todayMeals.count, 3)
-        XCTAssertEqual(names.first, "00:00")
-        XCTAssertEqual(names.last, "23:59", "The preset (logged now) must land between, not at the end")
-        let logged = try XCTUnwrap(viewModel.todayMeals.first { $0.mealName == MealType.breakfast.displayName })
-        XCTAssertEqual(logged.planBaseline, .zero, "A preset log never raises the target")
-        XCTAssertNotNil(logged.actualEatenAt)
-    }
-
     func testChronological_sortsByTimeThenMealNumberMalformedLast() {
         let meals = [
             makePlanned(meal: 3, p: 0, c: 0, f: 0, kcal: 0, status: .planned, scheduled: "bad"),

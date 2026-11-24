@@ -31,12 +31,6 @@ struct NutritionTabView: View {
     private var resumedScan: ScanResumeRecord?
     @State
     private var showMealLogging = false
-    /// Today's Quick Log sheet (type, Confirm Meal opens on top of it).
-    @State
-    private var showQuickLog = false
-    /// "Breakfast logged. 420 kcal." after a meal was confirmed anywhere in Nutrition.
-    @State
-    private var mealLogToast: ToastData?
 
     /// Surfaces a plan-generation failure as a toast at the Nutrition root
     /// regardless of which sub-tab the user is on. Previously the only
@@ -60,7 +54,7 @@ struct NutritionTabView: View {
 
     /// Something of Fuel's own is presented over the page: the field stops.
     private var isCovered: Bool {
-        showQuickLog || showMealLogging || showScan || showSettings
+        showMealLogging || showScan || showSettings
     }
 
     var body: some View {
@@ -155,17 +149,6 @@ struct NutritionTabView: View {
                 )
             }
             .tempoToast($planErrorToast)
-            .tempoToast($mealLogToast)
-            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
-                guard let message = note.userInfo?["message"] as? String else {
-                    return
-                }
-                let isError = note.userInfo?["error"] as? Bool ?? false
-                mealLogToast = ToastData(message: message, style: isError ? .error : .success)
-            }
-            .sheet(isPresented: $showQuickLog) {
-                QuickLogSheet()
-            }
             .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
                 if let blocker {
                     mealIdeasBlocker = blocker
@@ -234,6 +217,10 @@ struct NutritionTabView: View {
                 .environment(\.tideInsidePage, false)
             }
         }
+        // "Lunch logged. 640 kcal." with Undo, after a meal was saved anywhere in
+        // Fuel. Outermost, so the sheets above the page (the capture screen) know a
+        // host is below them and close at once.
+        .fuelLogToastHost()
     }
 
     // MARK: - Section Picker
@@ -280,7 +267,7 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel, onQuickLog: { showQuickLog = true }, onScan: {
+            NutritionTodayView(viewModel: viewModel, onLogMeal: { showMealLogging = true }, onScan: {
                 // Receipt mode needs the Kitchen services; attaching is idempotent.
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
                 resumedScan = nil

@@ -143,8 +143,6 @@ final class NutritionTabViewModel {
     var selectedTab: NutritionSection = .today
     /// Which part of Kitchen is showing (Pantry unless something routed elsewhere).
     var selectedKitchen: KitchenSection = .pantry
-    /// Set by the Today "Quick Log" button; the Log tab focuses its field and clears it.
-    var focusQuickLogRequested = false
 
     /// Deep link into a Kitchen sub-section (e.g. the pantry-gap alert → Groceries).
     func openKitchen(_ section: KitchenSection) {
@@ -175,12 +173,6 @@ final class NutritionTabViewModel {
     /// (see ScanResume); the Nutrition tab opens the scanner and clears it.
     var scanResume: ScanResumeRecord?
 
-    /// Jumps to the Log tab with the Quick Log field focused.
-    func openQuickLog() {
-        focusQuickLogRequested = true
-        selectedTab = .log
-    }
-
     // MARK: - Data
 
     private(set) var todayMeals: [PlannedMeal] = []
@@ -189,7 +181,6 @@ final class NutritionTabViewModel {
     /// and the inline edit affordance in the end-of-week review screen.
     private(set) var feedbackPresence: [UUID: Bool] = [:]
     private(set) var weeklyPlan: WeeklyMealPlan?
-    private(set) var presets: [MealPreset] = []
     private(set) var dietaryProfile: DietaryProfile?
 
     // MARK: - Plan freshness
@@ -424,10 +415,6 @@ final class NutritionTabViewModel {
         dietaryProfile != nil
     }
 
-    var sortedPresets: [MealPreset] {
-        presets.sorted { $0.useCount > $1.useCount }
-    }
-
     // MARK: - Load
 
     /// Look up the (single) UserSettings record so Plan generation can read
@@ -498,12 +485,6 @@ final class NutritionTabViewModel {
             )
             let plans = try modelContext.fetch(planDescriptor)
             weeklyPlan = plans.first { $0.coversToday }
-
-            // Fetch all presets
-            let presetDescriptor = FetchDescriptor<MealPreset>(
-                sortBy: [SortDescriptor(\.useCount, order: .reverse)]
-            )
-            presets = try modelContext.fetch(presetDescriptor)
 
             // Fetch dietary profile
             let profileDescriptor = FetchDescriptor<DietaryProfile>(
@@ -665,11 +646,10 @@ final class NutritionTabViewModel {
         return true
     }
 
-    /// Re-reads today's meals and presets after a change made outside this
-    /// view model (meal detail screen, Watch, Log tab).
+    /// Re-reads today's meals after a change made outside this view model
+    /// (meal detail screen, Watch, Log tab, the capture screen).
     func refreshAfterMealChange(modelContext: ModelContext) {
         refreshTodayMeals(modelContext: modelContext)
-        refreshPresets(modelContext: modelContext)
     }
 
     /// Forgets a meal that is about to be deleted elsewhere
@@ -753,78 +733,31 @@ final class NutritionTabViewModel {
 
     // MARK: - Presets
 
-    /// "Save as preset" on a logged meal. False when it has no foods or the
-    /// save failed.
+    /// "Save as preset" on a logged meal (`pinned` makes it a favourite, shown
+    /// at the top of the capture screen). False when it has no foods or the
+    /// save failed. Saved meals are listed and logged on the capture screen
+    /// (`QuickLogRows`); they are read from SwiftData there, not kept here.
     @discardableResult
-    func savePreset(from meal: PlannedMeal, name: String, modelContext: ModelContext) -> Bool {
+    func savePreset(from meal: PlannedMeal, name: String, modelContext: ModelContext, pinned: Bool = false) -> Bool {
         let foods = meal.foods
         guard !foods.isEmpty,
-              let preset = try? MealOutcomeService.savePreset(
+              (try? MealOutcomeService.savePreset(
                   name: name,
                   foods: foods,
                   mealType: MealType.inferred(fromName: meal.mealName) ?? .snack,
+                  isPinned: pinned,
                   modelContext: modelContext
-              )
+              )) != nil
         else {
             return false
         }
-        presets.append(preset)
         HapticManager.notification(.success)
         return true
     }
 
-    func deletePreset(_ preset: MealPreset, modelContext: ModelContext) {
-        presets.removeAll { $0.id == preset.id }
-        modelContext.delete(preset)
-        try? modelContext.save()
-        HapticManager.lightImpact()
-    }
-
-    func refreshPresets(modelContext: ModelContext) {
-        let descriptor = FetchDescriptor<MealPreset>(sortBy: [SortDescriptor(\.useCount, order: .reverse)])
-        if let fetched = try? modelContext.fetch(descriptor) {
-            presets = fetched
-        }
-    }
-
-    /// Logs a preset through `EatenMealRecorder` — the same path as Quick Log:
-    /// fills a matching planned slot (planned dish remembered, shift/rebalance
-    /// run), merges into an eaten one, or becomes an unplanned log; legacy
-    /// MealLog written, Dashboard pinged. Returns nil when the save failed
-    /// (so the caller must not toast success).
-    @discardableResult
-    func logFromPreset(
-        _ preset: MealPreset,
-        modelContext: ModelContext,
-        resolution: EatenMealRecorder.DuplicateResolution = .add,
-        notifications: (any NotificationServiceProtocol)? = nil
-    ) -> EatenMealRecorder.Result? {
-        let result: EatenMealRecorder.Result
-        do {
-            result = try EatenMealRecorder.record(
-                preset.foodItems,
-                type: preset.mealType,
-                eatenAt: Date(),
-                source: .preset,
-                resolution: resolution,
-                modelContext: modelContext,
-                notifications: notifications ?? notificationsService
-            )
-        } catch {
-            Logger.nutrition.error("[Diag.Preset] log failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-        preset.recordUse()
-        try? modelContext.save()
-        let known = todayMeals.contains { $0.id == result.meal.id }
-        todayMeals = Self.chronological(known ? todayMeals : todayMeals + [result.meal])
-        HapticManager.notification(.success)
-        return result
-    }
-
     /// Today's meal order: parsed "HH:mm" minutes-of-day, then meal number.
-    /// Malformed times sort to the end. Shared by loadToday, refreshTodayMeals
-    /// and logFromPreset so a new row lands where a reload would put it.
+    /// Malformed times sort to the end. Shared by loadToday and
+    /// refreshTodayMeals so a new row lands where a reload would put it.
     static func chronological(_ meals: [PlannedMeal]) -> [PlannedMeal] {
         MealOrdering.chronological(meals)
     }

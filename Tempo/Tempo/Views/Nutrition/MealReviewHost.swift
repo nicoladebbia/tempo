@@ -13,7 +13,8 @@ import SwiftData
 import SwiftUI
 
 extension Notification.Name {
-    /// Posted after a confirmed meal was saved (or failed to). The Nutrition tab shows the toast.
+    /// Posted after a meal was saved (or failed to), with an Undo when it can be taken back.
+    /// `fuelLogToastHost()` shows it (see FuelLogToast).
     static let tempoMealLogToast = Notification.Name("tempoMealLogToast")
 }
 
@@ -151,12 +152,13 @@ enum MealReviewCommitter {
                 modelContext: modelContext,
                 notifications: notifications
             )
-            var message = "\(type.displayName) logged. \(Int(result.logged.calories)) kcal."
+            var message = "\(type.displayName) logged. \(Int(result.logged.calories.rounded())) kcal."
             if resolution == .add, !pantryLines.isEmpty {
                 message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
                     + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
             }
-            return .logged(ToastData(message: message, style: .success))
+            // A few seconds to take it back, exactly as it was written.
+            return .logged(FuelLogToast.logged(message, result: result, modelContext: modelContext, notifications: notifications))
         } catch {
             return .failed(ToastData(message: "Couldn't save: \(error.localizedDescription)", style: .error))
         }
@@ -216,13 +218,17 @@ struct MealReviewHost: ViewModifier {
                     primaryTitle: "Add another",
                     primary: {
                         // A second tap while the sheet is leaving must not log twice.
-                        guard duplicate != nil else { return }
+                        guard duplicate != nil else {
+                            return
+                        }
                         finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
                     },
                     secondaryTitle: "Edit existing",
                     secondary: {
                         // A second tap while the sheet is leaving must not log twice.
-                        guard duplicate != nil else { return }
+                        guard duplicate != nil else {
+                            return
+                        }
                         finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit)
                     },
                     cancel: { duplicate = nil }
@@ -259,22 +265,15 @@ struct MealReviewHost: ViewModifier {
         )
         switch outcome {
         case let .logged(toast):
-            Self.post(toast)
+            FuelLogToast.post(toast)
             request = nil
             duplicate = nil
             onLogged()
         case let .failed(toast):
-            Self.post(toast)
+            FuelLogToast.post(toast)
         case .needsDecision:
             break
         }
-    }
-
-    private static func post(_ toast: ToastData) {
-        NotificationCenter.default.post(
-            name: .tempoMealLogToast, object: nil,
-            userInfo: ["message": toast.message, "error": toast.style == .error]
-        )
     }
 }
 

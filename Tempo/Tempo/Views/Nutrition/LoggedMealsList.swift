@@ -70,7 +70,7 @@ struct LoggedMealsList: View {
                     Button {
                         onSavePreset(meal)
                     } label: {
-                        Label("Save as preset", systemImage: "bookmark")
+                        Label("Save as favourite", systemImage: "star")
                     }
                 }
                 Button(role: .destructive) {

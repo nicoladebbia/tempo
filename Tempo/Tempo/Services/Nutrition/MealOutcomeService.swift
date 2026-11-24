@@ -33,6 +33,8 @@ extension Notification.Name {
     static let tempoMealWillBeRemoved = Notification.Name("tempo.meal.willBeRemoved")
 }
 
+// MARK: - MealOutcomeService
+
 @MainActor
 enum MealOutcomeService {
     private static let logger = Logger(subsystem: "app.tempo", category: "MealOutcome")
@@ -165,7 +167,10 @@ enum MealOutcomeService {
     ) throws {
         let ctx = env.modelContext
         let mealID = meal.id
-        logger.info("[Diag.Eat] \(meal.mealName, privacy: .private) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories), privacy: .private)kcal pantryDecremented=\(meal.didDecrementPantry)")
+        logger
+            .info(
+                "[Diag.Eat] \(meal.mealName, privacy: .private) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories), privacy: .private)kcal pantryDecremented=\(meal.didDecrementPantry)"
+            )
 
         if meal.status == .eaten, foods == nil {
             meal.actualEatenAt = eatenAt
@@ -200,7 +205,11 @@ enum MealOutcomeService {
         if pantry != .none, !meal.didDecrementPantry {
             let results = pantry == .plannedMeal
                 ? PantryDecrementService.decrement(for: meal, modelContext: ctx)
-                : PantryDecrementService.decrement(foods: EatenMealRecorder.pantryFoods(meal.foods, origin: meal.origin == .mixed ? .mixed : .kitchen), label: meal.mealName, modelContext: ctx)
+                : PantryDecrementService.decrement(
+                    foods: EatenMealRecorder.pantryFoods(meal.foods, origin: meal.origin == .mixed ? .mixed : .kitchen),
+                    label: meal.mealName,
+                    modelContext: ctx
+                )
             // Record the (possibly empty) exact detail so undo never falls
             // back to the approximate credit for a decrement we know about.
             deducted = results.flatMap(\.details)
@@ -377,7 +386,10 @@ enum MealOutcomeService {
         )
         snapshot.origin = meal.origin
         snapshot.decrementDetails = meal.didDecrementPantry && meal.decrementDetailJSON != nil ? meal.decrementDetail : nil
-        logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
+        logger
+            .info(
+                "[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)"
+            )
 
         // Credit the pantry back BEFORE foods are restored: the approximate
         // fallback derives from the foods that were eaten.
@@ -580,12 +592,14 @@ enum MealOutcomeService {
 
     // MARK: - Presets
 
-    /// Saves a logged meal's foods as a preset for the Log tab grid.
+    /// Saves a logged meal's foods as a saved meal for the capture screen;
+    /// `isPinned` makes it a favourite, shown first.
     @discardableResult
     static func savePreset(
         name: String,
         foods: [PlannedFood],
         mealType: MealType,
+        isPinned: Bool = false,
         modelContext: ModelContext
     ) throws -> MealPreset {
         let preset = MealPreset(
@@ -595,7 +609,8 @@ enum MealOutcomeService {
             totalProtein: foods.reduce(0) { $0 + $1.proteinG },
             totalCarbs: foods.reduce(0) { $0 + $1.carbsG },
             totalFat: foods.reduce(0) { $0 + $1.fatG },
-            mealType: mealType
+            mealType: mealType,
+            isPinned: isPinned
         )
         modelContext.insert(preset)
         try save(modelContext)

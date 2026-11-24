@@ -33,11 +33,4 @@ final class NutritionSectionRoutingTests: XCTestCase {
         XCTAssertEqual(vm.selectedTab, .kitchen)
         XCTAssertEqual(vm.selectedKitchen, .supplements)
     }
-
-    func testOpenQuickLogGoesToLogAndRequestsFocus() {
-        let vm = NutritionTabViewModel()
-        vm.openQuickLog()
-        XCTAssertEqual(vm.selectedTab, .log)
-        XCTAssertTrue(vm.focusQuickLogRequested)
-    }
 }

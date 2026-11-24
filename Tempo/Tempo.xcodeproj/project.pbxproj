@@ -539,7 +539,6 @@
 		6431FE866CBBD1110B6DC710 /* GroceryShoppingUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C0C6F2E2F7C9C11160AF3F /* GroceryShoppingUITestSeed.swift */; };
 		64E272D3C1E005B212AC4874 /* TempoToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3FC2199480AA920ACA87B0 /* TempoToggleStyle.swift */; };
 		64F43FA846FEED138435DA22 /* PantryDecrementService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E026D0CA8F35CC9670E0EC1 /* PantryDecrementService.swift */; };
-		64FF7F126CD751A1BA337940 /* QuickLogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780D7E8215B6FECFCC376D04 /* QuickLogSheet.swift */; };
 		65B34591E018303AA064EB1F /* SetFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7010369E576E52A315266579 /* SetFeedbackTests.swift */; };
 		65C0C8993D8361510138FE57 /* WhoopDemoDataCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F742D64AF2181D43B99A021F /* WhoopDemoDataCleanupTests.swift */; };
 		65E01C8A5994A38DA2D2AF77 /* ReadinessTrendMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DB66F89B4E66CA3E302908F /* ReadinessTrendMathTests.swift */; };
@@ -727,6 +726,8 @@
 		84650102C700752BF9E161E9 /* cue_ex_handstand_push_up.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1185A9EC5B3344C54E320FCB /* cue_ex_handstand_push_up.mp3 */; };
 		84C5A38193E90DA1078FF813 /* cue_ex_chest_dip.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 1B8EEBF85E7B5F3C09297911 /* cue_ex_chest_dip.mp3 */; };
 		85572ADDCC873AF1B2312B91 /* Receipt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 561BA1A0CF2ABEBA6076FC39 /* Receipt.swift */; };
+		85644C80E24ECD111F242E24 /* QuickLogRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = C32C60263D8A540033E7D4C8 /* QuickLogRows.swift */; };
+		85E0A825ECFD5D01F737F462 /* FuelLogToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85AB6291CF11BEA3118F869 /* FuelLogToast.swift */; };
 		8616070C8305B7FEC7EAC080 /* BasePage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83510616D1E0812BDD2B5166 /* BasePage.swift */; };
 		861E03901D469539E895CF66 /* WorkoutSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49129C08C8E44744ABB73806 /* WorkoutSessionCoordinator.swift */; };
 		867ADBCD8751BDE7A56DBF26 /* testQuadrantCardFuel.1.png in Resources */ = {isa = PBXBuildFile; fileRef = B3A63083CF496418C4A7B0F8 /* testQuadrantCardFuel.1.png */; };
@@ -2044,7 +2045,6 @@
 		77D257DF567E4FA30FB389B6 /* GroceryPreservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryPreservationTests.swift; sourceTree = "<group>"; };
 		77EEFAF81552A56BB0AF476D /* HomeLocationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeLocationStore.swift; sourceTree = "<group>"; };
 		780C97DA0C11CEFA1B0DBB1C /* DateFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateFormatters.swift; sourceTree = "<group>"; };
-		780D7E8215B6FECFCC376D04 /* QuickLogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogSheet.swift; sourceTree = "<group>"; };
 		789DE5F7F461076F39B4A254 /* TrainingViewModel+Travel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+Travel.swift"; sourceTree = "<group>"; };
 		7920E9A3B7A33E273FCC381D /* cue_move_scapular_pull_ups_scap_retractions.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_scapular_pull_ups_scap_retractions.mp3; sourceTree = "<group>"; };
 		792960DBB6074CA334566D3F /* TrainingViewModel+Routines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrainingViewModel+Routines.swift"; sourceTree = "<group>"; };
@@ -2452,6 +2452,7 @@
 		C2DEC35AD81BA8AD5DC65865 /* PhotoAnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAnalysisView.swift; sourceTree = "<group>"; };
 		C2FC093C6EE662273E2D02B3 /* TrainerReportPDFRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerReportPDFRenderer.swift; sourceTree = "<group>"; };
 		C3258B0C665468D65B76F193 /* WeeklyRecoverySummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyRecoverySummaryView.swift; sourceTree = "<group>"; };
+		C32C60263D8A540033E7D4C8 /* QuickLogRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLogRows.swift; sourceTree = "<group>"; };
 		C3735A6350E8B1183D0206CE /* cue_ex_l_sit.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_l_sit.mp3; sourceTree = "<group>"; };
 		C3982986E54D845EE1548227 /* SupplementTodayBoardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementTodayBoardTests.swift; sourceTree = "<group>"; };
 		C3B62BE9DC93A07AE61FA72A /* RecoveryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryEngine.swift; sourceTree = "<group>"; };
@@ -2751,6 +2752,7 @@
 		F82D15601D7F2B8663962DE0 /* cue_ex_pallof_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_pallof_press.mp3; sourceTree = "<group>"; };
 		F82FDAB76B81A43A286EDF7D /* UsualMeals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsualMeals.swift; sourceTree = "<group>"; };
 		F859E605E2B5AE51BF7585CF /* CoachViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachViewModelTests.swift; sourceTree = "<group>"; };
+		F85AB6291CF11BEA3118F869 /* FuelLogToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelLogToast.swift; sourceTree = "<group>"; };
 		F8601ABEAB250DF4BB5B2B3C /* cue_move_full_body_mobility_flow.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_full_body_mobility_flow.mp3; sourceTree = "<group>"; };
 		F8C7AAC03AF93DC0DEAC8AD9 /* PersonalRecordDetectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRecordDetectionTests.swift; sourceTree = "<group>"; };
 		F8D058F8D445B3D73611C63C /* DashboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardPage.swift; sourceTree = "<group>"; };
@@ -5004,6 +5006,7 @@
 				1C5EFFCC0708ABEB94D5B5AA /* Wizard */,
 				E4539B2940363761D247FF8E /* DailyNutritionSummaryView.swift */,
 				C7E99872CBF166AF9BB8CBC4 /* FoodSearchView.swift */,
+				F85AB6291CF11BEA3118F869 /* FuelLogToast.swift */,
 				C2713E8FB55CBB62854487C5 /* GroceryDoneShoppingView.swift */,
 				224834D08E1BFBE2C96971F6 /* GroceryListView.swift */,
 				3192CC06DEF92101C51B66E4 /* GroceryShareMenu.swift */,
@@ -5029,7 +5032,7 @@
 				8373DCB9C0829D3723EF298B /* PlannedMealCardView.swift */,
 				6F0EA877E4FEDA2671E7818F /* PlanUpdateBanner.swift */,
 				A775B9D0086F6E64C7CD972A /* ProductImageView.swift */,
-				780D7E8215B6FECFCC376D04 /* QuickLogSheet.swift */,
+				C32C60263D8A540033E7D4C8 /* QuickLogRows.swift */,
 				64E99D6FFA1106CE7A978FB1 /* ReceiptCaptureView.swift */,
 				1C73C60C2051A6AE35E84E92 /* ReceiptLineEditSheet.swift */,
 				5A7F82F18687D55623A54C70 /* ReceiptProcessingView.swift */,
@@ -6268,6 +6271,7 @@
 				DAC1DA695B1BDCDF20A4E89B /* FoodSuggestions.swift in Sources */,
 				091F7ED1A8424636DCDCA5F6 /* FriendSystemView.swift in Sources */,
 				E080DBAFD051A76A7ED2A045 /* FuelDayScheduleViewModel.swift in Sources */,
+				85E0A825ECFD5D01F737F462 /* FuelLogToast.swift in Sources */,
 				E293D5CE44723A7EDA12B1A9 /* FuelMealScheduleAnnotator.swift in Sources */,
 				B2630D8A5B6D6F23BA5678DD /* FuelQuadrantDetailContainer.swift in Sources */,
 				54D80C8D7389199826AF2B6B /* FuelQuadrantDetailView.swift in Sources */,
@@ -6526,7 +6530,7 @@
 				8D5BA454CCECF8B1C80B577C /* ProgressReportView.swift in Sources */,
 				EC57FC7FDE4B737FBF174B67 /* PushRegistrationService.swift in Sources */,
 				3AE8E8446ECD855DF79F34EB /* QuadrantCardView.swift in Sources */,
-				64FF7F126CD751A1BA337940 /* QuickLogSheet.swift in Sources */,
+				85644C80E24ECD111F242E24 /* QuickLogRows.swift in Sources */,
 				FB511B852B9364998E5C283B /* ReadinessAssembler.swift in Sources */,
 				E2A03340B3EB0C067FB3DF6C /* ReadinessPicture.swift in Sources */,
 				905B72474E83EF30C1312BF7 /* ReadinessTrendMath.swift in Sources */,
