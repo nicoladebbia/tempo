@@ -27,6 +27,8 @@ struct SupplementReorderBanner: View {
 
     @State
     private var reorderTarget: Supplement?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     private var recentLogs: [SupplementIntakeLog] {
         let calendar = Calendar.current
@@ -90,19 +92,27 @@ struct SupplementReorderBanner: View {
     }
 
     private func row(for supplement: Supplement, daysLeft: Int) -> some View {
-        HStack {
+        // At the accessibility sizes the tag drops under the name, so the name keeps the full width.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             Text(supplement.name)
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text)
-            Spacer()
-            KitchenTag(
-                text: daysLeft <= 0 ? "Out" : "\(daysLeft)d left",
-                tint: daysLeft <= 0 ? Tide.danger : Tide.Kitchen.warn
-            )
-            Image(systemName: "chevron.right")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+            if !typeSize.isAccessibilitySize {
+                Spacer()
+            }
+            HStack(spacing: Tide.s2) {
+                KitchenTag(
+                    text: daysLeft <= 0 ? "Out" : "\(daysLeft)d left",
+                    tint: daysLeft <= 0 ? Tide.danger : Tide.Kitchen.warn
+                )
+                Image(systemName: "chevron.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(minHeight: Tide.hit)
         .contentShape(.rect)

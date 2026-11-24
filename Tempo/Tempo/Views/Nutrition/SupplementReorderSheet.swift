@@ -40,30 +40,57 @@ struct SupplementReorderSheet: View {
         SupplementReorderService.daysLeft(for: supplement, recentLogs: recentLogs)
     }
 
+    @Environment(\.tideMood)
+    private var mood
+
+    private var isLow: Bool {
+        guard let daysLeft else { return false }
+        return daysLeft <= SupplementReorderService.lowStockThresholdDays
+    }
+
     var body: some View {
         NavigationStack {
-            KitchenForm {
-                KitchenFormSection(
-                    footer: "Estimated from how often you've actually marked it taken over the last \(SupplementReorderService.intakeWindowDays) days."
-                ) {
-                    LabeledContent("Left in container") {
-                        Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings" : "Unknown")
-                            .font(Tide.bodyStrong)
-                    }
-                    if let daysLeft {
-                        LabeledContent("Estimated time left") {
-                            Text(daysLeft <= 0 ? "Out" : "~\(daysLeft) day\(daysLeft == 1 ? "" : "s")")
+            ScrollView {
+                VStack(spacing: Tide.s4) {
+                    stockCard
+                    NavigationLink {
+                        SupplementPicksView(supplement: supplement)
+                    } label: {
+                        HStack(spacing: Tide.s3) {
+                            Label("Better products & where to buy", systemImage: "checkmark.seal")
                                 .font(Tide.bodyStrong)
-                                .foregroundStyle(daysLeft <= SupplementReorderService.lowStockThresholdDays ? Tide.danger : Tide.text)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
+                            Image(systemName: "chevron.right")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
+                                .accessibilityHidden(true)
                         }
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                        .tideCard(padding: Tide.s4)
                     }
+                    .buttonStyle(.plain)
+                    // What the two buttons do, in the scroll so the bar under the thumb stays slim.
+                    Text(
+                        supplement.servingsPerContainer != nil
+                            ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
+                            : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
+                    )
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s2)
                 }
-
-                KitchenFormSection(
-                    footer: supplement.servingsPerContainer != nil
-                        ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
-                        : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
-                ) {
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+            }
+            .scrollIndicators(.hidden)
+            // Two ways to deal with it, under the thumb: the main one filled, the other glass.
+            .kitchenBottomBar {
+                VStack(spacing: Tide.s2) {
                     Button {
                         addToGroceryList()
                     } label: {
@@ -71,9 +98,13 @@ struct SupplementReorderSheet: View {
                             addedToList ? "Added to grocery list" : "Add to grocery list",
                             systemImage: addedToList ? "checkmark.circle.fill" : "cart.badge.plus"
                         )
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .contentTransition(.symbolEffect(.replace))
                     }
+                    .buttonStyle(.kitchenBar)
                     .disabled(addedToList)
-
+                    .accessibilityIdentifier("supplementReorderAddToList")
                     Button {
                         markRestocked()
                     } label: {
@@ -81,18 +112,18 @@ struct SupplementReorderSheet: View {
                             restocked ? "Restocked" : "I already restocked",
                             systemImage: restocked ? "checkmark.circle.fill" : "shippingbox"
                         )
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .frame(maxWidth: .infinity)
+                        .contentTransition(.symbolEffect(.replace))
                     }
+                    .buttonStyle(.tideGlass)
                     .disabled(restocked)
-                }
-
-                Section {
-                    NavigationLink {
-                        SupplementPicksView(supplement: supplement)
-                    } label: {
-                        Label("Better products & where to buy", systemImage: "checkmark.seal")
-                    }
+                    .accessibilityIdentifier("supplementReorderRestocked")
                 }
             }
+            .animation(Tide.snap, value: addedToList)
+            .animation(Tide.snap, value: restocked)
             .navigationTitle(supplement.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -102,6 +133,53 @@ struct SupplementReorderSheet: View {
             }
         }
         .kitchenSheet()
+    }
+
+    /// The answer first: how long it lasts, as a figure and a bar of what is left in the container.
+    private var stockCard: some View {
+        let tone = isLow ? (daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn) : Tide.text
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(spacing: Tide.s3) {
+                KitchenIconTile(systemName: supplement.kind.icon, size: Tide.Kitchen.tile)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    if let brand = supplement.brand, !brand.isEmpty {
+                        Text(brand).tideLabel(Tide.text3)
+                    }
+                    Text(supplement.name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                }
+            }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                TideSectionLabel(title: "Estimated time left", trailing: isLow ? "Reorder soon" : nil)
+                if let daysLeft {
+                    TideNumber(
+                        daysLeft <= 0 ? "Out" : "~\(daysLeft)",
+                        unit: daysLeft <= 0 ? nil : (daysLeft == 1 ? "day" : "days"),
+                        size: Tide.numeralL, relativeTo: .largeTitle, color: tone
+                    )
+                } else {
+                    TideNumber("Unknown", size: Tide.numeralM, relativeTo: .title, color: Tide.text2)
+                }
+                if let per = supplement.servingsPerContainer, per > 0, supplement.servingsRemaining > 0 {
+                    TideLevelBar(
+                        progress: min(supplement.servingsRemaining / per, 1),
+                        color: isLow ? Tide.Kitchen.warn : mood.accent,
+                        height: Tide.bar
+                    )
+                    .accessibilityHidden(true)
+                }
+                Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings left in the container" : "Left in container: unknown")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            .accessibilityElement(children: .combine)
+            Text("Estimated from how often you've actually marked it taken over the last \(SupplementReorderService.intakeWindowDays) days.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .tideCard()
     }
 
     private func addToGroceryList() {

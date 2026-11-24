@@ -257,6 +257,8 @@ struct KitchenIconButton: View {
     let systemImage: String
     let label: String
     var tint: Color = Tide.text
+    /// 44 pt by default; the bottom bar uses the height of its primary button.
+    var size: CGFloat = Tide.hit
     let action: () -> Void
 
     var body: some View {
@@ -264,7 +266,7 @@ struct KitchenIconButton: View {
             Image(systemName: systemImage)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(tint)
-                .frame(width: Tide.hit, height: Tide.hit)
+                .frame(width: size, height: size)
                 .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
         }
         .buttonStyle(.plain)
@@ -281,10 +283,13 @@ struct KitchenStat: View {
     let label: String
     var color: Color = Tide.text
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.hair) {
             Text(label).tideLabel()
-                .lineLimit(1)
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(Tide.labelShrink)
             TideNumber(value, unit: unit, size: Tide.numeralM, relativeTo: .title, color: color)
         }
@@ -372,11 +377,12 @@ extension View {
     /// A button bar that floats over the bottom of a scroll view: no opaque
     /// strip, the content fades under it.
     func kitchenBottomBar(@ViewBuilder _ bar: () -> some View) -> some View {
-        safeAreaBar(edge: .bottom, spacing: 0) {
-            bar()
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s3)
-        }
+        scrollEdgeEffectStyle(.soft, for: .bottom)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                bar()
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.vertical, Tide.s3)
+            }
     }
 
     /// A panel that floats over a live camera: glass with extra ink so text
@@ -476,6 +482,8 @@ extension Tide.Kitchen {
     static let heroDisc: CGFloat = 96
     /// The product picture at the top of a product page.
     static let heroPicture: CGFloat = 208
+    /// The height of the small sheet that picks the meal to log a product into.
+    static let logSheet: CGFloat = 300
     /// The verdict ring next to the product picture.
     static let verdictDial: CGFloat = 112
     /// Arm length and stroke of the corner brackets on a camera frame.
@@ -490,6 +498,8 @@ extension Tide.Kitchen {
     static let stripe: CGFloat = 4
     /// A small round legend dot.
     static let dot: CGFloat = 8
+    /// A round button beside the primary one in a bottom bar (same height as it).
+    static let barButton: CGFloat = 52
     /// Suggestion tile and the wide suggestion's picture on the product page.
     static let suggestion: CGFloat = 112
     static let suggestionWide: CGFloat = 72
@@ -668,7 +678,7 @@ struct KitchenSheetHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: Tide.s3) {
-            TideIconTile(systemName: systemImage, tint: tint, size: Tide.Kitchen.tile + Tide.s2)
+            KitchenIconTile(systemName: systemImage, tint: tint, size: Tide.Kitchen.tile + Tide.s2)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
                     .font(Tide.title2)
@@ -706,7 +716,7 @@ struct KitchenFailure: View {
 
     var body: some View {
         VStack(spacing: Tide.s4) {
-            TideIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
+            KitchenIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
             VStack(spacing: Tide.s2) {
                 Text(title)
                     .font(Tide.title2)
@@ -882,3 +892,183 @@ struct KitchenLevelMeter: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - KitchenChoiceChips
+
+/// One choice out of a handful, as a row of chips that scrolls sideways: each
+/// has an icon and a name. The chosen one fills with the mood accent.
+struct KitchenChoiceChips<Value: Hashable>: View {
+    let options: [Value]
+    @Binding
+    var selection: Value
+    let title: (Value) -> String
+    let icon: (Value) -> String
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Tide.s2) {
+                ForEach(options, id: \.self) { option in
+                    let selected = option == selection
+                    Button {
+                        withAnimation(Tide.snap) { selection = option }
+                    } label: {
+                        Label(title(option), systemImage: icon(option))
+                            .font(Tide.bodyStrong)
+                            .lineLimit(1)
+                            .foregroundStyle(selected ? Tide.ink : Tide.text)
+                            .padding(.horizontal, Tide.s4)
+                            .frame(minHeight: Tide.hit)
+                            .background(selected ? mood.accent : Tide.fill, in: .capsule)
+                            .contentShape(.capsule)
+                    }
+                    .buttonStyle(.plain)
+                    .sensoryFeedback(.selection, trigger: selected) { _, new in new }
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+    }
+}
+
+// MARK: - KitchenNumberField
+
+/// A labelled number you type, shown as a large figure on a tile: a macro per
+/// serving, a quantity, a price. The whole tile is the hit area.
+struct KitchenNumberField: View {
+    let label: String
+    var unit: String?
+    var placeholder = "0"
+    var tint: Color?
+    @Binding
+    var text: String
+    var keyboard: UIKeyboardType = .decimalPad
+
+    @ScaledMetric
+    private var size: CGFloat = Tide.numeralS
+    @FocusState
+    private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            HStack(spacing: Tide.s1) {
+                if let tint {
+                    Circle().fill(tint)
+                        .frame(width: Tide.Kitchen.dot, height: Tide.Kitchen.dot)
+                        .accessibilityHidden(true)
+                }
+                Text(label)
+                    .tideLabel()
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                TextField(placeholder, text: $text)
+                    .keyboardType(keyboard)
+                    .focused($focused)
+                    .font(Tide.numeral(size))
+                    .foregroundStyle(Tide.text)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .accessibilityLabel(unit.map { "\(label) (\($0))" } ?? label)
+                if let unit {
+                    Text(unit)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .padding(Tide.s3)
+        .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.row, alignment: .leading)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder((tint ?? Tide.text2).opacity(focused ? 0.8 : 0), lineWidth: 1)
+        )
+        .contentShape(.rect)
+        .onTapGesture { focused = true }
+        .animation(Tide.snap, value: focused)
+    }
+}
+
+// MARK: - KitchenBarButtonStyle
+
+/// The main button of a bottom bar. Enabled, it is the Tide primary. Disabled,
+/// it turns to glass with quiet text, so the rows scrolling under the bar never
+/// show through a faded yellow and collide with its label.
+struct KitchenBarButtonStyle: ButtonStyle {
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.isEnabled)
+    private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let label = configuration.label
+            .font(Tide.headline)
+            .padding(.horizontal, Tide.s5)
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+            .contentShape(.capsule)
+        return Group {
+            if isEnabled {
+                label
+                    .foregroundStyle(Tide.ink)
+                    .background(mood.accent, in: .capsule)
+            } else {
+                label
+                    .foregroundStyle(Tide.text2)
+                    .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+            }
+        }
+        .animation(Tide.snap, value: isEnabled)
+    }
+}
+
+extension ButtonStyle where Self == KitchenBarButtonStyle {
+    static var kitchenBar: KitchenBarButtonStyle { KitchenBarButtonStyle() }
+}
+
+// MARK: - KitchenPair
+
+/// Two fields side by side, equal width. At the accessibility text sizes they
+/// stack, one per line. A plain stack layout (not a lazy grid), so a live
+/// change of text size relays out every field at once.
+struct KitchenPair<First: View, Second: View>: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ViewBuilder var first: First
+    @ViewBuilder var second: Second
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
+            first.frame(maxWidth: .infinity)
+            second.frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - KitchenIconTile
+
+/// `TideIconTile` that keeps its size at the accessibility text sizes. The
+/// tile is a fixed square but its glyph scales with the text, so left alone
+/// the glyph outgrows the tile.
+struct KitchenIconTile: View {
+    let systemName: String
+    var tint: Color?
+    var size: CGFloat = Tide.Kitchen.tile
+
+    var body: some View {
+        TideIconTile(systemName: systemName, tint: tint, size: size)
+            .dynamicTypeSize(.large)
+    }
+}
+

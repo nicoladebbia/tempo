@@ -79,97 +79,101 @@ struct SupplementQuickAddSheet: View {
     // MARK: - Picking
 
     private var pickingContent: some View {
-        VStack(spacing: 0) {
+        Group {
             if available.isEmpty {
                 emptyAllOnShelf
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    Text("Tap what you already own. Your plan will decide each day whether to take it.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, Tide.edge)
-                        .padding(.top, Tide.s3)
-                        .padding(.bottom, Tide.s4)
-
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 96), spacing: Tide.s2)],
-                        spacing: Tide.s2
-                    ) {
-                        ForEach(available) { item in
-                            quickAddChip(item)
+                    VStack(alignment: .leading, spacing: Tide.s4) {
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Text("Tap what you already own.")
+                                .font(Tide.title2)
+                                .foregroundStyle(Tide.text)
+                                .accessibilityAddTraits(.isHeader)
+                            Text("Your plan will decide each day whether to take it.")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                        }
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: Tide.Kitchen.suggestion), spacing: Tide.s3)],
+                            spacing: Tide.s3
+                        ) {
+                            ForEach(available) { item in
+                                quickAddChip(item)
+                            }
                         }
                     }
                     .padding(.horizontal, Tide.edge)
-                    .padding(.bottom, Tide.s10)
+                    .padding(.top, Tide.s3)
+                    .padding(.bottom, Tide.s6)
                 }
-
-                Button("Add \(selectedIDs.count)") {
-                    step = .details
+                .kitchenBottomBar {
+                    // Nothing picked yet: the button is disabled, and the bar style turns it to quiet glass.
+                    Button {
+                        step = .details
+                    } label: {
+                        Text(selectedIDs.isEmpty ? "Pick what you own" : "Add \(selectedIDs.count)")
+                            .contentTransition(.numericText())
+                    }
+                    .buttonStyle(.kitchenBar)
+                    .disabled(selectedIDs.isEmpty)
+                    .animation(Tide.snap, value: selectedIDs.count)
                 }
-                .buttonStyle(.tidePrimary)
-                .disabled(selectedIDs.isEmpty)
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s3)
             }
         }
     }
 
     private var emptyAllOnShelf: some View {
-        VStack(spacing: Tide.s3) {
-            Spacer()
-            Image(systemName: "checkmark.circle")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-            Text("You've already got every common one")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-            Text("Add anything else manually or by scanning its barcode.")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        KitchenEmpty(
+            systemImage: "checkmark.circle",
+            title: "You've already got every common one",
+            message: "Add anything else manually or by scanning its barcode."
+        )
         .padding(.horizontal, Tide.edge)
+        .frame(maxHeight: .infinity)
     }
 
+    /// One tile per supplement: tap to own it. A chosen tile fills with the accent and shows a tick.
     private func quickAddChip(_ item: SupplementQuickAddItem) -> some View {
         let isSelected = selectedIDs.contains(item.id)
         return Button {
             HapticManager.selection()
-            if isSelected {
-                selectedIDs.remove(item.id)
-            } else {
-                selectedIDs.insert(item.id)
+            withAnimation(Tide.snap) {
+                if isSelected {
+                    selectedIDs.remove(item.id)
+                } else {
+                    selectedIDs.insert(item.id)
+                }
             }
         } label: {
             VStack(spacing: Tide.s1) {
-                Image(systemName: item.icon)
-                    .font(Tide.headline)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : item.icon)
+                    .font(Tide.title2)
                     .foregroundStyle(isSelected ? Tide.ink : mood.accent)
+                    .contentTransition(.symbolEffect(.replace))
                 Text(item.name)
-                    .font(Tide.caption)
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(isSelected ? Tide.ink : Tide.text)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .lineLimit(item.name.contains(" ") ? 2 : 1)
+                    .minimumScaleFactor(Tide.labelShrink)
                 if let macros = item.macroSummary {
                     Text(macros)
                         .font(Tide.caption)
                         .foregroundStyle(isSelected ? Tide.ink.opacity(0.8) : Tide.text2)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(Tide.labelShrink)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 88)
-            .padding(Tide.s2)
-            .background(isSelected ? mood.accent : Tide.fill)
-            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.suggestion)
+            .padding(.horizontal, Tide.s1)
+            .padding(.vertical, Tide.s2)
+            .background(isSelected ? mood.accent : Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
                     .strokeBorder(isSelected ? Color.clear : Tide.hairline, lineWidth: 1)
             )
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
@@ -177,28 +181,41 @@ struct SupplementQuickAddSheet: View {
 
     // MARK: - Details
 
+    /// One card per pick, two optional facts each. Skippable as a whole.
     private var detailsContent: some View {
-        KitchenForm {
-            Section {
-                Text("Optional — skip this if you don't know it yet. Your plan doesn't need it.")
-                    .font(Tide.caption)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                Text("Optional. Skip this if you don't know it yet. Your plan doesn't need it.")
+                    .font(Tide.body)
                     .foregroundStyle(Tide.text2)
-            }
-            ForEach(chosenItems) { item in
-                KitchenFormSection(item.name) {
-                    TextField("Brand (optional)", text: bindingBrand(item.id))
-                    TextField("Servings in the container (optional)", text: bindingServings(item.id))
-                        .keyboardType(.numberPad)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(chosenItems) { item in
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        HStack(spacing: Tide.s3) {
+                            KitchenIconTile(systemName: item.icon)
+                            Text(item.name)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
+                        }
+                        TextField("Brand (optional)", text: bindingBrand(item.id))
+                            .kitchenField()
+                        TextField("Servings in the container (optional)", text: bindingServings(item.id))
+                            .keyboardType(.numberPad)
+                            .kitchenField()
+                    }
+                    .tideCard()
                 }
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s3)
+            .padding(.bottom, Tide.s6)
         }
-        .safeAreaInset(edge: .bottom) {
+        .scrollDismissesKeyboard(.interactively)
+        .kitchenBottomBar {
             Button("Add \(chosenItems.count) to Shelf") {
                 finish()
             }
             .buttonStyle(.tidePrimary)
-            .padding(.horizontal, Tide.edge)
-            .padding(.vertical, Tide.s3)
         }
     }
 

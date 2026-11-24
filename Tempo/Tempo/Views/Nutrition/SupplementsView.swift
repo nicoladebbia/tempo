@@ -31,6 +31,8 @@ struct SupplementsView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Live shelf — non-archived only, sorted by name.
     @Query(
@@ -231,7 +233,10 @@ struct SupplementsView: View {
     private func shelfHeader(lowCount: Int) -> some View {
         let total = supplements.count
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .top, spacing: Tide.s4) {
+            let statLayout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+            statLayout {
                 KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
                 if lowCount > 0 {
                     KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
@@ -244,7 +249,7 @@ struct SupplementsView: View {
                 ])
             }
             Menu {
-                addMenuItems
+                addMenuItems()
             } label: {
                 Label("Add", systemImage: "plus")
             }
@@ -254,12 +259,16 @@ struct SupplementsView: View {
         .tideCard()
     }
 
+    /// Every way onto the shelf. The empty page puts Scan out front as its own
+    /// button, so its menu leaves that one out.
     @ViewBuilder
-    private var addMenuItems: some View {
-        Button {
-            showBarcodeScan = true
-        } label: {
-            Label("Scan barcode", systemImage: "barcode.viewfinder")
+    private func addMenuItems(includingScan: Bool = true) -> some View {
+        if includingScan {
+            Button {
+                showBarcodeScan = true
+            } label: {
+                Label("Scan barcode", systemImage: "barcode.viewfinder")
+            }
         }
         Button {
             activeSheet = .search
@@ -289,19 +298,24 @@ struct SupplementsView: View {
     @Environment(\.tideMood)
     private var mood
 
+    /// Nothing owned yet: one thing to do (scan), and the other ways in one tap away.
     private var emptyState: some View {
-        VStack(spacing: Tide.s3) {
+        VStack(spacing: Tide.s5) {
             KitchenHeroDisc(systemImage: "pills")
-            Text("No supplements yet")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-            Text(
-                "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
-            )
-            .font(Tide.body)
-            .foregroundStyle(Tide.text2)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Tide.s2) {
+                Text("No supplements yet")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                Text(
+                    "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             VStack(spacing: Tide.s3) {
                 Button {
                     showBarcodeScan = true
@@ -309,23 +323,20 @@ struct SupplementsView: View {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
                 }
                 .buttonStyle(.tidePrimary)
-                emptyAction("Search by name", icon: "magnifyingglass") { activeSheet = .search }
-                emptyAction("Read a label", icon: "camera.viewfinder") { activeSheet = .readLabel }
-                emptyAction("Quick add common", icon: "square.grid.2x2") { activeSheet = .quickAdd }
-                emptyAction("Type it", icon: "square.and.pencil") { activeSheet = .typeIt }
+                // The same menu the full shelf has on top, so the add flow
+                // starts from the same control whether the shelf is empty or not.
+                Menu {
+                    addMenuItems(includingScan: false)
+                } label: {
+                    Label("More ways to add", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("supplementAddMenu")
             }
-            .padding(.top, Tide.s2)
         }
         .frame(maxWidth: .infinity)
         .tideCard(padding: Tide.s6)
-    }
-
-    private func emptyAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.tideGlass)
     }
 
     // MARK: - Shelf
@@ -339,34 +350,43 @@ struct SupplementsView: View {
     }
 
     private func shelfRow(_ row: SupplementShelfRow) -> some View {
-        HStack(spacing: Tide.s2) {
+        // At the accessibility sizes the icon goes and the stock line joins the text, so the words get the width.
+        let stacked = typeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 0) {
             Button {
                 detailTarget = row.supplement
             } label: {
                 HStack(spacing: Tide.s3) {
-                    Image(systemName: row.supplement.kind.icon)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(mood.accent)
-                        .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
-                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-                        .accessibilityHidden(true)
+                    if !stacked {
+                        Image(systemName: row.supplement.kind.icon)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
+                            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                            .accessibilityHidden(true)
+                    }
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.supplement.name)
                             .font(Tide.headline)
                             .foregroundStyle(Tide.text)
-                            .lineLimit(2)
+                            .lineLimit(stacked ? 3 : 2)
                         Text(row.brandDoseLine)
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
-                            .lineLimit(1)
+                            .lineLimit(stacked ? 2 : 1)
                         Label(row.statusLine, systemImage: "clock")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
-                            .lineLimit(1)
+                            .lineLimit(stacked ? 2 : 1)
+                        if stacked, let stock = row.stockLine, !row.needsReorder {
+                            Text(stock)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
                     }
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: Tide.s1) {
-                        if let stock = row.stockLine, !row.needsReorder {
+                        if !stacked, let stock = row.stockLine, !row.needsReorder {
                             Text(stock)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
@@ -376,12 +396,14 @@ struct SupplementsView: View {
                             .foregroundStyle(Tide.text3)
                     }
                 }
+                .padding(.top, Tide.s1)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
             .accessibilityIdentifier("supplementRow.\(row.supplement.name)")
 
+            // Running low gets its own line under the text, so the name keeps the full width.
             if row.needsReorder {
                 Button {
                     reorderTarget = row.supplement
@@ -397,6 +419,7 @@ struct SupplementsView: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .padding(.leading, stacked ? 0 : Tide.Kitchen.tile + Tide.s3)
                 .accessibilityLabel("\(row.supplement.name) running low, reorder")
                 .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }
