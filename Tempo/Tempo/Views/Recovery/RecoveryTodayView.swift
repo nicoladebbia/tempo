@@ -21,6 +21,13 @@ struct RecoveryTodayView: View {
     private var modelContext
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @Environment(ServiceContainer.self)
+    private var services
+
+    /// Connected but nothing scored yet is a wait, not a setup step.
+    private var whoopConnected: Bool {
+        services.whoop.connectionState == .connected
+    }
 
     /// Metric detail sheet
     @State
@@ -134,17 +141,23 @@ struct RecoveryTodayView: View {
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
 
-                Text("Connect WHOOP, then pull down to refresh. Your first score lands after one night of data.")
+                Text(
+                    whoopConnected
+                        ? "WHOOP is connected. Today's score lands once last night is processed. Pull down to refresh."
+                        : "Connect WHOOP, then pull down to refresh. Your first score lands after one night of data."
+                )
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityElement(children: .contain)
 
-            Button("Connect WHOOP") {
-                showWhoopConnect = true
+            if !whoopConnected {
+                Button("Connect WHOOP") {
+                    showWhoopConnect = true
+                }
+                .buttonStyle(.tidePrimary)
             }
-            .buttonStyle(.tidePrimary)
         }
     }
 
