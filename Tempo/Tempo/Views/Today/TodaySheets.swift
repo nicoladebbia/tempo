@@ -54,6 +54,8 @@ struct InsightDetailSheet: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         let insight = vm.currentInsight
@@ -108,19 +110,28 @@ struct InsightDetailSheet: View {
     }
 
     private func metricRow(icon: String, label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-            Image(systemName: icon)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .frame(width: Tide.s5)
-                .accessibilityHidden(true)
-            Text(label)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-            Spacer(minLength: Tide.s2)
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
+        return layout {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                Image(systemName: icon)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.s5)
+                    .accessibilityHidden(true)
+                Text(label)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+            }
+            if !stacks {
+                Spacer(minLength: Tide.s2)
+            }
             Text(value)
                 .font(Tide.numeral(Tide.numeralS))
                 .foregroundStyle(Tide.text)
+                .padding(.leading, stacks ? Tide.s5 + Tide.s3 : 0)
         }
         .accessibilityElement(children: .combine)
     }
@@ -147,8 +158,20 @@ struct ScoreBreakdownSheet: View {
         let breakdown = vm.scoreBreakdown
         TodaySheetChrome(title: "Score breakdown") {
             if let score = vm.dailyScore {
-                TideDial(score: score, caption: "of 100", diameter: Tide.dialSheet)
-                    .frame(maxWidth: .infinity)
+                RecoveryHero {
+                    TideDial(score: score, caption: "of 100", diameter: Tide.dialSheet)
+                } side: {
+                    Text("Today's score").tideLabel()
+                    Text("Four parts, up to \(Int(Self.partMax)) points each.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                Text("No score yet. It builds as recovery, food, study and movement get data.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.vertical, Tide.s2)
             }
 
@@ -178,6 +201,7 @@ struct ScoreBreakdownSheet: View {
                 Text(available ? "\(points.formatted(.number.precision(.fractionLength(1)))) / \(Int(Self.partMax))" : "No data")
                     .font(available ? Tide.numeral(Tide.numeralS) : Tide.caption)
                     .foregroundStyle(available ? Tide.text : Tide.text3)
+                    .contentTransition(.numericText())
             }
             TideLevelBar(progress: available ? min(points / Self.partMax, 1) : 0, height: Tide.bar)
         }

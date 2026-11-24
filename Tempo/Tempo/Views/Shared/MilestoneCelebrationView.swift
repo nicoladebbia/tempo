@@ -79,10 +79,10 @@ struct MilestoneCelebrationView: View {
 
             // Animated icon
             Image(systemName: milestone.icon)
-                .font(Tide.numeral(56, .semibold))
+                .font(Tide.numeral(Tide.numeralL + Tide.s3, .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(mood.accent)
-                .frame(width: 128, height: 128)
+                .frame(width: Tide.dialSheet + Tide.s2, height: Tide.dialSheet + Tide.s2)
                 .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
                 .scaleEffect(showIcon ? 1.0 : 0.3)
                 .opacity(showIcon ? 1.0 : 0)
@@ -91,7 +91,7 @@ struct MilestoneCelebrationView: View {
             // Day count
             VStack(spacing: Tide.s2) {
                 Text("DAY \(milestone.rawValue)")
-                    .font(Tide.numeral(72, .heavy))
+                    .font(Tide.numeral(Tide.numeralHero, .heavy))
                     .foregroundStyle(Tide.text)
                     .lineLimit(1)
                     .minimumScaleFactor(Tide.labelShrink)
@@ -99,7 +99,7 @@ struct MilestoneCelebrationView: View {
 
                 Text(milestone.title)
                     .font(Tide.headline)
-                    .tracking(2)
+                    .tracking(Tide.hair)
                     .foregroundStyle(mood.accent)
             }
             .opacity(showContent ? 1.0 : 0)
@@ -125,7 +125,7 @@ struct MilestoneCelebrationView: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || burstDone)) { context in
             let t = reduceMotion || burstDone ? burstSeconds : min(context.date.timeIntervalSince(start), burstSeconds)
             Rectangle()
-                .fill(.white)
+                .fill(Tide.text)
                 .visualEffect { content, proxy in
                     content.colorEffect(ShaderLibrary.tideBurst(
                         .float2(proxy.size), .float(t), .color(mood.accent), .color(Tide.carbs)
