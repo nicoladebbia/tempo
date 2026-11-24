@@ -129,11 +129,23 @@ struct DashboardSettingsView: View {
                 .accessibilityIdentifier("settingsConnections")
 
                 NavigationLink {
+                    NotificationInboxView(onOpen: { dismiss() })
+                } label: {
+                    SettingsStatusRow(
+                        icon: "tray.fill", title: "Today's notifications",
+                        status: inboxStatus, statusColor: inboxStatusColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotificationInbox")
+
+                NavigationLink {
                     NotificationSettingsView()
                 } label: {
                     SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotifications")
             }
 
             AIFeaturesSettingsCard()
@@ -238,6 +250,7 @@ struct DashboardSettingsView: View {
             Text(deleteAccountError ?? "")
         }
         .task { await plan.refresh(apiClient: services.apiClient) }
+        .task { await NotificationInbox.shared.refresh() }
     }
 
     // MARK: - Profile Header Card
@@ -339,15 +352,33 @@ struct DashboardSettingsView: View {
         return active.isEmpty ? "None active" : active.joined(separator: " · ")
     }
 
+    /// The level the reminder switches add up to, and quiet hours when they are on.
     private var notificationsSubtitle: String {
-        // Mirrors IntensityOption titles in NotificationSettingsView (1…4).
-        switch settings?.notificationIntensity {
-        case 1: "Gentle Coach"
-        case 2: "Firm Coach"
-        case 3: "Drill Sergeant"
-        case 4: "Savage Mode"
-        default: "Default"
+        guard let settings else {
+            return "Default"
         }
+        let policy = NotificationPolicy(settings: settings)
+        let level = policy.level?.title ?? "Custom"
+        guard let quiet = policy.quietHours else {
+            return level
+        }
+        return "\(level) · quiet \(Self.clock(quiet.startMinutes))–\(Self.clock(quiet.endMinutes))"
+    }
+
+    private static func clock(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
+    private var inboxStatus: String {
+        let inbox = NotificationInbox.shared
+        if inbox.items.isEmpty {
+            return "None today"
+        }
+        return inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "All read"
+    }
+
+    private var inboxStatusColor: Color {
+        NotificationInbox.shared.unreadCount > 0 ? mood.accent : Tide.text2
     }
 
     /// 0...1 toward the next level, worked out the way the Arena does it.
