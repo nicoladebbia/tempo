@@ -165,7 +165,11 @@ struct MealLoggingView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                mealTypePicker
+                // At accessibility sizes the four meals take a quarter of the screen,
+                // so they scroll with the page instead of staying pinned above it.
+                if !typeSize.isAccessibilitySize {
+                    mealTypePicker
+                }
                 mealScroll
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -330,6 +334,11 @@ struct MealLoggingView: View {
     private var mealScroll: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: Tide.s4) {
+                if typeSize.isAccessibilitySize {
+                    // The picker pads itself; the page's own edge padding would double it.
+                    mealTypePicker
+                        .padding(.horizontal, -Tide.edge)
+                }
                 if foodItems.isEmpty {
                     // Open, add, done: what you eat most is already at the top.
                     QuickLogRows(type: selectedMealType.appMealType) { choice in
