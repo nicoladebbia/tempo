@@ -23,6 +23,11 @@ struct WeeklyAccountabilityView: View {
     private var mood
     @ScaledMetric(relativeTo: .body)
     private var dayDisc: CGFloat = 32
+
+    /// Seven discs share one row, so they stop growing before the row outgrows the screen.
+    private var discSize: CGFloat {
+        min(dayDisc, Tide.avatar)
+    }
     @State
     private var weekData: WeeklyAccountabilityData?
     @State
@@ -69,31 +74,23 @@ struct WeeklyAccountabilityView: View {
     // MARK: - Overall Grade
 
     private func overallGradeSection(_ data: WeeklyAccountabilityData) -> some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
         let percent = Int((data.overallCompletionRate * 100).rounded())
 
-        return VStack(alignment: .leading, spacing: Tide.s4) {
+        return RecoveryHero {
+            TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
+                .accessibilityLabel("Completion")
+                .accessibilityValue("\(percent) percent")
+        } side: {
             Text(data.periodText).tideLabel()
 
-            layout {
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text(data.overallGrade.letter)
-                        .font(Tide.numeral(Tide.numeralHero, .heavy))
-                        .foregroundStyle(gradeColor(data.overallGrade))
-                        .minimumScaleFactor(Tide.labelShrink)
-                        .lineLimit(1)
-                    Text("Overall grade").tideLabel()
-                }
-                .accessibilityElement(children: .combine)
-
-                Spacer(minLength: Tide.s2)
-
-                TideDial(score: percent, caption: "Done", diameter: Tide.dialSheet)
-                    .accessibilityLabel("Completion")
-                    .accessibilityValue("\(percent) percent")
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text(data.overallGrade.letter)
+                    .font(Tide.numeral(Tide.numeralL, .heavy))
+                    .foregroundStyle(gradeColor(data.overallGrade))
+                    .lineLimit(1)
+                Text("Overall grade").tideLabel()
             }
+            .accessibilityElement(children: .combine)
 
             Text(data.overallGrade.description)
                 .font(Tide.bodyStrong)
@@ -103,8 +100,8 @@ struct WeeklyAccountabilityView: View {
             Text("\(data.totalCompleted)/\(data.totalTasks) non-negotiables completed this week")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .tideCard()
     }
 
     // MARK: - Category Grades
@@ -196,7 +193,7 @@ struct WeeklyAccountabilityView: View {
             Circle()
                 .fill(TideTone.mint)
                 .overlay(Image(systemName: "checkmark").font(Tide.label).foregroundStyle(Tide.ink))
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         } else if day.completionRate > 0 {
             Circle()
                 .fill(TideTone.amber.opacity(0.18))
@@ -206,12 +203,12 @@ struct WeeklyAccountabilityView: View {
                         .font(Tide.numeral(Tide.axisSize, .bold))
                         .foregroundStyle(TideTone.amber)
                 )
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         } else {
             Circle()
                 .strokeBorder(Tide.hairline, lineWidth: Tide.rule)
                 .overlay(Text("--").font(Tide.numeral(Tide.axisSize, .bold)).foregroundStyle(Tide.text3))
-                .frame(width: dayDisc, height: dayDisc)
+                .frame(width: discSize, height: discSize)
         }
     }
 

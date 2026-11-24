@@ -51,13 +51,13 @@ struct SleepDetailView: View {
     // Per MODULE_RECOVERY.md Section 5.1
 
     private var sleepScoreSection: some View {
-        VStack(spacing: Tide.s3) {
+        RecoveryHero {
             TideDial(
                 score: viewModel.todayRecovery?.sleepScore.map { Int($0.rounded()) },
                 caption: "Sleep",
-                diameter: Tide.dialDetail
+                diameter: Tide.dialHero
             )
-
+        } side: {
             // Duration line
             TideNumber(viewModel.formattedSleepHours, unit: "asleep", size: Tide.numeralM, relativeTo: .title2)
 
@@ -69,8 +69,6 @@ struct SleepDetailView: View {
                 )
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, Tide.s2)
         .accessibilityElement(children: .contain)
     }
 
@@ -95,11 +93,19 @@ struct SleepDetailView: View {
                         stageTile(name: "REM", minutes: viewModel.remSleepMinutes, color: TideSleepStage.rem)
                     }
                 } else {
-                    Text("No sleep stage data available")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, Tide.s4)
+                    VStack(spacing: Tide.s2) {
+                        Image(systemName: "moon.zzz")
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text3)
+                            .accessibilityHidden(true)
+                        Text("No sleep stage data available")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, Tide.s4)
+                    .accessibilityElement(children: .combine)
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -158,6 +164,7 @@ struct SleepDetailView: View {
             Text("\(stagePercent(minutes))%")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+            TideLevelBar(progress: Double(stagePercent(minutes)) / 100, color: color, height: Tide.barSlim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -271,7 +278,7 @@ struct SleepDetailView: View {
             TideSectionLabel(title: "Sleep metrics")
 
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2),
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: typeSize.isAccessibilitySize ? 1 : 2),
                 spacing: Tide.s3
             ) {
                 TideMetricTile(
@@ -326,14 +333,9 @@ struct SleepDetailView: View {
                         height: Tide.chartHeight
                     )
                 } else {
-                    Text(
-                        "Need \(3 - viewModel.sleepChartData.count) more day\(3 - viewModel.sleepChartData.count == 1 ? "" : "s") of data to show trends."
+                    RecoveryChartPlaceholder(
+                        message: "Need \(3 - viewModel.sleepChartData.count) more day\(3 - viewModel.sleepChartData.count == 1 ? "" : "s") of data to show trends."
                     )
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Tide.s8)
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)

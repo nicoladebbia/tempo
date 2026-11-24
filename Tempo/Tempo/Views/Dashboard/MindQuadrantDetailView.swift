@@ -65,9 +65,26 @@ struct MindQuadrantDetailView: View {
         TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
             progressHeroSection
             todaySessionsSection
-            startSessionButton
+            // At accessibility sizes the button is two lines tall; pinned it would
+            // eat the page, so it scrolls with the content there.
+            if typeSize.isAccessibilitySize {
+                startSessionButton
+            }
             upcomingExamsSection
             studyTrendSection
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // The one primary action stays under the thumb.
+            if !typeSize.isAccessibilitySize {
+                startSessionButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s3)
+                    .padding(.bottom, Tide.s2)
+                    .background(
+                        // Content fades out under the button instead of showing through.
+                        LinearGradient(colors: [.clear, Tide.ink.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                    )
+            }
         }
         .navigationTitle("Mind")
         .navigationBarTitleDisplayMode(.inline)
@@ -93,34 +110,23 @@ struct MindQuadrantDetailView: View {
 
     private var progressHeroSection: some View {
         let percent = Int((min(data.studyProgress, 1.0) * 100).rounded())
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
-
-        return VStack(alignment: .leading, spacing: Tide.s4) {
-            layout {
-                // Study time + target
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    Text("Studied today").tideLabel()
-                    TideNumber(data.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
-                    Text("of \(data.formattedStudyTarget) target")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                }
-                .accessibilityElement(children: .combine)
-
-                Spacer(minLength: Tide.s2)
-
-                TideDial(score: percent, caption: "Target", diameter: Tide.dialSheet)
-                    .accessibilityLabel("Study target")
-                    .accessibilityValue("\(percent) percent")
-            }
+        return RecoveryHero {
+            TideDial(score: percent, caption: "Target", diameter: Tide.dialHero)
+                .accessibilityLabel("Study target")
+                .accessibilityValue("\(percent) percent")
+        } side: {
+            Text("Studied today").tideLabel()
+            TideNumber(data.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
+            Text("of \(data.formattedStudyTarget) target")
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
 
             // Drill sergeant quip
             Text(studyQuip)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Tide.s1)
 
             // Streak badge
             if data.currentStreakDays >= 2 {
@@ -131,7 +137,6 @@ struct MindQuadrantDetailView: View {
                 )
             }
         }
-        .tideCard()
     }
 
     // MARK: - Today's Sessions
@@ -161,8 +166,15 @@ struct MindQuadrantDetailView: View {
     }
 
     private func sessionRow(_ session: StudySession) -> some View {
-        HStack(spacing: Tide.s3) {
-            TideAreaIconTile(systemName: "book.fill", tint: mood.accent)
+        // At accessibility sizes the icon goes and the duration drops under the name.
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
+            if !stacks {
+                TideAreaIconTile(systemName: "book.fill", tint: mood.accent)
+            }
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(session.subject ?? "Focus Session")
@@ -174,7 +186,9 @@ struct MindQuadrantDetailView: View {
                     .foregroundStyle(Tide.text3)
             }
 
-            Spacer(minLength: Tide.s2)
+            if !stacks {
+                Spacer(minLength: Tide.s2)
+            }
 
             TideNumber(
                 "\(session.durationMinutes)", unit: "m", size: Tide.numeralS, relativeTo: .headline,
@@ -218,49 +232,57 @@ struct MindQuadrantDetailView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Upcoming exams")
 
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                if data.exams.isEmpty {
-                    Text("No upcoming exams")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .frame(minHeight: Tide.hit, alignment: .leading)
-                } else {
-                    ForEach(data.exams) { exam in
-                        examRow(exam)
-                    }
-                }
-
-                // Add exam button
-                Button {
+            if data.exams.isEmpty {
+                TideEmptyPanel(
+                    systemImage: "calendar.badge.clock",
+                    title: "No upcoming exams",
+                    message: "Add one and the countdown shows up on Today.",
+                    actionTitle: "Add exam"
+                ) {
                     showAddExam = true
-                } label: {
-                    Label("Add exam", systemImage: "plus")
                 }
-                .buttonStyle(.tideGlass)
+                .tideCard()
+            } else {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(data.exams.enumerated()), id: \.element.id) { index, exam in
+                            if index > 0 {
+                                TideDivider()
+                            }
+                            examRow(exam)
+                        }
+                    }
+
+                    // Add exam button
+                    Button {
+                        showAddExam = true
+                    } label: {
+                        Label("Add exam", systemImage: "plus")
+                    }
+                    .buttonStyle(.tideGlass)
+                }
+                .tideCard()
             }
-            .tideCard()
         }
     }
 
     private func examRow(_ exam: ExamData) -> some View {
         HStack(spacing: Tide.s3) {
-            Circle()
-                .fill(examDotColor(exam.daysUntil))
-                .frame(width: Tide.s3, height: Tide.s3)
-                .accessibilityHidden(true)
-
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(exam.name)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
 
-                Text("\(TempoDateFormatters.dateOnly.string(from: exam.date)) (\(exam.formattedCountdown))")
+                Text(TempoDateFormatters.dateOnly.string(from: exam.date))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
 
             Spacer(minLength: Tide.s2)
+
+            TideStatusPill(text: exam.formattedCountdown, tint: examDotColor(exam.daysUntil))
         }
+        .padding(.vertical, Tide.s2)
         .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
     }
@@ -376,19 +398,26 @@ struct AddExamSheet: View {
                     .frame(minHeight: Tide.hit)
             } header: {
                 Text("Exam details").tideLabel(Tide.text3)
+            } footer: {
+                Text("Saved to your calendar, with a countdown on Today.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
             .tideListRow()
 
             if let error = saveError {
                 Section {
-                    Text(error)
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.danger)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
                 }
                 .tideListRow()
             }
         }
         .tidePage()
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
         .navigationTitle("Add Exam")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

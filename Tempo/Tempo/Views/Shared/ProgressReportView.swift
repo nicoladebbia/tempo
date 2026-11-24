@@ -71,19 +71,16 @@ struct ProgressReportView: View {
     /// The headline: how many of the 30 days you showed up, as a dial.
     private var consistencySection: some View {
         let pct = stats.daysActive * 100 / max(1, windowDays)
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
-        return layout {
-            TideDial(score: min(pct, 100), caption: "of 100", diameter: Tide.dialSheet)
+        return RecoveryHero {
+            TideDial(score: min(pct, 100), caption: "of 100", diameter: Tide.dialHero)
                 .environment(\.tideMood, consistencyMood(pct: pct))
+        } side: {
+            Text("Consistency").tideLabel()
             Text(consistencyMessage(pct: pct))
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .tideCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Consistency \(min(pct, 100)) out of 100. \(consistencyMessage(pct: pct))")
     }

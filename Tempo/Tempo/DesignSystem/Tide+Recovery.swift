@@ -19,6 +19,10 @@ extension Tide {
     /// Standard chart heights.
     static let chartHeight: CGFloat = 180
     static let chartHeightCompact: CGFloat = 140
+    /// Chart line weight and the size of the latest and the scrubbed point markers.
+    static let chartLineWidth: CGFloat = 2.5
+    static let chartMarkSize: CGFloat = 70
+    static let chartMarkSizeSelected: CGFloat = 90
     /// The font every chart axis uses.
     static let axisFont = Tide.numeral(axisSize, .medium)
 }
@@ -143,14 +147,14 @@ struct TideLineChart<ID: Hashable>: View {
                 series: .value("Series", key)
             )
             .foregroundStyle(series.color)
-            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .lineStyle(StrokeStyle(lineWidth: Tide.chartLineWidth, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.monotone)
         }
         // The latest reading is always marked.
         if let last = series.points.max(by: { $0.date < $1.date }) {
             PointMark(x: .value("Date", last.date), y: .value("Value", last.value))
                 .foregroundStyle(series.color)
-                .symbolSize(70)
+                .symbolSize(Tide.chartMarkSize)
         }
     }
 
@@ -168,7 +172,7 @@ struct TideLineChart<ID: Hashable>: View {
                 }
             PointMark(x: .value("Date", selected.date), y: .value("Value", selected.value))
                 .foregroundStyle(Tide.text)
-                .symbolSize(90)
+                .symbolSize(Tide.chartMarkSizeSelected)
         }
     }
 
@@ -330,5 +334,233 @@ struct TideBarChart<ID: Hashable>: View {
             return label == emphasis ? 1 : 0.55
         }
         return label == selectedLabel ? 1 : 0.4
+    }
+}
+
+// MARK: - RecoveryHero
+
+/// The opening of a Recovery detail page: an instrument on the left, what it
+/// means on the right. The same shape as the hero on Today. It stacks at
+/// accessibility text sizes so nothing truncates.
+struct RecoveryHero<Gauge: View, Side: View>: View {
+    @ViewBuilder var gauge: Gauge
+    @ViewBuilder var side: Side
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
+        layout {
+            gauge
+                // What sits inside a dial stops growing before it touches the ring.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                side
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, Tide.s2)
+    }
+}
+
+// MARK: - RecoveryStrainGauge
+
+/// The strain instrument: a 270 degree arc split into the four strain zones,
+/// a lit arc up to today's value, and a tick every three points. Strain runs
+/// 0 to 21, so it cannot share the 0 to 100 dial.
+struct RecoveryStrainGauge: View {
+    let strain: Double?
+    var color: Color
+    var diameter: CGFloat = Tide.dialHero
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var shown: Double = 0
+
+    private static let maxValue = 21.0
+    /// How much of the circle the gauge sweeps.
+    private static let sweep = 0.75
+    /// A zone starts where the last one ends: green below 10, amber to 14,
+    /// orange to 18, red above.
+    private static let zones: [(from: Double, to: Double, color: Color)] = [
+        (0, 10, TideTone.mint),
+        (10, 14, TideTone.amber),
+        (14, 18, Tide.streak),
+        (18, 21, Tide.danger),
+    ]
+    private static let tickStep = 3.0
+
+    private var target: Double {
+        min(max((strain ?? 0) / Self.maxValue, 0), 1)
+    }
+
+    private var lineWidth: CGFloat {
+        Tide.s2
+    }
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(Self.zones.enumerated()), id: \.offset) { _, zone in
+                RecoveryGaugeArc(from: zone.from / Self.maxValue * Self.sweep, to: zone.to / Self.maxValue * Self.sweep)
+                    .stroke(zone.color.opacity(0.28), style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+            }
+            RecoveryGaugeArc(from: 0, to: shown * Self.sweep)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .shadow(color: color.opacity(0.5), radius: lineWidth)
+            ticks
+            VStack(spacing: Tide.hair) {
+                TideNumber(
+                    strain.map { String(format: "%.1f", $0) } ?? "--",
+                    size: Tide.numeralM, relativeTo: .title, color: strain == nil ? Tide.text3 : Tide.text
+                )
+                Text("of 21")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .onAppear {
+            withAnimation(reduceMotion ? nil : Tide.settle) { shown = target }
+        }
+        .onChange(of: target) { _, new in
+            withAnimation(reduceMotion ? nil : Tide.snap) { shown = new }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var ticks: some View {
+        let count = Int(Self.maxValue / Self.tickStep)
+        let radius = diameter / 2 - lineWidth - Tide.s2
+        return ZStack {
+            ForEach(0 ... count, id: \.self) { index in
+                Capsule()
+                    .fill(Tide.text3)
+                    .frame(width: Tide.hair, height: Tide.s1)
+                    .offset(y: -radius)
+                    .frame(width: diameter, height: diameter)
+                    .rotationEffect(.degrees(-135 + 270 * Double(index) / Double(count)))
+            }
+        }
+    }
+}
+
+// MARK: - RecoveryGaugeArc
+
+/// An arc on the strain gauge. `from` and `to` are fractions of a full circle,
+/// counted from the lower left where the gauge starts.
+private struct RecoveryGaugeArc: Shape {
+    var from: Double
+    var to: Double
+
+    nonisolated var animatableData: Double {
+        get { to }
+        set { to = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let diameter = min(rect.width, rect.height)
+        var path = Path()
+        path.addArc(
+            center: CGPoint(x: rect.midX, y: rect.midY),
+            radius: diameter / 2 - Tide.s1,
+            startAngle: .degrees(135 + 360 * from),
+            endAngle: .degrees(135 + 360 * max(to, from)),
+            clockwise: false
+        )
+        return path
+    }
+}
+
+// MARK: - RecoverySkeleton
+
+extension Tide {
+    /// The slow breathing of a skeleton. Not used when Reduce Motion is on.
+    static let recoveryPulse = Animation.easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+}
+
+// MARK: - RecoverySkeleton
+
+/// The shape of a Recovery page before its data is there: the dial and two
+/// lines of text, then three cards. It breathes slowly and holds still when
+/// Reduce Motion is on.
+struct RecoverySkeleton: View {
+    /// What VoiceOver says while the page loads.
+    var label = "Loading"
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var dim = false
+
+    var body: some View {
+        VStack(spacing: Tide.s4) {
+            HStack(spacing: Tide.s5) {
+                Circle()
+                    .strokeBorder(Tide.track, lineWidth: Tide.bar)
+                    .frame(width: Tide.dialHero, height: Tide.dialHero)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Capsule().fill(Tide.track).frame(width: Tide.s10 * 2, height: Tide.s5)
+                    Capsule().fill(Tide.track).frame(height: Tide.s3)
+                    Capsule().fill(Tide.track).frame(width: Tide.s10 * 2.5, height: Tide.s3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, Tide.s2)
+
+            ForEach(0 ..< 3, id: \.self) { _ in
+                Color.clear
+                    .frame(height: Tide.s10 * 2)
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s4)
+        .opacity(dim ? 0.55 : 1)
+        .onAppear {
+            if !reduceMotion {
+                withAnimation(Tide.recoveryPulse) { dim = true }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+    }
+}
+
+// MARK: - RecoveryChartPlaceholder
+
+/// What a trend chart shows before it has enough days: the empty grid and one
+/// line saying what is missing. The card keeps its height, so the page does
+/// not jump when the data arrives.
+struct RecoveryChartPlaceholder: View {
+    let message: String
+    var height: CGFloat = Tide.chartHeight
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                ForEach(0 ..< 4, id: \.self) { index in
+                    if index > 0 {
+                        Spacer(minLength: 0)
+                    }
+                    Rectangle()
+                        .fill(Tide.hairline)
+                        .frame(height: Tide.rule)
+                }
+            }
+            Text(message)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Tide.s4)
+                .padding(.vertical, Tide.s2)
+                .background(Tide.ink.opacity(0.6), in: .rect(cornerRadius: Tide.controlRadius))
+        }
+        .frame(minHeight: height)
+        .accessibilityElement(children: .combine)
     }
 }

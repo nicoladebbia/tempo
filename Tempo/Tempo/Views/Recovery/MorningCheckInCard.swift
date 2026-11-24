@@ -17,6 +17,7 @@ import SwiftUI
 struct MorningCheckInCard: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.tideMood) private var mood
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// Default body-part list covering the lift + soccer groups. Item-agnostic
     /// storage (JSON) means this list can change with zero schema cost.
@@ -45,6 +46,10 @@ struct MorningCheckInCard: View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             HStack {
                 Text("Morning check-in").tideLabel()
+                if checkIn.mood != nil, checkIn.stress != nil {
+                    TideStatusPill(text: "Logged", tint: TideTone.mint, systemImage: "checkmark")
+                        .transition(.opacity)
+                }
                 Spacer(minLength: Tide.s2)
                 Button {
                     withAnimation(Tide.snap) { dismissed = true }
@@ -117,9 +122,19 @@ struct MorningCheckInCard: View {
             count: min(range.count, 5)
         )
         VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(title)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Spacer(minLength: Tide.s2)
+                // The chosen value, read out as it changes.
+                Text(value.map { "\($0) / \(range.upperBound)" } ?? "Tap to set")
+                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                    .foregroundStyle(value == nil ? Tide.text3 : mood.accent)
+                    .contentTransition(.numericText())
+                    .animation(Tide.snap, value: value)
+                    .accessibilityHidden(true)
+            }
             LazyVGrid(columns: columns, spacing: Tide.s1) {
                 ForEach(Array(range), id: \.self) { i in
                     let selected = value == i
@@ -149,13 +164,16 @@ struct MorningCheckInCard: View {
     @ViewBuilder
     private func sorenessRow(part: String, checkIn: MorningCheckIn) -> some View {
         let current = checkIn.soreness[part]
-        HStack(spacing: Tide.s3) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
             Text(part)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
-                .frame(width: Tide.s10 * 2.25, alignment: .leading)
+                .frame(width: typeSize.isAccessibilitySize ? nil : Tide.s10 * 2.25, alignment: .leading)
             // 1–10 stepper-lite: tap level. 8+ = pain flag (red).
             HStack(spacing: Tide.hair) {
                 ForEach(1 ... 10, id: \.self) { level in

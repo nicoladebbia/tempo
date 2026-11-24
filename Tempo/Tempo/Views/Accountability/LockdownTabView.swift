@@ -163,9 +163,16 @@ private struct OverrideSelectionView: View {
         TideScrollPage {
             TideSectionLabel(title: "Override type")
 
-            ForEach(overrideOptions, id: \.type) { option in
-                optionCard(option)
+            // Six choices read as one list, not six cards.
+            VStack(spacing: 0) {
+                ForEach(Array(overrideOptions.enumerated()), id: \.element.type) { index, option in
+                    if index > 0 {
+                        TideDivider()
+                    }
+                    optionRow(option)
+                }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
             Text("Overrides modify today's non-negotiable targets. Use sparingly — rest days don't count toward your streak.")
                 .font(Tide.caption)
@@ -210,7 +217,7 @@ private struct OverrideSelectionView: View {
         }
     }
 
-    private func optionCard(_ option: OverrideOption) -> some View {
+    private func optionRow(_ option: OverrideOption) -> some View {
         let isActive = viewModel.activeOverride == option.type
         return Button {
             pendingOverride = option.type
@@ -241,11 +248,11 @@ private struct OverrideSelectionView: View {
                         .accessibilityHidden(true)
                 }
             }
+            .padding(.vertical, Tide.s3)
             .frame(minHeight: Tide.hit)
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+            .contentShape(.rect)
         }
-        .buttonStyle(TideCardPressStyle())
+        .buttonStyle(.plain)
         .disabled(isActive)
         .accessibilityLabel("\(option.title)\(isActive ? ", active" : "")")
         .accessibilityHint(option.description)

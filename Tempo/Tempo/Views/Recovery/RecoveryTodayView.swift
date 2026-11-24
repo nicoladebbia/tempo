@@ -19,12 +19,16 @@ struct RecoveryTodayView: View {
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Metric detail sheet
     @State
     private var selectedMetric: MetricType?
 
-    private let metricColumns = Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 2)
+    private var metricColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: typeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     var body: some View {
         TideScrollPage(energy: 1) {
@@ -84,35 +88,31 @@ struct RecoveryTodayView: View {
     // Per MODULE_RECOVERY.md Section 4.2 — Recovery dial + comparison label
 
     private var heroSection: some View {
-        VStack(spacing: Tide.s3) {
+        RecoveryHero {
             TideDial(
                 score: viewModel.todayRecovery.map { Int($0.recoveryScore.rounded()) },
                 caption: "Recovery",
-                diameter: Tide.dialDetail
+                diameter: Tide.dialHero
             )
+        } side: {
+            // Date label — ticks via TimelineView so it survives midnight rollover.
+            TimelineView(.everyMinute) { context in
+                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
+                    .tideLabel(Tide.text3)
+            }
 
             if viewModel.todayRecovery?.recoveryScore != nil {
-                TideStatusPill(
-                    text: "\(viewModel.recoveryZone.displayName) zone",
-                    tint: zoneColor
-                )
+                Text("\(viewModel.recoveryZone.displayName) zone")
+                    .font(Tide.title2)
+                    .foregroundStyle(zoneColor)
             }
 
             // Comparison label
             Text(viewModel.comparisonText)
-                .font(Tide.bodyStrong)
+                .font(Tide.body)
                 .foregroundStyle(viewModel.comparisonIsPositive ? TideTone.mint : Tide.danger)
-                .multilineTextAlignment(.center)
-
-            // Date label — ticks via TimelineView so it survives midnight rollover.
-            TimelineView(.everyMinute) { context in
-                Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-            }
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, Tide.s2)
         .accessibilityElement(children: .contain)
     }
 
@@ -199,7 +199,7 @@ struct RecoveryTodayView: View {
                         .accessibilityHidden(true)
                     Text(label)
                         .tideLabel()
-                        .lineLimit(1)
+                        .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                         .minimumScaleFactor(Tide.labelShrink)
                 }
 
@@ -526,28 +526,28 @@ struct MetricTrendSheet: View {
             .accessibilityElement(children: .contain)
 
             // Sparkline chart
-            if trendData.count >= 2 {
-                TideLineChart(
-                    data: [
-                        TempoLineChartData(
-                            id: metric.rawValue,
-                            label: metric.rawValue,
-                            color: sparklineColor,
-                            points: trendData.map {
-                                TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
-                            }
-                        ),
-                    ],
-                    height: Tide.chartHeight
-                )
-            } else {
-                Text("Need \(3 - trendData.count) more days of data to show trends.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Tide.s10)
+            Group {
+                if trendData.count >= 2 {
+                    TideLineChart(
+                        data: [
+                            TempoLineChartData(
+                                id: metric.rawValue,
+                                label: metric.rawValue,
+                                color: sparklineColor,
+                                points: trendData.map {
+                                    TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
+                                }
+                            ),
+                        ],
+                        height: Tide.chartHeight
+                    )
+                } else {
+                    RecoveryChartPlaceholder(
+                        message: "Need \(3 - trendData.count) more days of data to show trends."
+                    )
+                }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
             // Summary stats
             if !trendData.isEmpty {

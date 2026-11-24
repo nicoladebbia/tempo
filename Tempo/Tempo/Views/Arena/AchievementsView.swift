@@ -19,6 +19,8 @@ struct AchievementsView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query
     private var achievements: [Achievement]
 
@@ -38,7 +40,10 @@ struct AchievementsView: View {
         return achievements.filter { $0.category == category }
     }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 3)
+    /// Three across, two at accessibility sizes so names keep whole words.
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: typeSize.isAccessibilitySize ? 2 : 3)
+    }
 
     var body: some View {
         TideScrollPage {
@@ -66,21 +71,43 @@ struct AchievementsView: View {
 
     // MARK: - Summary
 
+    /// The locked achievement that is furthest along: the one to chase next.
+    private var nextUp: Achievement? {
+        achievements
+            .filter { !$0.isEarned && !$0.isHidden && $0.targetValue > 0 && $0.progressFraction > 0 }
+            .max { $0.progressFraction < $1.progressFraction }
+    }
+
     private var summary: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
+        let fraction = achievements.isEmpty ? 0 : Double(earnedCount) / Double(achievements.count)
+        return RecoveryHero {
+            TideTimerDial(progress: fraction, accent: mood.accent, diameter: Tide.dialHero) {
+                VStack(spacing: 0) {
+                    TideNumber("\(earnedCount)", size: Tide.numeralL, relativeTo: .title, color: mood.accent)
+                    Text("of \(achievements.count)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+        } side: {
             Text("Unlocked").tideLabel()
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber("\(earnedCount)", size: Tide.numeralL, color: mood.accent)
-                Text("of \(achievements.count)")
+            if let next = nextUp {
+                Text("Next up").tideLabel(Tide.text3)
+                Text(next.name)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(2)
+                TideLevelBar(progress: next.progressFraction, color: next.rarity.tideTint, height: Tide.barSlim)
+                Text("\(next.progressValue) / \(next.targetValue)")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            } else {
+                Text(earnedCount == 0 ? "Train, study and eat well to unlock your first." : "Keep going.")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            TideLevelBar(
-                progress: achievements.isEmpty ? 0 : Double(earnedCount) / Double(achievements.count),
-                height: Tide.bar
-            )
         }
-        .tideCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(earnedCount) of \(achievements.count) unlocked")
     }
@@ -122,9 +149,16 @@ struct AchievementsView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
                     .fill(achievement.isEarned ? tint.opacity(0.18) : Tide.fill)
+                    .overlay {
+                        if achievement.isEarned {
+                            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                                .strokeBorder(tint.opacity(0.6), lineWidth: Tide.rule)
+                        }
+                    }
+                    .shadow(color: achievement.isEarned ? tint.opacity(0.35) : .clear, radius: Tide.s3)
                 Image(systemName: cellSymbol(achievement))
                     .font(Tide.title)
-                    .foregroundStyle(achievement.isEarned ? tint : Tide.text3)
+                    .foregroundStyle(achievement.isEarned ? tint : Tide.text3.opacity(hiddenLocked ? 1 : 0.7))
                 if showsProgress {
                     VStack {
                         Spacer()
@@ -140,6 +174,11 @@ struct AchievementsView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(Tide.bodyStrong)
                         .foregroundStyle(TideTone.mint)
+                        .padding(Tide.s2)
+                } else if !hiddenLocked {
+                    Image(systemName: "lock.fill")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
                         .padding(Tide.s2)
                 }
             }
@@ -170,7 +209,7 @@ struct AchievementsView: View {
         if achievement.isEarned {
             return achievement.rarity.tideSymbol
         }
-        return achievement.isHidden ? "questionmark" : "lock.fill"
+        return achievement.isHidden ? "questionmark" : achievement.rarity.tideSymbol
     }
 
     // MARK: - Achievement Detail
@@ -181,11 +220,21 @@ struct AchievementsView: View {
         let tint = achievement.rarity.tideTint
         return TideScrollPage(spacing: Tide.s5) {
             VStack(spacing: Tide.s4) {
-                Image(systemName: achievement.isEarned ? achievement.rarity.tideSymbol : "lock.fill")
+                // The same silhouette as its tile; locked ones carry a lock badge.
+                Image(systemName: achievement.rarity.tideSymbol)
                     .font(Tide.numeral(Tide.numeralM))
-                    .foregroundStyle(achievement.isEarned ? tint : Tide.text2)
+                    .foregroundStyle(achievement.isEarned ? tint : Tide.text3)
                     .frame(width: Tide.dialSheet, height: Tide.dialSheet)
-                    .glassEffect(.regular.tint(tint.opacity(0.25)), in: .circle)
+                    .glassEffect(.regular.tint(tint.opacity(achievement.isEarned ? 0.25 : 0.12)), in: .circle)
+                    .overlay(alignment: .bottomTrailing) {
+                        if !achievement.isEarned {
+                            Image(systemName: "lock.fill")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text2)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .glassEffect(.regular, in: .circle)
+                        }
+                    }
                     .accessibilityHidden(true)
 
                 VStack(spacing: Tide.s2) {
