@@ -61,7 +61,7 @@ struct ScanBarcodeSurface: View {
                     KitchenStateHero(
                         systemImage: "camera.fill",
                         title: "Allow the camera to scan.",
-                        message: "Tempo reads the barcode with the camera. You can still type the numbers instead."
+                        message: "Tempo reads the barcode with the camera."
                     )
                 }
             case .denied,

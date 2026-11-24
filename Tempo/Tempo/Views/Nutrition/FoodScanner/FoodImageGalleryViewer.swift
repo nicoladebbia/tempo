@@ -112,8 +112,8 @@ struct FoodImageGalleryViewer: View {
                             .frame(width: Tide.Kitchen.row, height: Tide.Kitchen.row)
                             .background(Color.white)
                             .clipShape(shape)
-                            .overlay(shape.strokeBorder(index == page ? mood.accent : Tide.hairline, lineWidth: index == page ? 2 : 1))
-                            .opacity(index == page ? 1 : 0.7)
+                            .overlay(shape.strokeBorder(index == page ? mood.accent : Tide.hairline, lineWidth: index == page ? Tide.Kitchen.thumbRing : 1))
+                            .opacity(index == page ? 1 : Tide.Kitchen.thumbDimmed)
                             .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                             .contentShape(.rect)
                     }

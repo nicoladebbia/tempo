@@ -508,6 +508,22 @@ extension Tide.Kitchen {
     static let tickCount = 60
     /// Ink laid outside the frame of a live camera.
     static let scrim = Tide.ink.opacity(0.5)
+    /// Ink under a bar that floats over scrolling content: nearly solid, so
+    /// the text behind it never competes with the buttons.
+    static let barBacking = 0.94
+    /// Where the solid part of that ink starts, from the soft edge.
+    static let barBackingSolidFrom = 0.2
+    /// How much of the screen a state page's hero fills before it scrolls.
+    static let stateFill: CGFloat = 0.85
+    /// A photo thumbnail that is not the shown one, and the ring on the shown one.
+    static let thumbDimmed = 0.7
+    static let thumbRing: CGFloat = 2
+    /// The paper of a receipt sketch, its heading line and its item lines.
+    static let paperOpacity = 0.92
+    static let paperHeading = 0.4
+    static let paperLine = 0.22
+    /// The line between two finished stages of a timeline.
+    static let connectorDone = 0.6
 }
 
 // MARK: - KitchenShelfBar
@@ -1171,9 +1187,7 @@ struct KitchenStateAction: Identifiable {
     var isEnabled = true
     let action: () -> Void
 
-    var id: String {
-        title
-    }
+    let id = UUID()
 }
 
 // MARK: - KitchenStateHero
@@ -1239,23 +1253,23 @@ struct KitchenReceiptSketch: View {
         let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
         ZStack {
             shape
-                .fill(Tide.text.opacity(0.92))
+                .fill(Tide.text.opacity(Tide.Kitchen.paperOpacity))
                 .frame(width: Tide.Kitchen.receiptThumbWidth, height: Tide.Kitchen.receiptThumbHeight)
                 .overlay(alignment: .top) {
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         Capsule()
-                            .fill(Tide.ink.opacity(0.4))
+                            .fill(Tide.ink.opacity(Tide.Kitchen.paperHeading))
                             .frame(width: Tide.s10 * 2, height: Tide.s2)
                             .frame(maxWidth: .infinity)
                             .padding(.bottom, Tide.s1)
                         ForEach(lines.indices, id: \.self) { index in
                             HStack(spacing: Tide.s2) {
                                 Capsule()
-                                    .fill(Tide.ink.opacity(0.22))
+                                    .fill(Tide.ink.opacity(Tide.Kitchen.paperLine))
                                     .frame(width: Tide.s10 * lines[index], height: Tide.s1 + Tide.hair)
                                 Spacer(minLength: 0)
                                 Capsule()
-                                    .fill(Tide.ink.opacity(0.22))
+                                    .fill(Tide.ink.opacity(Tide.Kitchen.paperLine))
                                     .frame(width: Tide.s5, height: Tide.s1 + Tide.hair)
                             }
                         }
@@ -1307,7 +1321,7 @@ struct KitchenStatePage<Hero: View>: View {
             LinearGradient(
                 stops: [
                     .init(color: Tide.ink.opacity(0), location: 0),
-                    .init(color: Tide.ink, location: 0.2),
+                    .init(color: Tide.ink, location: Tide.Kitchen.barBackingSolidFrom),
                     .init(color: Tide.ink, location: 1),
                 ],
                 startPoint: .top,
@@ -1326,7 +1340,7 @@ struct KitchenStatePage<Hero: View>: View {
                 hero
                     .frame(maxWidth: Tide.stateWidth)
                     .padding(.horizontal, Tide.edge)
-                    .frame(maxWidth: .infinity, minHeight: proxy.size.height * 0.85)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height * Tide.Kitchen.stateFill)
             }
             .scrollBounceBehavior(.basedOnSize)
         }

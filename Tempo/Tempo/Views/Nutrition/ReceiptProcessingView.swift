@@ -177,7 +177,7 @@ struct ReceiptProcessingView: View {
                 .frame(width: Tide.icon, height: Tide.icon)
                 if !isLast {
                     Capsule()
-                        .fill(state == .done ? Tide.Kitchen.good.opacity(0.6) : Tide.hairline)
+                        .fill(state == .done ? Tide.Kitchen.good.opacity(Tide.Kitchen.connectorDone) : Tide.hairline)
                         .frame(width: Tide.hair)
                         .frame(maxHeight: .infinity)
                 }

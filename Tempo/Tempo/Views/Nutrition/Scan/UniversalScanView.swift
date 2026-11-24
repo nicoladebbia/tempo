@@ -130,8 +130,8 @@ struct UniversalScanView: View {
     private var barBacking: some View {
         LinearGradient(
             stops: [
-                .init(color: Tide.ink.opacity(0.94), location: 0),
-                .init(color: Tide.ink.opacity(0.94), location: 0.7),
+                .init(color: Tide.ink.opacity(Tide.Kitchen.barBacking), location: 0),
+                .init(color: Tide.ink.opacity(Tide.Kitchen.barBacking), location: 0.7),
                 .init(color: Tide.ink.opacity(0), location: 1),
             ],
             startPoint: .top,
