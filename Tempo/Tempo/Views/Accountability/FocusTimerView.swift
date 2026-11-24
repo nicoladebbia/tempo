@@ -216,7 +216,7 @@ struct FocusTimerView: View {
                 .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s2)
                 .padding(.bottom, Tide.s4)
-                .lockdownPinnedScrim()
+                .pinnedBarScrim()
         }
     }
 

@@ -601,7 +601,7 @@ struct LockdownMainView: View {
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
             .padding(.bottom, Tide.s2)
-            .lockdownPinnedScrim()
+            .pinnedBarScrim()
     }
 
     // MARK: - Unlock Celebration

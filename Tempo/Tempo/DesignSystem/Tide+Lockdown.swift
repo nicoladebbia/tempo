@@ -15,7 +15,7 @@ extension View {
     /// The ink fade behind a bar pinned to the bottom of a scrolling page, so
     /// the content that scrolls under it never reads through the buttons.
     /// It runs on past the home indicator and starts a little above the bar.
-    func lockdownPinnedScrim() -> some View {
+    func pinnedBarScrim() -> some View {
         background {
             LinearGradient(
                 colors: [.clear, Tide.ink.opacity(0.85), Tide.ink.opacity(0.85)],
@@ -551,7 +551,7 @@ struct LockdownUnlockMoment: View {
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s2)
                     .padding(.bottom, Tide.s2)
-                    .lockdownPinnedScrim()
+                    .pinnedBarScrim()
             }
         }
         // The unlock itself already buzzes (triple success), so the lock opens silently.
