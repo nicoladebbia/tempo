@@ -206,6 +206,9 @@ struct ActiveWorkoutView: View {
         let weight: Double
         let reps: Double
         let addedLoad: Double
+        /// Set only when the two sides of a per-side set were logged
+        /// separately; `reps` is then the left side.
+        let rightReps: Double?
     }
 
     @State
@@ -806,6 +809,8 @@ struct ActiveWorkoutView: View {
             // The toast brings its own success haptic.
             offerUndo(undo)
         } else {
+            // This log cannot be undone: an older Undo must not stay up.
+            undoToast = nil
             HapticManager.notification(.success)
         }
     }
@@ -815,17 +820,29 @@ struct ActiveWorkoutView: View {
     private func offerUndo(_ undo: TrainingViewModel.LoggedSetUndo) {
         // Short on purpose: the exercise is already on screen, and a long
         // toast takes over the page at large text sizes.
-        let message = "Logged \(WeightFormat.text(kg: undo.weightKg, unit: weightUnit)) x \(undo.reps)"
+        // A bodyweight lift shows its added load ("BW + 10 kg"), not the
+        // effective total, as everywhere else.
+        let load = undo.addedLoadKg == nil
+            ? WeightFormat.text(kg: undo.weightKg, unit: weightUnit)
+            : WeightFormat.bodyweightLoad(addedKg: undo.addedLoadKg, unit: weightUnit)
+        let reps = if let left = undo.leftReps, let right = undo.rightReps {
+            "\(left)/\(right)"
+        } else {
+            "\(undo.reps)"
+        }
+        let message = "Logged \(load) x \(reps)"
         undoToast = ToastData(message: message, style: .success, actionTitle: "Undo") {
             let typed = RestoredEntry(
                 setID: undo.setID,
                 weight: WeightUnit.kg.convert(undo.weightKg, to: weightUnit),
-                reps: Double(undo.reps),
-                addedLoad: WeightUnit.kg.convert(undo.addedLoadKg ?? 0, to: weightUnit)
+                reps: Double(undo.leftReps ?? undo.reps),
+                addedLoad: WeightUnit.kg.convert(undo.addedLoadKg ?? 0, to: weightUnit),
+                rightReps: undo.rightReps.map(Double.init)
             )
             restoredEntry = typed
             guard viewModel.undoLoggedSet(undo, modelContext: modelContext) else {
                 restoredEntry = nil
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
                 return
             }
             loadCurrentSetInputs()
@@ -835,7 +852,9 @@ struct ActiveWorkoutView: View {
     /// Few-second Undo after a set or a warm-up ramp is skipped.
     private func offerUndo(_ undo: TrainingViewModel.SkippedSetsUndo) {
         undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
-            viewModel.undoSkippedSets(undo, modelContext: modelContext)
+            if !viewModel.undoSkippedSets(undo, modelContext: modelContext) {
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
+            }
         }
     }
 
@@ -916,6 +935,8 @@ struct ActiveWorkoutView: View {
                     }
                     if let undo {
                         offerUndo(undo)
+                    } else {
+                        undoToast = nil
                     }
                 } label: {
                     Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
@@ -1543,6 +1564,10 @@ struct ActiveWorkoutView: View {
                 inputWeight = restored.weight
                 inputReps = restored.reps
                 inputAddedLoad = restored.addedLoad
+                if let right = restored.rightReps {
+                    inputRepsRight = right
+                    logRepsSeparately = true
+                }
                 return
             }
             restoredEntry = nil

@@ -321,7 +321,10 @@ struct WorkoutHistoryView: View {
         // never survives only in memory.
         .onDisappear { commitPendingDelete() }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active {
+            // Only a real trip to the background: a Control Center swipe or
+            // a system alert makes the app inactive for a moment and must
+            // not eat the Undo window.
+            if phase == .background {
                 commitPendingDelete()
             }
         }
@@ -460,6 +463,8 @@ struct WorkoutHistoryView: View {
     private func commitPendingDelete() {
         pendingPurge.commitNow { purgeWorkout(id: $0) }
         hiddenWorkoutID = nil
+        // An Undo button for something already gone would do nothing.
+        deleteToast = nil
     }
 
     /// The real purge. Looks the workout up by id, so it works whichever

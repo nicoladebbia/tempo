@@ -386,4 +386,59 @@ final class TrainingUndoTests: XCTestCase {
         vm.undoSkippedSets(undo, modelContext: context)
         XCTAssertEqual(plan.orderedExercises[0].orderedSets.count, 3)
     }
+
+    func testASkipCannotBeUndoneOnceAnotherSetIsLogged() throws {
+        let context = try makeContext()
+        let vm = makeVM(autoRest: false)
+        let plan = seed(sets: 3, context: context)
+        vm.todayPlan = plan
+        enterSetActive(vm)
+        let undo = try XCTUnwrap(vm.skipCurrentSetCapturingUndo(modelContext: context))
+
+        // The skip landed on the next set; log it.
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        let before = plan.orderedExercises[0].orderedSets.map(\.id)
+
+        XCTAssertFalse(vm.undoSkippedSets(undo, modelContext: context), "the old cursor means nothing after a log")
+        XCTAssertEqual(plan.orderedExercises[0].orderedSets.map(\.id), before)
+    }
+
+    func testUndoingASkipKeepsSetNumbersUniqueWhenASetWasAddedSince() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seed(sets: 2, second: true, context: context)
+        vm.todayPlan = plan
+        enterSetActive(vm, set: 1)
+        let skippedID = plan.orderedExercises[0].orderedSets[1].id
+        let undo = try XCTUnwrap(vm.skipCurrentSetCapturingUndo(modelContext: context))
+
+        // Skipping the last set freed its number; "add a set" takes it.
+        vm.addSet(to: 0, modelContext: context)
+        let addedID = try XCTUnwrap(plan.orderedExercises[0].orderedSets.last?.id)
+
+        XCTAssertTrue(vm.undoSkippedSets(undo, modelContext: context))
+        let sets = plan.orderedExercises[0].orderedSets
+        XCTAssertEqual(sets.map(\.setNumber), [1, 2, 3], "no two sets share a number")
+        XCTAssertEqual(sets[1].id, skippedID, "the skipped set is back where it was")
+        XCTAssertEqual(sets[2].id, addedID, "the added set moved up one")
+    }
+
+    func testUndoCarriesBothSidesOfASplitLog() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let plan = seed(sets: 2, context: context)
+        vm.todayPlan = plan
+        enterSetActive(vm)
+
+        let undo = try XCTUnwrap(vm.logSetCapturingUndo(
+            weight: 20, reps: 8, leftReps: 8, rightReps: 7, modelContext: context
+        ))
+        XCTAssertEqual(undo.leftReps, 8)
+        XCTAssertEqual(undo.rightReps, 7)
+
+        XCTAssertTrue(vm.undoLoggedSet(undo, modelContext: context))
+        let set = plan.orderedExercises[0].orderedSets[0]
+        XCTAssertNil(set.actualRepsLeft)
+        XCTAssertNil(set.actualRepsRight)
+    }
 }

@@ -29,6 +29,10 @@ extension TrainingViewModel {
         /// The signed added load for a bodyweight lift, so Undo can put the
         /// typed numbers back in the entry fields.
         let addedLoadKg: Double?
+        /// The two sides of a per-side set logged separately, so Undo can
+        /// bring the split back, not just one count.
+        let leftReps: Int?
+        let rightReps: Int?
 
         fileprivate let before: SetValues
         fileprivate let previousLastCompletedSet: PlannedSet?
@@ -92,7 +96,10 @@ extension TrainingViewModel {
         guard let capture else {
             return nil
         }
-        return capture.undoIfExact(in: self, weight: weight, reps: reps, addedLoadKg: addedLoadKg)
+        return capture.undoIfExact(
+            in: self, weight: weight, reps: reps, addedLoadKg: addedLoadKg,
+            leftReps: leftReps, rightReps: rightReps
+        )
     }
 
     /// Reverses the last logged set: the set is open again with its old
@@ -172,7 +179,14 @@ extension TrainingViewModel {
         let feedback: SetFeedback?
 
         /// The undo, if the log changed nothing Undo cannot put back.
-        func undoIfExact(in vm: TrainingViewModel, weight: Double, reps: Int, addedLoadKg: Double?) -> LoggedSetUndo? {
+        func undoIfExact(
+            in vm: TrainingViewModel,
+            weight: Double,
+            reps: Int,
+            addedLoadKg: Double?,
+            leftReps: Int?,
+            rightReps: Int?
+        ) -> LoggedSetUndo? {
             guard set.completed,
                   !set.isCalibration,
                   vm.detectedPRs.count == detectedPRCount,
@@ -194,6 +208,8 @@ extension TrainingViewModel {
                 weightKg: weight,
                 reps: reps,
                 addedLoadKg: addedLoadKg,
+                leftReps: leftReps,
+                rightReps: rightReps,
                 before: values,
                 previousLastCompletedSet: lastCompletedSet,
                 previousFeedback: feedback
@@ -250,6 +266,9 @@ extension TrainingViewModel {
         let sets: [SetSnapshot]
         /// The set the cursor was on, to land on again.
         let cursorSetID: UUID?
+        /// The last set logged when the skip happened. If it has changed,
+        /// something was logged since and the old cursor means nothing.
+        let lastLoggedSetID: UUID?
 
         /// "Skipped a set", "Skipped a warm-up set" or "Skipped 2 warm-up
         /// sets". Short on purpose: the exercise is already on screen, and a
@@ -351,7 +370,8 @@ extension TrainingViewModel {
         let undo = SkippedSetsUndo(
             exerciseIndex: currentExerciseIndex,
             sets: [SetSnapshot(doomed)],
-            cursorSetID: doomed.id
+            cursorSetID: doomed.id,
+            lastLoggedSetID: lastCompletedSet?.id
         )
         skipCurrentSet(modelContext: modelContext)
         return undoIsOffered(after: undo) ? undo : nil
@@ -378,7 +398,8 @@ extension TrainingViewModel {
         let undo = SkippedSetsUndo(
             exerciseIndex: currentExerciseIndex,
             sets: doomed.map(SetSnapshot.init),
-            cursorSetID: doomed.first?.id
+            cursorSetID: doomed.first?.id,
+            lastLoggedSetID: lastCompletedSet?.id
         )
         skipRemainingWarmups(modelContext: modelContext)
         return undoIsOffered(after: undo) ? undo : nil
@@ -393,7 +414,16 @@ extension TrainingViewModel {
         }
         let slot = plan.orderedExercises[undo.exerciseIndex]
         let present = Set((slot.sets ?? []).map(\.id))
-        for snapshot in undo.sets where !present.contains(snapshot.id) {
+        for snapshot in undo.sets.sorted(by: { $0.setNumber < $1.setNumber }) where !present.contains(snapshot.id) {
+            // A set added since the skip may have taken this number (skip the
+            // last set, tap "add a set"): move the later ones up one so the
+            // order stays stable and the skipped set lands where it was.
+            let taken = (slot.sets ?? []).contains { $0.setNumber == snapshot.setNumber }
+            if taken {
+                for later in slot.sets ?? [] where later.setNumber >= snapshot.setNumber {
+                    later.setNumber += 1
+                }
+            }
             let set = snapshot.rebuild(in: slot)
             if slot.sets != nil {
                 slot.sets?.append(set)
@@ -414,7 +444,10 @@ extension TrainingViewModel {
     /// The skip is undoable while the workout is live and nothing has been
     /// logged since (a logged set would make the old cursor meaningless).
     func canUndoSkippedSets(_ undo: SkippedSetsUndo) -> Bool {
-        guard let plan = todayPlan, undo.exerciseIndex < plan.orderedExercises.count else {
+        guard let plan = todayPlan,
+              undo.exerciseIndex < plan.orderedExercises.count,
+              lastCompletedSet?.id == undo.lastLoggedSetID
+        else {
             return false
         }
         switch sessionState {
