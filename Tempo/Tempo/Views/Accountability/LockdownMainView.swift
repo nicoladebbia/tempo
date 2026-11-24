@@ -492,10 +492,14 @@ struct LockdownMainView: View {
     // The way forward is the pinned button; this is the explanation above it.
 
     private var emptyState: some View {
-        TideEmptyPanel(
-            systemImage: "lock.fill",
-            title: "No non-negotiables set",
-            message: "Define what you MUST do each day before you earn your downtime."
+        // A rest day with nothing set up still says so: nothing is owed today.
+        let override = viewModel.activeOverride
+        return TideEmptyPanel(
+            systemImage: override == nil ? "lock.fill" : "bed.double.fill",
+            title: override.map(Self.overrideTitle) ?? "No non-negotiables set",
+            message: override == nil
+                ? "Define what you MUST do each day before you earn your downtime."
+                : "Rest day. No non-negotiables active."
         )
         .tideCard()
     }
@@ -1013,8 +1017,11 @@ struct NonNegotiableCardView: View {
             Text(title)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(style == .filled ? Tide.ink : Tide.text)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
+                // One line at normal sizes; at the largest text it may wrap rather than
+                // grow wider than its card.
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                .fixedSize(horizontal: !typeSize.isAccessibilitySize, vertical: typeSize.isAccessibilitySize)
+                .multilineTextAlignment(.center)
                 .padding(.horizontal, Tide.s4)
                 .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                 .background {

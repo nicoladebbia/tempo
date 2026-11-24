@@ -41,6 +41,7 @@ struct RecoveryTodayView: View {
         }
         return recovery.hrvRmssd != nil || recovery.restingHR != nil
             || recovery.sleepHours != nil || recovery.strain != nil
+            || recovery.recoveryScore > 0
     }
 
     var body: some View {
