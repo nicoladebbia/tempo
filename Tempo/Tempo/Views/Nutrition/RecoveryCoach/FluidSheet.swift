@@ -12,6 +12,7 @@ struct FluidSheet: View {
     let model: RecoveryCoachModel
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var exactText = ""
     @State private var bottleText = ""
     @State private var error: String?
@@ -40,26 +41,23 @@ struct FluidSheet: View {
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    GlassEffectContainer(spacing: Tide.s2) {
-                        VStack(spacing: Tide.s2) {
-                            ForEach(CoachQuickAnswerAction.allCases, id: \.rawValue) { action in
-                                Button {
-                                    Task { await model.answerFluid(action) }
-                                    dismiss()
-                                } label: {
-                                    Text(action.title)
-                                        .multilineTextAlignment(.center)
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.tideGlass)
-                                .accessibilityIdentifier("coach.answer.\(action.rawValue)")
-                            }
+                    // The four quick answers as tiles: the amount drawn as a drop,
+                    // the size in mL from the bottle below.
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: Tide.s3),
+                            count: typeSize.isAccessibilitySize ? 1 : 2
+                        ),
+                        spacing: Tide.s3
+                    ) {
+                        ForEach(CoachQuickAnswerAction.allCases, id: \.rawValue) { action in
+                            answerTile(action)
                         }
                     }
 
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         Text("Or an exact amount").tideLabel()
-                        HStack(spacing: Tide.s2) {
+                        exactLayout {
                             HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                                 TextField("500", text: $exactText)
                                     .keyboardType(.numberPad)
@@ -73,7 +71,7 @@ struct FluidSheet: View {
                             .fuelField(radius: Tide.tileRadius)
                             Button("Use") { saveExact() }
                                 .buttonStyle(.tidePrimary)
-                                .frame(width: useWidth)
+                                .frame(width: typeSize.isAccessibilitySize ? nil : useWidth)
                                 .accessibilityIdentifier("coach.exactUse")
                         }
                         if let error {
@@ -141,6 +139,46 @@ struct FluidSheet: View {
                 Task { await model.recompute() }
             }
         }
+    }
+
+    /// Field and Use side by side; stacked at accessibility sizes.
+    private var exactLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+    }
+
+    private func answerTile(_ action: CoachQuickAnswerAction) -> some View {
+        let icon = switch action {
+        case .nothing: "drop"
+        case .halfBottle: "drop.halffull"
+        case .oneBottle: "drop.fill"
+        case .twoBottles: "drop.circle.fill"
+        }
+        let ml = Int((action.bottles * Double(model.bottleMl)).rounded())
+        return Button {
+            HapticManager.selection()
+            Task { await model.answerFluid(action) }
+            dismiss()
+        } label: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideIconTile(systemName: icon, tint: Tide.water)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(action.title)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                    Text(ml == 0 ? "0 mL" : "about \(ml) mL")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s10, alignment: .topLeading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(FuelPressStyle())
+        .accessibilityIdentifier("coach.answer.\(action.rawValue)")
     }
 
     private func saveExact() {

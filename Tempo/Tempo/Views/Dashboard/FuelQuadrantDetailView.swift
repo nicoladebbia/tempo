@@ -53,18 +53,12 @@ struct FuelQuadrantDetailView: View {
                     weeklyAverageSection
                 } else {
                     // Native nutrition empty state — log meals directly.
+                    // The button is the bar at the bottom of the page.
                     FuelEmptyState(
                         icon: "fork.knife.circle.fill",
                         title: "Track nutrition natively",
                         message: "Log your first meal to start tracking macros, hydration, and meal timing."
-                    ) {
-                        NavigationLink {
-                            DailyNutritionSummaryView()
-                        } label: {
-                            Text("Log a Meal")
-                        }
-                        .buttonStyle(.tidePrimary)
-                    }
+                    )
                     .padding(.top, Tide.s6)
                 }
             }
@@ -75,6 +69,14 @@ struct FuelQuadrantDetailView: View {
         }
         .scrollEdgeEffectStyle(.soft, for: .top)
         .tidePage()
+        .fuelBottomBar(isShown: !data.isConnected) {
+            NavigationLink {
+                DailyNutritionSummaryView()
+            } label: {
+                Text("Log a Meal")
+            }
+            .buttonStyle(.tidePrimary)
+        }
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -116,9 +118,43 @@ struct FuelQuadrantDetailView: View {
                 }
             }
 
-            macroSection
+            Divider().overlay(Tide.hairline)
+
+            // The three macros as lit rings against their targets; the "% of
+            // calories" reading sits in the split bar below, as one object.
+            // No macro values at all (nothing connected): no rings of zeros.
+            if data.proteinGrams != nil || data.carbsGrams != nil || data.fatGrams != nil {
+                FuelMacroRings(
+                    protein: (data.proteinGrams ?? 0, data.proteinTarget ?? 0),
+                    carbs: (data.carbsGrams ?? 0, data.carbsTarget ?? 0),
+                    fat: (data.fatGrams ?? 0, data.fatTarget ?? 0)
+                )
+            }
+
+            if let consumed = data.caloriesConsumed, consumed > 0 {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    FuelMacroSplitBar(
+                        protein: data.proteinGrams ?? 0,
+                        carbs: data.carbsGrams ?? 0,
+                        fat: data.fatGrams ?? 0
+                    )
+                    Text("How today's calories divide")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(splitSpoken)
+            }
         }
         .tideCard()
+    }
+
+    /// The split bar, said out loud (it is drawn, so it needs words).
+    private var splitSpoken: String {
+        let parts = [("Protein", 4, data.proteinGrams), ("Carbs", 4, data.carbsGrams), ("Fat", 9, data.fatGrams)]
+        return "Calories divide: " + parts.map { name, perGram, grams in
+            "\(name) \(macroCaloriePercent(grams: grams, calPerGram: perGram)) percent"
+        }.joined(separator: ", ")
     }
 
     /// "420 left" / "80 over", like the Today card. Nil without both numbers.
@@ -129,75 +165,6 @@ struct FuelQuadrantDetailView: View {
         return FuelCalorieHero.remaining(consumed: consumed, target: target)
     }
 
-    // MARK: - Macro Section
-
-    // Per MODULE_DASHBOARD.md Section 4.3 — Macro Section
-
-    private var macroSection: some View {
-        VStack(spacing: Tide.s4) {
-            macroRow(
-                name: "Protein",
-                current: data.proteinGrams,
-                target: data.proteinTarget,
-                color: Tide.protein,
-                calPerGram: 4
-            )
-            macroRow(
-                name: "Carbs",
-                current: data.carbsGrams,
-                target: data.carbsTarget,
-                color: Tide.carbs,
-                calPerGram: 4
-            )
-            macroRow(
-                name: "Fat",
-                current: data.fatGrams,
-                target: data.fatTarget,
-                color: Tide.fat,
-                calPerGram: 9
-            )
-        }
-    }
-
-    private func macroRow(name: String, current: Int?, target: Int?, color: Color, calPerGram: Int) -> some View {
-        let progress = macroProgress(current, target)
-        let currentStr = current.map { "\($0)" } ?? "--"
-        let targetStr = target.map { "\($0)" } ?? "--"
-        let caloriePercent = macroCaloriePercent(grams: current, calPerGram: calPerGram)
-
-        return VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                HStack(spacing: Tide.s2) {
-                    Circle()
-                        .fill(color)
-                        .frame(width: Tide.s2, height: Tide.s2)
-                        .accessibilityHidden(true)
-                    Text(name)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
-                }
-                Spacer(minLength: Tide.s2)
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                    TideNumber(currentStr, size: Tide.numeralS, relativeTo: .headline)
-                    Text("/ \(targetStr) g")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .lineLimit(1)
-                }
-            }
-
-            TideLevelBar(progress: min(progress, 1), color: color, height: Tide.barSlim)
-                .animation(Tide.settle, value: progress)
-
-            Text("\(caloriePercent)% of calories")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name) \(currentStr) of \(targetStr) grams, \(caloriePercent) percent of calories")
-    }
-
     // MARK: - Today Header
 
     /// Header strip showing the calendar date and live wall-clock time.
@@ -206,23 +173,25 @@ struct FuelQuadrantDetailView: View {
     private var todayHeader: some View {
         TimelineView(.everyMinute) { context in
             VStack(alignment: .leading, spacing: Tide.s2) {
+                // A quiet eyebrow: the day and the clock, small, so the calorie
+                // card below is the first thing the eye lands on.
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Text(TempoDateFormatters.dateOnly.string(from: context.date))
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
+                        .tideLabel()
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("·")
-                        .font(Tide.headline)
+                        .font(Tide.label)
                         .foregroundStyle(Tide.text3)
                         .accessibilityHidden(true)
 
                     Text(TempoDateFormatters.timeOnly.string(from: context.date))
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text2)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
                         .monospacedDigit()
                         .contentTransition(.numericText())
                 }
+                .padding(.horizontal, Tide.s1)
 
                 if shiftMinutes != 0 {
                     HStack(spacing: Tide.s1) {
@@ -312,12 +281,14 @@ struct FuelQuadrantDetailView: View {
     }
 
     private func plannedMealRow(_ row: FuelMealRow) -> some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: statusIcon(for: row.meal.status))
-                .font(Tide.headline)
-                .foregroundStyle(statusColor(for: row.meal.status))
-                .frame(width: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+        HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
+            // The meal's own symbol, tinted by how it went: green eaten,
+            // red skipped, quiet grey while it is still to come.
+            TideIconTile(
+                systemName: FuelMealStyle.icon(forName: row.meal.mealName),
+                tint: FuelMealStyle.tone(for: row.meal.status, accent: Tide.text3),
+                size: Tide.hit - Tide.s2
+            )
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(row.meal.mealName)
@@ -326,7 +297,7 @@ struct FuelQuadrantDetailView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                HStack(spacing: Tide.s2) {
+                FlowLayout(spacing: Tide.s2, lineSpacing: Tide.hair) {
                     // When the meal has been eaten, show the ACTUAL eat
                     // time — that's the truth the user logged, and it
                     // must match the Nutrition tab. Only fall back to the
@@ -362,13 +333,22 @@ struct FuelQuadrantDetailView: View {
 
             Spacer(minLength: Tide.s2)
 
-            if row.meal.totalCalories > 0 {
-                TideNumber("\(Int(row.meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
-            } else {
-                Text("—")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text3)
+            VStack(alignment: .trailing, spacing: Tide.s1) {
+                if row.meal.totalCalories > 0 {
+                    TideNumber("\(Int(row.meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                } else {
+                    Text("—")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text3)
+                }
+                if row.meal.status == .eaten || row.meal.status == .skipped {
+                    FuelPill(
+                        text: row.meal.status == .eaten ? "Eaten" : "Skipped",
+                        color: statusColor(for: row.meal.status)
+                    )
+                }
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             Image(systemName: "chevron.right")
                 .font(Tide.label)
@@ -392,14 +372,6 @@ struct FuelQuadrantDetailView: View {
         .padding(.horizontal, Tide.s2)
         .padding(.vertical, Tide.s1)
         .background(Tide.warn.opacity(0.16), in: .rect(cornerRadius: Tide.s3))
-    }
-
-    private func statusIcon(for status: MealStatus) -> String {
-        switch status {
-        case .eaten: "checkmark.circle.fill"
-        case .skipped: "xmark.circle.fill"
-        default: "circle"
-        }
     }
 
     private func statusColor(for status: MealStatus) -> Color {
@@ -443,6 +415,8 @@ struct FuelQuadrantDetailView: View {
                     point.calories > (data.calorieTarget ?? 2400)
                         ? Tide.danger : mood.accent
                 )
+                // Today is the bar to read; the days before sit back.
+                .opacity(Calendar.current.isDateInToday(point.date) ? 1 : 0.55)
                 .cornerRadius(Tide.s1)
             }
 
@@ -450,6 +424,11 @@ struct FuelQuadrantDetailView: View {
                 RuleMark(y: .value("Target", target))
                     .foregroundStyle(Tide.text3)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .annotation(position: .top, alignment: .leading, spacing: Tide.hair) {
+                        Text("Target")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
             }
         }
         .chartXScale(domain: trendDomain)
@@ -473,6 +452,9 @@ struct FuelQuadrantDetailView: View {
             }
         }
         .frame(height: Tide.fuelChart)
+        // Axis labels stop growing at xxxLarge, or the seven day names run into
+        // each other; the numbers are also read out by the label below.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel("Calories eaten per day over the last 7 days")
     }
 
@@ -513,6 +495,11 @@ struct FuelQuadrantDetailView: View {
                     VStack(alignment: .leading, spacing: Tide.s1) {
                         Text("Protein").tideLabel()
                         TideNumber("\(avg.protein)", unit: "g/day", size: Tide.numeralS, relativeTo: .headline)
+                        if let target = data.proteinTarget {
+                            Text("target \(target)")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityElement(children: .combine)
@@ -550,13 +537,6 @@ struct FuelQuadrantDetailView: View {
         case 1.0 ..< 1.2: return "Over by \(overage). Noted."
         default: return "That's a surplus, not a strategy."
         }
-    }
-
-    private func macroProgress(_ current: Int?, _ target: Int?) -> Double {
-        guard let current, let target, target > 0 else {
-            return 0
-        }
-        return Double(current) / Double(target)
     }
 
     private func macroCaloriePercent(grams: Int?, calPerGram: Int) -> Int {

@@ -22,6 +22,7 @@ struct ManualWeighInSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.tideMood) private var mood
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var text = ""
     @State private var useLb: Bool
     @State private var when: When
@@ -58,6 +59,13 @@ struct ManualWeighInSheet: View {
         return RecoveryWeighIns.plausibleKg.contains(kg) ? kg : nil
     }
 
+    /// Before / after side by side; stacked at accessibility sizes so neither is cut.
+    private var whenLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: Tide.s3) {
@@ -74,7 +82,7 @@ struct ManualWeighInSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s5) {
-                    HStack(spacing: Tide.s2) {
+                    whenLayout {
                         ForEach(When.allCases, id: \.self) { option in
                             Button {
                                 HapticManager.selection()

@@ -94,23 +94,16 @@ struct MarkEatenSheet: View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Tide.s4) {
-                    header
                     // When the user explicitly chose "Ate something else", the
-                    // "what did you eat" field is the point — put it ABOVE the
-                    // time scrubber so it's on-screen immediately (it was below
-                    // the fold at the .medium detent before).
+                    // "what did you eat" field is the point: it sits right under
+                    // the time, and the time has no scrubber (the eat time
+                    // defaults to now), so the field is on screen at once.
+                    whenHero
                     if ateSomethingElse {
-                        // No time scrubber in the substitute lane — the eat
-                        // time defaults to `.now` and the point of this lane
-                        // is "what did you eat," not "when." Keeps the field
-                        // and feel chips on-screen without scrolling.
                         substituteSection
-                        feelChips
-                        satietyChips
+                        feelAndFullness
                     } else {
-                        timeScrubber
-                        feelChips
-                        satietyChips
+                        feelAndFullness
                         substituteSection
                     }
                 }
@@ -135,21 +128,69 @@ struct MarkEatenSheet: View {
 
     // MARK: - Sections
 
-    /// Just-now / X-min-ago label paired with the absolute clock time so
-    /// the user reads both signals at a glance. The "MARK EATEN" eyebrow
-    /// from the prior iteration was redundant with the nav title and ate
-    /// vertical space below the toolbar — dropped.
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-            TideNumber(timeAgoLabel, size: Tide.numeralSheet)
-            if secondsAgo >= 60 {
-                Text("·")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text3)
-                    .accessibilityHidden(true)
-                TideNumber(Self.clockFormatter.string(from: eatTime), size: Tide.numeralSheet, weight: .medium, color: Tide.text2)
+    /// The meal, and when it was eaten: "Just now" or "X min ago" paired with
+    /// the clock time, in the big numerals. The scrubber lives in the same
+    /// card (unless the meal was something else), so dragging moves the number.
+    private var whenHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: FuelMealStyle.icon(forName: meal.mealName))
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(meal.mealName)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(2)
+                    if meal.totalCalories > 0 {
+                        Text("\(Int(meal.totalCalories)) kcal planned")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
+                Spacer(minLength: Tide.s2)
+                if !ateSomethingElse {
+                    Button {
+                        eatTime = .now
+                        HapticManager.lightImpact()
+                    } label: {
+                        Text("Now")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(secondsAgo < 30)
+                    .opacity(secondsAgo < 30 ? 0.4 : 1)
+                }
             }
-            Spacer(minLength: 0)
+            header
+            if !ateSomethingElse {
+                timeScrubber
+            }
+        }
+        .tideCard()
+    }
+
+    /// Two readings of the same moment: how long ago, and the clock.
+    private var header: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(timeAgoLabel, size: Tide.numeralM)
+                if secondsAgo >= 60 {
+                    Text("·")
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                    TideNumber(Self.clockFormatter.string(from: eatTime), size: Tide.numeralM, weight: .medium, color: Tide.text2)
+                }
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                TideNumber(timeAgoLabel, size: Tide.numeralM)
+                if secondsAgo >= 60 {
+                    TideNumber(Self.clockFormatter.string(from: eatTime), size: Tide.numeralS, weight: .medium, color: Tide.text2)
+                }
+            }
         }
         .animation(Tide.snap, value: timeAgoLabel)
         .accessibilityElement(children: .combine)
@@ -162,27 +203,9 @@ struct MarkEatenSheet: View {
     }()
 
     /// Slider scrubs eat-time backward from `.now`. Stops at `now`
-    /// (no future eating). The label above ticks live as the user drags.
+    /// (no future eating). The numbers above tick live as the user drags.
     private var timeScrubber: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack {
-                Text("When").tideLabel()
-                Spacer(minLength: Tide.s2)
-                Button {
-                    eatTime = .now
-                    HapticManager.lightImpact()
-                } label: {
-                    Text("Now")
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(mood.accent)
-                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .disabled(secondsAgo < 30)
-                .opacity(secondsAgo < 30 ? 0.4 : 1)
-            }
-
+        VStack(alignment: .leading, spacing: Tide.s1) {
             Slider(
                 value: Binding(
                     get: { -secondsAgo },
@@ -203,13 +226,22 @@ struct MarkEatenSheet: View {
             .accessibilityValue(timeAgoLabel)
 
             HStack {
-                Text("4 h ago")
+                Text("\(Int(maxBackwardSeconds / 3600)) h ago")
                 Spacer()
                 Text("Now")
             }
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)
             .accessibilityHidden(true)
+        }
+    }
+
+    /// How the meal felt and how full you are: one card, two rows of chips.
+    private var feelAndFullness: some View {
+        VStack(alignment: .leading, spacing: Tide.s5) {
+            feelChips
+            Divider().overlay(Tide.hairline)
+            satietyChips
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
@@ -227,7 +259,6 @@ struct MarkEatenSheet: View {
                 }
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     /// Collapsible "Ate something else" section. Collapsed = a single
@@ -248,7 +279,8 @@ struct MarkEatenSheet: View {
                     Image(systemName: ateSomethingElse ? "checkmark.circle.fill" : "arrow.triangle.swap")
                         .font(Tide.headline)
                         .foregroundStyle(ateSomethingElse ? mood.accent : Tide.text2)
-                        .frame(width: Tide.icon, alignment: .leading)
+                        // A minimum, not a fixed width: the symbol grows with the text.
+                        .frame(minWidth: Tide.icon, alignment: .leading)
                         .accessibilityHidden(true)
                     Text("Ate something else")
                         .font(Tide.bodyStrong)
@@ -284,11 +316,12 @@ struct MarkEatenSheet: View {
                     }
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         Text("Where from?").tideLabel()
-                        Picker("Where from", selection: $usedPantry) {
-                            Text("Ate out").tag(false)
-                            Text("Used my pantry").tag(true)
+                        originLayout {
+                            originChoice("Ate out", icon: "takeoutbag.and.cup.and.straw.fill", pantry: false)
+                            originChoice("Used my pantry", icon: "refrigerator.fill", pantry: true)
                         }
-                        .pickerStyle(.segmented)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel("Where from")
                     }
                     Text(usedPantry
                         ? "We'll take what you ate off your pantry stock and log the real macros for today."
@@ -301,6 +334,33 @@ struct MarkEatenSheet: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    /// Side by side; stacked at accessibility sizes so neither answer is squeezed.
+    private var originLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+    }
+
+    /// One of the two answers to "where from": soft fill, accent ring when picked.
+    private func originChoice(_ title: String, icon: String, pantry: Bool) -> some View {
+        let selected = usedPantry == pantry
+        return Button {
+            HapticManager.selection()
+            usedPantry = pantry
+        } label: {
+            Label(title, systemImage: icon)
+                .font(Tide.bodyStrong)
+                .lineLimit(2)
+                .minimumScaleFactor(Tide.labelShrink)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, Tide.s2)
+                .fuelChoice(selected: selected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// Five chips side by side; stacked as full-width rows at accessibility
@@ -362,7 +422,6 @@ struct MarkEatenSheet: View {
                 }
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func satietyChip(_ satiety: MealSatiety) -> some View {

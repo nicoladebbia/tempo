@@ -192,11 +192,8 @@ struct NutritionCoachView: View {
 
     /// The small tracked title of a card, with its icon.
     private func cardTitle(_ title: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: Tide.s2) {
-            Image(systemName: icon)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: icon, tint: tint, size: Tide.hit - Tide.s4)
             Text(title).tideLabel()
         }
         .accessibilityElement(children: .combine)
@@ -274,7 +271,7 @@ struct NutritionCoachView: View {
             } else {
                 // The briefing is the hero of this page.
                 Text(insights.daily.value ?? dailyMessage)
-                    .font(Tide.headline)
+                    .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -462,10 +459,16 @@ struct NutritionCoachView: View {
             cardTitle("Meal feedback", icon: "chart.bar.fill", tint: mood.accent)
 
             if eatenMeals.isEmpty {
-                Text("No meals logged today. Get moving, soldier.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                    Image(systemName: "fork.knife")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                    Text("No meals logged today. Get moving, soldier.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(eatenMeals, id: \.id) { meal in

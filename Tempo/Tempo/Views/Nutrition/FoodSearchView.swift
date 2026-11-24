@@ -213,7 +213,11 @@ struct FoodSearchView: View {
                     }
                 }
             } header: {
-                Text(title).tideLabel()
+                HStack {
+                    Text(title).tideLabel()
+                    Spacer(minLength: Tide.s2)
+                    Text("\(products.count)").tideLabel(Tide.text3)
+                }
             }
         }
     }
@@ -224,7 +228,13 @@ struct FoodSearchView: View {
     private func savedList(_ rows: [ScannedFood], catalog: FoodCatalog, empty: String, header: String? = nil) -> some View {
         if rows.isEmpty {
             centered {
-                FuelEmptyState(icon: selectedTab == .favorites ? "star" : "clock", title: empty)
+                FuelEmptyState(
+                    icon: selectedTab == .favorites ? "star.fill" : "clock.fill",
+                    title: empty,
+                    message: selectedTab == .favorites
+                        ? "Open any food and tap its star. It waits for you here."
+                        : "Foods you scan or open show up here, newest first."
+                )
             }
         } else {
             List {
@@ -252,28 +262,83 @@ struct FoodSearchView: View {
 
     // MARK: - Empty States
 
+    /// Before the first letters: what the search covers, and the scanner as
+    /// the other way in. The three rows are the three groups the results use.
     private var searchEmptyState: some View {
         centered {
-            FuelEmptyState(
-                icon: "magnifyingglass",
-                title: "Find any food",
-                message: "Search basics like \"chicken breast\" or packaged products by name or brand. Or scan a barcode."
-            )
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: "magnifyingglass", size: Tide.tileLarge)
+                    Text("Find any food")
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                    Text("Search basics like \"chicken breast\" or packaged products by name or brand. Or scan a barcode.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                FuelRowGroup {
+                    coverageRow(icon: "leaf.fill", title: "Basic foods", detail: "Chicken breast, rice, eggs, oats")
+                    coverageRow(icon: "shippingbox.fill", title: "Packaged products", detail: "By name or brand, with a Tempo score")
+                    coverageRow(icon: "clock.fill", title: "Yours", detail: "What you scanned, saved or starred")
+                }
+                Button {
+                    HapticManager.lightImpact()
+                    showScanner = true
+                } label: {
+                    Label("Scan a barcode", systemImage: "barcode.viewfinder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+            }
+            .frame(maxWidth: Tide.stateWidth)
         }
     }
 
+    private func coverageRow(icon: String, title: String, detail: String) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: icon)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Nothing came back: either the name matched nothing, or a source could
+    /// not be reached (then the notice says which, and trying again is offered).
     private var noResultsState: some View {
         centered {
-            FuelEmptyState(
-                icon: "fork.knife",
-                title: "Nothing found",
-                message: "Try a shorter name, or scan the barcode."
-            ) {
-                Button("Scan a barcode") {
-                    HapticManager.lightImpact()
-                    showScanner = true
-                }
-                .buttonStyle(.tidePrimary)
+            if results.notices.isEmpty {
+                FuelAIState(
+                    kind: .empty(title: "Nothing found", message: "Try a shorter name, or scan the barcode."),
+                    actionTitle: "Scan a barcode",
+                    action: {
+                        HapticManager.lightImpact()
+                        showScanner = true
+                    }
+                )
+            } else {
+                FuelAIState(
+                    kind: .failed(
+                        title: "Couldn't reach the food database",
+                        message: results.notices.joined(separator: " ")
+                    ),
+                    actionTitle: "Try again",
+                    action: {
+                        HapticManager.lightImpact()
+                        Task { await runSearch() }
+                    }
+                )
             }
         }
     }
