@@ -31,6 +31,24 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     private let logger = Logger(subsystem: "app.tempo", category: "Notifications")
     private let center = UNUserNotificationCenter.current()
 
+    /// What the user allows right now: switched-off topics and quiet hours.
+    /// Read at the moment of scheduling, so a change applies to the next reminder.
+    private let policy: @Sendable () -> NotificationPolicy
+
+    init(policy: @escaping @Sendable () -> NotificationPolicy = { NotificationPolicyStore.current }) {
+        self.policy = policy
+    }
+
+    /// False when the user's settings rule this notification out. Logged, never silent.
+    private func isAllowed(_ category: String, topic: NotificationTopic? = nil, at date: Date, id: String) -> Bool {
+        let decision = policy().decide(category: category, topic: topic, fireDate: date)
+        guard case let .skip(reason) = decision else {
+            return true
+        }
+        logger.info("Skipped \(id, privacy: .public): \(String(describing: reason), privacy: .public)")
+        return false
+    }
+
     // MARK: - Budget Tracking
 
     // Per ONBOARDING_AND_NOTIFICATIONS.md — Hard Daily Notification Budget.
@@ -353,7 +371,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// each is a discrete event for one specific meal, and meals can sit
     /// closer together than that.
     func scheduleMealReminder(mealID: UUID, mealName: String, fireDate: Date) {
-        guard fireDate > Date() else {
+        guard fireDate > Date(), isAllowed("MEAL_REMINDER", at: fireDate, id: Self.mealReminderID(mealID: mealID)) else {
             return
         }
         let request = mealReminderRequest(MealReminderRequest(mealID: mealID, mealName: mealName, fireDate: fireDate))
@@ -372,6 +390,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         let now = Date()
         let wanted = reminders
             .filter { $0.fireDate > now }
+            .filter { isAllowed("MEAL_REMINDER", at: $0.fireDate, id: Self.mealReminderID(mealID: $0.mealID)) }
             .sorted { $0.fireDate < $1.fireDate }
             .prefix(Self.maxMealReminders)
         center.getPendingNotificationRequests { [weak self] pending in
@@ -560,7 +579,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// (`TrainerSessionReminderScheduler`), so a fixed handful of sessions a
     /// week never competes with the rest of the day's notification budget.
     func scheduleTrainerSessionReminder(sessionKey: String, date: Date, title: String, body: String, fireDate: Date) {
-        guard fireDate > Date() else {
+        let id = Self.trainerSessionReminderID(sessionKey: sessionKey, date: date)
+        guard fireDate > Date(), isAllowed("TRAINING_REMINDER", topic: .trainerSession, at: fireDate, id: id) else {
             return
         }
         let content = UNMutableNotificationContent()
@@ -616,6 +636,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
         let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
         let id = "\(Self.supplementReminderPrefix)\(dateKey(fireDate))_\(components.hour ?? 0)-\(components.minute ?? 0)"
+        guard isAllowed("SUPPLEMENT_REMINDER", at: fireDate, id: id) else {
+            return
+        }
 
         let content = UNMutableNotificationContent()
         content.title = title
@@ -667,7 +690,20 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         // Fires almost immediately — this is a discrete "it just crossed the
         // threshold" event, not something scheduled for a future clock time.
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        // Callers stamp `lastReorderAlertAt` first, so inside quiet hours it is
+        // held until they end instead of being dropped.
+        let now = Date()
+        let deliverAt = policy().deliveryDate(category: "SUPPLEMENT_REORDER", now: now)
+        let trigger: UNNotificationTrigger = if deliverAt > now.addingTimeInterval(60) {
+            UNCalendarNotificationTrigger(
+                dateMatching: Calendar.current.dateComponents(
+                    [.year, .month, .day, .hour, .minute, .second], from: deliverAt
+                ),
+                repeats: false
+            )
+        } else {
+            UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        }
         let request = UNNotificationRequest(
             identifier: "supplement_reorder_\(supplementID ?? supplementName)_\(dateKey(Date()))",
             content: content,
@@ -715,7 +751,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     /// program change and app foreground, never competing with the rest of
     /// the day's notification budget.
     private func scheduleWeeklyUploadReminder(id: String, title: String, body: String, fireDate: Date) {
-        guard fireDate > Date() else {
+        guard fireDate > Date(), isAllowed("TRAINING_REMINDER", topic: .weeklyUpload, at: fireDate, id: id) else {
             return
         }
         let content = UNMutableNotificationContent()
@@ -908,6 +944,23 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         logger.info("Cancelled all notifications")
     }
 
+    func removePendingNotAllowedByPolicy() async {
+        let pending = await center.pendingNotificationRequests().map { request -> NotificationPolicy.Pending in
+            // Repeating requests (the Sunday prompt) and ones with no clock time are left alone.
+            let trigger = request.trigger as? UNCalendarNotificationTrigger
+            let fireDate = trigger.flatMap { $0.repeats ? nil : $0.nextTriggerDate() }
+            return NotificationPolicy.Pending(
+                identifier: request.identifier, category: request.content.categoryIdentifier, fireDate: fireDate
+            )
+        }
+        let ids = policy().identifiersToRemove(pending)
+        guard !ids.isEmpty else {
+            return
+        }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+        logger.info("Removed \(ids.count) pending notifications the user's settings no longer allow")
+    }
+
     func cancelCategory(_ category: String) {
         center.getPendingNotificationRequests { [weak self] requests in
             let idsToCancel = requests
@@ -971,6 +1024,12 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         bypassBudget: Bool = false,
         userInfo: [String: String] = [:]
     ) {
+        // The user's switches and quiet hours come first: a notification that is
+        // skipped here spends no budget and does not move the anti-spam clock.
+        guard isAllowed(categoryID, at: date, id: id) else {
+            return
+        }
+
         // Budget check — bypassable for time-critical, discrete-event notifications
         // (e.g. defrost reminders) whose suppression would cause real-world harm.
         refreshBudgetDateIfNeeded()
