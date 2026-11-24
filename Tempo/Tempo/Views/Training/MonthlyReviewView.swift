@@ -46,6 +46,13 @@ struct MonthlyReviewView: View {
     private var generationFailed = false
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @ScaledMetric(relativeTo: .title)
+    private var scaledRing = TideTrain.debriefRing
+
+    /// The ring grows with the text in it, but not past a third more.
+    private var ringSize: CGFloat {
+        min(scaledRing, TideTrain.debriefRing * 1.4)
+    }
 
     var body: some View {
         NavigationStack {
@@ -87,51 +94,52 @@ struct MonthlyReviewView: View {
 
     private var interviewSection: some View {
         VStack(alignment: .leading, spacing: Tide.s5) {
-            // Where you are in it: how many of the five are answered.
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                Text("Month's over. debrief.").tideLabel(Tide.text3)
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    TideNumber("\(answeredCount)/5", size: Tide.numeralM, relativeTo: .title)
-                    Text("answered")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-                TrainSetTicks(done: answeredCount, total: 5, label: "Questions")
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Month's over. debrief.")
-            .accessibilityValue("\(answeredCount) of 5 answered")
+            debriefHero
 
             MonthlyReviewQuestion(
+                number: 1,
                 title: "What went well?",
                 text: $wentWell,
                 placeholder: "Streaks, sessions that clicked, habits that held…"
             )
             MonthlyReviewQuestion(
+                number: 2,
                 title: "What did you skip — and why?",
                 text: $struggles,
                 placeholder: "The honest version. PS5 nights count."
             )
             MonthlyReviewQuestion(
+                number: 3,
                 title: "Injuries or niggles?",
                 text: $niggles,
                 placeholder: "Anything next month's plan should route around."
             )
             MonthlyReviewQuestion(
+                number: 4,
                 title: "Feel different?",
                 text: $subjectiveProgress,
                 placeholder: "Faster, stronger, leaner — what no sensor sees."
             )
             MonthlyReviewQuestion(
+                number: 5,
                 title: "Goals for next month?",
                 text: $goalsNextMonth,
                 placeholder: "Concrete beats vague."
             )
 
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                Text("Next month's emphasis")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: "flag.fill", tint: TideTrain.violet)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text("Next month's emphasis")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Optional. The plan leans this way.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
                 // Two across (one at the accessibility sizes) so no name has to shrink.
                 LazyVGrid(
                     columns: Array(
@@ -146,6 +154,7 @@ struct MonthlyReviewView: View {
                     }
                 }
             }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
             if generationFailed {
                 TrainBanner(
@@ -156,6 +165,46 @@ struct MonthlyReviewView: View {
                 ) {}
             }
         }
+    }
+
+    /// The ring fills as the five questions get answered.
+    private var debriefHero: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: Tide.s5))
+        return layout {
+            TrainRing(progress: Double(answeredCount) / 5, tint: TideTrain.violet, diameter: ringSize) {
+                VStack(spacing: Tide.hair) {
+                    TideNumber("\(answeredCount)/5", size: Tide.numeralS, relativeTo: .title2)
+                        .contentTransition(.numericText())
+                    if !typeSize.isAccessibilitySize {
+                        Text("answered").tideLabel()
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                    }
+                }
+            }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                Text("Month's over. debrief.").tideLabel(Tide.text3)
+                Text(monthDisplayName)
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(typeSize.isAccessibilitySize
+                    ? "\(answeredCount) of 5 answered"
+                    : "Five honest answers. The plan reads them.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                TrainSetTicks(done: answeredCount, total: 5, label: "Questions")
+                    .padding(.top, Tide.s1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(Tide.snap, value: answeredCount)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Month's over. debrief.")
+        .accessibilityValue("\(answeredCount) of 5 answered")
     }
 
     /// File the report sits in the thumb zone and shows its own progress.
@@ -194,9 +243,16 @@ struct MonthlyReviewView: View {
     private func reportSection(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: "doc.text.fill", tint: TideTrain.violet)
-                Text("The report").tideLabel(Tide.text3)
+                TideIconTile(systemName: "doc.text.fill", tint: TideTrain.violet, size: TideTrain.thumb)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("The report").tideLabel(Tide.text3)
+                    Text(monthDisplayName)
+                        .font(Tide.title)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .accessibilityElement(children: .combine)
             // Paragraph by paragraph, so a long report breathes.
             VStack(alignment: .leading, spacing: Tide.s3) {
                 ForEach(Array(paragraphs(of: summary).enumerated()), id: \.offset) { _, paragraph in
@@ -278,8 +334,10 @@ struct MonthlyReviewView: View {
 
 // MARK: - MonthlyReviewQuestion
 
-/// One interview question: a title and a Tide text field that rings up while focused.
+/// One interview question: a numbered card with a Tide text field that rings
+/// up while focused. The number turns into a tick once there is an answer.
 private struct MonthlyReviewQuestion: View {
+    let number: Int
     let title: String
     @Binding
     var text: String
@@ -287,13 +345,26 @@ private struct MonthlyReviewQuestion: View {
 
     @FocusState
     private var focused: Bool
+    @Environment(\.tideMood)
+    private var mood
+
+    private var isAnswered: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(title)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                Image(systemName: isAnswered ? "checkmark.circle.fill" : "\(number).circle")
+                    .font(Tide.headline)
+                    .foregroundStyle(isAnswered ? mood.accent : Tide.text3)
+                    .contentTransition(.symbolEffect(.replace))
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             TextField(placeholder, text: $text, axis: .vertical)
                 .lineLimit(2 ... 4)
                 .font(Tide.body)
@@ -301,5 +372,7 @@ private struct MonthlyReviewQuestion: View {
                 .focused($focused)
                 .tideFieldSurface(focused: focused)
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .animation(Tide.snap, value: isAnswered)
     }
 }
