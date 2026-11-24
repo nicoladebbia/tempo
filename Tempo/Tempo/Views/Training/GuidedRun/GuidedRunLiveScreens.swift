@@ -91,7 +91,7 @@ struct GuidedRunWorkScreen: View {
                     }
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s4)
-                    .containerRelativeFrame(.vertical, alignment: .center)
+                    .modifier(GuidedRunCentred(active: !typeSize.isAccessibilitySize))
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 controls(workKind)
@@ -375,7 +375,7 @@ struct GuidedRunRestScreen: View {
                 }
                 .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s4)
-                .containerRelativeFrame(.vertical, alignment: .center)
+                .modifier(GuidedRunCentred(active: !typeSize.isAccessibilitySize))
                 .accessibilityIdentifier("guidedRunRestScreen")
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -471,5 +471,20 @@ private struct GuidedRunTopBar: View {
             .accessibilityLabel(isMuted ? "Unmute cues" : "Mute cues")
         }
         .padding(.horizontal, Tide.s2)
+    }
+}
+
+/// Centres the screen's content in the page at normal text sizes. At
+/// accessibility sizes the content can be taller than the page, and a frame
+/// pinned to the page height would cut off both ends with no way to scroll.
+private struct GuidedRunCentred: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content.containerRelativeFrame(.vertical, alignment: .center)
+        } else {
+            content
+        }
     }
 }
