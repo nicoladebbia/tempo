@@ -28,20 +28,52 @@ struct ActivityFeedView: View {
                 )
                 .tideCard()
             } else {
-                let events = Array(activityEvents.prefix(50))
-                VStack(spacing: 0) {
-                    ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
-                        if index > 0 {
-                            TideDivider()
+                ForEach(dayGroups, id: \.day) { group in
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        TideSectionLabel(title: dayTitle(group.day))
+                        VStack(spacing: 0) {
+                            ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
+                                if index > 0 {
+                                    TideDivider()
+                                }
+                                activityRow(event)
+                            }
                         }
-                        activityRow(event)
+                        .tideCard(padding: Tide.s2)
                     }
                 }
-                .tideCard(padding: Tide.s2)
             }
         }
         .navigationTitle("Activity")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: - Days
+
+    /// The latest 50 events, newest first, grouped by calendar day.
+    private var dayGroups: [(day: Date, events: [ActivityEvent])] {
+        let calendar = Calendar.current
+        var groups: [(day: Date, events: [ActivityEvent])] = []
+        for event in activityEvents.prefix(50) {
+            let day = calendar.startOfDay(for: event.timestamp)
+            if let last = groups.indices.last, groups[last].day == day {
+                groups[last].events.append(event)
+            } else {
+                groups.append((day: day, events: [event]))
+            }
+        }
+        return groups
+    }
+
+    private func dayTitle(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) {
+            return "Today"
+        }
+        if calendar.isDateInYesterday(day) {
+            return "Yesterday"
+        }
+        return day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
     }
 
     // MARK: - Activity Row

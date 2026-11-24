@@ -18,6 +18,8 @@ struct LeaderboardView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var selectedPeriod: LeaderboardPeriod = .weekly
@@ -41,10 +43,7 @@ struct LeaderboardView: View {
             )
 
             if isLoading {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(Tide.text2)
-                    .frame(maxWidth: .infinity, minHeight: Tide.hit * 4)
+                ArenaListSkeleton(label: "Loading leaderboard")
             } else if rankings.isEmpty {
                 TideEmptyPanel(
                     systemImage: "trophy",
@@ -56,15 +55,21 @@ struct LeaderboardView: View {
                 if myRank > 0 {
                     rankSummary
                 }
-                if rankings.count >= 3 {
+                if showsPodium {
                     podium
                 }
-                if rankings.count != 3 { rankedList }
+                if !showsPodium || rankings.count != 3 { rankedList }
             }
         }
         .navigationTitle("Leaderboard")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadMockData() }
+    }
+
+    /// Three columns of avatars and names do not fit at accessibility sizes; the
+    /// list takes over and shows everyone, top three included.
+    private var showsPodium: Bool {
+        rankings.count >= 3 && !typeSize.isAccessibilitySize
     }
 
     // MARK: - Your rank
@@ -83,7 +88,7 @@ struct LeaderboardView: View {
                 }
             }
         }
-        .tideCard()
+        .padding(.vertical, Tide.s2)
         .accessibilityElement(children: .combine)
     }
 
@@ -145,7 +150,7 @@ struct LeaderboardView: View {
     // MARK: - Ranked List
 
     private var rankedList: some View {
-        let rows = Array(rankings.dropFirst(rankings.count >= 3 ? 3 : 0))
+        let rows = Array(rankings.dropFirst(showsPodium ? 3 : 0))
         return VStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
                 if index > 0 {

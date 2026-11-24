@@ -19,6 +19,8 @@ struct AchievementsView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query
     private var achievements: [Achievement]
 
@@ -38,7 +40,10 @@ struct AchievementsView: View {
         return achievements.filter { $0.category == category }
     }
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: 3)
+    /// Three across, two at accessibility sizes so names keep whole words.
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: typeSize.isAccessibilitySize ? 2 : 3)
+    }
 
     var body: some View {
         TideScrollPage {
@@ -215,11 +220,21 @@ struct AchievementsView: View {
         let tint = achievement.rarity.tideTint
         return TideScrollPage(spacing: Tide.s5) {
             VStack(spacing: Tide.s4) {
-                Image(systemName: achievement.isEarned ? achievement.rarity.tideSymbol : "lock.fill")
+                // The same silhouette as its tile; locked ones carry a lock badge.
+                Image(systemName: achievement.rarity.tideSymbol)
                     .font(Tide.numeral(Tide.numeralM))
-                    .foregroundStyle(achievement.isEarned ? tint : Tide.text2)
+                    .foregroundStyle(achievement.isEarned ? tint : Tide.text3)
                     .frame(width: Tide.dialSheet, height: Tide.dialSheet)
-                    .glassEffect(.regular.tint(tint.opacity(0.25)), in: .circle)
+                    .glassEffect(.regular.tint(tint.opacity(achievement.isEarned ? 0.25 : 0.12)), in: .circle)
+                    .overlay(alignment: .bottomTrailing) {
+                        if !achievement.isEarned {
+                            Image(systemName: "lock.fill")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text2)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .glassEffect(.regular, in: .circle)
+                        }
+                    }
                     .accessibilityHidden(true)
 
                 VStack(spacing: Tide.s2) {

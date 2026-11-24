@@ -200,13 +200,17 @@ struct ArenaMainView: View {
                 .foregroundStyle(mood.accent)
                 .lineLimit(2)
                 .minimumScaleFactor(Tide.labelShrink)
-            HStack(alignment: .firstTextBaseline) {
+            let nextRow = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s2))
+            nextRow {
                 Text("\(vm.xpForNextLevel.formatted()) XP to level \(nextLevel)")
                     .font(Tide.caption).foregroundStyle(Tide.text2)
-                Spacer(minLength: Tide.s2)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
                 Text(nextName).font(Tide.caption).foregroundStyle(Tide.text2)
             }
-            .lineLimit(1)
             .minimumScaleFactor(Tide.labelShrink)
             TideNumber(vm.totalXP.formatted(), unit: "XP total", size: Tide.numeralS, relativeTo: .headline)
         }

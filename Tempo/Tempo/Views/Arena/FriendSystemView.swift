@@ -37,8 +37,11 @@ struct FriendSystemView: View {
 
     var body: some View {
         TideScrollPage {
-            TextField("Search friends", text: $searchText)
-                .tideField(systemImage: "magnifyingglass")
+            // Nobody to search yet: the empty panel below has the one action.
+            if !friends.isEmpty || !pendingRequests.isEmpty {
+                TextField("Search friends", text: $searchText)
+                    .tideField(systemImage: "magnifyingglass")
+            }
 
             // Pending requests
             if !pendingRequests.isEmpty {
@@ -62,19 +65,22 @@ struct FriendSystemView: View {
                 TideEmptyPanel(
                     systemImage: "person.2",
                     title: "No friends yet",
-                    message: "Add friends to see their activity and compete on the leaderboard."
-                )
+                    message: "Add friends to see their activity and compete on the leaderboard.",
+                    actionTitle: "Invite friends"
+                ) {
+                    showAddFriend = true
+                }
                 .tideCard()
+            } else {
+                // Invite button
+                Button {
+                    showAddFriend = true
+                } label: {
+                    Label("Invite friends", systemImage: "person.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
             }
-
-            // Invite button
-            Button {
-                showAddFriend = true
-            } label: {
-                Label("Invite friends", systemImage: "person.badge.plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tideGlass)
         }
         .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
@@ -194,11 +200,14 @@ struct FriendSystemView: View {
                     .frame(maxWidth: .infinity)
 
                 // Alternative methods
-                VStack(spacing: Tide.s3) {
+                VStack(spacing: 0) {
                     addMethodButton(icon: "qrcode.viewfinder", title: "Scan a QR code")
+                    TideDivider()
                     addMethodButton(icon: "link", title: "Share a link")
+                    TideDivider()
                     addMethodButton(icon: "person.crop.rectangle", title: "Import from contacts")
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
             .navigationTitle("Add friends")
             .navigationBarTitleDisplayMode(.inline)
@@ -261,10 +270,11 @@ struct FriendSystemView: View {
                     .foregroundStyle(Tide.text3)
                     .accessibilityHidden(true)
             }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+            .padding(.vertical, Tide.s2)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
-        .buttonStyle(TideCardPressStyle())
+        .buttonStyle(.plain)
     }
 }
 

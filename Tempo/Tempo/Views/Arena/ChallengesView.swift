@@ -334,6 +334,8 @@ struct ChallengeCreationSheet: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Binding
     var isPresented: Bool
     @State
@@ -376,13 +378,16 @@ struct ChallengeCreationSheet: View {
                         TideLevelBar(progress: Double(step) / Double(totalSteps), height: Tide.barSlim)
                     }
 
-                    if step == 1 {
-                        metricSelection
-                    } else if step == 2 {
-                        friendSelection
-                    } else {
-                        durationSelection
+                    Group {
+                        if step == 1 {
+                            metricSelection
+                        } else if step == 2 {
+                            friendSelection
+                        } else {
+                            durationSelection
+                        }
                     }
+                    .transition(.opacity)
                 }
                 .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s2)
@@ -530,7 +535,47 @@ struct ChallengeCreationSheet: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .contentTransition(.opacity)
                 .animation(Tide.snap, value: selectedDuration)
+
+            summaryCard
         }
+    }
+
+    // MARK: - Summary
+
+    /// What is about to start, in the order it was chosen.
+    private var summaryCard: some View {
+        let metricName = metrics.first(where: { $0.2 == selectedMetric })?.1 ?? "-"
+        let who = isSoloChallenge
+            ? "Just you"
+            : availableFriends.filter { selectedFriends.contains($0.userID) }.map(\.displayName).joined(separator: ", ")
+        let ends = Calendar.current.date(byAdding: .day, value: selectedDuration, to: Date()) ?? Date()
+        return VStack(spacing: 0) {
+            summaryRow("Competing on", metricName)
+            TideDivider()
+            summaryRow("With", who.isEmpty ? "-" : who)
+            TideDivider()
+            summaryRow("Ends", ends.formatted(date: .abbreviated, time: .omitted))
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func summaryRow(_ label: String, _ value: String) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
+        return layout {
+            Text(label).tideLabel()
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
+            Text(value)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
+        }
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
     }
 
     // MARK: - Step 2: Friend Selection
