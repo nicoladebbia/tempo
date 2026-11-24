@@ -354,6 +354,9 @@ struct WorkoutHistoryView: View {
                     Text("Delete")
                         .font(Tide.caption)
                         .fontWeight(.semibold)
+                        // One word on one line, even at accessibility sizes.
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                 }
                 .foregroundStyle(Tide.ink)
                 .frame(width: revealWidth)
