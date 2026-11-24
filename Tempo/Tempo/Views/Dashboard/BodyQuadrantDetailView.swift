@@ -42,17 +42,23 @@ struct BodyQuadrantDetailView: View {
                     // Historical Comparison
                     historicalComparisonSection
                 } else {
-                    EmptyStateView(
-                        icon: "sensor.tag.radiowaves.forward.fill",
+                    TrainEmptyCard(
+                        systemImage: "sensor.tag.radiowaves.forward.fill",
                         title: "No Whoop Connected",
-                        message: "Connect your Whoop to see recovery, HRV, sleep, and strain data.",
-                        actionTitle: "Connect Whoop",
-                        action: { showWhoopConnect = true }
+                        message: "Connect your Whoop to see recovery, HRV, sleep, and strain data."
                     )
+                    Button {
+                        showWhoopConnect = true
+                    } label: {
+                        Text("Connect Whoop")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tidePrimary)
                 }
             }
             .padding(.horizontal, Tide.edge)
-            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+            .padding(.top, Tide.s2)
+            .padding(.bottom, TideTrain.pageBottom)
         }
         .tidePage()
         .navigationTitle("Body")
@@ -76,6 +82,8 @@ struct BodyQuadrantDetailView: View {
     private var showWhoopConnect = false
     @State
     private var selectedTrendDate: Date?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Stub 7-day trend data
     private let trendData: [RecoveryTrendPoint] = {
@@ -197,7 +205,7 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Hero Section
 
     private var recoveryHeroSection: some View {
-        VStack(spacing: Tide.s2) {
+        VStack(spacing: Tide.s3) {
             // Data source badge
             if data.dataSource != .none {
                 HStack(spacing: Tide.s1) {
@@ -210,23 +218,26 @@ struct BodyQuadrantDetailView: View {
                 }
                 .foregroundStyle(Tide.text3)
                 .padding(.horizontal, Tide.s2)
-                .padding(.vertical, 4)
+                .padding(.vertical, Tide.s1)
                 .background(Tide.fill)
                 .clipShape(Capsule())
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            HStack(spacing: Tide.s5) {
-                // Recovery ring — 120pt
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+                : AnyLayout(HStackLayout(spacing: Tide.s5))
+            layout {
+                // Recovery ring
                 ZStack {
                     Circle()
-                        .stroke(Tide.hairline, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                        .stroke(Tide.hairline, style: StrokeStyle(lineWidth: TideTrain.ringStroke, lineCap: .round))
                     if let score = data.recoveryScore {
                         Circle()
                             .trim(from: 0, to: score / 100)
                             .stroke(
                                 zoneColor,
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                                style: StrokeStyle(lineWidth: TideTrain.ringStroke, lineCap: .round)
                             )
                             .rotationEffect(.degrees(-90))
                     }
@@ -235,12 +246,12 @@ struct BodyQuadrantDetailView: View {
                             .font(TideTrain.figure(.largeTitle))
                             .foregroundStyle(zoneColor)
                             .lineLimit(1)
-                            .minimumScaleFactor(0.5)
+                            .minimumScaleFactor(Tide.labelShrink)
                         Text("Recovery").tideLabel(Tide.text3)
                     }
-                    .frame(width: 96)
+                    .frame(width: TideTrain.ringInner)
                 }
-                .frame(width: 120, height: 120)
+                .frame(width: TideTrain.ring, height: TideTrain.ring)
 
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Recovery")
@@ -251,19 +262,20 @@ struct BodyQuadrantDetailView: View {
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .italic()
+                        .fixedSize(horizontal: false, vertical: true)
 
                     // CTA when using HealthKit fallback (no Whoop recovery score)
                     if data.dataSource == .healthKit, data.recoveryScore == nil {
                         Text("Connect Whoop for full recovery data")
                             .font(Tide.caption)
                             .foregroundStyle(Color.accentColor)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.top, Tide.s4)
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Metric Cards
@@ -271,10 +283,7 @@ struct BodyQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.2 — Metric Cards Row
 
     private var metricCardsSection: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 4),
-            spacing: Tide.s2
-        ) {
+        let cards = Group {
             metricCard(
                 value: hrvDigits,
                 label: "HRV · ms",
@@ -299,6 +308,18 @@ struct BodyQuadrantDetailView: View {
                 comparison: spo2Comparison
             )
         }
+        // Four across while they fit; two by two at large text sizes.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                cards
+            }
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 2),
+                spacing: Tide.s2
+            ) {
+                cards
+            }
+        }
     }
 
     // MARK: - Recovery Trend Chart
@@ -307,7 +328,7 @@ struct BodyQuadrantDetailView: View {
 
     private var recoveryTrendSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Recovery trend").tideLabel()
+            TideSectionLabel(title: "Recovery trend")
 
             Chart(trendData) { point in
                 // Area fill
@@ -317,7 +338,7 @@ struct BodyQuadrantDetailView: View {
                 )
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [Tide.text.opacity(0.15), Color.clear],
+                        colors: [Tide.hairline, Color.clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -346,11 +367,11 @@ struct BodyQuadrantDetailView: View {
                    Calendar.current.isDate(selection.date, inSameDayAs: point.date)
                 {
                     RuleMark(x: .value("Selected", selection.date, unit: .day))
-                        .foregroundStyle(Tide.text2.opacity(0.4))
+                        .foregroundStyle(Tide.text3)
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                         .annotation(
                             position: .top,
-                            spacing: 6,
+                            spacing: Tide.s2,
                             overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
                         ) {
                             tooltipCard(for: selection)
@@ -373,7 +394,7 @@ struct BodyQuadrantDetailView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
+                AxisMarks(values: .stride(by: .day, count: typeSize.isAccessibilitySize ? 2 : 1)) { value in
                     AxisValueLabel {
                         if let date = value.as(Date.self) {
                             Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
@@ -383,9 +404,10 @@ struct BodyQuadrantDetailView: View {
                     }
                 }
             }
-            .frame(height: 160)
+            .frame(height: TideTrain.chartHeight)
         }
-        .tideCard(padding: Tide.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Sleep Breakdown
@@ -394,7 +416,7 @@ struct BodyQuadrantDetailView: View {
 
     private var sleepBreakdownSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Sleep breakdown").tideLabel()
+            TideSectionLabel(title: "Sleep breakdown")
 
             // Stacked bar
             let total = Double(deepSleepMin + remSleepMin + lightSleepMin + awakeSleepMin)
@@ -419,10 +441,13 @@ struct BodyQuadrantDetailView: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
             }
-            .frame(height: 24)
+            .frame(height: TideTrain.stackBar)
 
-            // Legend 2x2 grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+            // Legend: two columns, one at large text sizes
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: typeSize.isAccessibilitySize ? 1 : 2),
+                spacing: Tide.s2
+            ) {
                 sleepLegendItem(
                     color: Color.tempoSleepDeep,
                     label: "Deep",
@@ -447,14 +472,17 @@ struct BodyQuadrantDetailView: View {
 
             // Performance + bed time
             Text("Performance: \(data.formattedSleepPerformance)")
-                .font(Tide.body)
+                .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("In bed: 11:15 PM → 6:45 AM")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .tideCard(padding: Tide.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Strain Breakdown
@@ -463,15 +491,14 @@ struct BodyQuadrantDetailView: View {
 
     private var strainBreakdownSection: some View {
         VStack(spacing: Tide.s3) {
-            Text("Strain breakdown").tideLabel()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            TideSectionLabel(title: "Strain breakdown")
 
             // Semicircle gauge
             ZStack {
                 // Arc background
                 SemiCircleArc(progress: 1.0)
-                    .stroke(Tide.hairline, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .frame(width: 160, height: 80)
+                    .stroke(Tide.hairline, style: StrokeStyle(lineWidth: TideTrain.ringStroke, lineCap: .round))
+                    .frame(width: TideTrain.gaugeWidth, height: TideTrain.gaugeHeight)
 
                 // Arc fill with gradient
                 SemiCircleArc(progress: min((data.strain ?? 0) / 21.0, 1.0))
@@ -481,21 +508,26 @@ struct BodyQuadrantDetailView: View {
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                        style: StrokeStyle(lineWidth: TideTrain.ringStroke, lineCap: .round)
                     )
-                    .frame(width: 160, height: 80)
+                    .frame(width: TideTrain.gaugeWidth, height: TideTrain.gaugeHeight)
             }
-            .frame(height: 90)
+            .frame(height: TideTrain.gaugeHeight + TideTrain.ringStroke)
+            .accessibilityHidden(true)
 
             Text("Strain zone: \(strainZoneLabel)")
-                .font(Tide.body)
+                .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("Recommended: \(strainRecommendation) (recovery \(data.formattedRecovery))")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .tideCard(padding: Tide.s3)
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Historical Comparison
@@ -504,7 +536,7 @@ struct BodyQuadrantDetailView: View {
 
     private var historicalComparisonSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Historical comparison").tideLabel()
+            TideSectionLabel(title: "Historical comparison")
 
             VStack(spacing: 0) {
                 comparisonRow(
@@ -514,7 +546,7 @@ struct BodyQuadrantDetailView: View {
                         ComparisonMetric(label: "HRV", delta: "-2 ms", color: Tide.danger),
                     ]
                 )
-                Divider().background(Tide.hairline)
+                TrainPlanDivider()
                 comparisonRow(
                     period: "Last Week",
                     metrics: [
@@ -522,7 +554,7 @@ struct BodyQuadrantDetailView: View {
                         ComparisonMetric(label: "Sleep", delta: "+0.5h", color: TideTrain.positive),
                     ]
                 )
-                Divider().background(Tide.hairline)
+                TrainPlanDivider()
                 comparisonRow(
                     period: "7-day avg",
                     metrics: [
@@ -532,29 +564,33 @@ struct BodyQuadrantDetailView: View {
                 )
             }
         }
-        .tideCard(padding: Tide.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4)
     }
 
     private func metricCard(value: String, label: String, comparison: (String, Color)) -> some View {
         VStack(spacing: Tide.s1) {
             Text(value)
-                .font(Tide.headline)
+                .font(TideTrain.figure(.title3))
                 .foregroundStyle(Tide.text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(Tide.labelShrink)
 
             Text(label)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
                 .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
 
             Text(comparison.0)
                 .font(Tide.caption)
                 .foregroundStyle(comparison.1)
                 .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
         }
-        .frame(maxWidth: .infinity, minHeight: 84)
-        .tideCard(padding: 10, radius: Tide.tileRadius)
+        .frame(maxWidth: .infinity, minHeight: TideTrain.statColumn)
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     private func tooltipCard(for point: RecoveryTrendPoint) -> some View {
@@ -567,7 +603,7 @@ struct BodyQuadrantDetailView: View {
             Text(TempoDateFormatters.shortDayOfWeek.string(from: point.date).uppercased())
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                 Text("\(Int(point.score))")
                     .font(Tide.headline)
                     .foregroundStyle(zone.color)
@@ -591,42 +627,51 @@ struct BodyQuadrantDetailView: View {
     private func sleepSegment(width: CGFloat, color: Color) -> some View {
         Rectangle()
             .fill(color)
-            .frame(width: max(width, 0), height: 24)
+            .frame(width: max(width, 0), height: TideTrain.stackBar)
     }
 
     private func sleepLegendItem(color: Color, label: String, duration: String) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: Tide.s2) {
             Circle()
                 .fill(color)
-                .frame(width: 8, height: 8)
+                .frame(width: TideTrain.dot, height: TideTrain.dot)
             Text("\(label)  \(duration)")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text)
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func comparisonRow(period: String, metrics: [ComparisonMetric]) -> some View {
-        HStack(spacing: Tide.s2) {
-            Text(period.uppercased())
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-                .frame(width: 88, alignment: .leading)
-
-            ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
-                HStack(spacing: 4) {
-                    Text(metric.label)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                    Text(metric.delta)
-                        .font(Tide.body)
-                        .monospacedDigit()
-                        .foregroundStyle(metric.color)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+        let title = Text(period.uppercased())
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
+        let cells = ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
+            HStack(spacing: Tide.s1) {
+                Text(metric.label)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                Text(metric.delta)
+                    .font(TideTrain.figure(.callout, weight: .semibold))
+                    .foregroundStyle(metric.color)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                title
+                    .frame(width: TideTrain.statColumn, alignment: .leading)
+                cells
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                title
+                cells
             }
         }
-        .padding(.vertical, Tide.s1)
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func comparisonIndicator(current: Double?, average: Double, higherIsBetter: Bool) -> (String, Color) {

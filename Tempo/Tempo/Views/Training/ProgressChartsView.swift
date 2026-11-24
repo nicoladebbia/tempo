@@ -53,24 +53,23 @@ struct ProgressChartsView: View {
     var body: some View {
         VStack(spacing: 0) {
             if !hasAnyData {
-                EmptyStateView(
-                    icon: "chart.line.uptrend.xyaxis",
-                    title: "No Progress Yet",
-                    message: "Complete your first workout to start tracking progress."
-                )
-            } else {
-                // Segmented picker
-                // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
-                Picker("View", selection: $selectedTab) {
-                    ForEach(ProgressTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
+                TrainPlanPage {
+                    TrainEmptyCard(
+                        systemImage: "chart.line.uptrend.xyaxis",
+                        title: "No Progress Yet",
+                        message: "Complete your first workout to start tracking progress."
+                    )
                 }
-                .pickerStyle(.segmented)
+            } else {
+                // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
+                TrainPlanTabs(
+                    items: ProgressTab.allCases.map { (tag: $0, label: $0.rawValue) },
+                    selection: $selectedTab
+                )
                 .padding(.horizontal, Tide.edge)
                 .padding(.vertical, Tide.s2)
 
-                ScrollView(.vertical, showsIndicators: false) {
+                TrainPlanPage {
                     switch selectedTab {
                     case .lab:
                         // §11.2 — the interactive Strength Lab (scrubbable
@@ -86,6 +85,7 @@ struct ProgressChartsView: View {
                         activityTab
                     }
                 }
+                .id(selectedTab)
             }
         }
         .tidePage()
@@ -106,7 +106,7 @@ struct ProgressChartsView: View {
     // Per MODULE_TRAINING.md Section 11.4
 
     private var overviewTab: some View {
-        VStack(spacing: Tide.s5) {
+        VStack(spacing: Tide.s4) {
             // §11.8 — the week-in-motion hero: this week's volume, delta vs
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
@@ -123,8 +123,6 @@ struct ProgressChartsView: View {
             // Body part split
             bodyPartSplitCard
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     // MARK: - This Week Hero (§11.8)
@@ -212,64 +210,64 @@ struct ProgressChartsView: View {
         let previous = weeks.dropLast().last?.volume ?? 0
         let delta = previous > 0 ? (current - previous) / previous : nil
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text("This week").tideLabel(Tide.text3)
-                    Text(formatVolume(current))
-                        .trainNumeral(44, relativeTo: .largeTitle)
-                        .foregroundStyle(Tide.text)
-                        .contentTransition(.numericText())
-                }
-                Spacer()
-                if let delta {
-                    HStack(spacing: Tide.hair) {
-                        Image(systemName: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(Tide.label)
-                        Text("\(abs(Int((delta * 100).rounded())))% vs last week")
-                            .font(Tide.caption)
-                            .fontWeight(.semibold)
+        return TrainPlanCard {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    heroFigure(current)
+                    Spacer(minLength: Tide.s2)
+                    if let delta {
+                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
                     }
-                    .foregroundStyle(delta >= 0 ? TideTrain.positive : TideTrain.caution)
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    heroFigure(current)
+                    if let delta {
+                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
+                    }
                 }
             }
 
             if weeks.contains(where: { $0.volume > 0 }) {
-                Chart(weeks, id: \.weekStart) { week in
-                    AreaMark(
-                        x: .value("Week", week.weekStart),
-                        y: .value("Volume", week.volume)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.accentColor.opacity(0.3), .clear],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.monotone)
-                    LineMark(
-                        x: .value("Week", week.weekStart),
-                        y: .value("Volume", week.volume)
-                    )
-                    .foregroundStyle(Color.accentColor)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.monotone)
-                }
-                .chartXAxis(.hidden)
-                .chartYAxis(.hidden)
-                .frame(height: 56)
+                TrainPlanSpark(values: weeks.map(\.volume))
             }
 
-            HStack(spacing: Tide.s4) {
-                Label("\(weekStreak)-week streak", systemImage: "flame.fill")
-                    .foregroundStyle(weekStreak > 0 ? TideTrain.caution : Tide.text3)
-                Label("\(prCount30d) PRs this month", systemImage: "star.fill")
-                    .foregroundStyle(prCount30d > 0 ? Color.accentColor : Tide.text3)
-                Spacer()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    streakTags
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    streakTags
+                }
             }
-            .font(Tide.caption)
         }
-        .tideCard(padding: Tide.s4)
+    }
+
+    private func heroFigure(_ volume: Double) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text("This week").tideLabel(Tide.text3)
+                .lineLimit(1)
+            Text(formatVolume(volume))
+                .trainNumeral(44, relativeTo: .largeTitle)
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .contentTransition(.numericText())
+        }
+    }
+
+    @ViewBuilder
+    private var streakTags: some View {
+        TrainTag(
+            text: "\(weekStreak)-week streak",
+            systemImage: "flame.fill",
+            color: weekStreak > 0 ? TideTrain.caution : Tide.text3
+        )
+        TrainTag(
+            text: "\(prCount30d) PRs this month",
+            systemImage: "star.fill",
+            color: prCount30d > 0 ? Color.accentColor : Tide.text3
+        )
     }
 
     private var allTimeStats: some View {
@@ -279,32 +277,19 @@ struct ProgressChartsView: View {
             .filter { $0.status == .completed }
             .reduce(0) { $0 + $1.completedSets }
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("All-time").tideLabel()
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: Tide.s2),
-                GridItem(.flexible(), spacing: Tide.s2),
-                GridItem(.flexible(), spacing: Tide.s2),
-            ], spacing: Tide.s2) {
-                overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
-                overviewStatCell(label: "Volume (\(weightUnit.abbreviation))", value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit))
-                overviewStatCell(label: "Sets", value: "\(totalSets)")
+        return TrainPlanCard(label: "All-time") {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: TideTrain.statColumn), spacing: Tide.s3, alignment: .topLeading)],
+                alignment: .leading,
+                spacing: Tide.s3
+            ) {
+                TrainStat(value: "\(totalWorkouts)", label: "Workouts")
+                TrainStat(
+                    value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit),
+                    label: "Volume (\(weightUnit.abbreviation))"
+                )
+                TrainStat(value: "\(totalSets)", label: "Sets")
             }
-        }
-        .tideCard(padding: Tide.s4)
-    }
-
-    private func overviewStatCell(label: String, value: String) -> some View {
-        VStack(spacing: Tide.hair) {
-            Text(value)
-                .font(TideTrain.figure(.title))
-                .foregroundStyle(Tide.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
         }
     }
 
@@ -316,102 +301,47 @@ struct ProgressChartsView: View {
             ? 0
             : Double(recentWeeks.reduce(0) { $0 + $1.count }) / Double(recentWeeks.count)
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Workout frequency").tideLabel()
-                Spacer()
-                if average > 0 {
-                    Text(String(format: "avg %.1f/wk", average))
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                }
-            }
-
+        return TrainPlanCard(
+            label: "Workout frequency",
+            trailing: average > 0 ? String(format: "avg %.1f/wk", average) : nil
+        ) {
             if recentWeeks.isEmpty {
-                Text("No workouts yet")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
+                emptyLine("No workouts yet", height: TideTrain.barsHeight)
             } else {
-                Chart {
-                    ForEach(Array(recentWeeks.enumerated()), id: \.element.weekLabel) { idx, item in
-                        BarMark(
-                            x: .value("Week", item.weekLabel),
-                            y: .value("Count", item.count)
-                        )
-                        .foregroundStyle(
-                            idx == recentWeeks.count - 1
-                                ? Color.accentColor
-                                : Color.accentColor.opacity(0.7)
-                        )
-                        .cornerRadius(Tide.s1)
-                    }
-                    if average > 0 {
-                        RuleMark(y: .value("Average", average))
-                            .foregroundStyle(Tide.text3.opacity(0.5))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks { _ in
-                        AxisGridLine()
-                            .foregroundStyle(Tide.text3.opacity(0.2))
-                        AxisValueLabel()
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks { _ in
-                        AxisValueLabel()
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                    }
-                }
-                .frame(height: 120)
+                TrainPlanBarChart(
+                    bars: recentWeeks.map {
+                        TrainPlanBarChart.Bar(id: $0.weekLabel, label: $0.weekLabel, value: Double($0.count))
+                    },
+                    average: average
+                )
             }
         }
-        .tideCard(padding: Tide.s4)
     }
 
     /// Per MODULE_TRAINING.md Section 11.4 — Body part split donut chart
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Muscle group distribution").tideLabel()
-
+        return TrainPlanCard(label: "Muscle group distribution") {
             if distribution.isEmpty {
-                Text("No data yet")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
+                emptyLine("No data yet", height: TideTrain.barsHeight)
             } else {
                 ForEach(distribution, id: \.group) { item in
-                    HStack(spacing: Tide.s2) {
-                        Text(item.group.displayName)
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text)
-                            .frame(width: 80, alignment: .leading)
-
-                        GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
-                                .fill(Color.accentColor)
-                                .frame(width: max(4, geo.size.width * item.percentage))
-                        }
-                        .frame(height: 12)
-
-                        Text("\(Int(item.percentage * 100))%")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                            .frame(width: 36, alignment: .trailing)
-                    }
+                    TrainPlanMeterRow(
+                        label: item.group.displayName,
+                        value: "\(Int(item.percentage * 100))%",
+                        fraction: item.percentage
+                    )
                 }
             }
         }
-        .tideCard(padding: Tide.s4)
+    }
+
+    private func emptyLine(_ text: String, height: CGFloat) -> some View {
+        Text(text)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .frame(maxWidth: .infinity, minHeight: height)
     }
 
     // MARK: - Exercises Tab
@@ -423,17 +353,10 @@ struct ProgressChartsView: View {
 
         return LazyVStack(spacing: Tide.s2) {
             if exercisesWithHistory.isEmpty {
-                VStack(spacing: Tide.s3) {
-                    Spacer().frame(height: 80)
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(Tide.largeTitle)
-                        .foregroundStyle(Tide.text3)
-                    Text("Complete workouts to see progress")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
+                TrainEmptyCard(
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    title: "Complete workouts to see progress"
+                )
             } else {
                 ForEach(exercisesWithHistory, id: \.id) { exercise in
                     NavigationLink {
@@ -441,20 +364,20 @@ struct ProgressChartsView: View {
                     } label: {
                         exerciseProgressRow(exercise)
                     }
+                    .buttonStyle(.trainCard)
                 }
             }
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     private func exerciseProgressRow(_ exercise: Exercise) -> some View {
-        HStack {
+        HStack(spacing: Tide.s3) {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(exercise.name)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
                 if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
                     Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
@@ -463,20 +386,17 @@ struct ProgressChartsView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            Text(exercise.muscleGroup.displayName)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .padding(.horizontal, Tide.s1)
-                .padding(.vertical, Tide.hair)
-                .background(Tide.fill)
-                .clipShape(Capsule())
+            TrainTag(text: exercise.muscleGroup.displayName)
 
             Image(systemName: "chevron.right")
-                .font(Tide.caption)
+                .font(Tide.label)
                 .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
@@ -487,48 +407,26 @@ struct ProgressChartsView: View {
     private var muscleGroupsTab: some View {
         let distribution = muscleGroupDistribution
 
-        return VStack(spacing: Tide.s5) {
+        return VStack(spacing: Tide.s4) {
             // Weekly volume by muscle group
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                Text("Weekly volume by muscle group").tideLabel()
-
+            TrainPlanCard(label: "Weekly volume by muscle group") {
                 if distribution.isEmpty {
-                    Text("No data yet")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
+                    emptyLine("No data yet", height: TideTrain.barsHeight)
                 } else {
                     ForEach(distribution, id: \.group) { item in
-                        HStack(spacing: Tide.s2) {
-                            Text(item.group.displayName)
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text)
-                                .frame(width: 80, alignment: .leading)
-
-                            GeometryReader { geo in
-                                RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
-                                    .fill(Color.accentColor)
-                                    .frame(width: max(4, geo.size.width * item.percentage))
-                            }
-                            .frame(height: 16)
-
-                            Text(formatVolume(item.volume))
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text3)
-                                .frame(width: 60, alignment: .trailing)
-                        }
+                        TrainPlanMeterRow(
+                            label: item.group.displayName,
+                            value: formatVolume(item.volume),
+                            fraction: item.percentage
+                        )
                     }
                 }
             }
-            .tideCard(padding: Tide.s4)
 
             // Balance analysis
             // Per MODULE_TRAINING.md Section 11.3 — Push/Pull ratio
             balanceAnalysis
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
     }
 
     private var balanceAnalysis: some View {
@@ -538,28 +436,27 @@ struct ProgressChartsView: View {
         let pullVolume = dist.filter { [.back, .biceps].contains($0.group) }
             .reduce(0.0) { $0 + $1.volume }
         let ratio = pullVolume > 0 ? pushVolume / pullVolume : 0
+        let isBalanced = ratio >= 0.8 && ratio <= 1.3
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Balance analysis").tideLabel()
-
-            HStack(spacing: Tide.s2) {
-                let isBalanced = ratio >= 0.8 && ratio <= 1.3
-                Image(systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .font(Tide.body)
-                    .foregroundStyle(isBalanced ? TideTrain.positive : TideTrain.caution)
+        return TrainPlanCard(label: "Balance analysis") {
+            HStack(spacing: Tide.s3) {
+                TideIconTile(
+                    systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                    tint: isBalanced ? TideTrain.positive : TideTrain.caution
+                )
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Push/Pull Ratio")
-                        .font(Tide.body)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
 
                     Text(ratio > 0 ? String(format: "%.1f:1 (ideal: 1:1)", ratio) : "Not enough data")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .tideCard(padding: Tide.s4)
     }
 
     // MARK: - Activity Tab (non-gym: football / sprint / conditioning)
@@ -567,37 +464,42 @@ struct ProgressChartsView: View {
     private var activityTab: some View {
         VStack(spacing: Tide.s4) {
             if activitySessions.isEmpty {
-                EmptyStateView(
-                    icon: "figure.run",
+                TrainEmptyCard(
+                    systemImage: "figure.run",
                     title: "No Activity Yet",
                     message: "Log a football, run, or conditioning session to track it here."
                 )
-                .padding(.top, Tide.s8)
             } else {
                 // All-time totals
-                HStack(spacing: 0) {
-                    activityTotal("\(activitySessions.count)", "Sessions")
-                    activityTotal("\(Int(totalActiveMinutes))m", "Active")
-                    activityTotal(String(format: "%.0f", totalActivityStrain), "Total Strain")
+                TrainPlanCard {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: TideTrain.statColumn), spacing: Tide.s3, alignment: .topLeading)],
+                        alignment: .leading,
+                        spacing: Tide.s3
+                    ) {
+                        TrainStat(value: "\(activitySessions.count)", label: "Sessions")
+                        TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
+                        TrainStat(value: String(format: "%.0f", totalActivityStrain), label: "Total Strain")
+                    }
                 }
-                .tideCard(padding: Tide.s4)
 
                 // Recent sessions
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    Text("Recent sessions").tideLabel(Tide.text3)
-
-                    ForEach(activitySessions.prefix(20), id: \.id) { session in
-                        HStack {
+                TrainPlanCard(label: "Recent sessions") {
+                    let recent = Array(activitySessions.prefix(20))
+                    ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
+                        if index > 0 {
+                            Divider().overlay(Tide.hairline)
+                        }
+                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                             VStack(alignment: .leading, spacing: Tide.hair) {
                                 Text(activityTypeLabel(session))
-                                    .font(Tide.body)
-                                    .fontWeight(.medium)
+                                    .font(Tide.bodyStrong)
                                     .foregroundStyle(Tide.text)
                                 Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
                                     .font(Tide.caption)
                                     .foregroundStyle(Tide.text3)
                             }
-                            Spacer()
+                            Spacer(minLength: Tide.s2)
                             VStack(alignment: .trailing, spacing: Tide.hair) {
                                 if let strain = session.strain {
                                     Text(String(format: "%.1f strain", strain))
@@ -611,14 +513,10 @@ struct ProgressChartsView: View {
                                 }
                             }
                         }
-                        .padding(.vertical, Tide.s1)
                     }
                 }
-                .tideCard(padding: Tide.s4)
             }
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, Tide.s8)
     }
 
     private var totalActiveMinutes: Double {
@@ -627,18 +525,6 @@ struct ProgressChartsView: View {
 
     private var totalActivityStrain: Double {
         activitySessions.compactMap(\.strain).reduce(0, +)
-    }
-
-    private func activityTotal(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func activityTypeLabel(_ session: ActivitySession) -> String {

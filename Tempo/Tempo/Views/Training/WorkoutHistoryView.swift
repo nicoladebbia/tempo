@@ -124,163 +124,167 @@ struct WorkoutHistoryView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             if completedWorkouts.isEmpty {
-                EmptyStateView(
-                    icon: "clock.arrow.circlepath",
+                TrainEmptyCard(
+                    systemImage: "clock.arrow.circlepath",
                     title: "No Workouts Yet",
                     message: "Complete your first workout to see your history here."
                 )
-                .frame(minHeight: 400)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s4)
             } else {
-                LazyVStack(spacing: Tide.s2) {
+                LazyVStack(spacing: Tide.s3) {
                     ForEach(completedWorkouts, id: \.id) { workout in
                         swipeToDeleteRow(workout)
                     }
                 }
                 .padding(.horizontal, Tide.edge)
-                .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+                .padding(.top, Tide.s2)
+                .padding(.bottom, TideTrain.pageBottom)
             }
         }
         .tidePage()
         #if DEBUG
-        // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
-        // path as the file picker (parse off-main, unit prompt, progress).
-        .task {
-            if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
-                importCSV(.success(URL(fileURLWithPath: path)))
-            }
-        }
-        #endif
-        .overlay {
-            if let importStage {
-                importOverlay(importStage)
-            }
-        }
-        .navigationTitle("Workout History")
-        .navigationBarTitleDisplayMode(.inline)
-        // §13 — cardio lives on its own surface; gym history stays this one.
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                NavigationLink(destination: RunHistoryView()) {
-                    Image(systemName: "figure.run")
+            // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
+            // path as the file picker (parse off-main, unit prompt, progress).
+            .task {
+                if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
+                    importCSV(.success(URL(fileURLWithPath: path)))
                 }
             }
-            // §20 — CSV import (Strong/Hevy/generic) + Strong-compatible export.
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button {
-                        showCSVImporter = true
-                    } label: {
-                        Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
+        #endif
+            .overlay {
+                if let importStage {
+                    importOverlay(importStage)
+                }
+            }
+            .navigationTitle("Workout History")
+            .navigationBarTitleDisplayMode(.inline)
+            // §13 — cardio lives on its own surface; gym history stays this one.
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink(destination: RunHistoryView()) {
+                        Image(systemName: "figure.run")
                     }
-                    Button {
-                        exportHistory()
-                    } label: {
-                        Label("Export CSV", systemImage: "square.and.arrow.up")
-                    }
-                    .disabled(completedWorkouts.isEmpty)
-                    if undoableImportBatch != nil {
-                        Button(role: .destructive) {
-                            showUndoImportConfirm = true
+                }
+                // §20 — CSV import (Strong/Hevy/generic) + Strong-compatible export.
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button {
+                            showCSVImporter = true
                         } label: {
-                            Label("Undo last import", systemImage: "arrow.uturn.backward")
+                            Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
+                        }
+                        Button {
+                            exportHistory()
+                        } label: {
+                            Label("Export CSV", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(completedWorkouts.isEmpty)
+                        if undoableImportBatch != nil {
+                            Button(role: .destructive) {
+                                showUndoImportConfirm = true
+                            } label: {
+                                Label("Undo last import", systemImage: "arrow.uturn.backward")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down.square")
+                    }
+                }
+            }
+            .fileImporter(
+                isPresented: $showCSVImporter,
+                allowedContentTypes: [.commaSeparatedText, .plainText]
+            ) { result in
+                importCSV(result)
+            }
+            .sheet(
+                isPresented: Binding(
+                    get: { exportFileURL != nil },
+                    set: {
+                        if !$0 {
+                            exportFileURL = nil
                         }
                     }
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down.square")
+                )
+            ) {
+                if let url = exportFileURL {
+                    ShareSheet(items: [url])
                 }
             }
-        }
-        .fileImporter(
-            isPresented: $showCSVImporter,
-            allowedContentTypes: [.commaSeparatedText, .plainText]
-        ) { result in
-            importCSV(result)
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { exportFileURL != nil },
-                set: {
-                    if !$0 {
-                        exportFileURL = nil
+            .confirmationDialog(
+                "Which unit is this file in?",
+                isPresented: Binding(
+                    get: { pendingUnitChoice != nil },
+                    set: {
+                        if !$0 {
+                            pendingUnitChoice = nil
+                        }
+                    }
+                ),
+                titleVisibility: .visible
+            ) {
+                // The athlete's own unit first — the likeliest answer.
+                ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
+                    Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
+                        if let file = pendingUnitChoice {
+                            pendingUnitChoice = nil
+                            startImport(file, unit: unit)
+                        }
                     }
                 }
-            )
-        ) {
-            if let url = exportFileURL {
-                ShareSheet(items: [url])
+                Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
+            } message: {
+                Text(
+                    "This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation)."
+                )
             }
-        }
-        .confirmationDialog(
-            "Which unit is this file in?",
-            isPresented: Binding(
-                get: { pendingUnitChoice != nil },
-                set: {
-                    if !$0 {
-                        pendingUnitChoice = nil
+            .alert(
+                "Workout Import",
+                isPresented: Binding(
+                    get: { csvResultMessage != nil },
+                    set: {
+                        if !$0 {
+                            csvResultMessage = nil
+                            resultOffersUndo = false
+                        }
                     }
+                )
+            ) {
+                Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
+                if resultOffersUndo, undoableImportBatch != nil {
+                    Button("Undo import", role: .destructive) { undoLastImport() }
                 }
-            ),
-            titleVisibility: .visible
-        ) {
-            // The athlete's own unit first — the likeliest answer.
-            ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
-                Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
-                    if let file = pendingUnitChoice {
-                        pendingUnitChoice = nil
-                        startImport(file, unit: unit)
-                    }
-                }
+            } message: {
+                Text(csvResultMessage ?? "")
             }
-            Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
-        } message: {
-            Text("This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation).")
-        }
-        .alert(
-            "Workout Import",
-            isPresented: Binding(
-                get: { csvResultMessage != nil },
-                set: {
-                    if !$0 {
-                        csvResultMessage = nil
-                        resultOffersUndo = false
-                    }
-                }
-            )
-        ) {
-            Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
-            if resultOffersUndo, undoableImportBatch != nil {
+            .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
                 Button("Undo import", role: .destructive) { undoLastImport() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
             }
-        } message: {
-            Text(csvResultMessage ?? "")
-        }
-        .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
-            Button("Undo import", role: .destructive) { undoLastImport() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
-        }
-        .alert(
-            "Delete this workout?",
-            isPresented: Binding(
-                get: { pendingDelete != nil },
-                set: {
-                    if !$0 {
-                        pendingDelete = nil
+            .alert(
+                "Delete this workout?",
+                isPresented: Binding(
+                    get: { pendingDelete != nil },
+                    set: {
+                        if !$0 {
+                            pendingDelete = nil
+                        }
                     }
+                ),
+                presenting: pendingDelete
+            ) { workout in
+                Button("Delete Workout", role: .destructive) {
+                    deleteWorkout(workout)
                 }
-            ),
-            presenting: pendingDelete
-        ) { workout in
-            Button("Delete Workout", role: .destructive) {
-                deleteWorkout(workout)
+                Button("Cancel", role: .cancel) {
+                    pendingDelete = nil
+                }
+            } message: { workout in
+                Text(Self.deleteConfirmationMessage(workout))
             }
-            Button("Cancel", role: .cancel) {
-                pendingDelete = nil
-            }
-        } message: { workout in
-            Text(Self.deleteConfirmationMessage(workout))
-        }
     }
 
     // MARK: - Swipe-to-Delete Row
@@ -480,7 +484,7 @@ struct WorkoutHistoryView: View {
                 if let importProgress {
                     ProgressView(value: importProgress)
                         .tint(Color.accentColor)
-                        .frame(width: 180)
+                        .frame(maxWidth: TideTrain.demo)
                 } else {
                     ProgressView()
                 }
@@ -546,92 +550,19 @@ struct WorkoutHistoryView: View {
                 HapticManager.selection()
             } label: {
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    // Row 1: workout type + date
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(workout.type.displayName)
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-
-                        Spacer()
-
-                        Text(workout.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
-                    }
-
-                    // Row 2: Stats
-                    HStack(spacing: Tide.s3) {
-                        // Duration
-                        if let durationText = Self.durationText(for: workout) {
-                            HStack(spacing: Tide.hair) {
-                                Image(systemName: "timer")
-                                    .font(Tide.label)
-                                Text(durationText)
-                                    .font(Tide.caption)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                            }
-                            .foregroundStyle(Tide.text2)
-                        }
-
-                        // Exercise count — keep on one line (don't let "6
-                        // exercises" wrap to a second row).
-                        let exerciseCount = workout.status == .completed
-                            ? workout.performedExerciseCount : workout.orderedExercises.count
-                        if exerciseCount > 0 {
-                            HStack(spacing: Tide.hair) {
-                                Image(systemName: "figure.strengthtraining.traditional")
-                                    .font(Tide.label)
-                                Text("\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")")
-                                    .font(Tide.caption)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                            }
-                            .foregroundStyle(Tide.text2)
-                        }
-
-                        // Total volume
-                        let vol = workout.totalVolume
-                        if vol > 0 {
-                            HStack(spacing: Tide.hair) {
-                                Image(systemName: "scalemass")
-                                    .font(Tide.label)
-                                Text(formatVolume(vol))
-                                    .font(Tide.caption)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                            }
-                            .foregroundStyle(Tide.text2)
-                        }
-
-                        // Warm-up completed marker
-                        if workout.warmupCompleted {
-                            HStack(spacing: Tide.hair) {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .font(Tide.label)
-                                Text("Warm-up")
-                                    .font(Tide.caption)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                            }
-                            .foregroundStyle(TideTrain.positive)
-                        }
-
-                        Spacer()
-
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(Tide.label)
-                            .foregroundStyle(Tide.text3)
-                    }
+                    historyHeader(workout, isExpanded: isExpanded)
+                    historyStats(workout)
                 }
                 .padding(Tide.s4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
 
             // Expanded exercise detail
             if isExpanded {
-                Divider()
-                    .background(Tide.text3.opacity(0.2))
+                TrainPlanDivider()
+                    .padding(.horizontal, Tide.s4)
 
                 if let notes = workout.userNotes {
                     Text(notes)
@@ -672,6 +603,85 @@ struct WorkoutHistoryView: View {
             }
         }
         .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.cardRadius))
+    }
+
+    // MARK: - Card header and stats
+
+    private func historyHeader(_ workout: WorkoutPlan, isExpanded: Bool) -> some View {
+        let name = Text(workout.type.displayName)
+            .font(Tide.title2)
+            .foregroundStyle(Tide.text)
+        let date = Text(workout.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+        let chevron = Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+            .accessibilityHidden(true)
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                name
+                Spacer(minLength: Tide.s2)
+                date
+                chevron
+            }
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    name.fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
+                    chevron
+                }
+                date
+            }
+        }
+    }
+
+    private func historyStat(_ systemImage: String, _ text: String, color: Color = Tide.text2) -> some View {
+        HStack(spacing: Tide.hair) {
+            Image(systemName: systemImage)
+                .font(Tide.label)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Tide.caption)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .foregroundStyle(color)
+    }
+
+    private func historyStats(_ workout: WorkoutPlan) -> some View {
+        let exerciseCount = workout.status == .completed
+            ? workout.performedExerciseCount : workout.orderedExercises.count
+        let volume = workout.totalVolume
+        let duration = Self.durationText(for: workout)
+        let stats = Group {
+            if let duration {
+                historyStat("timer", duration)
+            }
+            // Keep "6 exercises" on one line.
+            if exerciseCount > 0 {
+                historyStat(
+                    "figure.strengthtraining.traditional",
+                    "\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")"
+                )
+            }
+            if volume > 0 {
+                historyStat("scalemass", formatVolume(volume))
+            }
+            // Warm-up completed marker
+            if workout.warmupCompleted {
+                historyStat("checkmark.seal.fill", "Warm-up", color: TideTrain.positive)
+            }
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                stats
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                stats
+            }
+        }
     }
 
     // MARK: - Activity (non-gym) Detail
@@ -770,8 +780,7 @@ struct WorkoutHistoryView: View {
         if !results.isEmpty {
             let grouped = Dictionary(grouping: results) { $0.programSessionKey ?? "" }
             VStack(alignment: .leading, spacing: Tide.s2) {
-                Divider()
-                    .background(Tide.text3.opacity(0.2))
+                TrainPlanDivider()
                 ForEach(grouped.keys.sorted(), id: \.self) { key in
                     let day = programDay(forSessionKey: key)
                     VStack(alignment: .leading, spacing: Tide.hair) {
@@ -864,10 +873,10 @@ struct WorkoutHistoryView: View {
         VStack(alignment: .leading, spacing: Tide.hair) {
             HStack {
                 Text(plannedEx.displayName)
-                    .font(Tide.body)
-                    .fontWeight(.medium)
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer()
 
@@ -891,13 +900,15 @@ struct WorkoutHistoryView: View {
                             let w = set.actualWeight ?? set.targetWeight ?? 0
                             let r = set.actualReps ?? set.targetReps
                             // Fix #9 — a per-side ramp target reads "x8/side".
-                            Text("\(WeightFormat.compactSetLoad(kg: w, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))")
-                                .font(Tide.label.monospacedDigit())
-                                .foregroundStyle(Tide.text3)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, Tide.hair)
-                                .background(Tide.fill.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
+                            Text(
+                                "\(WeightFormat.compactSetLoad(kg: w, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(SideRepsFormat.reps(r, perSide: plannedEx.perSide))"
+                            )
+                            .font(Tide.label.monospacedDigit())
+                            .foregroundStyle(Tide.text3)
+                            .padding(.horizontal, Tide.s1)
+                            .padding(.vertical, Tide.hair)
+                            .background(Tide.fill.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
                             // §13 — every warmup on a trainer day is one
                             // Tempo added; the trainer never wrote it.
                             Text(plannedEx.workoutPlan?.programSessionKey != nil ? "Tempo warm-up" : "Warm-up")
@@ -910,17 +921,19 @@ struct WorkoutHistoryView: View {
                                 actual: reps, left: set.actualRepsLeft, right: set.actualRepsRight,
                                 perSide: plannedEx.perSide
                             )
-                            Text("\(WeightFormat.compactSetLoad(kg: weight, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(repsText)")
-                                .font(Tide.label.monospacedDigit())
-                                .foregroundStyle(Tide.text2)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, Tide.hair)
-                                .background(Tide.fill, in: .rect(cornerRadius: Tide.s1))
+                            Text(
+                                "\(WeightFormat.compactSetLoad(kg: weight, addedKg: set.addedLoadKg, bodyweight: isBodyweight, unit: weightUnit))x\(repsText)"
+                            )
+                            .font(Tide.label.monospacedDigit())
+                            .foregroundStyle(Tide.text2)
+                            .padding(.horizontal, Tide.s1)
+                            .padding(.vertical, Tide.hair)
+                            .background(Tide.fill, in: .rect(cornerRadius: Tide.s1))
                         } else {
                             Text("--")
                                 .font(Tide.label.monospacedDigit())
                                 .foregroundStyle(Tide.text3)
-                                .padding(.horizontal, 4)
+                                .padding(.horizontal, Tide.s1)
                                 .padding(.vertical, Tide.hair)
                                 .background(Tide.fill.opacity(0.5))
                                 .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
@@ -934,7 +947,8 @@ struct WorkoutHistoryView: View {
                             Text(summary)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text3)
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer(minLength: 0)

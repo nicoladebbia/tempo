@@ -41,6 +41,9 @@ struct TrainingSettingsDetailView: View {
     /// Mon-first to match the ActiveDays bitmask (index 0 = Monday = 1<<0).
     private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     @State
     private var showWhoopImporter = false
     @State
@@ -91,23 +94,12 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: Tide.s3) {
-                            SettingsIconTile(systemName: "dumbbell.fill", tint: Color.accentColor)
-                            Text("Split")
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text)
-                            Spacer(minLength: Tide.s2)
-                            Text(trainingSplit.displayName)
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text2)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(Tide.label)
-                                .foregroundStyle(Tide.text3)
-                        }
-                        .padding(.horizontal, Tide.s4)
-                        .padding(.vertical, Tide.s3)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        menuRowLabel(
+                            icon: "dumbbell.fill",
+                            tint: Color.accentColor,
+                            title: "Split",
+                            value: trainingSplit.displayName
+                        )
                     }
                     .onChange(of: trainingSplit) { _, newValue in
                         settings?.trainingSplit = newValue
@@ -131,7 +123,7 @@ struct TrainingSettingsDetailView: View {
                             }
                             .padding(.horizontal, Tide.s4)
                             .padding(.vertical, Tide.s3)
-                            .frame(minHeight: 44)
+                            .frame(minHeight: Tide.hit)
                             .contentShape(Rectangle())
                         }
                     }
@@ -151,7 +143,7 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 110)
+                        .frame(maxWidth: TideTrain.statColumn + Tide.s4)
                     }
 
                     SettingsRowDivider()
@@ -174,24 +166,12 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: Tide.s3) {
-                            SettingsIconTile(systemName: "figure.strengthtraining.traditional", tint: TideTrain.caution)
-                            Text("Experience")
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text)
-                            Spacer(minLength: Tide.s2)
-                            Text(settings?.experienceLevelRaw ?? "Beginner")
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text2)
-                                .lineLimit(1)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(Tide.label)
-                                .foregroundStyle(Tide.text3)
-                        }
-                        .padding(.horizontal, Tide.s4)
-                        .padding(.vertical, Tide.s3)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        menuRowLabel(
+                            icon: "figure.strengthtraining.traditional",
+                            tint: TideTrain.caution,
+                            title: "Experience",
+                            value: settings?.experienceLevelRaw ?? "Beginner"
+                        )
                     }
                 }
 
@@ -238,7 +218,7 @@ struct TrainingSettingsDetailView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .frame(width: 180)
+                        .frame(maxWidth: TideTrain.figureWidth)
                     }
                 }
 
@@ -262,7 +242,7 @@ struct TrainingSettingsDetailView: View {
                         }
                         .padding(.horizontal, Tide.s4)
                         .padding(.vertical, Tide.s3)
-                        .frame(minHeight: 44)
+                        .frame(minHeight: Tide.hit)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -374,6 +354,53 @@ struct TrainingSettingsDetailView: View {
             autoStartRest = settings?.autoStartRestTimer ?? true
             defaultRestSeconds = settings?.defaultRestSeconds ?? 120
         }
+    }
+
+    /// The label of a whole-row menu: icon, title, current value and the
+    /// up/down chevron. At large text sizes the value drops under the title
+    /// so neither has to wrap or truncate.
+    private func menuRowLabel(icon: String, tint: Color, title: String, value: String) -> some View {
+        let chevron = Image(systemName: "chevron.up.chevron.down")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+        return Group {
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    HStack(spacing: Tide.s3) {
+                        SettingsIconTile(systemName: icon, tint: tint)
+                        Text(title)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: Tide.s2) {
+                        Text(value)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        chevron
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(spacing: Tide.s3) {
+                    SettingsIconTile(systemName: icon, tint: tint)
+                    Text(title)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                    Spacer(minLength: Tide.s2)
+                    Text(value)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(1)
+                    chevron
+                }
+            }
+        }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .contentShape(Rectangle())
     }
 
     /// Compact m/s label for a rest duration (e.g. 45→"45s", 90→"1m 30s", 120→"2m").

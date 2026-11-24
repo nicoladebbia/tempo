@@ -26,23 +26,18 @@ struct TrainerProgramHistoryView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        TrainPlanPage {
             if archivedPrograms.isEmpty {
-                EmptyStateView(
-                    icon: "clock.arrow.circlepath",
+                TrainEmptyCard(
+                    systemImage: "clock.arrow.circlepath",
                     title: "No Program History Yet",
                     message: "Programs you've replaced or finished show up here with how much of them you actually completed."
                 )
-                .padding(.top, Tide.s8)
-            } else {
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    ForEach(archivedPrograms) { program in
-                        historyRow(program)
-                    }
-                }
-                .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s4)
-                .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+            } else {
+                ForEach(archivedPrograms) { program in
+                    historyRow(program)
+                }
             }
         }
         .tidePage()
@@ -52,25 +47,41 @@ struct TrainerProgramHistoryView: View {
 
     private func historyRow(_ program: TrainerProgram) -> some View {
         let stats = TrainerProgramHistoryStats.stats(for: program, modelContext: modelContext)
-        return VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(program.name)
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                    Text(dateRange(for: program))
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+        return TrainPlanCard {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: Tide.s2) {
+                    historyInfo(program)
+                    Spacer(minLength: Tide.s2)
+                    scheduleLabel(program)
                 }
-                Spacer()
-                Text(program.scheduleMode.displayName)
-                    .font(Tide.caption.weight(.semibold))
-                    .foregroundStyle(Tide.text2)
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    historyInfo(program)
+                    scheduleLabel(program)
+                }
             }
 
             TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
         }
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+    }
+
+    private func historyInfo(_ program: TrainerProgram) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(program.name)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(dateRange(for: program))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func scheduleLabel(_ program: TrainerProgram) -> some View {
+        Text(program.scheduleMode.displayName)
+            .font(Tide.caption.weight(.semibold))
+            .foregroundStyle(Tide.text2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Cadence-aware dates — see `TrainerProgramDurationText`.
@@ -89,30 +100,40 @@ struct TrainerComplianceBar: View {
 
     var body: some View {
         if stats.scheduled > 0 {
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                HStack {
-                    Text("\(stats.done) / \(stats.scheduled) sessions done")
-                        .font(Tide.caption.weight(.semibold))
-                        .foregroundStyle(Tide.text)
-                    Spacer()
-                    Text("\(Int((stats.fraction * 100).rounded()))%")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Tide.hairline)
-                        Capsule()
-                            .fill(Color.accentColor)
-                            .frame(width: geo.size.width * stats.fraction)
+            let percent = Int((stats.fraction * 100).rounded())
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        doneLabel
+                        Spacer(minLength: Tide.s2)
+                        percentLabel(percent)
+                    }
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        doneLabel
+                        percentLabel(percent)
                     }
                 }
-                .frame(height: 6)
+                TideLevelBar(progress: stats.fraction, color: Color.accentColor, height: Tide.bar)
             }
+            .accessibilityElement(children: .combine)
         } else {
             Text(emptyText)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var doneLabel: some View {
+        Text("\(stats.done) / \(stats.scheduled) sessions done")
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func percentLabel(_ percent: Int) -> some View {
+        Text("\(percent)%")
+            .font(TideTrain.figure(.footnote, weight: .semibold))
+            .foregroundStyle(Tide.text2)
     }
 }

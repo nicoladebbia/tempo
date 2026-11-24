@@ -32,65 +32,25 @@ struct TrainerProgramChangeLogView: View {
     }
 
     var body: some View {
-        List {
+        TrainPlanPage {
+            if entries.isEmpty, upcomingSkips.isEmpty {
+                TrainEmptyCard(systemImage: "text.bubble", title: "No changes logged yet.")
+                    .padding(.top, Tide.s4)
+            }
             if !upcomingSkips.isEmpty {
-                Section {
-                    ForEach(upcomingSkips) { skip in
-                        HStack {
-                            VStack(alignment: .leading, spacing: Tide.hair) {
-                                Text(skip.summary)
-                                    .font(Tide.body)
-                                    .foregroundStyle(Tide.text)
-                                Text(skip.date.formatted(date: .abbreviated, time: .omitted))
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text3)
-                            }
-                            Spacer()
-                            Button("Undo") { undo(skip) }
-                                .font(Tide.body)
-                                .foregroundStyle(Color.accentColor)
-                                .buttonStyle(.borderless)
+                TrainPlanCard(label: "Skipped — only that day") {
+                    ForEach(Array(upcomingSkips.enumerated()), id: \.element.id) { index, skip in
+                        if index > 0 {
+                            TrainPlanDivider()
                         }
+                        skipRow(skip)
                     }
-                } header: {
-                    Text("Skipped — only that day")
                 }
-                .listRowBackground(Tide.fill)
             }
             ForEach(entries) { entry in
-                Section {
-                    ForEach(entry.editSummaries, id: \.self) { summary in
-                        if entry.isUndone(summary) {
-                            VStack(alignment: .leading, spacing: Tide.hair) {
-                                Text(summary)
-                                    .font(Tide.body)
-                                    .strikethrough()
-                                    .foregroundStyle(Tide.text3)
-                                Text("Skip undone")
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text3)
-                            }
-                            .accessibilityElement(children: .combine)
-                        } else {
-                            Text(summary)
-                                .font(Tide.body)
-                                .foregroundStyle(Tide.text)
-                        }
-                    }
-                    if !entry.sourceText.isEmpty {
-                        DisclosureGroup("Original message") {
-                            Text(entry.sourceText)
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
-                        }
-                    }
-                } header: {
-                    Text(entry.date.formatted(date: .abbreviated, time: .shortened))
-                }
-                .listRowBackground(Tide.fill)
+                entryCard(entry)
             }
         }
-        .scrollContentBackground(.hidden)
         .tidePage()
         .navigationTitle("Changes from Trainer")
         .navigationBarTitleDisplayMode(.inline)
@@ -106,11 +66,86 @@ struct TrainerProgramChangeLogView: View {
         } message: {
             Text(undoError ?? "")
         }
-        .overlay {
-            if entries.isEmpty, upcomingSkips.isEmpty {
-                Text("No changes logged yet.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
+    }
+
+    private func skipRow(_ skip: TrainerProgramSkip) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                skipInfo(skip)
+                Spacer(minLength: Tide.s2)
+                undoButton(skip)
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                skipInfo(skip)
+                undoButton(skip)
+            }
+        }
+    }
+
+    private func skipInfo(_ skip: TrainerProgramSkip) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(skip.summary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(skip.date.formatted(date: .abbreviated, time: .omitted))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+        }
+    }
+
+    private func undoButton(_ skip: TrainerProgramSkip) -> some View {
+        Button {
+            undo(skip)
+        } label: {
+            Text("Undo")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.accentColor)
+                .padding(.horizontal, Tide.s4)
+                .frame(minHeight: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func entryCard(_ entry: TrainerProgramChangeLogEntry) -> some View {
+        TrainPlanCard(label: entry.date.formatted(date: .abbreviated, time: .shortened)) {
+            ForEach(Array(entry.editSummaries.enumerated()), id: \.offset) { index, summary in
+                if index > 0 {
+                    TrainPlanDivider()
+                }
+                if entry.isUndone(summary) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(summary)
+                            .font(Tide.body)
+                            .strikethrough()
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Skip undone")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
+                    .accessibilityElement(children: .combine)
+                } else {
+                    Text(summary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if !entry.sourceText.isEmpty {
+                TrainPlanDivider()
+                DisclosureGroup("Original message") {
+                    Text(entry.sourceText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, Tide.s1)
+                }
+                .font(Tide.body)
+                .tint(Tide.text2)
             }
         }
     }

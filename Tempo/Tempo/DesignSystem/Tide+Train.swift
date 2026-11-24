@@ -8,6 +8,7 @@
 // another area's additions.
 //
 
+import Charts
 import SwiftUI
 
 // MARK: - TideTrain
@@ -66,7 +67,7 @@ extension View {
     }
 }
 
-// MARK: - Sheets
+// MARK: - TrainSheetRootModifier
 
 /// The day's mood travels into the cover or sheet by hand: a presentation sits
 /// above the shell, so the accent would otherwise fall back to neutral.
@@ -509,14 +510,14 @@ struct TrainEmptyCard: View {
     }
 }
 
-// MARK: - Banners
+// MARK: - TrainBanner
 
 /// A prompt card on Train home (missed session, welcome back, new week, venue
 /// check, match found): a tinted label, a title, a line of help, then actions.
 struct TrainBanner<Actions: View>: View {
     let systemImage: String
     let label: String
-    var tint: Color = Color.accentColor
+    var tint: Color = .accentColor
     var title: String?
     var message: String?
     private let actions: Actions
@@ -568,9 +569,11 @@ struct TrainBanner<Actions: View>: View {
     }
 }
 
+// MARK: - TrainBannerButtonStyle
+
 /// A full-width pill inside a banner: filled in the banner's tint, or quiet.
 struct TrainBannerButtonStyle: ButtonStyle {
-    var tint: Color = Color.accentColor
+    var tint: Color = .accentColor
     var filled = true
 
     func makeBody(configuration: Configuration) -> some View {
@@ -592,7 +595,7 @@ extension ButtonStyle where Self == TrainBannerButtonStyle {
     }
 }
 
-// MARK: - Filter chip
+// MARK: - TrainFilterChip
 
 /// A selectable filter pill. 44pt tall to touch, accent when on.
 struct TrainFilterChip: View {
@@ -620,7 +623,7 @@ struct TrainFilterChip: View {
     }
 }
 
-// MARK: - Glyph
+// MARK: - TrainGlyphModifier
 
 /// A large symbol that still follows Dynamic Type.
 private struct TrainGlyphModifier: ViewModifier {
@@ -642,7 +645,7 @@ extension View {
     }
 }
 
-// MARK: - Choice cell
+// MARK: - TrainChoiceButtonStyle
 
 /// One cell of a "pick one" grid (RPE, emphasis, weekday): 44pt tall, accent
 /// when chosen, ink on the accent. The button's own action is untouched.
@@ -668,7 +671,7 @@ extension ButtonStyle where Self == TrainChoiceButtonStyle {
     }
 }
 
-// MARK: - Rail button
+// MARK: - TrainRailButtonStyle
 
 /// One of a row of small glass actions, icon over a short caption (the guided
 /// run's Pause / Skip rep / Add rep / Skip block). Four fit side by side.
@@ -694,4 +697,835 @@ extension ButtonStyle where Self == TrainRailButtonStyle {
     static var trainRail: TrainRailButtonStyle {
         TrainRailButtonStyle()
     }
+}
+
+// MARK: - Plan and progress kit (TrainPlan*)
+
+// Pieces for the planning, program, library, history and progress screens:
+// page and card shells, form fields, instrument charts and the week strip.
+// Every size a screen needs lives here, so the views stay on tokens.
+
+extension TideTrain {
+    /// Space under the last card so the tab bar never covers it.
+    static let pageBottom: CGFloat = 84
+    /// A full trend chart, a small bar chart and the hero spark line.
+    static let chartHeight: CGFloat = 188
+    static let barsHeight: CGFloat = 124
+    static let sparkHeight: CGFloat = 56
+    /// A status dot next to a label.
+    static let dot: CGFloat = 8
+    /// The narrowest a stat cell gets before the grid wraps to a new row.
+    static let statColumn: CGFloat = 96
+    /// The widest the body figure on the Muscle Map is drawn.
+    static let figureWidth: CGFloat = 176
+    /// The widest a compact tab control is allowed to get.
+    static let tabsCompact: CGFloat = 230
+    /// The tall field of a multi-line text input.
+    static let textArea: CGFloat = 140
+    /// A small picture next to a row (library, picker, thumbnails in lists).
+    static let rowThumb: CGFloat = 44
+    /// The demo picture on an exercise page.
+    static let demo: CGFloat = 200
+    /// A round gauge (recovery ring) and the line it is drawn with.
+    static let ring: CGFloat = 120
+    static let ringInner: CGFloat = 96
+    static let ringStroke: CGFloat = 10
+    /// The half-circle gauge (strain) box.
+    static let gaugeWidth: CGFloat = 160
+    static let gaugeHeight: CGFloat = 80
+    /// A single stacked bar (sleep stages).
+    static let stackBar: CGFloat = 24
+}
+
+// MARK: - TrainPlanPage
+
+/// The scroll shell of a plan screen: edge padding and room for the tab bar.
+struct TrainPlanPage<Content: View>: View {
+    var spacing: CGFloat = Tide.s4
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: spacing) {
+                content
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, TideTrain.pageBottom)
+        }
+    }
+}
+
+// MARK: - TrainPlanCard
+
+/// A glass card with an optional small label (and a value on the right).
+struct TrainPlanCard<Content: View>: View {
+    var label: String?
+    var trailing: String?
+    var padding: CGFloat = Tide.s4
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            if let label {
+                TideSectionLabel(title: label, trailing: trailing)
+            }
+            content
+        }
+        .tideCard(padding: padding, radius: Tide.tileRadius)
+    }
+}
+
+// MARK: - TrainPlanTabs
+
+/// A glass segmented control. Equal-width segments while they fit, a sliding
+/// row once the text gets large.
+struct TrainPlanTabs<Tag: Hashable>: View {
+    let items: [(tag: Tag, label: String)]
+    @Binding var selection: Tag
+
+    @Namespace
+    private var slider
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(fill: true)
+            ScrollView(.horizontal, showsIndicators: false) {
+                row(fill: false)
+            }
+        }
+        .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+        .animation(Tide.snap, value: selection)
+        .sensoryFeedback(.selection, trigger: selection)
+    }
+
+    private func row(fill: Bool) -> some View {
+        HStack(spacing: Tide.hair) {
+            ForEach(items, id: \.tag) { item in
+                let on = item.tag == selection
+                Button {
+                    selection = item.tag
+                } label: {
+                    Text(item.label)
+                        .font(items.count > 4 ? Tide.caption.weight(.semibold) : Tide.bodyStrong)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .foregroundStyle(on ? Tide.ink : Tide.text2)
+                        .padding(.horizontal, fill ? Tide.s1 : Tide.s3)
+                        .frame(maxWidth: fill ? .infinity : nil, minHeight: Tide.hit)
+                        .background {
+                            if on {
+                                Capsule()
+                                    .fill(Color.accentColor)
+                                    .matchedGeometryEffect(id: "slider", in: slider)
+                            }
+                        }
+                        .contentShape(.capsule)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(Tide.s1)
+    }
+}
+
+// MARK: - TrainPlanField
+
+/// A labelled input: small caps label, the Tide field surface, an optional hint.
+struct TrainPlanField<Content: View>: View {
+    let label: String
+    var hint: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(label).tideLabel()
+            content
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface()
+            if let hint {
+                Text(hint)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+// MARK: - TrainPlanToggleRow
+
+/// A switch with a title and an optional line of help.
+struct TrainPlanToggleRow: View {
+    let title: String
+    var detail: String?
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    Text(detail)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .tint(Color.accentColor)
+        .frame(minHeight: Tide.hit)
+        .accessibilityLabel(title)
+        .accessibilityHint(detail ?? "")
+    }
+}
+
+// MARK: - TrainPlanPickerRow
+
+/// A title on the left and a menu picker on the right; help text underneath.
+/// Under accessibility text sizes the picker drops below the title.
+struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
+    let title: String
+    var detail: String?
+    /// Long titles or long option names: the menu sits under the title.
+    var stacked = false
+    @Binding var selection: Selection
+    @ViewBuilder var options: Options
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            let stack = stacked || typeSize.isAccessibilitySize
+            let layout = stack
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                : AnyLayout(HStackLayout(spacing: Tide.s2))
+            layout {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !stack {
+                    Spacer(minLength: Tide.s2)
+                }
+                Picker(title, selection: $selection) {
+                    options
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .tint(Color.accentColor)
+                .fixedSize()
+            }
+            .frame(minHeight: Tide.hit)
+            if let detail {
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+// MARK: - TrainPlanSearchField
+
+/// The search box of a list: glass pill, magnifier, clear button.
+struct TrainPlanSearchField: View {
+    @Binding var text: String
+    let prompt: String
+
+    var body: some View {
+        HStack(spacing: Tide.s2) {
+            Image(systemName: "magnifyingglass")
+                .font(Tide.body)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, Tide.s4)
+        .frame(minHeight: Tide.hit)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+    }
+}
+
+// MARK: - TrainPlanDelta
+
+/// "up 12% vs last week": an arrow and a percentage in the good or caution colour.
+struct TrainPlanDelta: View {
+    let fraction: Double
+    let suffix: String
+
+    var body: some View {
+        let up = fraction >= 0
+        HStack(spacing: Tide.hair) {
+            Image(systemName: up ? "arrow.up.right" : "arrow.down.right")
+                .font(Tide.label)
+            Text("\(abs(Int((fraction * 100).rounded())))% \(suffix)")
+                .font(Tide.caption)
+        }
+        .foregroundStyle(up ? TideTrain.positive : TideTrain.caution)
+        .lineLimit(1)
+        .minimumScaleFactor(Tide.labelShrink)
+    }
+}
+
+// MARK: - TrainPlanMeterRow
+
+/// A label and a value over a thin level bar: muscle shares, ratios, compliance.
+struct TrainPlanMeterRow: View {
+    let label: String
+    let value: String
+    let fraction: Double
+    var tint: Color?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text(label)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+                Spacer(minLength: Tide.s2)
+                Text(value)
+                    .font(TideTrain.figure(.footnote, weight: .semibold))
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+            }
+            TideLevelBar(progress: max(fraction, 0.02), color: tint, height: Tide.bar)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
+    }
+}
+
+// MARK: - TrainPlanPoint
+
+/// One point of a trend or bar series.
+struct TrainPlanPoint: Identifiable {
+    let date: Date
+    let value: Double
+    var isRecord = false
+
+    var id: String {
+        "\(date.timeIntervalSinceReferenceDate)|\(value)"
+    }
+}
+
+// MARK: - TrainPlanAxis
+
+/// Axis styling shared by every plan chart: hairline dotted rules, condensed
+/// numerals, nothing else.
+private enum TrainPlanAxis {
+    static let rule = StrokeStyle(lineWidth: 0.5, dash: [2, 4])
+    static var label: Font {
+        TideTrain.figure(.caption2, weight: .medium)
+    }
+}
+
+// MARK: - TrainPlanTrendChart
+
+/// A scrubbable trend: soft area, a crisp line, a beacon on the latest value,
+/// stars on records, an optional dashed comparison and a rule under the finger.
+struct TrainPlanTrendChart: View {
+    let points: [TrainPlanPoint]
+    var ghost: [TrainPlanPoint] = []
+    var tint: Color?
+    @Binding var scrub: Date?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    private var domain: ClosedRange<Double> {
+        let values = (points + ghost).map(\.value)
+        guard let low = values.min(), let high = values.max() else {
+            return 0 ... 1
+        }
+        let pad = max((high - low) * 0.2, high * 0.02, 1)
+        return max(0, low - pad) ... (high + pad)
+    }
+
+    private var nearest: TrainPlanPoint? {
+        guard let scrub else {
+            return nil
+        }
+        return points.min { abs($0.date.timeIntervalSince(scrub)) < abs($1.date.timeIntervalSince(scrub)) }
+    }
+
+    var body: some View {
+        let accent = tint ?? mood.accent
+        let range = domain
+        let selected = nearest
+        Chart {
+            ForEach(points) { point in
+                AreaMark(
+                    x: .value("Date", point.date),
+                    yStart: .value("Base", range.lowerBound),
+                    yEnd: .value("Value", point.value)
+                )
+                .foregroundStyle(LinearGradient(
+                    colors: [accent.opacity(0.34), accent.opacity(0)],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                .interpolationMethod(.monotone)
+
+                LineMark(x: .value("Date", point.date), y: .value("Value", point.value))
+                    .foregroundStyle(accent)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .interpolationMethod(.monotone)
+            }
+
+            if points.count <= 14 {
+                ForEach(points) { point in
+                    PointMark(x: .value("Date", point.date), y: .value("Value", point.value))
+                        .symbolSize(22)
+                        .foregroundStyle(accent)
+                }
+            }
+
+            ForEach(points.filter(\.isRecord)) { point in
+                PointMark(x: .value("Date", point.date), y: .value("Value", point.value))
+                    .symbol {
+                        Image(systemName: "star.fill")
+                            .font(Tide.label)
+                            .foregroundStyle(TideTrain.record)
+                    }
+            }
+
+            ForEach(ghost) { point in
+                LineMark(
+                    x: .value("Date", point.date),
+                    y: .value("Compare", point.value),
+                    series: .value("Series", "compare")
+                )
+                .foregroundStyle(TideTrain.violet.opacity(0.75))
+                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                .interpolationMethod(.monotone)
+            }
+
+            if let last = points.last, selected == nil {
+                PointMark(x: .value("Date", last.date), y: .value("Value", last.value))
+                    .symbolSize(240)
+                    .foregroundStyle(accent.opacity(0.22))
+                PointMark(x: .value("Date", last.date), y: .value("Value", last.value))
+                    .symbolSize(54)
+                    .foregroundStyle(accent)
+            }
+
+            if let selected {
+                RuleMark(x: .value("Scrub", selected.date))
+                    .foregroundStyle(Tide.text3)
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                PointMark(x: .value("Scrub", selected.date), y: .value("Value", selected.value))
+                    .symbolSize(120)
+                    .foregroundStyle(accent)
+            }
+        }
+        .chartXSelection(value: $scrub)
+        .chartYScale(domain: range)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                AxisGridLine(stroke: TrainPlanAxis.rule).foregroundStyle(Tide.hairline)
+                AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 4)) {
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                    .font(TrainPlanAxis.label)
+                    .foregroundStyle(Tide.text3)
+            }
+        }
+        .frame(height: TideTrain.chartHeight)
+    }
+}
+
+// MARK: - TrainPlanSpark
+
+/// A small, axis-free area line: the shape of the last few weeks at a glance.
+struct TrainPlanSpark: View {
+    let values: [Double]
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        let accent = tint ?? mood.accent
+        let top = max(values.max() ?? 1, 1)
+        Chart(Array(values.enumerated()), id: \.offset) { index, value in
+            AreaMark(x: .value("Step", index), yStart: .value("Base", 0), yEnd: .value("Value", value))
+                .foregroundStyle(LinearGradient(
+                    colors: [accent.opacity(0.32), accent.opacity(0)],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                .interpolationMethod(.monotone)
+            LineMark(x: .value("Step", index), y: .value("Value", value))
+                .foregroundStyle(accent)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.monotone)
+            if index == values.count - 1 {
+                PointMark(x: .value("Step", index), y: .value("Value", value))
+                    .symbolSize(60)
+                    .foregroundStyle(accent)
+            }
+        }
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
+        .chartYScale(domain: 0 ... top * 1.15)
+        .frame(height: TideTrain.sparkHeight)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - TrainPlanBarChart
+
+/// Labelled bars with an optional dashed average. The newest bar is lit, the
+/// others sit back.
+struct TrainPlanBarChart: View {
+    struct Bar: Identifiable {
+        let id: String
+        let label: String
+        let value: Double
+    }
+
+    let bars: [Bar]
+    var average: Double?
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        let accent = tint ?? mood.accent
+        Chart {
+            ForEach(bars) { bar in
+                BarMark(x: .value("Week", bar.label), y: .value("Count", bar.value), width: .ratio(0.62))
+                    .foregroundStyle(bar.id == bars.last?.id ? accent : accent.opacity(0.5))
+                    .clipShape(.rect(cornerRadius: Tide.s1))
+            }
+            if let average, average > 0 {
+                RuleMark(y: .value("Average", average))
+                    .foregroundStyle(Tide.text3)
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) {
+                AxisGridLine(stroke: TrainPlanAxis.rule).foregroundStyle(Tide.hairline)
+                AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
+            }
+        }
+        .chartXAxis {
+            AxisMarks {
+                AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
+            }
+        }
+        .frame(height: TideTrain.barsHeight)
+    }
+}
+
+// MARK: - TrainPlanDateBars
+
+/// Thin capsule bars along a date axis (one per session); the scrubbed one is lit.
+struct TrainPlanDateBars: View {
+    let points: [TrainPlanPoint]
+    var highlight: Date?
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        let accent = tint ?? mood.accent
+        Chart(points) { point in
+            BarMark(x: .value("Date", point.date), y: .value("Volume", point.value), width: .fixed(6))
+                .foregroundStyle(point.date == highlight ? accent : accent.opacity(0.55))
+                .clipShape(Capsule())
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 2)) {
+                AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
+            }
+        }
+        .chartXAxis(.hidden)
+        .frame(height: TideTrain.barsHeight * 0.72)
+    }
+}
+
+// MARK: - TrainPlanWeekStrip
+
+/// Seven columns for a training week: a load bar on top, then the weekday, the
+/// session code and a status mark. Drag across it to read any day.
+struct TrainPlanWeekStrip: View {
+    struct Day: Identifiable {
+        let id: Int
+        let weekday: String
+        var code: String?
+        var extra: String?
+        /// 0 ... 1 against the busiest day; 0 shows a short stub.
+        var load: Double = 0
+        var barColor: Color = Tide.text3
+        var isToday = false
+        var isDone = false
+        var isMatch = false
+    }
+
+    let days: [Day]
+    var selected: Int?
+    let onScrub: (Int) -> Void
+    let onRelease: (_ index: Int, _ travel: CGFloat) -> Void
+
+    @Environment(\.tideMood)
+    private var mood
+
+    private static let barSpace: CGFloat = 76
+    private static let barWidth: CGFloat = 20
+    private static let stub: CGFloat = 6
+    private static let inset = Tide.s1
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            ForEach(days) { day in
+                column(day)
+            }
+        }
+        // Seven columns cannot grow with the text; the day cards below carry
+        // the same information at any size.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+        .padding(Self.inset)
+        .tideCard(padding: 0, radius: Tide.tileRadius)
+        .overlay {
+            GeometryReader { geo in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(drag(width: geo.size.width))
+            }
+        }
+        .animation(Tide.lively, value: selected)
+        .accessibilityHidden(true)
+    }
+
+    private func index(at x: CGFloat, width: CGFloat) -> Int {
+        let slot = max((width - Self.inset * 2) / CGFloat(max(days.count, 1)), 1)
+        return min(max(Int((x - Self.inset) / slot), 0), max(days.count - 1, 0))
+    }
+
+    private func drag(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                onScrub(index(at: value.location.x, width: width))
+            }
+            .onEnded { value in
+                onRelease(index(at: value.location.x, width: width), abs(value.translation.width))
+            }
+    }
+
+    private func column(_ day: Day) -> some View {
+        let on = selected == day.id
+        let height = day.load > 0 ? Self.stub + (Self.barSpace - Self.stub) * min(day.load, 1) : Self.stub
+        return VStack(spacing: Tide.s1) {
+            ZStack(alignment: .bottom) {
+                Color.clear.frame(height: Self.barSpace)
+                Capsule()
+                    .fill(day.barColor)
+                    .frame(width: Self.barWidth, height: height)
+                    .overlay {
+                        Capsule().strokeBorder(on ? Tide.text : Color.clear, lineWidth: Tide.focusLine)
+                    }
+                    .scaleEffect(on ? 1.1 : 1, anchor: .bottom)
+            }
+            Text(day.weekday)
+                .font(Tide.label)
+                .foregroundStyle(day.isToday ? mood.accent : Tide.text3)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            Text(day.code ?? "-")
+                .font(TideTrain.figure(.caption, weight: .semibold))
+                .foregroundStyle(day.code == nil ? Tide.text3 : Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            Text(day.extra ?? " ")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            statusMark(day)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Tide.s2)
+        .background(day.isToday ? Tide.fill : Color.clear, in: .rect(cornerRadius: Tide.controlRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                .strokeBorder(day.isToday ? mood.accent : Color.clear, lineWidth: Tide.focusLine)
+        }
+    }
+
+    private func statusMark(_ day: Day) -> some View {
+        Group {
+            if day.isDone {
+                Image(systemName: "checkmark").foregroundStyle(TideTrain.positive)
+            } else if day.isMatch {
+                Image(systemName: "sportscourt").foregroundStyle(Tide.text2)
+            } else {
+                Color.clear
+            }
+        }
+        .font(Tide.label)
+        .frame(height: Tide.s3)
+    }
+}
+
+// MARK: - TrainPlanCell
+
+extension View {
+    /// A compact input cell for dense editors: soft fill, hairline, 44 pt tall.
+    func trainPlanCell() -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+        return padding(.horizontal, Tide.s3)
+            .frame(minHeight: Tide.hit)
+            .background(Tide.fill, in: shape)
+            .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
+    }
+}
+
+// MARK: - TrainPlanCellField
+
+/// A small label over a compact input cell: the unit of a dense editor row.
+struct TrainPlanCellField<Content: View>: View {
+    let label: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(label)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            content
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .trainPlanCell()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - TrainPlanFieldRow
+
+/// Fields side by side while they fit, stacked once they do not.
+struct TrainPlanFieldRow<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                content
+            }
+            VStack(spacing: Tide.s2) {
+                content
+            }
+        }
+    }
+}
+
+// MARK: - TrainPlanAddButton
+
+/// "+ Add day": a quiet full-width glass button for adding a row to a list.
+struct TrainPlanAddButton: View {
+    let title: String
+    var systemImage = "plus"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.accentColor)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - TrainPlanDivider
+
+/// A hairline between rows inside a card.
+struct TrainPlanDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Tide.hairline)
+            .frame(height: 1)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - TrainPlanListRow
+
+extension View {
+    /// A transparent list row that carries its own glass card, edge to edge.
+    /// For lists that must stay a `List` (swipe actions, delete, reorder).
+    func trainPlanListRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge))
+    }
+}
+
+// MARK: - TrainPlanSecondaryButtonStyle
+
+/// The quiet glass button, like `.tempoSecondary`, but the label may wrap onto
+/// a second line instead of shrinking and cutting off at large text sizes.
+struct TrainPlanSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled)
+    private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Tide.headline)
+            .foregroundStyle(isEnabled ? Tide.text : Tide.text3)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s2)
+            .frame(maxWidth: .infinity, minHeight: Tide.fieldHeight)
+            .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+            .contentShape(.capsule)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
+    }
+}
+
+extension ButtonStyle where Self == TrainPlanSecondaryButtonStyle {
+    static var trainPlanSecondary: TrainPlanSecondaryButtonStyle { TrainPlanSecondaryButtonStyle() }
 }

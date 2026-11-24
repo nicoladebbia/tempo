@@ -168,26 +168,27 @@ struct TrainerProgramReviewView: View {
 
     private var reviewContent: some View {
         NavigationStack {
-            Form {
+            TrainPlanPage {
                 programSection
-                    .listRowBackground(Tide.fill)
                 if !importWarnings.isEmpty {
-                    Section {
+                    TrainPlanCard {
                         ForEach(importWarnings, id: \.self) { warning in
                             Text(warning)
                                 .font(Tide.caption)
                                 .foregroundStyle(TideTrain.caution)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
-                    .listRowBackground(Tide.fill)
                 }
                 if autoAssignedWeekdays {
-                    Section {
+                    TrainPlanCard {
                         Text("We placed these around your football — change any day.")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .listRowBackground(Tide.fill)
                 }
                 ForEach($weeks) { $week in
                     WeekEditorSection(
@@ -199,16 +200,11 @@ struct TrainerProgramReviewView: View {
                         onRemoveWeek: { removeWeek(week.id) }
                     )
                 }
-                Section {
-                    Button {
-                        addWeek()
-                    } label: {
-                        Label("Add Week", systemImage: "plus.circle")
-                    }
+                TrainPlanAddButton(title: "Add Week", systemImage: "plus.circle") {
+                    addWeek()
                 }
-                .listRowBackground(Tide.fill)
             }
-            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .trainSheetRoot()
             .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
             .navigationBarTitleDisplayMode(.inline)
@@ -241,28 +237,36 @@ struct TrainerProgramReviewView: View {
     // MARK: - Program-level section
 
     private var programSection: some View {
-        Section("Program") {
+        TrainPlanCard(label: "Program") {
             TextField("Program name", text: $name)
                 .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface()
 
             // Weekly-upload feature — decides the duration text, the "New
             // week — upload" prompt/reminders, and (below) how a new upload
             // replaces the old one.
-            Picker("How does your trainer send programs?", selection: $cadence) {
+            TrainPlanPickerRow(
+                title: "How does your trainer send programs?",
+                detail: cadence == .weekly
+                    ? "Tempo reminds you every Sunday to upload the next one."
+                    : "Runs for its full length, then repeats or ends.",
+                stacked: true,
+                selection: $cadence
+            ) {
                 ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
                     Text(option.displayName).tag(option)
                 }
             }
-            Text(
-                cadence == .weekly
-                    ? "Tempo reminds you every Sunday to upload the next one."
-                    : "Runs for its full length, then repeats or ends."
-            )
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text3)
 
             if weeklyAutoTiming == nil {
-                DatePicker(
+                TrainPlanDivider()
+                let startLabel = Text("Start date (Monday)")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+                let startPicker = DatePicker(
                     "Start date (Monday)",
                     selection: Binding(
                         get: { startDate },
@@ -270,45 +274,67 @@ struct TrainerProgramReviewView: View {
                     ),
                     displayedComponents: .date
                 )
+                .labelsHidden()
+                .tint(Color.accentColor)
+                // The label sits beside the date, or above it when it won't fit.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        startLabel
+                        Spacer(minLength: Tide.s2)
+                        startPicker
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        startLabel
+                        startPicker
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                 .disabled(startTiming == .afterCurrent)
             }
 
             if weeks.count > 1 {
-                Toggle("Repeats after last week", isOn: $repeats)
-                    .tint(Color.accentColor)
+                TrainPlanDivider()
+                TrainPlanToggleRow(title: "Repeats after last week", isOn: $repeats)
             }
 
-            Toggle(isOn: $autoWarmups) {
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text("Tempo warm-up sets")
-                    Text("Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-            }
-            .tint(Color.accentColor)
+            TrainPlanDivider()
+            TrainPlanToggleRow(
+                title: "Tempo warm-up sets",
+                detail: "Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.",
+                isOn: $autoWarmups
+            )
 
             // Fix #6 — schedule mode, editable here and later on
             // TrainerProgramView.
-            Picker("Schedule", selection: $scheduleMode) {
+            TrainPlanDivider()
+            TrainPlanPickerRow(
+                title: "Schedule",
+                detail: scheduleMode.explanation,
+                selection: $scheduleMode
+            ) {
                 ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
                     Text(mode.displayName).tag(mode)
                 }
             }
-            Text(scheduleMode.explanation)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
 
             // Weekly-upload feature (fix #5) — no manual picker: the upload's
             // own weekday decides start/replace timing.
             if let otherActiveProgram, let weeklyAutoTiming {
+                TrainPlanDivider()
                 Text(weeklyReplaceExplanation(otherActiveProgram, timing: weeklyAutoTiming))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             } else if let otherActiveProgram {
                 // Fix #11(b) — queue behind the current program instead of
                 // replacing it immediately (block cadence only).
-                Picker("Starts", selection: $startTiming) {
+                TrainPlanDivider()
+                TrainPlanPickerRow(
+                    title: "Starts",
+                    detail: startTiming == .now ? nil : queueExplanation,
+                    stacked: true,
+                    selection: $startTiming
+                ) {
                     Text("Now — replaces \"\(otherActiveProgram.name)\"").tag(StartTiming.now)
                     if !otherActiveProgram.repeats {
                         Text("After \"\(otherActiveProgram.name)\" ends").tag(StartTiming.afterCurrent)
@@ -326,11 +352,6 @@ struct TrainerProgramReviewView: View {
                     case .onDate:
                         break
                     }
-                }
-                if startTiming != .now {
-                    Text(queueExplanation)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
                 }
             }
         }
@@ -454,7 +475,18 @@ private struct WeekEditorSection: View {
     let onRemoveWeek: () -> Void
 
     var body: some View {
-        Section {
+        TrainPlanCard {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Text("Week \(weekNumber)").tideLabel()
+                Spacer(minLength: Tide.s2)
+                if canRemoveWeek {
+                    Button("Remove", role: .destructive, action: onRemoveWeek)
+                        .font(Tide.caption)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
+            }
+
             // Shown Monday → Sunday. Display order only: the stored order
             // backs each session's key, so the array itself isn't re-sorted.
             ForEach(daysInWeekdayOrder, id: \.id) { day in
@@ -465,23 +497,13 @@ private struct WeekEditorSection: View {
                     weightUnit: weightUnit,
                     onRemoveDay: { removeDay(day.id) }
                 )
+                TrainPlanDivider()
             }
-            Button {
+
+            TrainPlanAddButton(title: "Add Day") {
                 addDay()
-            } label: {
-                Label("Add Day", systemImage: "plus")
-            }
-        } header: {
-            HStack {
-                Text("Week \(weekNumber)")
-                Spacer()
-                if canRemoveWeek {
-                    Button("Remove", role: .destructive, action: onRemoveWeek)
-                        .font(Tide.caption)
-                }
             }
         }
-        .listRowBackground(Tide.fill)
     }
 
     private var daysInWeekdayOrder: [ProgramDay] {
@@ -547,55 +569,65 @@ private struct DayEditorView: View {
 
     var body: some View {
         DisclosureGroup {
-            Picker("Day", selection: $day.weekday) {
-                ForEach(1 ... 7, id: \.self) { weekday in
-                    Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TrainPlanPickerRow(title: "Day", selection: $day.weekday) {
+                    ForEach(1 ... 7, id: \.self) { weekday in
+                        Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
+                    }
                 }
-            }
-            // The user chose this day — it's no longer an auto-placement.
-            .onChange(of: day.weekday) { _, _ in
-                day.weekdayGuessed = false
-            }
-
-            TextField("Day title (optional)", text: stringBinding(for: $day.title))
-
-            Picker("Focus", selection: $day.focus) {
-                Text("None").tag(String?.none)
-                ForEach(Self.focusTypes, id: \.self) { type in
-                    Text(type.displayName).tag(String?.some(type.rawValue))
+                // The user chose this day — it's no longer an auto-placement.
+                .onChange(of: day.weekday) { _, _ in
+                    day.weekdayGuessed = false
                 }
+
+                TrainPlanCellField(label: "Title") {
+                    TextField("Day title (optional)", text: stringBinding(for: $day.title))
+                }
+
+                TrainPlanPickerRow(title: "Focus", selection: $day.focus) {
+                    Text("None").tag(String?.none)
+                    ForEach(Self.focusTypes, id: \.self) { type in
+                        Text(type.displayName).tag(String?.some(type.rawValue))
+                    }
+                }
+
+                TrainPlanCellField(label: "Notes") {
+                    TextField("Day notes (optional)", text: stringBinding(for: $day.notes), axis: .vertical)
+                }
+
+                ForEach($day.exercises) { $exercise in
+                    TrainPlanDivider()
+                    ExerciseRowEditor(
+                        exercise: $exercise,
+                        isConditioning: isConditioning,
+                        libraryExercises: libraryExercises,
+                        weightUnit: weightUnit,
+                        canMoveUp: canMove(exercise.id, delta: -1),
+                        canMoveDown: canMove(exercise.id, delta: 1),
+                        onMoveUp: { move(exercise.id, by: -1) },
+                        onMoveDown: { move(exercise.id, by: 1) },
+                        onRemove: { removeExercise(exercise.id) }
+                    )
+                }
+
+                TrainPlanAddButton(title: "Add Exercise") {
+                    addExercise()
+                }
+
+                Button("Remove This Day", role: .destructive, action: onRemoveDay)
+                    .font(Tide.caption)
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                    .contentShape(.rect)
             }
-
-            TextField("Day notes (optional)", text: stringBinding(for: $day.notes), axis: .vertical)
-
-            ForEach($day.exercises) { $exercise in
-                ExerciseRowEditor(
-                    exercise: $exercise,
-                    isConditioning: isConditioning,
-                    libraryExercises: libraryExercises,
-                    weightUnit: weightUnit,
-                    canMoveUp: canMove(exercise.id, delta: -1),
-                    canMoveDown: canMove(exercise.id, delta: 1),
-                    onMoveUp: { move(exercise.id, by: -1) },
-                    onMoveDown: { move(exercise.id, by: 1) },
-                    onRemove: { removeExercise(exercise.id) }
-                )
-            }
-
-            Button {
-                addExercise()
-            } label: {
-                Label("Add Exercise", systemImage: "plus")
-            }
-
-            Button("Remove This Day", role: .destructive, action: onRemoveDay)
-                .font(Tide.caption)
+            .padding(.top, Tide.s2)
         } label: {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 HStack(spacing: Tide.s1) {
                     Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     if day.weekdayGuessed == true {
                         Image(systemName: "wand.and.stars")
                             .font(Tide.caption)
@@ -612,7 +644,9 @@ private struct DayEditorView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
         }
+        .tint(Tide.text3)
     }
 
     private func addExercise() {
@@ -723,8 +757,8 @@ private struct ExerciseRowEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 // Only shown once a library match is resolved — an
                 // unmatched row has no equipment/muscle-group metadata yet
                 // (ProgramExercise carries name + prescription only; that
@@ -732,48 +766,33 @@ private struct ExerciseRowEditor: View {
                 // Exercise on import), so there's nothing to key an image by.
                 if let matchedExercise {
                     ExerciseImageView(exercise: matchedExercise, style: .thumbnail)
-                        .frame(width: 36, height: 36)
+                        .frame(width: TideTrain.rowThumb, height: TideTrain.rowThumb)
                 }
                 TextField("Exercise name", text: $exercise.name)
                     .font(Tide.bodyStrong)
-                Spacer()
-                Button {
-                    onMoveUp()
-                } label: {
-                    Image(systemName: "chevron.up")
-                }
-                .disabled(!canMoveUp)
-                Button {
-                    onMoveDown()
-                } label: {
-                    Image(systemName: "chevron.down")
-                }
-                .disabled(!canMoveDown)
-                Button(role: .destructive) {
-                    onRemove()
-                } label: {
-                    Image(systemName: "trash")
-                }
+                    .foregroundStyle(Tide.text)
+                    .trainPlanCell()
             }
-            .buttonStyle(.borderless)
 
             matchIndicator
 
             if isConditioning {
-                labeledField("Prescription") {
+                TrainPlanCellField(label: "Prescription") {
                     TextField("e.g. 35' — 2' slow / 1' fast / 30\" walk", text: stringBinding(for: $exercise.detail), axis: .vertical)
                         .lineLimit(2 ... 4)
                 }
-                HStack(spacing: Tide.s3) {
-                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                    labeledField("Rest (sec)") {
+                TrainPlanFieldRow {
+                    TrainPlanCellField(label: "RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    TrainPlanCellField(label: "Rest (sec)") {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
                     }
-                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                    TrainPlanCellField(label: "Superset #") {
+                        TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad)
+                    }
                 }
             } else {
-                HStack(spacing: Tide.s3) {
-                    labeledField("Sets") {
+                TrainPlanFieldRow {
+                    TrainPlanCellField(label: "Sets") {
                         TextField("sets", text: $setsText)
                             .keyboardType(.numberPad)
                             .onChange(of: setsText) { _, newValue in
@@ -782,7 +801,7 @@ private struct ExerciseRowEditor: View {
                                 }
                             }
                     }
-                    labeledField("Reps low") {
+                    TrainPlanCellField(label: "Reps low") {
                         TextField("low", text: $repsLowText)
                             .keyboardType(.numberPad)
                             .onChange(of: repsLowText) { _, newValue in
@@ -791,36 +810,51 @@ private struct ExerciseRowEditor: View {
                                 }
                             }
                     }
-                    labeledField("Reps high") { TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad) }
+                    TrainPlanCellField(label: "Reps high") {
+                        TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad)
+                    }
                 }
 
-                Toggle("Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
-                    .font(Tide.caption)
-                    .tint(Color.accentColor)
+                TrainPlanToggleRow(title: "Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
 
-                HStack(spacing: Tide.s3) {
-                    labeledField("Weight (\(weightUnit.abbreviation))") {
+                TrainPlanFieldRow {
+                    TrainPlanCellField(label: "Weight (\(weightUnit.abbreviation))") {
                         TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
                             .keyboardType(.decimalPad)
                     }
-                    labeledField("RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                    labeledField("% 1RM") { TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad) }
+                    TrainPlanCellField(label: "RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    TrainPlanCellField(label: "% 1RM") {
+                        TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad)
+                    }
                 }
 
                 // §5 — show how the % will actually be read BEFORE saving, so
                 // "70%" never silently becomes a guessed weight.
                 percentReadingHint
 
-                HStack(spacing: Tide.s3) {
-                    labeledField("Rest (sec)") {
+                TrainPlanFieldRow {
+                    TrainPlanCellField(label: "Rest (sec)") {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
                     }
-                    labeledField("Superset #") { TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad) }
+                    TrainPlanCellField(label: "Superset #") {
+                        TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad)
+                    }
                 }
             }
 
             TextField("Notes (optional)", text: stringBinding(for: $exercise.notes))
-                .font(Tide.caption)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .trainPlanCell()
+
+            HStack(spacing: Tide.s2) {
+                Spacer(minLength: 0)
+                TrainIconButton(systemImage: "chevron.up", label: "Move up", action: onMoveUp)
+                    .disabled(!canMoveUp)
+                TrainIconButton(systemImage: "chevron.down", label: "Move down", action: onMoveDown)
+                    .disabled(!canMoveDown)
+                TrainIconButton(systemImage: "trash", label: "Remove exercise", tint: Tide.danger, action: onRemove)
+            }
         }
         .padding(.vertical, Tide.s1)
         .task(id: exercise.name) {
@@ -851,28 +885,40 @@ private struct ExerciseRowEditor: View {
     }
 
     private var matchIndicator: some View {
-        HStack(spacing: Tide.s1) {
-            if let matchedExercise, let conflictingWrittenEquipment {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(TideTrain.positive)
-                Text(
-                    "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
-                )
+        let icon: String
+        let tint: Color
+        let message: String
+        if let matchedExercise, let conflictingWrittenEquipment {
+            icon = "checkmark.circle.fill"
+            tint = TideTrain.positive
+            message =
+                "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
+        } else if let matchedExercise {
+            icon = "checkmark.circle.fill"
+            tint = TideTrain.positive
+            message = "Matches \(matchedExercise.name)"
+        } else {
+            icon = "exclamationmark.circle.fill"
+            tint = TideTrain.caution
+            message = "New exercise — will be added to your library"
+        }
+
+        return HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Image(systemName: icon)
+                .font(Tide.caption)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(message)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
-            } else if let matchedExercise {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(TideTrain.positive)
-                Text("Matches \(matchedExercise.name)")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            } else {
-                Image(systemName: "exclamationmark.circle.fill").foregroundStyle(TideTrain.caution)
-                Text("New exercise — will be added to your library")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            }
-            Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
             Button("Change") { showPicker = true }
-                .font(Tide.caption)
+                .font(Tide.caption.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .buttonStyle(.plain)
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
         }
     }
 
@@ -909,17 +955,6 @@ private struct ExerciseRowEditor: View {
         }
         exercise.exerciseID = match.id
     }
-
-    private func labeledField(_ label: String, @ViewBuilder field: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-            field()
-                .font(Tide.caption)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }
 
 // MARK: - ExercisePickerSheet
@@ -948,19 +983,25 @@ private struct ExercisePickerSheet: View {
                     onSelect(nil)
                     dismiss()
                 }
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Color.accentColor)
+                .frame(minHeight: Tide.hit)
                 .listRowBackground(Tide.fill)
                 ForEach(filtered) { exercise in
                     Button {
                         onSelect(exercise)
                         dismiss()
                     } label: {
-                        HStack {
-                            Text(exercise.name).foregroundStyle(Tide.text)
-                            Spacer()
+                        HStack(spacing: Tide.s2) {
+                            Text(exercise.name)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
                             Text(exercise.muscleGroup.displayName)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text3)
                         }
+                        .frame(minHeight: Tide.hit)
                     }
                     .listRowBackground(Tide.fill)
                 }
