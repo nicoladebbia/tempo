@@ -97,12 +97,7 @@ struct SupplementLabelCaptureSheet: View {
 
     private var idleContent: some View {
         VStack(spacing: Tide.s4) {
-            Image(systemName: "text.viewfinder")
-                .font(Tide.largeTitle)
-                .foregroundStyle(mood.accent)
-                .frame(width: 96, height: 96)
-                .glassEffect(.regular.tint(Tide.glassCard), in: .circle)
-                .accessibilityHidden(true)
+            KitchenHeroDisc(systemImage: "text.viewfinder")
             Text("Photograph the label")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)

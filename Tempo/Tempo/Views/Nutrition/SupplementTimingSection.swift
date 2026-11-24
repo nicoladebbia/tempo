@@ -75,16 +75,16 @@ struct SupplementTimingSection: View {
     }
 
     var body: some View {
-        KitchenFormSection("Timing", footer: footerText) {
-            Picker("When", selection: $mode) {
-                ForEach(SupplementTimingMode.allCases) { option in
-                    Text(option.rawValue).tag(option)
+        Section {
+            // The three ways the time is decided, as the glass control the rest
+            // of the Kitchen uses. It floats on the field, so no row fill.
+            KitchenSegmented(options: Array(SupplementTimingMode.allCases), selection: $mode) { $0.rawValue }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .accessibilityIdentifier("supplementTimingMode")
+                .onChange(of: mode) { _, _ in
+                    applyMode()
                 }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: mode) { _, _ in
-                applyMode()
-            }
 
             switch mode {
             case .auto:
@@ -95,6 +95,7 @@ struct SupplementTimingSection: View {
                         Text(anchor.displayName).tag(anchor)
                     }
                 }
+                .listRowBackground(Tide.fill)
                 .onChange(of: selectedAnchor) { _, newValue in
                     supplement.timingAnchorOverride = newValue
                     supplement.pinnedMinutes = nil
@@ -102,6 +103,7 @@ struct SupplementTimingSection: View {
                 }
             case .fixed:
                 DatePicker("Time", selection: $fixedTime, displayedComponents: .hourAndMinute)
+                    .listRowBackground(Tide.fill)
                     .onChange(of: fixedTime) { _, newValue in
                         let parts = Calendar.current.dateComponents([.hour, .minute], from: newValue)
                         supplement.pinnedMinutes = (parts.hour ?? 8) * 60 + (parts.minute ?? 0)
@@ -111,6 +113,12 @@ struct SupplementTimingSection: View {
             }
 
             Toggle("Remind me", isOn: remindersEnabled)
+                .listRowBackground(Tide.fill)
+        } header: {
+            Text("Timing").tideLabel()
+        } footer: {
+            Text(footerText).font(Tide.caption).foregroundStyle(Tide.text3)
+                .animation(Tide.snap, value: mode)
         }
     }
 

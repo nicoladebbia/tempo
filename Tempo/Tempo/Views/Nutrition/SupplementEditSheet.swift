@@ -100,9 +100,13 @@ struct SupplementEditSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         NavigationStack {
             KitchenForm {
+                identity
                 if let prefill, existing == nil, let line = Self.sourceLine(prefill) {
                     Section {
                         Label(line, systemImage: "sparkles")
@@ -113,24 +117,7 @@ struct SupplementEditSheet: View {
                         }
                     }
                 }
-                KitchenFormSection("Supplement") {
-                    TextField("Name (e.g. Whey Isolate)", text: $name)
-                    TextField("Brand (optional)", text: $brand)
-                    Picker("Type", selection: $kind) {
-                        ForEach(SupplementKind.allCases, id: \.rawValue) { k in
-                            Text(k.displayName).tag(k)
-                        }
-                    }
-                }
-                KitchenFormSection(
-                    "Macros per serving",
-                    footer: "Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories."
-                ) {
-                    SupplementFieldRow(label: "Calories", unit: "kcal", placeholder: "0", text: $caloriesPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Protein", unit: "g", placeholder: "0", text: $proteinPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Carbs", unit: "g", placeholder: "0", text: $carbsPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Fat", unit: "g", placeholder: "0", text: $fatPerServingText, keyboard: .decimalPad)
-                }
+                macros
                 KitchenFormSection(
                     "Details (optional)",
                     footer: "Your plan decides each day whether to take this and when. You don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
@@ -161,20 +148,86 @@ struct SupplementEditSheet: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            // The one action sits under the thumb, not in the corner of the bar.
+            .kitchenBottomBar {
+                Button(existing == nil ? "Add to shelf" : "Save") { save() }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(!canSave)
+                    .accessibilityIdentifier("supplementSave")
+            }
             .navigationTitle(existing == nil ? (prefill == nil ? "Add Supplement" : "Check & add") : "Edit Supplement")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(existing == nil ? "Add to shelf" : "Save") { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
-                }
             }
         }
         .kitchenSheet()
+    }
+
+    // MARK: - Identity
+
+    /// Who this is: its type as an icon, the name big, the brand under it,
+    /// and the type chips that decide how the plan treats it.
+    private var identity: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: kind.icon, size: Tide.Kitchen.tile + Tide.s4)
+                        .contentTransition(.symbolEffect(.replace))
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        TextField("Name (e.g. Whey Isolate)", text: $name)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                            .accessibilityIdentifier("supplementName")
+                        TextField("Brand (optional)", text: $brand)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Type").tideLabel()
+                    KitchenChoiceChips(
+                        options: SupplementKind.allCases,
+                        selection: $kind,
+                        title: \.displayName,
+                        icon: \.icon
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard()
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    // MARK: - Macros
+
+    /// What a serving counts for in the day: four figures on tiles, in the colours of Today's macro rings.
+    private var macros: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("Macros per serving").tideLabel()
+                let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
+                LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
+                    KitchenNumberField(label: "Calories", unit: "kcal", tint: Tide.streak, text: $caloriesPerServingText)
+                    KitchenNumberField(label: "Protein", unit: "g", tint: Tide.protein, text: $proteinPerServingText)
+                    KitchenNumberField(label: "Carbs", unit: "g", tint: Tide.carbs, text: $carbsPerServingText)
+                    KitchenNumberField(label: "Fat", unit: "g", tint: Tide.fat, text: $fatPerServingText)
+                }
+                Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard()
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        }
     }
 
     private func save() {
@@ -256,7 +309,7 @@ struct SupplementFieldRow: View {
             if let unit {
                 Text(unit)
                     .foregroundStyle(Tide.text2)
-                    .frame(minWidth: 28, alignment: .leading)
+                    .frame(minWidth: Tide.icon, alignment: .leading)
             }
         }
     }

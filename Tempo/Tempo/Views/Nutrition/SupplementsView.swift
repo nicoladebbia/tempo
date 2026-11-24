@@ -244,7 +244,7 @@ struct SupplementsView: View {
                 ])
             }
             Menu {
-                addMenuItems
+                addMenuItems()
             } label: {
                 Label("Add", systemImage: "plus")
             }
@@ -254,12 +254,16 @@ struct SupplementsView: View {
         .tideCard()
     }
 
+    /// Every way onto the shelf. The empty page puts Scan out front as its own
+    /// button, so its menu leaves that one out.
     @ViewBuilder
-    private var addMenuItems: some View {
-        Button {
-            showBarcodeScan = true
-        } label: {
-            Label("Scan barcode", systemImage: "barcode.viewfinder")
+    private func addMenuItems(includingScan: Bool = true) -> some View {
+        if includingScan {
+            Button {
+                showBarcodeScan = true
+            } label: {
+                Label("Scan barcode", systemImage: "barcode.viewfinder")
+            }
         }
         Button {
             activeSheet = .search
@@ -289,19 +293,24 @@ struct SupplementsView: View {
     @Environment(\.tideMood)
     private var mood
 
+    /// Nothing owned yet: one thing to do (scan), and the other ways in one tap away.
     private var emptyState: some View {
-        VStack(spacing: Tide.s3) {
+        VStack(spacing: Tide.s5) {
             KitchenHeroDisc(systemImage: "pills")
-            Text("No supplements yet")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-            Text(
-                "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
-            )
-            .font(Tide.body)
-            .foregroundStyle(Tide.text2)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Tide.s2) {
+                Text("No supplements yet")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                Text(
+                    "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
             VStack(spacing: Tide.s3) {
                 Button {
                     showBarcodeScan = true
@@ -309,23 +318,20 @@ struct SupplementsView: View {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
                 }
                 .buttonStyle(.tidePrimary)
-                emptyAction("Search by name", icon: "magnifyingglass") { activeSheet = .search }
-                emptyAction("Read a label", icon: "camera.viewfinder") { activeSheet = .readLabel }
-                emptyAction("Quick add common", icon: "square.grid.2x2") { activeSheet = .quickAdd }
-                emptyAction("Type it", icon: "square.and.pencil") { activeSheet = .typeIt }
+                // The same menu the full shelf has on top, so the add flow
+                // starts from the same control whether the shelf is empty or not.
+                Menu {
+                    addMenuItems(includingScan: false)
+                } label: {
+                    Label("More ways to add", systemImage: "plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("supplementAddMenu")
             }
-            .padding(.top, Tide.s2)
         }
         .frame(maxWidth: .infinity)
         .tideCard(padding: Tide.s6)
-    }
-
-    private func emptyAction(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.tideGlass)
     }
 
     // MARK: - Shelf
