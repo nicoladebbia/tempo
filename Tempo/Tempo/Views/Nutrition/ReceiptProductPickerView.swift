@@ -69,6 +69,8 @@ struct ReceiptProductPickerView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var query: String
     @State
@@ -121,7 +123,7 @@ struct ReceiptProductPickerView: View {
                     .padding(Tide.edge)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if results.isEmpty {
-                    KitchenEmpty(
+                    KitchenStateHero(
                         systemImage: "magnifyingglass",
                         title: "No match",
                         message: "No matching products found. You can keep the name as typed below."
@@ -131,24 +133,26 @@ struct ReceiptProductPickerView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: Tide.s2) {
-                            ForEach(Array(results.enumerated()), id: \.offset) { _, entry in
-                                candidateRow(entry.product, score: entry.score)
+                            ForEach(Array(results.enumerated()), id: \.offset) { index, entry in
+                                candidateRow(entry.product, score: entry.score, isBest: index == 0)
                             }
                         }
                         .padding(Tide.edge)
                     }
                 }
-
+            }
+            .kitchenSheet()
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 Button {
                     onPick(.keepAsTyped, true)
                 } label: {
                     Text("Keep \"\(line.displayName.isEmpty ? line.rawText : line.displayName)\" as typed")
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tideGlass)
                 .padding(Tide.edge)
             }
-            .kitchenSheet()
             .navigationTitle("Find Product")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -190,7 +194,7 @@ struct ReceiptProductPickerView: View {
         .padding(.top, Tide.s2)
     }
 
-    private func candidateRow(_ product: FoodProduct, score: Double?) -> some View {
+    private func candidateRow(_ product: FoodProduct, score: Double?, isBest: Bool) -> some View {
         Button {
             onPick(.from(product, matchScore: score), false)
         } label: {
@@ -213,18 +217,36 @@ struct ReceiptProductPickerView: View {
                                 .foregroundStyle(Tide.text3)
                         }
                     }
+                    if typeSize.isAccessibilitySize, let score {
+                        Text("\(Int(score * 100))% match")
+                            .font(Tide.caption.monospacedDigit())
+                            .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
+                    }
                 }
-                Spacer()
-                if let score {
-                    Text("\(Int(score * 100))%")
-                        .font(Tide.caption)
-                        .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
+                Spacer(minLength: Tide.s2)
+                // At the accessibility sizes the match goes under the name so
+                // the name keeps the whole row.
+                if !typeSize.isAccessibilitySize {
+                    matchColumn(score: score, isBest: isBest)
                 }
             }
             .frame(minHeight: Tide.hit)
             .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         }
         .buttonStyle(.plain)
+    }
+
+    private func matchColumn(score: Double?, isBest: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: Tide.s1) {
+            if let score {
+                Text("\(Int(score * 100))%")
+                    .font(Tide.caption.monospacedDigit())
+                    .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
+            }
+            if isBest, let score, score >= 0.6 {
+                KitchenTag(text: "Best match", tint: Tide.Kitchen.good)
+            }
+        }
     }
 
     private func candidateThumbnail(_ product: FoodProduct) -> some View {
