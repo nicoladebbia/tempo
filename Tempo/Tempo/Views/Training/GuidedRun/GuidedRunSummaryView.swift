@@ -18,6 +18,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - GuidedRunSummaryView
+
 struct GuidedRunSummaryView: View {
     let plan: GuidedRunPlan
     let results: [UUID: GuidedRunBlockRecord]
@@ -45,6 +47,8 @@ struct GuidedRunSummaryView: View {
     private var showDiscardConfirm = false
     @FocusState
     private var notesFocused: Bool
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         NavigationStack {
@@ -92,29 +96,33 @@ struct GuidedRunSummaryView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Session complete")
-                    .font(Tide.label)
-                    .foregroundStyle(Color.accentColor)
-                Text("Here's what you put in.")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
+        // The whole session at a glance: how long (or how many blocks when no
+        // time was kept), then the blocks and the distance.
+        let blocksDone = "\(results.count)/\(plan.blocks.count)"
+        let timed: String? = {
+            if let startedAt, let endedAt, endedAt > startedAt {
+                return GuidedRunFormatting.clock(endedAt.timeIntervalSince(startedAt))
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-
-            // The whole session at a glance: how long, how far, how much of it.
-            HStack(alignment: .top, spacing: Tide.s4) {
-                if let startedAt, let endedAt, endedAt > startedAt {
-                    TrainStat(value: GuidedRunFormatting.clock(endedAt.timeIntervalSince(startedAt)), label: "Time")
-                }
-                TrainStat(value: "\(results.count)/\(plan.blocks.count)", label: "Blocks")
-                if totalDistance > 0 {
-                    TrainStat(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: "Distance")
-                }
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            return nil
+        }()
+        var stats: [TrainDayHero<EmptyView, Text>.Stat] = []
+        if timed != nil {
+            stats.append(.init(value: blocksDone, label: "Blocks"))
+        }
+        if totalDistance > 0 {
+            stats.append(.init(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: "Distance"))
+        }
+        return TrainDayHero(
+            label: "Session complete",
+            figure: timed ?? blocksDone,
+            unit: timed == nil ? "blocks" : nil,
+            stats: stats
+        ) {
+            EmptyView()
+        } footer: {
+            Text("Here's what you put in.")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
         }
     }
 
@@ -208,7 +216,7 @@ struct GuidedRunSummaryView: View {
                     }
                 }
             }
-            HStack(spacing: Tide.s3) {
+            FlowLayout(spacing: Tide.s3, lineSpacing: Tide.hair) {
                 if let best = record.bestRepSeconds {
                     Text("Best \(GuidedRunFormatting.repTime(best))")
                 }
@@ -227,7 +235,7 @@ struct GuidedRunSummaryView: View {
     }
 
     private func continuousSummary(_ record: GuidedRunBlockRecord) -> some View {
-        HStack(spacing: Tide.s3) {
+        FlowLayout(spacing: Tide.s3, lineSpacing: Tide.hair) {
             if let duration = record.durationSeconds {
                 Text(GuidedRunFormatting.clock(duration))
             }
@@ -261,7 +269,7 @@ struct GuidedRunSummaryView: View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             sectionLabel("Effort (RPE)")
             LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 5),
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: typeSize.isAccessibilitySize ? 3 : 5),
                 spacing: Tide.s2
             ) {
                 ForEach(1 ... 10, id: \.self) { value in

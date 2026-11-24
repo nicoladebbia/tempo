@@ -54,28 +54,29 @@ struct MatchProposalCard: View {
     // MARK: - Row
 
     private func proposalRow(_ event: CalendarEvent) -> some View {
-        TrainBanner(
-            systemImage: "sportscourt",
+        // The ask is about one day, so the card opens on that day: its weekday
+        // over its date, in the caution tint a match always carries.
+        TrainAskCard(
             label: "Found on your calendar",
             tint: TideTrain.caution,
             title: "\u{201C}\(event.title)\u{201D} — \(dayLabel(event.startDate)). Match day?",
             message: "Confirming locks it into the match schedule and re-plans the days around it."
         ) {
-            HStack(spacing: Tide.s2) {
-                Button {
-                    confirm(event)
-                } label: {
-                    Text("Add match")
-                }
-                .buttonStyle(.trainBanner(tint: TideTrain.caution))
-
-                Button {
-                    dismissProposal(event)
-                } label: {
-                    Text("Not a match")
-                }
-                .buttonStyle(.trainBanner(filled: false))
+            TrainFigureTile(date: event.startDate, tint: TideTrain.caution)
+        } actions: {
+            Button {
+                confirm(event)
+            } label: {
+                Label("Add match", systemImage: "sportscourt")
             }
+            .buttonStyle(.trainBanner(tint: TideTrain.caution))
+
+            Button {
+                dismissProposal(event)
+            } label: {
+                Text("Not a match")
+            }
+            .buttonStyle(.trainQuiet)
         }
     }
 

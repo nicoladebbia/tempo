@@ -453,15 +453,26 @@ struct MuscleHeatmapView: View {
         let exercises = contributions(for: muscle)
 
         return TrainPlanCard {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Text(muscle.displayName)
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
-                Spacer(minLength: Tide.s2)
-                if let change {
-                    TrainPlanDelta(fraction: change, suffix: "vs last week")
+            // The muscle's name keeps its size; the change drops under it
+            // when the two no longer fit side by side.
+            let title = Text(muscle.displayName)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    title
+                        .lineLimit(1)
+                    Spacer(minLength: Tide.s2)
+                    if let change {
+                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    title
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let change {
+                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                    }
                 }
             }
 
@@ -481,7 +492,7 @@ struct MuscleHeatmapView: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Divider().overlay(Tide.hairline)
+                TrainPlanDivider()
                 ForEach(exercises.prefix(6), id: \.id) { row in
                     ViewThatFits(in: .horizontal) {
                         HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
@@ -503,7 +514,7 @@ struct MuscleHeatmapView: View {
         Text(row.exercise?.name ?? "—")
             .font(Tide.body)
             .foregroundStyle(Tide.text)
-            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder

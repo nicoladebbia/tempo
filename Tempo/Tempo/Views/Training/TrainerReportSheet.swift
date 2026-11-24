@@ -100,7 +100,14 @@ struct TrainerReportSheet: View {
 
                 if let document {
                     previewSection(document)
+                }
+            }
+            .safeAreaBar(edge: .bottom) {
+                // Sharing is why the sheet exists, so it sits under the thumb.
+                if let document {
                     shareButtons(document)
+                        .padding(.horizontal, Tide.edge)
+                        .padding(.bottom, Tide.s2)
                 }
             }
             .trainSheetRoot()
@@ -135,6 +142,9 @@ struct TrainerReportSheet: View {
 
     private func previewSection(_ document: TrainerReportDocument) -> some View {
         VStack(spacing: Tide.s4) {
+            if !document.sessions.isEmpty {
+                reportHero(document)
+            }
             TrainPlanCard {
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(document.title)
@@ -190,6 +200,28 @@ struct TrainerReportSheet: View {
         }
     }
 
+    /// What the trainer will read first: how many of the sessions got done.
+    private func reportHero(_ document: TrainerReportDocument) -> some View {
+        let total = document.sessions.count
+        let done = document.sessions.filter { $0.status == .done }.count
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Sessions done").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(done)/\(total)", size: Tide.numeralM, relativeTo: .title)
+                Text(document.dateRangeLabel)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TrainSetTicks(done: done, total: total, label: "Sessions")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sessions done")
+        .accessibilityValue("\(done) of \(total)")
+    }
+
     private func sessionRow(_ session: TrainerReportSessionRow) -> some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Tide.s2) {
@@ -240,7 +272,7 @@ struct TrainerReportSheet: View {
                 Label("Share as Text", systemImage: "message")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.trainPlanSecondary)
+            .buttonStyle(.tidePrimary)
 
             if let pdfShareURL {
                 Button {

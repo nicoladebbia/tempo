@@ -11,12 +11,12 @@ import SwiftUI
 
 // MARK: - TrainingSettingsDetailView
 
-// Note on the local save() in this view: after every successful save we post
-// `Notification.Name.tempoTrainingSettingsChanged` so NutritionTabViewModel
-// can regenerate its WeeklyMealPlan against the new trainingSplit /
-// footballDays. Without this, the Nutrition Plan tab kept showing the
-// previous schedule (e.g. Wednesday strength) until the user manually
-// re-generated.
+/// Note on the local save() in this view: after every successful save we post
+/// `Notification.Name.tempoTrainingSettingsChanged` so NutritionTabViewModel
+/// can regenerate its WeeklyMealPlan against the new trainingSplit /
+/// footballDays. Without this, the Nutrition Plan tab kept showing the
+/// previous schedule (e.g. Wednesday strength) until the user manually
+/// re-generated.
 struct TrainingSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
@@ -69,19 +69,7 @@ struct TrainingSettingsDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Tide.s4) {
-                // Summary hero — what this config means at a glance.
-                VStack(spacing: Tide.s1) {
-                    Text(trainingSplit.displayName)
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                    Text(footballCount == 0
-                        ? "No football days"
-                        : "\(footballCount) football day\(footballCount == 1 ? "" : "s") / week")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, Tide.s5).tideCard(padding: 0)
+                settingsHero
 
                 SettingsFormCard(title: "Programme") {
                     // Whole-row Menu — fixes the round-1 bug where the bare
@@ -185,7 +173,9 @@ struct TrainingSettingsDetailView: View {
                             let bit = 1 << index
                             let isOn = ((settings?.footballDaysRaw ?? 0) & bit) != 0
                             Button {
-                                guard let s = settings else { return }
+                                guard let s = settings else {
+                                    return
+                                }
                                 s.footballDaysRaw ^= bit
                                 save()
                                 HapticManager.selection()
@@ -356,6 +346,46 @@ struct TrainingSettingsDetailView: View {
         }
     }
 
+    /// What this setup means at a glance: the split as the title, then the
+    /// football days, the block, the deload cadence and the rest default as
+    /// tags that follow the controls below as they change.
+    private var settingsHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Your training").tideLabel()
+            Text(trainingSplit.displayName)
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            FlowLayout(spacing: Tide.s1, lineSpacing: Tide.s1) {
+                TrainTag(
+                    text: footballCount == 0
+                        ? "No football days"
+                        : "\(footballCount) football day\(footballCount == 1 ? "" : "s") / week",
+                    systemImage: "soccerball",
+                    color: footballCount == 0 ? Tide.text2 : TideTrain.positive
+                )
+                TrainTag(
+                    text: currentEmphasis.displayName,
+                    systemImage: "target",
+                    color: Tide.water
+                )
+                TrainTag(
+                    text: autoDeload ? "Deload every \(deloadWeeks) wk" : "Deload off",
+                    systemImage: "arrow.down.right.circle",
+                    color: autoDeload ? TideTrain.caution : Tide.text2
+                )
+                TrainTag(
+                    text: autoStartRest ? "Rest \(formatRest(defaultRestSeconds))" : "Rest timer off",
+                    systemImage: "timer",
+                    color: autoStartRest ? Color.accentColor : Tide.text2
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .contain)
+    }
+
     /// The label of a whole-row menu: icon, title, current value and the
     /// up/down chevron. At large text sizes the value drops under the title
     /// so neither has to wrap or truncate.
@@ -405,7 +435,9 @@ struct TrainingSettingsDetailView: View {
 
     /// Compact m/s label for a rest duration (e.g. 45→"45s", 90→"1m 30s", 120→"2m").
     private func formatRest(_ seconds: Int) -> String {
-        if seconds < 60 { return "\(seconds)s" }
+        if seconds < 60 {
+            return "\(seconds)s"
+        }
         let m = seconds / 60
         let s = seconds % 60
         return s == 0 ? "\(m)m" : "\(m)m \(s)s"
@@ -419,7 +451,9 @@ struct TrainingSettingsDetailView: View {
     /// spare days), an emphasis switch must replan This Week immediately,
     /// same path as a footballDays toggle.
     private func applyBlockEmphasis(_ emphasis: BlockEmphasis) {
-        guard emphasis != currentEmphasis else { return }
+        guard emphasis != currentEmphasis else {
+            return
+        }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         for block in trainingBlocks where block.endDate == nil {
@@ -466,7 +500,9 @@ struct CustomSplitEditorView: View {
     @Query
     private var allSettings: [UserSettings]
 
-    private var settings: UserSettings? { allSettings.first }
+    private var settings: UserSettings? {
+        allSettings.first
+    }
 
     private let dayNames = [
         "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
@@ -484,7 +520,9 @@ struct CustomSplitEditorView: View {
     private var plan: [WorkoutType] = CustomSplitEditorView.defaultPlan
 
     /// Calendar weekday (1=Sun) for a Mon-first row index.
-    private func calWeekday(_ index: Int) -> Int { (index + 1) % 7 + 1 }
+    private func calWeekday(_ index: Int) -> Int {
+        (index + 1) % 7 + 1
+    }
 
     private func isFootballDay(_ index: Int) -> Bool {
         ActiveDays(rawValue: settings?.footballDaysRaw ?? 0).isActive(on: calWeekday(index))
@@ -493,12 +531,15 @@ struct CustomSplitEditorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: Tide.s2) {
+                weekSummary
                 SettingsFormCard(
                     title: "Your week",
                     footnote: "Assign each day. Football days are set on the Training screen and lock here. Recovery and deload still adjust these automatically."
                 ) {
                     ForEach(0 ..< 7, id: \.self) { i in
-                        if i > 0 { SettingsRowDivider() }
+                        if i > 0 {
+                            SettingsRowDivider()
+                        }
                         dayRow(i)
                     }
                 }
@@ -521,7 +562,28 @@ struct CustomSplitEditorView: View {
         }
     }
 
-    @ViewBuilder
+    /// How many of the seven days train (football days count), as a figure and
+    /// seven ticks, so a change to a row reads straight away.
+    private var weekSummary: some View {
+        let trainingDays = (0 ..< 7).filter { isFootballDay($0) || plan[$0] != .rest }.count
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("This week's shape").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(trainingDays)", size: Tide.numeralM, relativeTo: .title)
+                Text(trainingDays == 1 ? "training day of 7" : "training days of 7")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            TrainSetTicks(done: trainingDays, total: 7, label: "Training days")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .padding(.bottom, Tide.s2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("This week's shape")
+        .accessibilityValue("\(trainingDays) of 7 days training")
+    }
+
     private func dayRow(_ i: Int) -> some View {
         SettingsControlRow(label: dayNames[i], icon: "calendar", iconTint: TideTrain.violet) {
             if isFootballDay(i) {
@@ -557,7 +619,9 @@ struct CustomSplitEditorView: View {
     }
 
     private func persist() {
-        guard let s = settings else { return }
+        guard let s = settings else {
+            return
+        }
         s.customWeekdayPlan = plan
         modelContext.saveOrAlert("custom split")
         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)

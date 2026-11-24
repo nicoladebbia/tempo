@@ -583,3 +583,398 @@ struct TrainSessionHero<Below: View>: View {
         .frame(maxWidth: .infinity)
     }
 }
+
+// MARK: - Train home kit (second wave)
+
+// The hero of the day, the prompt cards and the scannable exercise list on
+// Train home. Everything here is `Train*` so it cannot collide with another
+// area's additions.
+
+extension TideTrain {
+    /// The square tile at the head of a prompt card (a date, a time, a symbol).
+    static let askTile: CGFloat = 56
+    /// The sets ring on the day hero.
+    static let heroRing: CGFloat = 112
+    /// One tick of the per-exercise set trail.
+    static let tickWidth: CGFloat = 16
+    static let tickHeight: CGFloat = 4
+    /// The exercise picture in a list row; the number badge sits on its corner.
+    static let rowPicture: CGFloat = 48
+    /// The rail that joins the rows of a superset.
+    static let groupRail: CGFloat = 3
+    /// The most set ticks one row draws before it stops counting.
+    static let tickLimit = 12
+    /// The wash behind an effort chip, and the resting dim of a loading skeleton.
+    static let chipWash = 0.2
+    static let skeletonDim = 0.45
+    /// One slow pulse of a loading skeleton.
+    static let skeletonPulse = Animation.easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+    /// The three widths a skeleton line takes: short, medium, long.
+    static let skeletonShort: CGFloat = 84
+    static let skeletonMedium: CGFloat = 140
+    static let skeletonLong: CGFloat = 224
+}
+
+// MARK: - TrainFigureTile
+
+/// A small tinted tile with a tracked label over a big figure: a weekday over
+/// its date, a month over a week range, a venue over a clock time.
+struct TrainFigureTile: View {
+    let label: String
+    let figure: String
+    var tint: Color = Tide.text2
+
+    @ScaledMetric(relativeTo: .title)
+    private var side: CGFloat = TideTrain.askTile
+    @ScaledMetric(relativeTo: .title3)
+    private var figureSize: CGFloat = Tide.numeralS
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(label)
+                .font(Tide.label)
+                .tracking(1)
+                .textCase(.uppercase)
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            Text(figure)
+                .font(Tide.numeral(figureSize))
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+        }
+        .padding(.horizontal, Tide.s2)
+        .frame(minWidth: side, minHeight: side)
+        .background(tint.opacity(0.16), in: .rect(cornerRadius: Tide.controlRadius, style: .continuous))
+        .accessibilityHidden(true)
+    }
+
+    init(label: String, figure: String, tint: Color = Tide.text2) {
+        self.label = label
+        self.figure = figure
+        self.tint = tint
+    }
+
+    /// A day: its weekday over its date.
+    init(date: Date, tint: Color = Tide.text2) {
+        self.init(
+            label: date.formatted(.dateTime.weekday(.abbreviated)),
+            figure: date.formatted(.dateTime.day()),
+            tint: tint
+        )
+    }
+}
+
+// MARK: - TrainAskCard
+
+/// A question Train puts to you: one tinted tile that says what it is about
+/// (a date, a week, a clock time or a symbol), a label, the ask in one line,
+/// a line of why, then one filled action and quieter ones under it. Every
+/// prompt on Train home is one of these, so each reads as its own object.
+struct TrainAskCard<Tile: View, Actions: View>: View {
+    let label: String
+    var tint: Color = .accentColor
+    let title: String
+    var message: String?
+    private let tile: Tile
+    private let actions: Actions
+    private let hasActions: Bool
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    init(
+        label: String,
+        tint: Color = Color.accentColor,
+        title: String,
+        message: String? = nil,
+        @ViewBuilder tile: () -> Tile,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.label = label
+        self.tint = tint
+        self.title = title
+        self.message = message
+        self.tile = tile()
+        self.actions = actions()
+        hasActions = true
+    }
+
+    var body: some View {
+        let head = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s3))
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            head {
+                tile
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(label).tideLabel(tint)
+                    Text(title)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            if let message {
+                Text(message)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if hasActions {
+                VStack(spacing: Tide.s1) {
+                    actions
+                }
+            }
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .trainSessionOutline(tint)
+    }
+}
+
+extension TrainAskCard where Actions == EmptyView {
+    /// A card that only informs: no actions under it.
+    init(
+        label: String,
+        tint: Color = Color.accentColor,
+        title: String,
+        message: String? = nil,
+        @ViewBuilder tile: () -> Tile
+    ) {
+        self.label = label
+        self.tint = tint
+        self.title = title
+        self.message = message
+        self.tile = tile()
+        actions = EmptyView()
+        hasActions = false
+    }
+}
+
+// MARK: - TrainQuietButtonStyle
+
+/// A text-only action under a filled one ("Not a match", "Upload only"): full
+/// width so it is easy to hit, but with no surface.
+struct TrainQuietButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+            .contentShape(.rect)
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == TrainQuietButtonStyle {
+    static var trainQuiet: TrainQuietButtonStyle {
+        TrainQuietButtonStyle()
+    }
+}
+
+// MARK: - TrainDayHero
+
+/// The hero of a Train day: what today is as one number (minutes), the plan as
+/// a sentence (exercises, sets), a lit ring or a symbol on the right, and one
+/// footer line (how recovery shaped it).
+struct TrainDayHero<Trailing: View, Footer: View>: View {
+    struct Stat: Identifiable {
+        let value: String
+        let label: String
+        var id: String {
+            label
+        }
+    }
+
+    let label: String
+    let figure: String
+    var unit: String?
+    var caption: String?
+    var stats: [Stat] = []
+    var chips: [String] = []
+    private let trailing: Trailing
+    private let footer: Footer
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    init(
+        label: String,
+        figure: String,
+        unit: String? = nil,
+        caption: String? = nil,
+        stats: [Stat] = [],
+        chips: [String] = [],
+        @ViewBuilder trailing: () -> Trailing,
+        @ViewBuilder footer: () -> Footer
+    ) {
+        self.label = label
+        self.figure = figure
+        self.unit = unit
+        self.caption = caption
+        self.stats = stats
+        self.chips = chips
+        self.trailing = trailing()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        let split = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s3))
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            split {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text(label).tideLabel()
+                    TideNumber(figure, unit: unit, size: Tide.numeralL, relativeTo: .largeTitle)
+                    if let caption {
+                        Text(caption)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !stats.isEmpty {
+                        statLine
+                    }
+                    if !chips.isEmpty {
+                        FlowLayout(spacing: Tide.s1, lineSpacing: Tide.s1) {
+                            ForEach(chips, id: \.self) { chip in
+                                TrainTag(text: chip)
+                            }
+                        }
+                    }
+                }
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
+                trailing
+            }
+            TrainSessionRule()
+            footer
+        }
+        .tideCard(padding: Tide.s5)
+    }
+
+    /// "6 exercises   18 sets": the figure first, the word after, like a sentence.
+    private var statLine: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s4))
+        return layout {
+            ForEach(stats) { stat in
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber(stat.value, size: Tide.numeralS, relativeTo: .title3)
+                    Text(stat.label)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+}
+
+// MARK: - TrainSetsRing
+
+/// The sets of the day as a lit ring: done over total in the middle.
+struct TrainSetsRing: View {
+    let done: Int
+    let total: Int
+    var tint: Color?
+
+    private var fraction: Double {
+        total > 0 ? Double(done) / Double(total) : 0
+    }
+
+    var body: some View {
+        TrainRing(progress: fraction, tint: tint, diameter: TideTrain.heroRing) {
+            VStack(spacing: Tide.hair) {
+                TideNumber("\(done)/\(total)", size: Tide.numeralS, relativeTo: .title2)
+                Text("Sets").tideLabel()
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sets")
+        .accessibilityValue("\(done) of \(total) done")
+    }
+}
+
+// MARK: - TrainSetTicks
+
+/// One small capsule per working set: done sets are lit. The trail of an
+/// exercise row once a session has started.
+struct TrainSetTicks: View {
+    let done: Int
+    let total: Int
+    /// What the ticks count, for VoiceOver ("Sets", "Questions").
+    var label = "Sets"
+
+    /// How many ticks are drawn, and how many of them are lit. Past the limit
+    /// the trail shows the share done instead of looking full too early.
+    private var visible: Int {
+        min(max(total, 0), TideTrain.tickLimit)
+    }
+
+    private var lit: Int {
+        guard total > TideTrain.tickLimit else {
+            return done
+        }
+        return done >= total ? visible : max(done, 0) * visible / total
+    }
+
+    var body: some View {
+        HStack(spacing: Tide.s1) {
+            ForEach(0 ..< visible, id: \.self) { index in
+                Capsule()
+                    .fill(index < lit ? TideTrain.positive : Tide.fillStrong)
+                    .frame(width: TideTrain.tickWidth, height: TideTrain.tickHeight)
+            }
+        }
+        .animation(Tide.snap, value: done)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(done) of \(total) done")
+    }
+}
+
+// MARK: - TrainRowPressStyle
+
+/// A row inside a card that lights up while it is pressed.
+struct TrainRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Tide.fill : Color.clear)
+            .animation(Tide.snap, value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == TrainRowPressStyle {
+    static var trainRow: TrainRowPressStyle {
+        TrainRowPressStyle()
+    }
+}
+
+// MARK: - TrainListCard
+
+/// One glass card for a list of rows; the rows draw their own padding and the
+/// caller puts `TrainPlanDivider`s between them.
+struct TrainListCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .tideCard(padding: 0, radius: Tide.tileRadius)
+        .clipShape(.rect(cornerRadius: Tide.tileRadius, style: .continuous))
+    }
+}

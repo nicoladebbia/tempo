@@ -248,7 +248,7 @@ struct ProgressChartsView: View {
             Text("This week").tideLabel(Tide.text3)
                 .lineLimit(1)
             Text(formatVolume(volume))
-                .trainNumeral(44, relativeTo: .largeTitle)
+                .trainNumeral(Tide.numeralL, relativeTo: .largeTitle)
                 .foregroundStyle(Tide.text)
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
@@ -371,29 +371,39 @@ struct ProgressChartsView: View {
     }
 
     private func exerciseProgressRow(_ exercise: Exercise) -> some View {
-        HStack(spacing: Tide.s3) {
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(exercise.name)
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
+        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(exercise.name)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
 
-                if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
-                    Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
+            if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
+                Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
-
-            Spacer(minLength: Tide.s2)
-
-            TrainTag(text: exercise.muscleGroup.displayName)
-
-            Image(systemName: "chevron.right")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+        }
+        let chevron = Image(systemName: "chevron.right")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+            .accessibilityHidden(true)
+        // The muscle tag goes under the name once the row runs out of width.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                info
+                Spacer(minLength: Tide.s2)
+                TrainTag(text: exercise.muscleGroup.displayName)
+                chevron
+            }
+            HStack(alignment: .top, spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    info
+                    TrainTag(text: exercise.muscleGroup.displayName)
+                }
+                Spacer(minLength: Tide.s2)
+                chevron
+            }
         }
         .frame(minHeight: Tide.hit)
         .contentShape(.rect)
@@ -488,35 +498,51 @@ struct ProgressChartsView: View {
                     let recent = Array(activitySessions.prefix(20))
                     ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
                         if index > 0 {
-                            Divider().overlay(Tide.hairline)
+                            TrainPlanDivider()
                         }
-                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                            VStack(alignment: .leading, spacing: Tide.hair) {
-                                Text(activityTypeLabel(session))
-                                    .font(Tide.bodyStrong)
-                                    .foregroundStyle(Tide.text)
-                                Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                                    .font(Tide.caption)
-                                    .foregroundStyle(Tide.text3)
-                            }
-                            Spacer(minLength: Tide.s2)
-                            VStack(alignment: .trailing, spacing: Tide.hair) {
-                                if let strain = session.strain {
-                                    Text(String(format: "%.1f strain", strain))
-                                        .font(Tide.caption)
-                                        .foregroundStyle(Tide.text2)
-                                }
-                                if let mins = session.durationMinutes {
-                                    Text("\(Int(mins)) min")
-                                        .font(Tide.caption)
-                                        .foregroundStyle(Tide.text3)
-                                }
-                            }
-                        }
+                        activityRow(session)
                     }
                 }
             }
         }
+    }
+
+    /// One logged activity: what and when on the left, strain and minutes on
+    /// the right, stacked once the row runs out of width.
+    private func activityRow(_ session: ActivitySession) -> some View {
+        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(activityTypeLabel(session))
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+        }
+        let figures = VStack(alignment: .trailing, spacing: Tide.hair) {
+            if let strain = session.strain {
+                Text(String(format: "%.1f strain", strain))
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            if let mins = session.durationMinutes {
+                Text("\(Int(mins)) min")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                info
+                Spacer(minLength: Tide.s2)
+                figures
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                info
+                figures
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var totalActiveMinutes: Double {

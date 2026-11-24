@@ -34,10 +34,13 @@ struct RoutinesView: View {
     var body: some View {
         List {
             if let blocker = viewModel.routineBlocker(for: viewModel.todayPlan) {
-                Text(blocker)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Why "Use today" is off, said once at the top as its own card.
+                TrainBanner(
+                    systemImage: "exclamationmark.circle.fill",
+                    label: "Not available today",
+                    tint: TideTrain.caution,
+                    message: blocker
+                ) {}
                     .trainPlanListRow()
             }
 
@@ -73,6 +76,26 @@ struct RoutinesView: View {
         .scrollContentBackground(.hidden)
         .contentMargins(.bottom, TideTrain.pageBottom, for: .scrollContent)
         .tidePage()
+        .safeAreaBar(edge: .bottom) {
+            // The way to make one, under the thumb: the lead action while the
+            // list is empty, a quieter add row once there are routines.
+            Group {
+                if routines.isEmpty {
+                    Button {
+                        creatingNew = true
+                    } label: {
+                        Label("Build a routine", systemImage: "plus")
+                    }
+                    .buttonStyle(.tidePrimary)
+                } else {
+                    TrainPlanAddButton(title: "New routine") {
+                        creatingNew = true
+                    }
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        }
         .navigationTitle("My Routines")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -138,18 +161,33 @@ struct RoutinesView: View {
         .buttonStyle(.plain)
         .disabled(blocked)
         .opacity(blocked ? 0.4 : 1)
-        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+        let setCount = routine.items.reduce(0) { $0 + $1.workingSets }
+        let info = VStack(alignment: .leading, spacing: Tide.s2) {
             Text(routine.name)
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
+            // The size of it as two figures, like the day hero on Train.
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s4) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber("\(routine.items.count)", size: Tide.numeralS, relativeTo: .title3)
+                    Text("exercises")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber("\(setCount)", size: Tide.numeralS, relativeTo: .title3)
+                    Text("sets")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(routine.items.count) exercises · \(setCount) sets")
             Text(routine.items.map(\.exerciseName).joined(separator: " · "))
                 .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .lineLimit(2)
-            Text("\(routine.items.count) exercises · \(routine.items.reduce(0) { $0 + $1.workingSets }) sets")
-                .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
+                .lineLimit(2)
         }
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: Tide.s3) {
@@ -235,6 +273,25 @@ struct RoutineEditorView: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .trainSheetRoot()
+            .safeAreaBar(edge: .bottom) {
+                // Save under the thumb, and say what is still missing while it is off.
+                VStack(spacing: Tide.s2) {
+                    if !canSave {
+                        Text("Name it and add an exercise.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    Button {
+                        save()
+                    } label: {
+                        Text("Save routine")
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(!canSave)
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
             .environment(\.editMode, .constant(.active))
             .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)

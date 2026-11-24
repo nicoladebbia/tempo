@@ -132,8 +132,6 @@ struct TrainerComplianceBar: View {
     }
 
     private func percentLabel(_ percent: Int) -> some View {
-        Text("\(percent)%")
-            .font(TideTrain.figure(.footnote, weight: .semibold))
-            .foregroundStyle(Tide.text2)
+        TideNumber("\(percent)", unit: "%", size: Tide.numeralS, relativeTo: .title3, color: Color.accentColor)
     }
 }

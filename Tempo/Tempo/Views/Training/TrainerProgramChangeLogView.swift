@@ -34,8 +34,15 @@ struct TrainerProgramChangeLogView: View {
     var body: some View {
         TrainPlanPage {
             if entries.isEmpty, upcomingSkips.isEmpty {
-                TrainEmptyCard(systemImage: "text.bubble", title: "No changes logged yet.")
-                    .padding(.top, Tide.s4)
+                TrainEmptyCard(
+                    systemImage: "text.bubble",
+                    title: "No changes logged yet.",
+                    message: "Changes you apply from a trainer message are listed here, newest first."
+                )
+                .padding(.top, Tide.s4)
+            }
+            if !entries.isEmpty {
+                logHero
             }
             if !upcomingSkips.isEmpty {
                 TrainPlanCard(label: "Skipped — only that day") {
@@ -66,6 +73,39 @@ struct TrainerProgramChangeLogView: View {
         } message: {
             Text(undoError ?? "")
         }
+    }
+
+    private var totalEdits: Int {
+        entries.reduce(0) { $0 + $1.editSummaries.count }
+    }
+
+    /// How much the trainer has changed so far, and when it last happened.
+    private var logHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Applied so far").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(totalEdits)", size: Tide.numeralM, relativeTo: .title)
+                Text(totalEdits == 1 ? "edit from your trainer" : "edits from your trainer")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let last = entries.first {
+                Text("Last change \(last.date.formatted(date: .abbreviated, time: .omitted))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+            if !upcomingSkips.isEmpty {
+                TrainTag(
+                    text: upcomingSkips.count == 1 ? "1 day skipped ahead" : "\(upcomingSkips.count) days skipped ahead",
+                    systemImage: "forward.fill",
+                    color: TideTrain.caution
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .combine)
     }
 
     private func skipRow(_ skip: TrainerProgramSkip) -> some View {

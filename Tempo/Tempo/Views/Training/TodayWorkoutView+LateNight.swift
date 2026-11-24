@@ -58,13 +58,16 @@ extension TodayWorkoutView {
         let sessionName = trainerDay?.title ?? plan?.type.displayName ?? "Training"
         let blockCount = trainerDay?.exercises.count ?? plan?.orderedExercises.count ?? 0
 
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(spacing: Tide.s2) {
-                TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet)
-                VStack(alignment: .leading, spacing: Tide.hair) {
+        let unit = trainerDay?.isStrength == false ? "blocks" : "exercises"
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(alignment: .top, spacing: Tide.s3) {
+                TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet, size: TideTrain.askTile)
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("Late night").tideLabel(TideTrain.violet)
                     Text("It's past midnight. Get to bed.")
-                        .font(Tide.headline)
+                        .font(Tide.title2)
                         .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Sleep is part of the plan. The session waits for the morning.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
@@ -72,16 +75,21 @@ extension TodayWorkoutView {
                 }
             }
 
-            VStack(alignment: .leading, spacing: Tide.hair) {
+            // What the morning holds, with its size as a figure like the day hero.
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text("Tomorrow morning").tideLabel(Tide.text3)
                 Text(sessionName)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if blockCount > 0 {
-                    Text(trainerDay?.isStrength == false ? "\(blockCount) blocks" : "\(blockCount) exercises")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                        TideNumber("\(blockCount)", size: Tide.numeralS, relativeTo: .title3)
+                        Text(unit)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

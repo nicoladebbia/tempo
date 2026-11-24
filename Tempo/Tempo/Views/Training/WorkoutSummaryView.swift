@@ -23,6 +23,8 @@ struct WorkoutSummaryView: View {
     private var dismiss
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// §8.2 completion ring animation state.
     @State
@@ -257,16 +259,22 @@ struct WorkoutSummaryView: View {
     // MARK: - Stats
 
     private var statsCard: some View {
-        Grid(alignment: .topLeading, horizontalSpacing: Tide.s4, verticalSpacing: Tide.s4) {
-            GridRow {
-                TrainStat(value: viewModel.formattedElapsedTime, label: "Duration")
-                TrainStat(value: viewModel.formattedVolume, label: "Volume")
-            }
-            GridRow {
-                TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
-                TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
-            }
+        // Two across; one column at the accessibility sizes so a long volume
+        // ("12,480 kg") never squeezes its neighbour.
+        LazyVGrid(
+            columns: Array(
+                repeating: GridItem(.flexible(), spacing: Tide.s4, alignment: .topLeading),
+                count: typeSize.isAccessibilitySize ? 1 : 2
+            ),
+            alignment: .leading,
+            spacing: Tide.s4
+        ) {
+            TrainStat(value: viewModel.formattedElapsedTime, label: "Duration")
+            TrainStat(value: viewModel.formattedVolume, label: "Volume")
+            TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
+            TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5, radius: Tide.tileRadius)
     }
 
@@ -339,7 +347,11 @@ struct WorkoutSummaryView: View {
     }
 
     private func exerciseSummaryRow(_ plannedEx: PlannedExercise) -> some View {
-        HStack(spacing: Tide.s3) {
+        let row = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        let working = plannedEx.orderedSets.filter { !$0.isWarmup }
+        return row {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(plannedEx.exercise?.name ?? "Exercise")
                     .font(Tide.bodyStrong)
@@ -364,9 +376,17 @@ struct WorkoutSummaryView: View {
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
+
+                // One tick per working set: a cut-short exercise shows its gap.
+                if !working.isEmpty {
+                    TrainSetTicks(done: working.filter(\.completed).count, total: working.count)
+                        .padding(.top, Tide.s1)
+                }
             }
 
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
 
             // Volume for this exercise
             let vol = plannedEx.totalVolume

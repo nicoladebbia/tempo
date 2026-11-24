@@ -155,81 +155,81 @@ struct TodayWorkoutView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: Tide.s5) {
-                    TrainHeader(label: dateLabel, title: screenTitle) {
-                        if let headerActions {
-                            headerActions
-                        }
-                    }
-
-                    // §16 — branch on `todayDisplayState`, not `isRestDay`
-                    // directly: `isRestDay` reads true for BOTH "no plan yet"
-                    // and "a real rest day", so checking it first made the
-                    // empty state below permanently unreachable.
-                    if viewModel.isLoading {
-                        loadingState
-                    } else if let activePause, !isTodaySessionSacred {
-                        // Pause/travel-pain feature — the calm "Paused —
-                        // recover" card replaces ALL of Today's normal
-                        // content while paused (never a sacred started/
-                        // completed session — see `isTodaySessionSacred`).
-                        // See PausedTrainingCard.swift.
-                        PausedTrainingCard(viewModel: viewModel, pause: activePause)
-                    } else if showsBedtimeCard(showSessionAnyway: showSessionTonight) {
-                        bedtimeCard { lateNightSkipUntilRaw = LateNightWindow.skipUntil().timeIntervalSince1970 }
-                    } else {
-                        switch viewModel.todayDisplayState {
-                        case .noPlan:
-                            emptyState
-                        case .restDay:
-                            restDayContent
-                        case .gym:
-                            if let plan = viewModel.todayPlan {
-                                workoutContent(plan: plan)
-                            }
-                        case .nonGym:
-                            // Non-gym training day (football, run, sprint,
-                            // conditioning) — no exercises to log, so show a
-                            // type-appropriate card instead of empty gym content.
-                            if let plan = viewModel.todayPlan {
-                                nonGymContent(plan: plan)
-                            }
-                        }
-                    }
-
-                    // Fix #6 — "Missed <session> — do it today?" (fixed-mode
-                    // only; renders nothing when there's nothing missed).
-                    // See MissedTrainerSessionCard.swift.
-                    if !showsBedtimeCard(showSessionAnyway: showSessionTonight) {
-                        // Pause/travel-pain feature — must render even (especially)
-                        // while `activePause` is nil, so a fixed-mode pause's
-                        // resume decision is never silently skipped. See
-                        // WelcomeBackResumeCard.swift.
-                        WelcomeBackResumeCard(viewModel: viewModel)
-
-                        MissedTrainerSessionCard(viewModel: viewModel)
-
-                        // Weekly-upload feature — "New week — upload …"
-                        // (renders nothing when nothing's due, or the active
-                        // program isn't weekly). See WeeklyUploadPromptCard.swift.
-                        WeeklyUploadPromptCard(viewModel: viewModel)
-                    }
-
-                    // Suggestions and rituals sit BELOW today's work — the
-                    // exercise list is what this screen is for.
-                    // §18.4 — calendar-detected football, confirm-gated.
-                    // Renders nothing when there's nothing to propose.
-                    MatchProposalCard()
-
-                    // D4 §17 — month-boundary review card, on every day type
-                    // (the month ends whether today is gym, field, or rest).
-                    if let dueKey = viewModel.monthlyReviewDueKey {
-                        monthlyReviewCard(dueKey)
+            VStack(spacing: Tide.s5) {
+                TrainHeader(label: dateLabel, title: screenTitle) {
+                    if let headerActions {
+                        headerActions
                     }
                 }
-                .padding(.horizontal, Tide.edge)
-                .padding(.top, Tide.s2)
-                .padding(.bottom, Tide.s6)
+
+                // §16 — branch on `todayDisplayState`, not `isRestDay`
+                // directly: `isRestDay` reads true for BOTH "no plan yet"
+                // and "a real rest day", so checking it first made the
+                // empty state below permanently unreachable.
+                if viewModel.isLoading {
+                    loadingState
+                } else if let activePause, !isTodaySessionSacred {
+                    // Pause/travel-pain feature — the calm "Paused —
+                    // recover" card replaces ALL of Today's normal
+                    // content while paused (never a sacred started/
+                    // completed session — see `isTodaySessionSacred`).
+                    // See PausedTrainingCard.swift.
+                    PausedTrainingCard(viewModel: viewModel, pause: activePause)
+                } else if showsBedtimeCard(showSessionAnyway: showSessionTonight) {
+                    bedtimeCard { lateNightSkipUntilRaw = LateNightWindow.skipUntil().timeIntervalSince1970 }
+                } else {
+                    switch viewModel.todayDisplayState {
+                    case .noPlan:
+                        emptyState
+                    case .restDay:
+                        restDayContent
+                    case .gym:
+                        if let plan = viewModel.todayPlan {
+                            workoutContent(plan: plan)
+                        }
+                    case .nonGym:
+                        // Non-gym training day (football, run, sprint,
+                        // conditioning) — no exercises to log, so show a
+                        // type-appropriate card instead of empty gym content.
+                        if let plan = viewModel.todayPlan {
+                            nonGymContent(plan: plan)
+                        }
+                    }
+                }
+
+                // Fix #6 — "Missed <session> — do it today?" (fixed-mode
+                // only; renders nothing when there's nothing missed).
+                // See MissedTrainerSessionCard.swift.
+                if !showsBedtimeCard(showSessionAnyway: showSessionTonight) {
+                    // Pause/travel-pain feature — must render even (especially)
+                    // while `activePause` is nil, so a fixed-mode pause's
+                    // resume decision is never silently skipped. See
+                    // WelcomeBackResumeCard.swift.
+                    WelcomeBackResumeCard(viewModel: viewModel)
+
+                    MissedTrainerSessionCard(viewModel: viewModel)
+
+                    // Weekly-upload feature — "New week — upload …"
+                    // (renders nothing when nothing's due, or the active
+                    // program isn't weekly). See WeeklyUploadPromptCard.swift.
+                    WeeklyUploadPromptCard(viewModel: viewModel)
+                }
+
+                // Suggestions and rituals sit BELOW today's work — the
+                // exercise list is what this screen is for.
+                // §18.4 — calendar-detected football, confirm-gated.
+                // Renders nothing when there's nothing to propose.
+                MatchProposalCard()
+
+                // D4 §17 — month-boundary review card, on every day type
+                // (the month ends whether today is gym, field, or rest).
+                if let dueKey = viewModel.monthlyReviewDueKey {
+                    monthlyReviewCard(dueKey)
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s6)
         }
         .tidePage(energy: 1)
         .scrollEdgeEffectStyle(.soft, for: .all)
@@ -440,17 +440,15 @@ struct TodayWorkoutView: View {
             // Workout type header
             workoutHeader(plan: plan)
 
+            // The hero of the day: time, exercises, sets as a lit ring, and
+            // how recovery shaped it (the recovery zone + deload line).
+            // Per MODULE_TRAINING.md Section 2.5/2.6
+            dayHero(plan: plan)
+
             // D2 — the daily readiness prescription (supersedes the legacy
-            // pendingAdjustment card). Modality + intensity + why + blocks/cues,
-            // with recovery zone + deload folded in as its status line.
-            if let session = viewModel.dailySession, !session.userOverrode {
-                dailySessionCard(session, statusPlan: plan)
-            } else {
-                if let session = viewModel.dailySession {
-                    dailySessionCard(session)
-                }
-                recoveryStatusLine(plan: plan)
-                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            // pendingAdjustment card). Modality + intensity + why + blocks/cues.
+            if let session = viewModel.dailySession {
+                dailySessionCard(session)
             }
 
             // Benched for recovery/pain: no Start button — an explicit,
@@ -458,10 +456,6 @@ struct TodayWorkoutView: View {
             if viewModel.isRecoveryBenched {
                 benchedCard
             }
-
-            // Workout meta bar
-            // Per MODULE_TRAINING.md Section 2.6
-            workoutMeta(plan: plan)
 
             // Exercise list
             // Per MODULE_TRAINING.md Section 2.7
@@ -503,45 +497,27 @@ struct TodayWorkoutView: View {
 
     // MARK: - Workout Header
 
+    @ViewBuilder
     private func workoutHeader(plan: WorkoutPlan) -> some View {
         // The title lives in the screen header. Only while it's still a lifting
         // day — if recovery eased it to rest/mobility, the session card
         // explains; no trainer badge.
-        Group {
-            if plan.programSessionKey != nil, plan.type.isGymWorkout {
-                Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
-                    .font(Tide.caption)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel("From your trainer's program: \(plan.notes ?? "session")")
-            }
+        if plan.programSessionKey != nil, plan.type.isGymWorkout {
+            Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
+                .font(Tide.caption)
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel("From your trainer's program: \(plan.notes ?? "session")")
         }
     }
 
     // MARK: - Benched (recovery floor / pain)
 
     private var benchedCard: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                Image(systemName: "bed.double.fill")
-                    .foregroundStyle(Tide.danger)
-                Text("Benched today")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-            }
-            Text("Your body called it. Today is recovery — walk, stretch, sleep. Doesn't count as a missed day.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-            Button {
-                HapticManager.impact(.medium)
-                viewModel.trainAnyway(modelContext: modelContext)
-            } label: {
-                Text("Train anyway")
-            }
-            .buttonStyle(.tideGlass)
-            .accessibilityHint("Reopens today's workout so you can start it.")
+        TrainBenchedCard {
+            HapticManager.impact(.medium)
+            viewModel.trainAnyway(modelContext: modelContext)
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - Recovery / Deload Status Line
@@ -584,7 +560,9 @@ struct TodayWorkoutView: View {
                         recovery
                     }
                     adjustment
-                    if viewModel.isDeloadWeek { deload }
+                    if viewModel.isDeloadWeek {
+                        deload
+                    }
                 }
             }
             .font(Tide.caption)
@@ -601,42 +579,49 @@ struct TodayWorkoutView: View {
 
     // MARK: - Daily Session Card (D2 — the readiness prescription)
 
-    /// `statusPlan` — gym days pass today's plan to show the recovery/deload
-    /// status line at the top of the card.
     @ViewBuilder
-    private func dailySessionCard(_ session: DailySession, statusPlan: WorkoutPlan? = nil) -> some View {
+    private func dailySessionCard(_ session: DailySession) -> some View {
         if session.userOverrode {
             // §8 connect — he declined the brain's move. One honest line; the
             // plan row (restored) is the day again.
             HStack(spacing: Tide.s2) {
                 Image(systemName: "exclamationmark.triangle")
                     .foregroundStyle(TideTrain.caution)
+                    .accessibilityHidden(true)
                 Text(
                     "Coach called \(session.modality). You kept \(viewModel.todayPlan?.type.displayName ?? "the plan"). Your call."
                 )
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
-                Spacer()
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         } else {
-            dailySessionCardBody(session, statusPlan: statusPlan)
+            dailySessionCardBody(session)
         }
     }
 
-    private func dailySessionCardBody(_ session: DailySession, statusPlan: WorkoutPlan?) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            if let statusPlan {
-                recoveryStatusLine(plan: statusPlan)
-            }
-
-            HStack {
+    private func dailySessionCardBody(_ session: DailySession) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // What the coach decided, and how hard: the word and a lit bar.
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Text("Today's call").tideLabel()
+                    Spacer(minLength: Tide.s2)
+                    TrainTag(text: session.intensity.rawValue.capitalized, color: intensityColor(session.intensity))
+                }
                 Text(session.modality.capitalized)
-                    .font(Tide.headline)
+                    .font(Tide.title2)
                     .foregroundStyle(Tide.text)
-                Spacer()
-                TrainTag(text: session.intensity.rawValue.capitalized, color: intensityColor(session.intensity))
+                    .fixedSize(horizontal: false, vertical: true)
+                TideLevelBar(
+                    progress: intensityLevel(session.intensity),
+                    color: intensityColor(session.intensity),
+                    height: Tide.bar
+                )
             }
+            .accessibilityElement(children: .combine)
 
             // Floor provenance — honest about how this was produced.
             if session.wasDowngraded || session.source != .brain {
@@ -782,6 +767,17 @@ struct TodayWorkoutView: View {
         }
     }
 
+    /// How full the intensity bar is: recovery at the bottom, max at the top.
+    private func intensityLevel(_ intensity: SessionIntensity) -> Double {
+        switch intensity {
+        case .recovery: 0.2
+        case .easy: 0.4
+        case .moderate: 0.6
+        case .hard: 0.8
+        case .max: 1.0
+        }
+    }
+
     private func sessionProvenance(_ session: DailySession) -> String {
         if session.wasDowngraded {
             return "Adjusted for recovery — body data wins."
@@ -798,33 +794,10 @@ struct TodayWorkoutView: View {
     // Per build done_when #16 — non-blocking suggestion banner.
 
     private func workoutWindowBanner(_ window: DateInterval) -> some View {
-        HStack(spacing: Tide.s2) {
-            Image(systemName: "calendar.badge.clock")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Color.accentColor)
-
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Best window today").tideLabel(Tide.text2)
-
-                Text("\(timeString(window.start)) – \(timeString(window.end))")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-            }
-
-            Spacer()
-
-            Button {
-                showAddToCalendar = true
-                HapticManager.selection()
-            } label: {
-                Text("Add to Calendar")
-                    .font(Tide.caption)
-            }
-            .buttonStyle(.trainBanner())
-            .fixedSize()
+        TrainWindowCard(start: window.start, end: window.end) {
+            showAddToCalendar = true
+            HapticManager.selection()
         }
-        .tideCard(padding: Tide.s3, radius: Tide.controlRadius)
-        .trainSessionOutline(Color.accentColor, radius: Tide.controlRadius)
     }
 
     // MARK: - Workout Countdown Banner
@@ -834,23 +807,7 @@ struct TodayWorkoutView: View {
     // once-a-minute countdown `.task`. Clears itself when the start passes.
 
     private func workoutCountdownBanner(_ event: DateInterval) -> some View {
-        HStack(spacing: Tide.s2) {
-            Image(systemName: "figure.run")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Color.accentColor)
-
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Next workout").tideLabel(Tide.text2)
-
-                Text("Gym in \(countdownString(to: event.start)) — \(timeString(event.start))")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-            }
-
-            Spacer()
-        }
-        .tideCard(padding: Tide.s3, radius: Tide.controlRadius)
-        .trainSessionOutline(Color.accentColor, radius: Tide.controlRadius)
+        TrainCountdownCard(title: "Gym in \(countdownString(to: event.start)) — \(timeString(event.start))")
     }
 
     /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
@@ -872,101 +829,68 @@ struct TodayWorkoutView: View {
         date.formatted(.dateTime.hour().minute())
     }
 
-    // MARK: - Workout Meta
+    // MARK: - Day Hero
 
-    // Per MODULE_TRAINING.md Section 2.6
+    // Per MODULE_TRAINING.md Section 2.6 — what today is, as one figure: the
+    // time, the exercises, the sets as a lit ring, and how recovery shaped it.
 
-    private func workoutMeta(plan: WorkoutPlan) -> some View {
-        let duration = HStack(spacing: Tide.hair) {
-            Image(systemName: "timer")
-                .font(Tide.caption)
-            // Done day: the real duration, and what was actually done vs
-            // planned — not the plan's estimate ("~0 min · 6 exercises").
-            Text(plan.status == .completed
-                ? "\(max(1, plan.durationMinutes ?? 0)) min"
-                : "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min")
-                .font(Tide.caption)
+    private func dayHero(plan: WorkoutPlan) -> some View {
+        // Done day: the real duration, and what was actually done vs
+        // planned — not the plan's estimate ("~0 min · 6 exercises").
+        let isDone = plan.status == .completed
+        let total = plan.orderedExercises.count
+        let minutes = isDone ? max(1, plan.durationMinutes ?? 0) : (plan.durationMinutes ?? estimatedDuration(plan: plan))
+        var muscles: [String] = []
+        for planned in plan.orderedExercises {
+            if let name = planned.exercise?.muscleGroup.displayName, !muscles.contains(name) {
+                muscles.append(name)
+            }
         }
-        .foregroundStyle(Tide.text2)
+        return TrainDayHero(
+            label: isDone ? "Time" : "Estimated time",
+            figure: "\(minutes)",
+            unit: "min",
+            stats: [.init(value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)", label: "exercises")],
+            chips: Array(muscles.prefix(4))
+        ) {
+            TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)
+        } footer: {
+            recoveryStatusLine(plan: plan)
+        }
+    }
 
-        let exercises = Text(plan.status == .completed
-            ? "\(plan.performedExerciseCount)/\(plan.orderedExercises.count) exercises"
-            : "\(plan.orderedExercises.count) exercises")
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-
-        let sets = Text(plan.status == .completed
-            ? "\(plan.completedSets)/\(plan.totalSets) sets"
-            : "\(plan.totalSets) sets")
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-
-        // §2.15 — reorder entry point. Planned days only: mid-session
-        // reordering would fight currentExerciseIndex, and a completed
-        // day's order is history.
+    /// "Exercises" over the list, with the reorder entry point (§2.15) at its
+    /// end. Planned days only: mid-session reordering would fight
+    /// currentExerciseIndex, and a completed day's order is history.
+    private func exercisesHeader(plan: WorkoutPlan) -> some View {
         let showsReorder = plan.status == .planned && plan.orderedExercises.count > 1
-        let reorder = Button {
-            showReorderSheet = true
-            HapticManager.selection()
-        } label: {
-            HStack(spacing: Tide.hair) {
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(Tide.label)
-                Text("Reorder")
-                    .font(Tide.caption)
-            }
-            .foregroundStyle(TideTrain.caution)
-            .frame(minHeight: Tide.hit)
-            .contentShape(.rect)
-        }
-
-        // One row when it fits; stacked at the biggest Dynamic Type sizes so
-        // nothing breaks mid-word.
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: Tide.s2) {
-                duration
-                Text("·").foregroundStyle(Tide.text3)
-                exercises
-                Text("·").foregroundStyle(Tide.text3)
-                sets
-                Spacer(minLength: Tide.s2)
-                if showsReorder { reorder }
-            }
-            VStack(alignment: .leading, spacing: Tide.s1) {
-                duration
-                exercises
-                sets
-                if showsReorder { reorder }
+        return HStack(alignment: .center, spacing: Tide.s2) {
+            Text("Exercises")
+                .tideLabel()
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Tide.s2)
+            if showsReorder {
+                Button {
+                    showReorderSheet = true
+                    HapticManager.selection()
+                } label: {
+                    Label("Reorder", systemImage: "arrow.up.arrow.down")
+                        .font(Tide.caption)
+                        .foregroundStyle(TideTrain.caution)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tide.s1)
     }
 
     // MARK: - Monthly Review Card (D4 §17 — the month-boundary ritual)
 
     private func monthlyReviewCard(_ monthKey: String) -> some View {
-        Button {
+        TrainMonthlyReviewCard {
             activeReviewKey = monthKey
             showMonthlyReview = true
-        } label: {
-            HStack(spacing: Tide.s3) {
-                Image(systemName: "checklist.checked")
-                    .font(Tide.headline)
-                    .foregroundStyle(Color.accentColor)
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text("Month's over. Debrief.")
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                    Text("5 questions, then your report. 2 minutes.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -979,77 +903,48 @@ struct TodayWorkoutView: View {
     @ViewBuilder
     private func sessionRPESection(plan: WorkoutPlan) -> some View {
         if plan.status == .completed {
-            if let logged = plan.sessionRPE {
-                HStack(spacing: Tide.s2) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.accentColor)
-                    Text("Session RPE logged: \(logged)/10")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                    Spacer()
-                }
-                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            } else {
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    Text("How hard was that?").tideLabel(Tide.text3)
-                    Text("Whole session. 1 = nothing, 10 = max effort.")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                    sessionRPERow(1 ... 5)
-                    sessionRPERow(6 ... 10)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            }
-        }
-    }
-
-    private func sessionRPERow(_ range: ClosedRange<Int>) -> some View {
-        HStack(spacing: Tide.s2) {
-            ForEach(range, id: \.self) { value in
-                Button {
-                    HapticManager.selection()
-                    viewModel.recordSessionRPE(value, modelContext: modelContext)
-                } label: {
-                    Text("\(value)")
-                        .font(Tide.headline)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: Tide.hit)
-                        .foregroundStyle(Tide.text)
-                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-                        .contentShape(.rect)
-                }
+            TrainRPECard(logged: plan.sessionRPE) { value in
+                viewModel.recordSessionRPE(value, modelContext: modelContext)
             }
         }
     }
 
     // MARK: - Exercise List
 
-    // Per MODULE_TRAINING.md Section 2.7
+    // Per MODULE_TRAINING.md Section 2.7 — one card, one row per exercise
+    // (picture, name, prescription), so the whole session reads at a glance.
+    // Supersets and circuits share a rail.
 
     private func exerciseList(plan: WorkoutPlan) -> some View {
         let exercises = plan.orderedExercises
         let groups = groupedBySupersets(exercises)
 
-        return VStack(spacing: Tide.s2) {
-            ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                if group.count > 1 {
-                    // Superset/circuit group: shared card with connecting indicator
-                    supersetCard(
-                        exercises: group,
-                        startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0,
-                        allExercises: exercises
-                    )
-                } else if let single = group.first {
-                    let idx = (exercises.firstIndex(where: { $0.id == single.id }) ?? 0)
-                    exerciseCard(index: idx + 1, plannedExercise: single, allExercises: exercises)
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            exercisesHeader(plan: plan)
+
+            TrainListCard {
+                ForEach(Array(groups.enumerated()), id: \.offset) { position, group in
+                    if position > 0 {
+                        TrainPlanDivider()
+                    }
+                    if group.count > 1 {
+                        // Superset/circuit group: shared rail with connecting indicator
+                        supersetCard(
+                            exercises: group,
+                            startIndex: exercises.firstIndex(where: { $0.id == group[0].id }) ?? 0,
+                            allExercises: exercises
+                        )
+                    } else if let single = group.first {
+                        let idx = (exercises.firstIndex(where: { $0.id == single.id }) ?? 0)
+                        exerciseCard(index: idx + 1, plannedExercise: single, allExercises: exercises)
+                    }
                 }
             }
 
-            // §2.14 — dashed add-exercise entry point (wireframe Screen 11).
+            // §2.14 — add-exercise entry point (wireframe Screen 11).
             if plan.status == .planned || plan.status == .inProgress {
                 addExerciseButton
+                    .padding(.top, Tide.s2)
             }
 
             // My routines — run your own program today, or keep this one.
@@ -1060,35 +955,39 @@ struct TodayWorkoutView: View {
     }
 
     private var routineButtons: some View {
-        HStack(spacing: Tide.s4) {
-            Button {
-                showRoutines = true
-            } label: {
-                Label("Use a routine", systemImage: "list.bullet.rectangle")
-            }
-            Spacer()
-            Button {
-                routineName = ""
-                showSaveRoutine = true
-            } label: {
-                Label("Save as routine", systemImage: "square.and.arrow.down")
-            }
-        }
-        .font(Tide.bodyStrong)
-        .foregroundStyle(Tide.text2)
-        .buttonStyle(.plain)
-        .frame(minHeight: Tide.hit)
-        .padding(.horizontal, Tide.s1)
-    }
-
-    private var addExerciseButton: some View {
-        Button {
-            showAddExercise = true
+        let use = Button {
+            showRoutines = true
         } label: {
-            Label("Add exercise", systemImage: "plus")
+            Label("Use a routine", systemImage: "list.bullet.rectangle")
+                .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tideGlass)
+        let save = Button {
+            routineName = ""
+            showSaveRoutine = true
+        } label: {
+            Label("Save as routine", systemImage: "square.and.arrow.down")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                use
+                save
+            }
+            VStack(spacing: Tide.s2) {
+                use
+                save
+            }
+        }
+    }
+
+    private var addExerciseButton: some View {
+        TrainPlanAddButton(title: "Add exercise") {
+            showAddExercise = true
+        }
     }
 
     /// §2.13 — a slot can swap while nothing on it is logged yet; completed
@@ -1136,47 +1035,41 @@ struct TodayWorkoutView: View {
 
     private func supersetCard(exercises: [PlannedExercise], startIndex: Int, allExercises: [PlannedExercise]) -> some View {
         // §6.3 — a group of 2 is a superset, 3+ is a circuit. Same shared
-        // card either way; only the badge word changes.
+        // block either way; only the badge word changes.
         let isCircuit = exercises.count > 2
-        return VStack(spacing: 0) {
+        return VStack(alignment: .leading, spacing: 0) {
             // Superset/circuit header badge
             HStack(spacing: Tide.hair) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(Tide.label)
+                    .accessibilityHidden(true)
                 Text(isCircuit ? "Circuit" : "Superset")
                     .font(Tide.bodyStrong)
             }
             .foregroundStyle(Color.accentColor)
-            .padding(.horizontal, Tide.s2)
-            .padding(.vertical, Tide.s1)
+            .padding(.horizontal, Tide.s4)
+            .padding(.top, Tide.s3)
 
-            // Exercise cards with connecting line
-            ForEach(Array(exercises.enumerated()), id: \.element.id) { idx, plannedEx in
-                HStack(spacing: Tide.s2) {
-                    // Vertical connecting line
-                    VStack(spacing: 0) {
-                        Rectangle()
-                            .fill(idx == 0 ? Color.clear : Color.accentColor.opacity(TideTrainSession.outlineOpacity))
-                            .frame(width: TideTrainSession.rail)
-
-                        Circle()
-                            .fill(Color.accentColor)
-                            .frame(width: TideTrainSession.dot, height: TideTrainSession.dot)
-
-                        Rectangle()
-                            .fill(idx == exercises.count - 1 ? Color.clear : Color.accentColor.opacity(TideTrainSession.outlineOpacity))
-                            .frame(width: TideTrainSession.rail)
+            // The rows, joined by a rail in the accent.
+            HStack(alignment: .top, spacing: 0) {
+                Capsule()
+                    .fill(Color.accentColor.opacity(TideTrainSession.outlineOpacity))
+                    .frame(width: TideTrain.groupRail)
+                    .padding(.leading, Tide.s4)
+                    .padding(.vertical, Tide.s2)
+                VStack(spacing: 0) {
+                    ForEach(Array(exercises.enumerated()), id: \.element.id) { idx, plannedEx in
+                        if idx > 0 {
+                            TrainPlanDivider()
+                                .padding(.horizontal, Tide.s4)
+                        }
+                        exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx, allExercises: allExercises)
                     }
-                    .frame(width: TideTrainSession.dot)
-
-                    // Exercise card content
-                    exerciseCard(index: startIndex + idx + 1, plannedExercise: plannedEx, allExercises: allExercises)
                 }
             }
         }
-        .padding(Tide.s1)
-        .background(Tide.fill, in: .rect(cornerRadius: Tide.cardRadius))
-        .trainSessionOutline(Color.accentColor, radius: Tide.cardRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(TideTrainSession.zoneBandOpacity / 2))
     }
 
     private func exerciseCard(index: Int, plannedExercise: PlannedExercise, allExercises: [PlannedExercise]) -> some View {
@@ -1185,9 +1078,9 @@ struct TodayWorkoutView: View {
                 NavigationLink(destination: ExerciseDetailView(exercise: exercise)) {
                     exerciseCardRow(exercise: exercise, index: index, plannedExercise: plannedExercise)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.trainRow)
             } else {
-                exerciseCardContent(index: index, plannedExercise: plannedExercise)
+                exerciseCardRow(exercise: nil, index: index, plannedExercise: plannedExercise)
             }
         }
         // §2.13 — long-press swap (TESTING_STRATEGY UT-005 / M-T-008).
@@ -1239,18 +1132,14 @@ struct TodayWorkoutView: View {
         return allExercises[idx + 1]
     }
 
-    /// Not private: TodayWorkoutView+Thumbnail.swift (exerciseCardRow) calls
-    /// this from a separate file to keep this already-near-the-cap file from
+    /// The text of one exercise row (the picture and the number sit beside it,
+    /// see TodayWorkoutView+Thumbnail.swift). Not private: that extension, in a
+    /// separate file, calls this to keep this already-near-the-cap file from
     /// growing further — same convention as TodayWorkoutView+Equipment.swift.
-    func exerciseCardContent(index: Int, plannedExercise: PlannedExercise) -> some View {
+    func exerciseCardContent(plannedExercise: PlannedExercise) -> some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            // Row 1: Number + Name + pain caution + chevron
-            HStack(spacing: Tide.s2) {
-                Text("\(index)")
-                    .font(TideTrain.figure(.footnote))
-                    .foregroundStyle(Tide.text3)
-                    .frame(minWidth: Tide.s4, alignment: .leading)
-
+            // Line 1: name + pain caution + chevron
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text(plannedExercise.exercise?.name ?? "Exercise")
                     .accessibilityLabel((plannedExercise.exercise?.name ?? "Exercise").uppercased())
                     .font(Tide.headline)
@@ -1277,7 +1166,7 @@ struct TodayWorkoutView: View {
                     .accessibilityHidden(true)
             }
 
-            // Row 2: Sets x Reps @ Weight
+            // Line 2: Sets x Reps @ Weight, in figures.
             // §5 fix — `.orderedSets` (setNumber-sorted), NOT the raw `.sets`
             // relationship array: SwiftData doesn't guarantee that array's
             // order matches setNumber, and prescriptionText's "first working
@@ -1286,13 +1175,14 @@ struct TodayWorkoutView: View {
             // instead of the calibration copy is exactly this bug.
             let orderedSets = plannedExercise.orderedSets
             if let firstSet = orderedSets.first {
-                HStack(spacing: Tide.hair) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     Text(prescriptionText(
                         sets: orderedSets, firstSet: firstSet,
                         isTrainerDay: plannedExercise.workoutPlan?.programSessionKey != nil, perSide: plannedExercise.perSide
                     ))
-                    .font(Tide.body)
+                    .font(TideTrain.figure(.subheadline, weight: .medium))
                     .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                     // Progressive overload indicator
                     if let notes = plannedExercise.workoutPlan?.notes,
@@ -1305,10 +1195,23 @@ struct TodayWorkoutView: View {
                 }
             }
 
-            // Intensity zone and muscle group, as small tags. §11.12 — the zone
-            // (HEAVY/BUILD/PUMP) is recovered from the rep target; only
+            // Once the session has started, one tick per working set.
+            if plannedExercise.workoutPlan?.status != .planned {
+                let working = plannedExercise.orderedSets.filter { !$0.isWarmup }
+                if !working.isEmpty {
+                    TrainSetTicks(done: working.filter(\.completed).count, total: working.count)
+                        .padding(.vertical, Tide.hair)
+                }
+            }
+
+            // Line 3: intensity zone, muscle group and equipment. §11.12 — the
+            // zone (HEAVY/BUILD/PUMP) is recovered from the rep target; only
             // e1RM-anchored prescriptions carry RIR, so gate on that to avoid
             // mislabeling legacy 8/12 fallbacks.
+            let metaParts = [
+                plannedExercise.exercise?.muscleGroup.displayName,
+                plannedExercise.exercise.map { equipmentHint($0.equipment) },
+            ].compactMap(\.self)
             HStack(spacing: Tide.s2) {
                 if let firstWorking = plannedExercise.orderedSets.first(where: { !$0.isWarmup }),
                    firstWorking.targetRIR != nil
@@ -1316,8 +1219,11 @@ struct TodayWorkoutView: View {
                     let zone = PrescriptionMath.zoneLabel(forReps: firstWorking.targetReps)
                     TrainTag(text: zone.capitalized, color: zone == "HEAVY" ? Color.accentColor : TideTrain.caution)
                 }
-                if let muscleGroup = plannedExercise.exercise?.muscleGroup {
-                    TrainTag(text: muscleGroup.displayName)
+                if !metaParts.isEmpty {
+                    Text(metaParts.joined(separator: " · "))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .lineLimit(1)
                 }
             }
 
@@ -1351,43 +1257,31 @@ struct TodayWorkoutView: View {
             // instead for the sets still to come today.
             trainerAdjustmentRow(plannedExercise)
 
-            // Row 3: Last 3 sessions' performance with trend indicator
+            // Line 4: Last 3 sessions' performance with trend indicator
             if let exercise = plannedExercise.exercise {
                 let recentSessions = lastThreePerformances(for: exercise)
                 if !recentSessions.isEmpty {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        HStack(spacing: Tide.hair) {
-                            Text("Recent:")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text3)
-
-                            // Trend indicator
-                            let trend = performanceTrend(sessions: recentSessions)
-                            Text(trend.symbol)
-                                .font(Tide.label)
-                                .foregroundStyle(trend.color)
-                        }
-
-                        // Last 3 best sets
-                        HStack(spacing: Tide.s2) {
-                            ForEach(Array(recentSessions.enumerated()), id: \.offset) { idx, session in
-                                Text(bestSetSummary(history: session))
-                                    .font(Tide.label)
-                                    .foregroundStyle(idx == 0 ? Tide.text2 : Tide.text3)
-                            }
+                    let trend = performanceTrend(sessions: recentSessions)
+                    HStack(spacing: Tide.s1) {
+                        Text("Recent")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                        Text(trend.symbol)
+                            .font(TideTrain.figure(.caption, weight: .bold))
+                            .foregroundStyle(trend.color)
+                        ForEach(Array(recentSessions.enumerated()), id: \.offset) { idx, session in
+                            Text(bestSetSummary(history: session))
+                                .font(TideTrain.figure(.caption))
+                                .foregroundStyle(idx == 0 ? Tide.text2 : Tide.text3)
+                                .lineLimit(1)
                         }
                     }
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
                 }
             }
-
-            // Row 4: Equipment hint
-            if let equipment = plannedExercise.exercise?.equipment {
-                Text(equipmentHint(equipment))
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text3)
-            }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // trainerAdjustmentRow (§4) moved to TodayWorkoutView+TrainerAdjustment.swift
@@ -1419,7 +1313,7 @@ struct TodayWorkoutView: View {
     // Per MODULE_TRAINING.md Section 2.10
 
     private var restDayContent: some View {
-        VStack(spacing: Tide.s5) {
+        VStack(spacing: Tide.s4) {
             // §8 connect — a brain-reshaped rest day (planned pool → rest)
             // renders THIS content, so the prescription's why + the "keep
             // planned workout" override must live here too, not just on
@@ -1428,37 +1322,16 @@ struct TodayWorkoutView: View {
                 dailySessionCard(session)
             }
 
-            VStack(spacing: Tide.s4) {
-                TideIconTile(
-                    systemName: "figure.yoga",
-                    tint: TideTrain.positive,
-                    size: TideTrainSession.stateTile
-                )
-
-                Text("Your body builds muscle while you rest.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let nextType = nextWorkoutType {
-                    TrainSessionRule()
-                    VStack(spacing: Tide.hair) {
-                        Text("Next workout: Tomorrow")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                        Text(nextType)
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-
+            TrainDayCard(
+                label: "Rest day",
+                symbol: "figure.yoga",
+                tint: TideTrain.positive,
+                title: "Your body builds muscle while you rest.",
+                tomorrow: nextWorkoutType
+            ) {
                 // Mobility flow button
                 mobilityFlowButton
             }
-            .frame(maxWidth: .infinity)
-            .tideCard(padding: Tide.s5)
         }
         .padding(.top, Tide.s3)
     }
@@ -1479,50 +1352,21 @@ struct TodayWorkoutView: View {
     /// run, sprint, conditioning. These have no exercises/sets to log, so there
     /// is no "Start Workout" button; this card just tells the user what today is.
     private func nonGymContent(plan: WorkoutPlan) -> some View {
-        // §11.7 — compact: the old xxl spacing + top spacer + 60pt icon pushed
-        // half the content below the fold; one screen, no dead air.
-        VStack(spacing: Tide.s3) {
-            // Day header as one compact row: icon + type + date.
-            let header = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
-                : AnyLayout(HStackLayout(spacing: Tide.s2))
-            header {
-                HStack(spacing: Tide.s2) {
-                    Image(systemName: nonGymIcon(for: plan.type))
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text2)
-                        .accessibilityHidden(true)
-                    Text(plan.type.displayName)
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !typeSize.isAccessibilitySize {
-                    Spacer()
-                }
-                if let nextType = nextWorkoutType {
-                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: 0) {
-                        Text("Tomorrow").tideLabel()
-                        Text(nextType)
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
-                    }
-                }
-            }
-            .padding(.horizontal, Tide.s4)
-            .padding(.top, Tide.s2)
-
-            Text(nonGymMessage(for: plan.type))
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, Tide.s4)
+        // §11.7 — compact: one screen, no dead air. The day first (what it is
+        // and what tomorrow is), then what to do, then the way to log it.
+        VStack(spacing: Tide.s4) {
+            TrainDayCard(
+                label: "Today",
+                symbol: nonGymIcon(for: plan.type),
+                title: plan.type.displayName,
+                message: nonGymMessage(for: plan.type),
+                tomorrow: nextWorkoutType
+            ) {}
 
             // Trainer program: the coach's own conditioning session, block by block.
             let trainerDay = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext)
             if let trainerDay {
                 trainerSessionCard(trainerDay, heading: "Your trainer's session", plan: plan, key: plan.programSessionKey)
-                    .padding(.horizontal, Tide.s4)
             }
 
             // §16 — venue propose-confirm, same placement as the gym path.
@@ -1540,18 +1384,6 @@ struct TodayWorkoutView: View {
             // flow's completion marks the day done through the non-gym path).
             if plan.type == .mobility, plan.status != .completed {
                 mobilityFlowButton
-                    .padding(.horizontal, Tide.s4)
-            }
-
-            // §13 — running days link to the run history (HealthKit-mirrored
-            // distance/pace/splits).
-            if plan.type == .run || plan.type == .sprint || plan.type == .conditioning {
-                NavigationLink(destination: RunHistoryView()) {
-                    Label("Past runs", systemImage: "clock.arrow.circlepath")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-                .padding(.horizontal, Tide.s4)
             }
 
             // The actual cross-training prescription (what to DO), so a cardio
@@ -1560,9 +1392,11 @@ struct TodayWorkoutView: View {
             // DailySession card above, defer to it — don't show two prescriptions.
             if trainerDay == nil, viewModel.dailySession == nil, let rx = cardioPrescription(for: plan) {
                 VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Today's prescription").tideLabel()
                     Text(rx.headline)
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(rx.detail)
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
@@ -1570,7 +1404,6 @@ struct TodayWorkoutView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard(padding: Tide.s4)
-                .padding(.horizontal, Tide.s4)
             }
 
             // Whoop activity confirm / saved summary. With a trainer session
@@ -1578,6 +1411,16 @@ struct TodayWorkoutView: View {
             // the bare manual button is left out (a found Whoop activity
             // still asks to confirm).
             nonGymActivitySection(plan: plan, hasTrainerSession: trainerDay != nil)
+
+            // §13 — running days link to the run history (HealthKit-mirrored
+            // distance/pace/splits).
+            if plan.type == .run || plan.type == .sprint || plan.type == .conditioning {
+                NavigationLink(destination: RunHistoryView()) {
+                    Label("Past runs", systemImage: "clock.arrow.circlepath")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+            }
 
             // §14 #3 — one-tap session RPE, only after completion.
             sessionRPESection(plan: plan)
@@ -1592,8 +1435,14 @@ struct TodayWorkoutView: View {
     private func nonGymActivitySection(plan: WorkoutPlan, hasTrainerSession: Bool) -> some View {
         switch viewModel.nonGymActivityState {
         case .loading:
-            ProgressView()
-                .padding(.top, Tide.s3)
+            HStack(spacing: Tide.s3) {
+                ProgressView()
+                Text("Checking for today's activity")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                Spacer(minLength: 0)
+            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
         case let .foundTagged(summary):
             VStack(spacing: Tide.s3) {
@@ -1605,21 +1454,22 @@ struct TodayWorkoutView: View {
             }
 
         case let .foundUntagged(summary):
-            VStack(spacing: Tide.s3) {
-                Text("Found an activity today — was this \(plan.type.displayName.lowercased())?")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-                    .multilineTextAlignment(.center)
+            VStack(spacing: Tide.s2) {
                 activityStatsRow(summary)
+                Text("Found an activity today — was this \(plan.type.displayName.lowercased())?")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Tide.s2)
                 confirmButton(title: "Yes, log it", summary: summary)
                 Button {
                     HapticManager.impact(.light)
                     viewModel.dismissNonGymActivity()
                 } label: {
                     Text("No — that wasn't \(plan.type.displayName.lowercased())")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text3)
                 }
+                .buttonStyle(.trainQuiet)
             }
 
         case .none,
@@ -1632,34 +1482,44 @@ struct TodayWorkoutView: View {
             }
 
         case let .saved(summary):
-            VStack(spacing: Tide.s2) {
-                HStack(spacing: Tide.s1) {
+            VStack(spacing: Tide.s3) {
+                HStack(spacing: Tide.s2) {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(TideTrain.positive)
                     Text("Logged")
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                 }
+                .frame(maxWidth: .infinity, minHeight: Tide.fieldHeight)
+                .background(TideTrain.positive.opacity(TideTrainSession.zoneBandOpacity), in: .capsule)
+                .accessibilityElement(children: .combine)
                 if let summary {
                     activityStatsRow(summary)
                 }
             }
-            .padding(.top, Tide.s3)
         }
     }
 
+    /// Strain, time, heart rate and calories from the found activity, in one card.
     private func activityStatsRow(_ s: TrainingViewModel.WhoopActivitySummary) -> some View {
-        VStack(spacing: Tide.s2) {
-            HStack(spacing: Tide.s4) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: Tide.s3, alignment: .leading),
+                    count: typeSize.isAccessibilitySize ? 1 : 4
+                ),
+                alignment: .leading,
+                spacing: Tide.s3
+            ) {
                 activityStat(value: String(format: "%.1f", s.strain), label: "Strain")
-                activityStat(value: "\(Int(s.durationMinutes))m", label: "Duration")
-                activityStat(value: "\(Int(s.averageHeartRate))", label: "Avg HR")
-                activityStat(value: "\(Int(s.caloriesBurned))", label: "Cal")
+                activityStat(value: "\(Int(s.durationMinutes))", unit: "min", label: "Duration")
+                activityStat(value: "\(Int(s.averageHeartRate))", unit: "bpm", label: "Avg HR")
+                activityStat(value: "\(Int(s.caloriesBurned))", unit: "kcal", label: "Cal")
             }
             sweatHydrationNote(s)
         }
-        .padding(.horizontal, Tide.s3)
-        .padding(.vertical, Tide.s3).tideCard(padding: 0, radius: Tide.tileRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     /// Estimated sweat loss + hydration guidance from the same HydrationMath
@@ -1672,14 +1532,15 @@ struct TodayWorkoutView: View {
             durationMinutes: s.durationMinutes
         ) {
             let needsElectrolytes = HydrationMath.needsElectrolytes(range.lowerBound)
-            VStack(spacing: Tide.hair) {
-                HStack(spacing: Tide.s1) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     Image(systemName: "drop.fill")
                         .font(Tide.label)
                         .foregroundStyle(Tide.water)
                     Text(String(format: "~%.1f–%.1f L lost — drink to replace", range.lowerBound, range.upperBound))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if needsElectrolytes {
                     Text("Add electrolytes, not just water.")
@@ -1687,19 +1548,17 @@ struct TodayWorkoutView: View {
                         .foregroundStyle(Tide.text3)
                 }
             }
-            .padding(.top, Tide.hair)
         }
     }
 
-    private func activityStat(value: String, label: String) -> some View {
-        VStack(spacing: Tide.hair) {
-            Text(value)
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
+    private func activityStat(value: String, unit: String? = nil, label: String) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            TideNumber(value, unit: unit, size: Tide.numeralS, relativeTo: .title3)
             Text(label)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func confirmButton(
@@ -1713,7 +1572,6 @@ struct TodayWorkoutView: View {
             Text(title)
         }
         .buttonStyle(.tidePrimary)
-        .padding(.top, Tide.s2)
     }
 
     /// Fix #7 — shared by both TrainerSessionCard call sites (main session +
@@ -1796,18 +1654,7 @@ struct TodayWorkoutView: View {
     // MARK: - Loading State
 
     private var loadingState: some View {
-        VStack(spacing: Tide.s4) {
-            ProgressView()
-                .controlSize(.large)
-            Text("Generating your workout...")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-        }
-        .tideCard(padding: Tide.s5)
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        TrainSkeleton()
     }
 
     // MARK: - Empty State
