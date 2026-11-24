@@ -56,8 +56,18 @@ struct WeeklyCheckInView: View {
                 .padding(.bottom, Tide.s8)
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
-            .fuelBottomBar(isShown: !sent) { buildButton }
+            .fuelBottomBar {
+                if sent {
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.tidePrimary)
+                        .accessibilityIdentifier("weeklyCheckInDone")
+                } else {
+                    buildButton
+                }
+            }
             .animation(Tide.snap, value: sent)
+            .animation(Tide.snap, value: errorMessage)
+            .scrollDismissesKeyboard(.interactively)
             .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
@@ -67,6 +77,8 @@ struct WeeklyCheckInView: View {
                 }
             }
         }
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
     }
 
     private var form: some View {
@@ -83,8 +95,8 @@ struct WeeklyCheckInView: View {
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             }
-            quickPickList
-            VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 120)
+            // Say it first: the voice box is the answer, the lines below only fill it in.
+            VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 160)
                 .accessibilityIdentifier("weeklyCheckInSaid")
             if let blocker {
                 AIBlockerCard(blocker: blocker, message: PlanGenerationBlocker(from: blocker).message) {
@@ -92,11 +104,9 @@ struct WeeklyCheckInView: View {
                     send()
                 }
             } else if let errorMessage {
-                Text(errorMessage)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-                    .fixedSize(horizontal: false, vertical: true)
+                FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: errorMessage)
             }
+            quickPickList
         }
     }
 
@@ -123,8 +133,8 @@ struct WeeklyCheckInView: View {
     /// Tap a line to add it to what you say. The lines are long, so each one
     /// is a full-width row that wraps instead of a chip that cuts.
     private var quickPickList: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(Self.quickPicks.enumerated()), id: \.element) { index, pick in
+        FuelRowGroup(title: "Tap to add") {
+            ForEach(Self.quickPicks, id: \.self) { pick in
                 Button {
                     HapticManager.lightImpact()
                     said = said.isEmpty ? pick : "\(said). \(pick)"
@@ -146,34 +156,33 @@ struct WeeklyCheckInView: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-
-                if index < Self.quickPicks.count - 1 {
-                    Divider()
-                        .overlay(Tide.hairline)
-                }
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
+    /// Sent: say what happens next and that the app can be closed.
     private var sentState: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(Tide.title)
-                .foregroundStyle(Tide.good)
-                .accessibilityHidden(true)
-            Text("On it.")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-            Text(
-                "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
-            )
-            .font(Tide.body)
-            .foregroundStyle(Tide.text2)
-            .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: Tide.s4) {
+            TideStateMark(systemName: "checkmark", tint: Tide.good)
+            VStack(spacing: Tide.s2) {
+                Text("On it.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .accessibilityAddTraits(.isHeader)
+                Text(
+                    "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: Tide.stateWidth)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s8)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("weeklyCheckInSent")
-        .tideCard()
     }
 
     private func send() {

@@ -11,6 +11,8 @@ import SwiftUI
 struct WizardStepScaffold<Content: View>: View {
     let title: String
     let subtitle: String?
+    /// The line above the title ("Step 2 of 4").
+    let eyebrow: String?
     let progress: Double
     let canGoBack: Bool
     let primaryButtonLabel: String
@@ -21,9 +23,13 @@ struct WizardStepScaffold<Content: View>: View {
     @ViewBuilder
     let content: () -> Content
 
+    @Environment(\.tideMood)
+    private var mood
+
     init(
         title: String,
         subtitle: String? = nil,
+        eyebrow: String? = nil,
         progress: Double,
         canGoBack: Bool,
         primaryButtonLabel: String = "Next",
@@ -35,6 +41,7 @@ struct WizardStepScaffold<Content: View>: View {
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.eyebrow = eyebrow
         self.progress = progress
         self.canGoBack = canGoBack
         self.primaryButtonLabel = primaryButtonLabel
@@ -51,6 +58,11 @@ struct WizardStepScaffold<Content: View>: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Tide.s6) {
                     VStack(alignment: .leading, spacing: Tide.s2) {
+                        if let eyebrow {
+                            Text(eyebrow)
+                                .tideLabel(mood.accent)
+                                .contentTransition(.numericText())
+                        }
                         Text(title)
                             .font(Tide.title)
                             .foregroundStyle(Tide.text)
@@ -133,5 +145,17 @@ struct WizardStepScaffold<Content: View>: View {
             .buttonStyle(.tidePrimary)
             .disabled(!primaryButtonEnabled)
         }
+    }
+}
+
+// MARK: - Step caption
+
+extension WizardCoordinator {
+    /// "Step 2 of 4", for the line above each step's title.
+    var stepCaption: String {
+        guard let index = visibleSteps.firstIndex(of: currentStep) else {
+            return ""
+        }
+        return "Step \(index + 1) of \(visibleSteps.count)"
     }
 }

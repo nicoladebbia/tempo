@@ -97,14 +97,10 @@ struct NextWeekPlanCard: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .top, spacing: Tide.s3) {
-                Image(systemName: icon)
-                    .font(Tide.headline)
-                    .foregroundStyle(tint)
-                    .frame(width: Tide.icon, alignment: .leading)
-                    .accessibilityHidden(true)
+                TideIconTile(systemName: icon, tint: tint)
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(title)
-                        .font(Tide.bodyStrong)
+                        .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(detail)
@@ -121,6 +117,7 @@ struct NextWeekPlanCard: View {
             action()
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .animation(Tide.snap, value: title)
     }
 
     private static func day(_ date: Date) -> String {
@@ -149,26 +146,25 @@ struct WeeklyPlanPreviewView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(plan.days.sorted { $0.dayIndex < $1.dayIndex }, id: \.dayIndex) { day in
-                    Section {
-                        ForEach(day.meals.sorted { $0.scheduledTime < $1.scheduledTime }, id: \.mealNumber) { meal in
-                            mealRow(meal)
-                        }
-                    } header: {
-                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                            Text(Self.dayNames[min(max(day.dayIndex, 0), 6)])
-                                .tideLabel()
-                            Spacer(minLength: Tide.s2)
-                            Text("\(Int(day.meals.reduce(0) { $0 + $1.calories })) kcal · \(day.dayType)")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
-                                .textCase(nil)
+            ScrollView {
+                // One card per day: the day and its total on top, the meals under it.
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    ForEach(plan.days.sorted { $0.dayIndex < $1.dayIndex }, id: \.dayIndex) { day in
+                        FuelRowGroup(
+                            title: Self.dayNames[min(max(day.dayIndex, 0), 6)],
+                            trailing: "\(Int(day.meals.reduce(0) { $0 + $1.calories })) kcal · \(day.dayType)"
+                        ) {
+                            ForEach(day.meals.sorted { $0.scheduledTime < $1.scheduledTime }, id: \.mealNumber) { meal in
+                                mealRow(meal)
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s8)
             }
-            .scrollContentBackground(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
@@ -178,6 +174,8 @@ struct WeeklyPlanPreviewView: View {
                 }
             }
         }
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
     }
 
     private func mealRow(_ meal: WeeklyPlanPayload.Meal) -> some View {
@@ -212,7 +210,7 @@ struct WeeklyPlanPreviewView: View {
                 }
             }
         }
-        .padding(.vertical, Tide.s1)
-        .fuelRow()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }

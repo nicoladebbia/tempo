@@ -30,6 +30,7 @@ struct TemporaryExclusionsStepView: View {
         WizardStepScaffold(
             title: "Off the table this week.",
             subtitle: "Not allergies — just things you're not in the mood for. Skip if nothing.",
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             primaryButtonLabel: "Next",
@@ -40,7 +41,12 @@ struct TemporaryExclusionsStepView: View {
             VStack(alignment: .leading, spacing: Tide.s5) {
                 inputRow
 
-                if !coordinator.intake.temporaryExclusions.isEmpty {
+                if coordinator.intake.temporaryExclusions.isEmpty {
+                    Label("Nothing off the table. Tap Next.", systemImage: "checkmark.circle")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
                     chipGrid
                 }
 

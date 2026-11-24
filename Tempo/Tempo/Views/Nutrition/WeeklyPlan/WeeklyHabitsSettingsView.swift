@@ -41,93 +41,106 @@ struct WeeklyHabitsSettingsView: View {
     private static let mealNames = [1: "Breakfast", 2: "Lunch", 3: "Dinner", 4: "Snack", 5: "Second snack"]
 
     var body: some View {
-        Form {
-            Section {
-                Toggle("Ask me every Sunday", isOn: $promptEnabled)
-                    .accessibilityIdentifier("weeklyPromptToggle")
-                    .fuelRow()
-                if promptEnabled {
-                    DatePicker("Time", selection: $promptTime, displayedComponents: .hourAndMinute)
-                        .accessibilityIdentifier("weeklyPromptTime")
-                        .fuelRow()
-                }
-                Button("Plan next week now") {
-                    HapticManager.lightImpact()
-                    services.appState.weeklyCheckInRequested = true
-                }
-                .fuelRow()
-                if notificationsDenied {
-                    Button("Open Settings") { CameraPermission.openSettings() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                hero
+                FuelRowGroup(
+                    title: "Sunday planning",
+                    footnote: notificationsDenied
+                        ? "Notifications are off for Tempo — turn them on in iOS Settings to get the Sunday prompt."
+                        : "Tap Yes on the notification and next week is built in the background, around your routine."
+                ) {
+                    Toggle("Ask me every Sunday", isOn: $promptEnabled)
+                        .font(Tide.bodyStrong)
+                        .frame(minHeight: Tide.hit)
+                        .accessibilityIdentifier("weeklyPromptToggle")
+                    if promptEnabled {
+                        DatePicker("Time", selection: $promptTime, displayedComponents: .hourAndMinute)
+                            .font(Tide.bodyStrong)
+                            .frame(minHeight: Tide.hit)
+                            .accessibilityIdentifier("weeklyPromptTime")
+                    }
+                    Button {
+                        HapticManager.lightImpact()
+                        services.appState.weeklyCheckInRequested = true
+                    } label: {
+                        actionLabel("Plan next week now", icon: "calendar.badge.plus")
+                    }
+                    .buttonStyle(.plain)
+                    if notificationsDenied {
+                        Button { CameraPermission.openSettings() } label: {
+                            actionLabel("Open Settings", icon: "gearshape")
+                        }
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("weeklyOpenSettings")
-                        .fuelRow()
+                    }
                 }
-            } header: {
-                Text("Sunday planning").tideLabel()
-            } footer: {
-                Text(notificationsDenied
-                    ? "Notifications are off for Tempo — turn them on in iOS Settings to get the Sunday prompt."
-                    : "Tap Yes on the notification and next week is built in the background, around your routine.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            }
 
-            Section {
-                NavigationLink {
-                    FuelSetupView(embedded: true)
-                } label: {
-                    Label("Routine, places & food", systemImage: "calendar")
-                        .foregroundStyle(Tide.text)
+                FuelRowGroup(
+                    title: "Your week",
+                    footnote: "Every Sunday plan reads this. Change it any time — by voice or by hand."
+                ) {
+                    NavigationLink {
+                        FuelSetupView(embedded: true)
+                    } label: {
+                        HStack(spacing: Tide.s3) {
+                            Label("Routine, places & food", systemImage: "calendar")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                            Spacer(minLength: Tide.s2)
+                            Image(systemName: "chevron.right")
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    ForEach(routineSummary, id: \.self) { line in
+                        routineRow(line)
+                    }
                 }
-                .fuelRow()
-                ForEach(routineSummary, id: \.self) { line in
-                    routineRow(line)
-                        .fuelRow()
-                }
-            } header: {
-                Text("Your week").tideLabel()
-            } footer: {
-                Text("Every Sunday plan reads this. Change it any time — by voice or by hand.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            }
 
-            Section {
-                if observedTimes.isEmpty, expenditure == nil {
-                    Text("Log meals for a couple of weeks and your real eating times and calorie burn show up here.")
+                FuelRowGroup(title: "Learned from your logs") {
+                    if observedTimes.isEmpty, expenditure == nil {
+                        Text("Log meals for a couple of weeks and your real eating times and calorie burn show up here.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(observedTimes, id: \.meal) { item in
+                        LabeledContent(item.meal, value: item.time)
+                            .font(Tide.body)
+                    }
+                    if let expenditure {
+                        LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
+                            .font(Tide.bodyStrong)
+                        Text(
+                            "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
+                        )
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
-                        .fuelRow()
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                ForEach(observedTimes, id: \.meal) { item in
-                    LabeledContent(item.meal, value: item.time)
-                        .fuelRow()
-                }
-                if let expenditure {
-                    LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
-                        .fuelRow()
-                    Text(
-                        "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
-                    )
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .fuelRow()
-                }
-            } header: {
-                Text("Learned from your logs").tideLabel()
-            }
 
-            Section {
-                Toggle("Remind me to take my supplements", isOn: $supplementRemindersEnabled)
-                    .fuelRow()
-            } footer: {
-                Text("Per-supplement reminders can still be turned off individually from the shelf.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+                FuelRowGroup(
+                    footnote: "Per-supplement reminders can still be turned off individually from the shelf."
+                ) {
+                    Toggle("Remind me to take my supplements", isOn: $supplementRemindersEnabled)
+                        .font(Tide.bodyStrong)
+                        .frame(minHeight: Tide.hit)
+                }
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
         .tint(mood.accent)
-        .scrollContentBackground(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .top)
+        .animation(Tide.snap, value: promptEnabled)
+        .animation(Tide.snap, value: notificationsDenied)
         .tidePage()
         .navigationTitle("Weekly habits")
         .navigationBarTitleDisplayMode(.inline)
@@ -167,6 +180,39 @@ struct WeeklyHabitsSettingsView: View {
             try? modelContext.save()
             NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
         }
+    }
+
+    /// The state of the Sunday habit in one sentence, so the page opens with an answer.
+    private var hero: some View {
+        HStack(alignment: .center, spacing: Tide.s4) {
+            TideIconTile(
+                systemName: promptEnabled ? "calendar.badge.clock" : "calendar.badge.minus",
+                tint: promptEnabled ? mood.accent : Tide.text3,
+                size: Tide.tileLarge
+            )
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(promptEnabled ? "Next week gets planned every Sunday" : "Sunday planning is off")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text(promptEnabled ? "Asked at \(promptTime.formatted(date: .omitted, time: .shortened))." :
+                    "You can still plan a week by hand.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func actionLabel(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(mood.accent)
+            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+            .contentShape(.rect)
     }
 
     private var settings: UserSettings? {

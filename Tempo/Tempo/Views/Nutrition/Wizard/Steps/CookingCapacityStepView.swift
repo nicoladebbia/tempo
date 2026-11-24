@@ -21,6 +21,7 @@ struct CookingCapacityStepView: View {
         WizardStepScaffold(
             title: "Real cook count.",
             subtitle: "How many days this week can you actually cook? Not optimistic — real.",
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             onBack: coordinator.goBack,
@@ -28,19 +29,25 @@ struct CookingCapacityStepView: View {
             onCancel: coordinator.cancel
         ) {
             VStack(alignment: .leading, spacing: Tide.s5) {
-                TideNumber(
-                    "\(coordinator.intake.cookableDaysThisWeek)",
-                    unit: coordinator.intake.cookableDaysThisWeek == 1 ? "day" : "days",
-                    size: Tide.numeralL
-                )
-                .contentTransition(.numericText())
+                // The answer and what it means for the plan, as one object.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    TideNumber(
+                        "\(coordinator.intake.cookableDaysThisWeek)",
+                        unit: coordinator.intake.cookableDaysThisWeek == 1 ? "day" : "days",
+                        size: Tide.numeralL
+                    )
+                    .contentTransition(.numericText())
+                    Text(footerLabel)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentTransition(.opacity)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .animation(Tide.snap, value: coordinator.intake.cookableDaysThisWeek)
+                .accessibilityElement(children: .combine)
                 dayPicker
-                Text(footerLabel)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
