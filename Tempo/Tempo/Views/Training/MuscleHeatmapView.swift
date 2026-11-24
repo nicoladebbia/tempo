@@ -223,6 +223,8 @@ struct MuscleHeatmapView: View {
             )
             .frame(maxWidth: TideTrain.tabsCompact)
 
+            weekHero
+
             figureCard
 
             if let muscle = selectedMuscle {
@@ -239,6 +241,46 @@ struct MuscleHeatmapView: View {
         .tidePage()
         .navigationTitle("Muscle Map")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    // MARK: Week summary
+
+    /// Every muscle the figure draws, front and back, once.
+    private var trackedMuscles: [MuscleGroup] {
+        var seen = Set<MuscleGroup>()
+        return (BodyFigure.front + BodyFigure.back).compactMap { seen.insert($0.muscle).inserted ? $0.muscle : nil }
+    }
+
+    /// The week in one line of numbers, above the picture that shows where.
+    private var weekHero: some View {
+        let tracked = trackedMuscles
+        let trained = tracked.filter { (heat[$0] ?? 0) > 0 }
+        let hottest = trained.max { (heat[$0] ?? 0) < (heat[$1] ?? 0) }
+        let untouched = tracked.filter { (heat[$0] ?? 0) == 0 }
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            TideLabel("Last 7 days")
+            TideNumber(
+                "\(trained.count)", unit: "of \(tracked.count) muscles trained",
+                size: Tide.numeralL, relativeTo: .largeTitle
+            )
+            .contentTransition(.numericText())
+            if let hottest {
+                Text("Most worked: \(hottest.displayName)")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !untouched.isEmpty {
+                Text("Not hit yet: \(untouched.map(\.displayName).joined(separator: ", "))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .combine)
+        .animation(Tide.snap, value: trained.count)
     }
 
     // MARK: Figure
