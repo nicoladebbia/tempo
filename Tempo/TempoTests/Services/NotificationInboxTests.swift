@@ -262,6 +262,18 @@ struct NotificationInboxModelTests {
     }
 
     @Test
+    func signingOutForgetsTheListEvenAfterARelaunch() async {
+        let store = defaults()
+        let cleared = ClearedBox()
+        let first = model(delivered: [row("a", minutesAgo: 30)], cleared: cleared, defaults: store)
+        await first.refresh()
+        first.reset()
+        #expect(first.items.isEmpty)
+        #expect(cleared.ids == ["a"])
+        #expect(model(delivered: [], defaults: store).items.isEmpty)
+    }
+
+    @Test
     func yesterdaysAreNotInTodaysList() async {
         let yesterday = row("old", minutesAgo: 60 * 30)
         let model = model(delivered: [yesterday, row("new", minutesAgo: 1)], defaults: defaults())

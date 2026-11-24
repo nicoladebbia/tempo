@@ -520,7 +520,7 @@ struct NotificationSettingsView: View {
     private var quietHoursSection: some View {
         SettingsFormCard(
             title: "Quiet hours",
-            footnote: "Inside this window only escalating accountability warnings and defrost reminders come through. The rest are skipped, not delayed."
+            footnote: "Inside this window, reminders Tempo schedules on this phone are skipped, not delayed. Escalating accountability warnings and defrost reminders still come through. Timers you start yourself are not affected."
         ) {
             SettingsControlRow(label: "Quiet Hours", icon: "moon.zzz.fill") {
                 Toggle("Quiet Hours", isOn: $quietHoursEnabled)

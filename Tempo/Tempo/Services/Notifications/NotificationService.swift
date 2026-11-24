@@ -46,6 +46,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             return true
         }
         logger.info("Skipped \(id, privacy: .public): \(String(describing: reason), privacy: .public)")
+        // An earlier request with the same id (a meal that moved into quiet hours) must not fire at its old time.
+        center.removePendingNotificationRequests(withIdentifiers: [id])
         return false
     }
 
@@ -949,8 +951,16 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             // Repeating requests (the Sunday prompt) and ones with no clock time are left alone.
             let trigger = request.trigger as? UNCalendarNotificationTrigger
             let fireDate = trigger.flatMap { $0.repeats ? nil : $0.nextTriggerDate() }
+            let topic: NotificationTopic? = if request.identifier.hasPrefix(Self.trainerSessionReminderPrefix) {
+                .trainerSession
+            } else if request.identifier.hasPrefix("weekly_upload_") {
+                .weeklyUpload
+            } else {
+                nil
+            }
             return NotificationPolicy.Pending(
-                identifier: request.identifier, category: request.content.categoryIdentifier, fireDate: fireDate
+                identifier: request.identifier, category: request.content.categoryIdentifier, fireDate: fireDate,
+                topic: topic
             )
         }
         let ids = policy().identifiersToRemove(pending)

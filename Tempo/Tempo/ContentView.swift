@@ -159,6 +159,8 @@ struct ContentView: View {
             modelContext.delete(dupe)
         }
         try? modelContext.save()
+        // The launch sync may have read a row that was just deleted.
+        NotificationPolicyStore.sync(from: survivor)
         Logger.sync.info("[Settings] deduped UserSettings: \(all.count) rows → 1")
     }
 

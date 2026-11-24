@@ -24,6 +24,9 @@ struct NotificationInboxView: View {
     @Environment(\.scenePhase)
     private var scenePhase
 
+    @State
+    private var confirmClear = false
+
     private let inbox = NotificationInbox.shared
 
     var body: some View {
@@ -48,7 +51,7 @@ struct NotificationInboxView: View {
                         }
                         .disabled(inbox.unreadCount == 0)
                         Button(role: .destructive) {
-                            inbox.clearToday()
+                            confirmClear = true
                         } label: {
                             Label("Clear today", systemImage: "trash")
                         }
@@ -61,6 +64,12 @@ struct NotificationInboxView: View {
                     .accessibilityIdentifier("notificationInboxMenu")
                 }
             }
+        }
+        .confirmationDialog("Clear today's notifications?", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("Clear today", role: .destructive) { inbox.clearToday() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They also leave Notification Centre.")
         }
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in
@@ -221,7 +230,12 @@ struct NotificationInboxView: View {
             return
         }
         onOpen()
-        Task { await TempoNotificationDelegate.shared.openFromList(item) }
+        Task {
+            // Let the sheet that hosts this list finish closing: a destination set while it
+            // is still dismissing can be dropped.
+            try? await Task.sleep(for: .milliseconds(400))
+            await TempoNotificationDelegate.shared.openFromList(item)
+        }
     }
 }
 

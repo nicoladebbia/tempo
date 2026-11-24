@@ -138,14 +138,17 @@ final class ServiceContainer {
         }
     }
 
-    /// Sign-out or account deletion: remove the Today snapshot saved on disk
-    /// and tell the screen to drop its copy.
+    /// Sign-out or account deletion: remove the Today snapshot saved on disk,
+    /// the in-app notification list (it holds meal and recovery text), and tell
+    /// the screen to drop its copy.
     static func endSession(
         cache: any TodayCaching = TodayCache.shared,
-        launch: TodayLaunchSnapshot = .shared
+        launch: TodayLaunchSnapshot = .shared,
+        notifications: NotificationInbox = .shared
     ) {
         cache.clear()
         launch.discard()
+        notifications.reset()
         NotificationCenter.default.post(name: .tempoSessionEnded, object: nil)
     }
 

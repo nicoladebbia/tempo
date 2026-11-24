@@ -193,6 +193,18 @@ struct NotificationPolicyTests {
         #expect(Set(removed) == ["meal-late", "arena"])
     }
 
+    @Test
+    func sweepJudgesATrainerSessionByItsOwnSwitchNotTheTrainingOne() {
+        var policy = NotificationPolicy.permissive
+        policy.enabledTopics.remove(.trainerSession)
+        let pending: [NotificationPolicy.Pending] = [
+            .init(identifier: "trainer_session_1", category: "TRAINING_REMINDER", fireDate: at(12), topic: .trainerSession),
+            .init(identifier: "weekly_upload_sunday", category: "TRAINING_REMINDER", fireDate: at(12), topic: .weeklyUpload),
+            .init(identifier: "training", category: "TRAINING_REMINDER", fireDate: at(12)),
+        ]
+        #expect(policy.identifiersToRemove(pending, calendar: calendar) == ["trainer_session_1"])
+    }
+
     // MARK: - Mapping
 
     @Test

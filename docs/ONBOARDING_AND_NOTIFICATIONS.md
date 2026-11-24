@@ -9,11 +9,13 @@
 Primary source files referenced throughout (cited by file + symbol, never line number — lines drift):
 
 Onboarding:
+
 - `Tempo/Tempo/ViewModels/OnboardingViewModel.swift` — `enum OnboardingStep`, `advance()`, `goBack()`, persistence, `buildDailyPlanProfile()`
 - `Tempo/Tempo/Views/Onboarding/OnboardingContainerView.swift` — `stepContent` switch, `progressBar`, splash auto-advance
-- `Tempo/Tempo/Views/Onboarding/*View.swift` — per-step screens (`OnboardingSplashView`, `ValueDemoView`, `GoalSetupView`, `HealthKitPermissionView`, `OnboardingAuthView`, `ProfileSetupView`, `IdentitySetupView`, `TrainingSetupView`, `AcademicSetupView`, `DailyPlanProfileViews`, `WhoopConnectView`, `NotificationSetupView`, `TermsAcceptanceView`, `AIConsentView`, `OnboardingCompleteView`, `ArenaIntroView` *(orphaned)*)
+- `Tempo/Tempo/Views/Onboarding/*View.swift` — per-step screens (`OnboardingSplashView`, `ValueDemoView`, `GoalSetupView`, `HealthKitPermissionView`, `OnboardingAuthView`, `ProfileSetupView`, `IdentitySetupView`, `TrainingSetupView`, `AcademicSetupView`, `DailyPlanProfileViews`, `WhoopConnectView`, `NotificationSetupView`, `TermsAcceptanceView`, `AIConsentView`, `OnboardingCompleteView`, `ArenaIntroView` _(orphaned)_)
 
 Notifications:
+
 - `Tempo/Tempo/Services/Notifications/NotificationService.swift` — scheduling, categories, 64-slot eviction, daily budget, badge, sound
 - `Tempo/Tempo/Services/Notifications/AccountabilityEscalationEngine.swift` — escalation state machine
 - `Tempo/Tempo/Services/Notifications/AccountabilityCopyPool.swift` — `CopyTier`, `CopyIntensity`, `pick()`, `interpolate()`
@@ -66,34 +68,34 @@ Notifications:
 
 ## 2. Step-by-Step Onboarding
 
-> **Divergence from original spec — THE ENTIRE FLOW MODEL.** The spec described a **13-step ordered flow** (Welcome → Sign In → Profile → Training → Academics → Goals → Whoop → NutriTrack → HealthKit → Notifications → AI Consent → Arena Preview → Summary/Briefing). The code implements a **20-case `OnboardingStep` enum** with a **"show-then-ask" ordering** that front-loads value and goals *before* authentication. The spec's step numbers, copy progress model ("Step 4 of 13"), and several screens do not exist as described. This section documents the **actual** sequence.
+> **Divergence from original spec — THE ENTIRE FLOW MODEL.** The spec described a **13-step ordered flow** (Welcome → Sign In → Profile → Training → Academics → Goals → Whoop → NutriTrack → HealthKit → Notifications → AI Consent → Arena Preview → Summary/Briefing). The code implements a **20-case `OnboardingStep` enum** with a **"show-then-ask" ordering** that front-loads value and goals _before_ authentication. The spec's step numbers, copy progress model ("Step 4 of 13"), and several screens do not exist as described. This section documents the **actual** sequence.
 
 ### 2.1 The Actual Step Sequence
 
 `OnboardingStep` is a `String, Codable, CaseIterable` enum. `next`/`previous` walk `allCases` in declaration order, so the flow order **is** the enum declaration order. There is no separate ordered-flow table — declaration order is the single source of truth (intentional: "adding/reordering steps doesn't require touching" a switch). The 20 cases, in flow order:
 
-| # | `OnboardingStep` | Screen | Required | Skippable |
-|---|------------------|--------|----------|-----------|
-| 1 | `splash` | `OnboardingSplashView` (wordmark loader, auto-advance 1.8s) | — | — |
-| 2 | `valueDemo` | `ValueDemoView` ("THIS IS TEMPO") | — | — |
-| 3 | `goals` | `GoalSetupView` ("WHAT ARE YOU FIGHTING FOR?") | **yes** | no |
-| 4 | `healthkit` | `HealthKitPermissionView` ("LET'S CONNECT YOUR HEALTH DATA.") | no | yes |
-| 5 | `auth` | `OnboardingAuthView` (Sign in with Apple; value-prop headline merged here) | **yes** | no |
-| 6 | `profile` | `ProfileSetupView` (display name **+ inline username**) | **yes** | no |
-| 7 | `identity` | `IdentitySetupView` ("What best describes you?" → `UserProfile.identityLabel`) | **yes** | no |
-| 8 | `trainingSetup` | `TrainingSetupView` | no | yes |
-| 9 | `academicSetup` | `AcademicSetupView` | no | yes |
-| 10 | `dailyRhythm` | wake time + sleep target + chronotype (`DailyPlanProfileViews`) | no | yes |
-| 11 | `classSchedule` | term-bounded weekly class schedule + work shifts | no | yes |
-| 12 | `eatingWindow` | intermittent-fasting / eating-window preferences | no | yes |
-| 13 | `studyPreferences` | Pomodoro length + study session preferences | no | yes |
-| 14 | `trainingPreferences` | preferred training time of day | no | yes |
-| 15 | `weekendMode` | weekend differential | no | yes |
-| 16 | `whoopConnect` | `WhoopConnectView` ("YOUR BODY TALKS. LET'S LISTEN.") | no | yes |
-| 17 | `notifications` | `NotificationSetupView` ("THE DRILL SERGEANT NEEDS YOUR ATTENTION.") | no | yes |
-| 18 | `tosAccept` | `TermsAcceptanceView` (ToS + Privacy; backend `ToSGateMiddleware` 451-gates until accepted) | **yes** | no |
-| 19 | `aiConsent` | `AIConsentView` ("ENABLE AI COACHING."; Anthropic disclosure; backend `SubscriptionMiddleware` 402-gates AI routes) | no | yes |
-| 20 | `complete` | `OnboardingCompleteView` ("YOU'RE IN.") | — | — |
+| #   | `OnboardingStep`      | Screen                                                                                                              | Required | Skippable |
+| --- | --------------------- | ------------------------------------------------------------------------------------------------------------------- | -------- | --------- |
+| 1   | `splash`              | `OnboardingSplashView` (wordmark loader, auto-advance 1.8s)                                                         | —        | —         |
+| 2   | `valueDemo`           | `ValueDemoView` ("THIS IS TEMPO")                                                                                   | —        | —         |
+| 3   | `goals`               | `GoalSetupView` ("WHAT ARE YOU FIGHTING FOR?")                                                                      | **yes**  | no        |
+| 4   | `healthkit`           | `HealthKitPermissionView` ("LET'S CONNECT YOUR HEALTH DATA.")                                                       | no       | yes       |
+| 5   | `auth`                | `OnboardingAuthView` (Sign in with Apple; value-prop headline merged here)                                          | **yes**  | no        |
+| 6   | `profile`             | `ProfileSetupView` (display name **+ inline username**)                                                             | **yes**  | no        |
+| 7   | `identity`            | `IdentitySetupView` ("What best describes you?" → `UserProfile.identityLabel`)                                      | **yes**  | no        |
+| 8   | `trainingSetup`       | `TrainingSetupView`                                                                                                 | no       | yes       |
+| 9   | `academicSetup`       | `AcademicSetupView`                                                                                                 | no       | yes       |
+| 10  | `dailyRhythm`         | wake time + sleep target + chronotype (`DailyPlanProfileViews`)                                                     | no       | yes       |
+| 11  | `classSchedule`       | term-bounded weekly class schedule + work shifts                                                                    | no       | yes       |
+| 12  | `eatingWindow`        | intermittent-fasting / eating-window preferences                                                                    | no       | yes       |
+| 13  | `studyPreferences`    | Pomodoro length + study session preferences                                                                         | no       | yes       |
+| 14  | `trainingPreferences` | preferred training time of day                                                                                      | no       | yes       |
+| 15  | `weekendMode`         | weekend differential                                                                                                | no       | yes       |
+| 16  | `whoopConnect`        | `WhoopConnectView` ("YOUR BODY TALKS. LET'S LISTEN.")                                                               | no       | yes       |
+| 17  | `notifications`       | `NotificationSetupView` ("THE DRILL SERGEANT NEEDS YOUR ATTENTION.")                                                | no       | yes       |
+| 18  | `tosAccept`           | `TermsAcceptanceView` (ToS + Privacy; backend `ToSGateMiddleware` 451-gates until accepted)                         | **yes**  | no        |
+| 19  | `aiConsent`           | `AIConsentView` ("ENABLE AI COACHING."; Anthropic disclosure; backend `SubscriptionMiddleware` 402-gates AI routes) | no       | yes       |
+| 20  | `complete`            | `OnboardingCompleteView` ("YOU'RE IN.")                                                                             | —        | —         |
 
 `isRequired` = `{auth, profile, identity, goals}`. `isSkippable` = `{healthkit, trainingSetup, academicSetup, dailyRhythm, classSchedule, eatingWindow, studyPreferences, trainingPreferences, weekendMode, whoopConnect, notifications, aiConsent}`. `stepNumber` is derived from `allCases.firstIndex`. The daily-plan-profile block (steps 10–15) feeds `buildDailyPlanProfile()` → `UserDailyPlanProfile` SwiftData row + backend sync (per INTELLIGENCE_REMEDIATION_PLAN.md §8).
 
@@ -101,7 +103,7 @@ Notifications:
 
 - **Step 3 `profile` — inline username.** `ProfileSetupView` collects display name **and username with a live availability check** (`checkUsernameAvailability()`, 3–30 chars, allowed-charset validation).
 
-  > **Divergence from original spec:** The spec explicitly *deferred* username to first Arena access ("Username: DEFERRED"). Code collects it inline during onboarding. Photo picker from the spec is not present.
+  > **Divergence from original spec:** The spec explicitly _deferred_ username to first Arena access ("Username: DEFERRED"). Code collects it inline during onboarding. Photo picker from the spec is not present.
 
 - **Step 1 value prop merged into `auth`.** The spec's standalone "Welcome / Value Prop" screen (headline "STOP MANAGING YOUR LIFE IN 5 DIFFERENT APPS") lives on `OnboardingAuthView` together with Sign in with Apple. `ValueDemoView` ("THIS IS TEMPO") is the separate `valueDemo` step. No ring animation on either.
 
@@ -206,6 +208,7 @@ Partial. `rescheduleAllForToday` exists and runs on foreground. No `BGAppRefresh
 ### 7.6 Backend Scheduled Jobs
 
 Implemented. Wired in `configure.swift`:
+
 - `MorningBriefingJob` (struct lives in `NotificationScheduleJob.swift` — file/struct name mismatch, harmless) — every 15 min
 - `WeeklySummaryJob` — Sunday 20:00
 - `DrillSergeantBatchJob` — Sun + Wed 20:00
@@ -219,6 +222,7 @@ Implemented. Wired in `configure.swift`:
 > **Divergence from original spec — MASSIVE SHORTFALL.** The spec defined **13 channels × 30+ variations × 4 intensities**. The code has exactly **one** copy bank: `Resources/AccountabilityCopy.json` (~101 lines), covering only the accountability channels.
 
 What exists:
+
 - `AccountabilityCopyPool.pick(tier:intensity:context:)` selects from `AccountabilityCopy.json`.
 - `CopyTier` enum: `gentle / firm / urgent / critical / allClear` (5 tiers).
 - `CopyIntensity` enum: `gentle / firm / savage` — **3 intensities, not 4**. There is no distinct "Drill Sergeant" intensity; level 3 collapses into firm/savage.
@@ -245,7 +249,7 @@ Partial. `NotificationSettingsView` provides: an intensity section (4 `Intensity
 
 > **Status: NOT IMPLEMENTED — Intensity Level Behavior Matrix.** Only 3 distinct copy intensities exist (`CopyIntensity` gentle/firm/savage); the UI's 4-level selector collapses Drill Sergeant into firm/savage. Per-intensity Time-Sensitive behavior and override-shaming differences are not implemented.
 
-> **Status: NOT IMPLEMENTED — Quiet Hours enforcement.** `UserSettings` has `quietHours` fields and the settings UI renders a quiet-hours section, but **no code in `Services` ever reads `quietHours`**. The scheduling layer never suppresses or queues based on quiet hours. This is **dead data** — settings + UI exist, enforcement does not.
+> **Status: IMPLEMENTED (Nov 2026) — Quiet Hours enforcement.** `NotificationPolicy` (`Services/Notifications/NotificationPolicy.swift`) is applied in `NotificationService` where reminders are scheduled: inside the window a reminder is skipped (not delayed), except escalating accountability warnings and defrost reminders. It covers reminders Tempo schedules on this phone; server pushes, rest and workout timers, snoozes and the Recovery Coach schedulers are not covered. The page also has one three-level setting (Essential / Balanced / Everything) over the per-category toggles, and an in-app list of today's notifications (`NotificationInbox`).
 
 > **Status: NOT IMPLEMENTED — adaptive/weekend schedule.** Wake/evening/bedtime time config exists, but Whoop/Health auto-detect of schedule, 14-day adaptive learning, and the "weekend +1h" behavior are not enforced (`weekendMode` is a settings flag with no scheduling effect).
 

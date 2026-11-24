@@ -240,6 +240,9 @@ struct NotificationPolicy: Equatable, Codable, Sendable {
         let category: String
         /// nil for requests that repeat or have no calendar time: those are left alone.
         let fireDate: Date?
+        /// Set when the category alone can't say (trainer-session and weekly-upload
+        /// reminders share the training category).
+        var topic: NotificationTopic?
     }
 
     /// Pending requests that the policy no longer allows. Only categories Tempo schedules
@@ -251,7 +254,7 @@ struct NotificationPolicy: Equatable, Codable, Sendable {
             else {
                 return nil
             }
-            return decide(category: request.category, fireDate: fireDate, calendar: calendar).isAllowed
+            return decide(category: request.category, topic: request.topic, fireDate: fireDate, calendar: calendar).isAllowed
                 ? nil : request.identifier
         }
     }
@@ -348,6 +351,11 @@ enum NotificationPolicyStore {
     @MainActor
     static func sync(from container: ModelContainer, defaults: UserDefaults = .standard) {
         let settings = try? container.mainContext.fetch(FetchDescriptor<UserSettings>()).first
-        sync(from: settings, defaults: defaults)
+        // No row (a fresh or in-memory store): a copy left from another store must not keep gating reminders.
+        if let settings {
+            sync(from: settings, defaults: defaults)
+        } else {
+            save(.permissive, defaults: defaults)
+        }
     }
 }

@@ -180,6 +180,11 @@ struct NotificationInboxStore {
         save(load().filter { !calendar.isDate($0.deliveredAt, inSameDayAs: day) })
     }
 
+    /// Forgets everything (sign-out and account deletion).
+    func wipe() {
+        defaults.removeObject(forKey: Self.key)
+    }
+
     /// Today's, newest first.
     static func today(_ items: [InboxNotification], now: Date = .now, calendar: Calendar = .current) -> [InboxNotification] {
         items
@@ -279,6 +284,14 @@ final class NotificationInbox {
     func markAllRead() {
         store.markAllRead(on: now())
         items = NotificationInboxStore.today(store.load(), now: now())
+    }
+
+    /// Sign-out or account deletion: the next person on this phone must not see this person's reminders.
+    func reset() {
+        clearDelivered(items.map(\.requestID))
+        store.wipe()
+        items = []
+        load = .idle
     }
 
     /// Empties today's list, and takes the same notifications out of Notification Centre so they don't come back.
