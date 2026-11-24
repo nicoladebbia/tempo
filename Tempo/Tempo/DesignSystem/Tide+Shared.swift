@@ -116,7 +116,9 @@ struct TideIconTile: View {
     var body: some View {
         let color = tint ?? mood.accent
         Image(systemName: systemName)
-            .font(.system(size: size * 0.44 * scale, weight: .semibold))
+            // The tile keeps its size, so the symbol stops growing before it
+            // can spill out of it (a wide glyph like the dumbbell at AX sizes).
+            .font(.system(size: size * 0.44 * min(scale, 1.35), weight: .semibold))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(color)
             .frame(width: size, height: size)

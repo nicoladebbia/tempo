@@ -176,7 +176,8 @@ struct PaywallView: View {
     // Per MONETIZATION_STRATEGY.md — Hero Pro features, ordered by Tier 1 priority.
 
     private var featureList: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
+        // Rows that run to several lines at large text need air between them.
+        VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? Tide.s3 : Tide.s1) {
             featureRow(icon: "sparkles", text: "Recovery insights from Whoop & wearables")
             featureRow(icon: "brain.head.profile", text: "AI-powered workout programming")
             featureRow(icon: "fork.knife", text: "AI nutrition coaching & meal plans")
@@ -186,7 +187,8 @@ struct PaywallView: View {
     }
 
     private func featureRow(icon: String, text: String) -> some View {
-        HStack(spacing: Tide.s3) {
+        // The symbol stays level with the first line when the text wraps.
+        HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
             Image(systemName: icon)
                 .font(Tide.headline)
                 .foregroundStyle(mood.accent)

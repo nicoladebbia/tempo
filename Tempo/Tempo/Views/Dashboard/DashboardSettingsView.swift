@@ -1017,7 +1017,7 @@ struct ScheduleSettingsDetailView: View {
     /// the screen didn't show before.
     private var sleepWindowCard: some View {
         TideSettingsHero {
-            Text("Planned sleep window").tideLabel()
+            TideLabel("Planned sleep window")
             if let span = sleepWindow {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber("\(span.hours)", unit: "h", size: Tide.numeralL, relativeTo: .largeTitle)
@@ -1163,7 +1163,7 @@ struct FocusTimerSettingsDetailView: View {
     /// Visual cycle preview — surfaces what the durations actually produce.
     private var cyclePreviewCard: some View {
         TideSettingsHero {
-            Text("Focus / break / long break").tideLabel()
+            TideLabel("Focus / break / long break")
 
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber("\(pomodoroDuration)", size: Tide.numeralL, relativeTo: .largeTitle)
@@ -1210,6 +1210,8 @@ struct ModesSettingsDetailView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
     @Query
     private var allSettings: [UserSettings]
 
@@ -1228,7 +1230,7 @@ struct ModesSettingsDetailView: View {
     private var modesHero: some View {
         let active = [weekendMode ? "Weekend" : nil, examMode ? "Exam" : nil].compactMap(\.self)
         return TideSettingsHero {
-            Text("Active now").tideLabel()
+            TideLabel("Active now")
             Text(active.isEmpty ? "Standard day" : active.joined(separator: " \u{00B7} "))
                 .font(Tide.title2)
                 .foregroundStyle(active.isEmpty ? Tide.text : mood.accent)
@@ -1236,7 +1238,7 @@ struct ModesSettingsDetailView: View {
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
         }
-        .animation(Tide.snap, value: active)
+        .animation(reduceMotion ? nil : Tide.snap, value: active)
         .accessibilityElement(children: .combine)
     }
 
@@ -1289,7 +1291,7 @@ struct ModesSettingsDetailView: View {
                 }
             }
         }
-        .animation(Tide.snap, value: examMode)
+        .animation(reduceMotion ? nil : Tide.snap, value: examMode)
         .sensoryFeedback(.selection, trigger: weekendMode)
         .sensoryFeedback(.selection, trigger: examMode)
         .navigationTitle("Modes")

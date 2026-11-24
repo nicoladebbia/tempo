@@ -22,6 +22,8 @@ struct AIBlockerCard: View {
 
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var showPaywall = false
     @State
@@ -31,7 +33,8 @@ struct AIBlockerCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .center, spacing: Tide.s3) {
+            // A message of several lines keeps its icon level with the first.
+            HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
                 TideIconTile(
                     systemName: blocker == .proRequired ? "lock.fill" : "sparkles",
                     tint: Tide.streak

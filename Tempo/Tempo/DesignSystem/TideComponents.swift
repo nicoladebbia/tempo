@@ -50,6 +50,26 @@ extension View {
     }
 }
 
+/// Small tracked capitals for a label, with the original text for VoiceOver and
+/// the accessibility tree. Prefer it to `Text(...).tideLabel()` for plain strings:
+/// `tideLabel()` cannot see the string it is drawing, so the capitals can leak
+/// into what assistive tools read.
+struct TideLabel: View {
+    let text: String
+    var color: Color = Tide.text2
+
+    init(_ text: String, color: Color = Tide.text2) {
+        self.text = text
+        self.color = color
+    }
+
+    var body: some View {
+        Text(text)
+            .tideLabel(color)
+            .accessibilityLabel(text)
+    }
+}
+
 /// A section heading with an optional trailing value.
 struct TideSectionLabel: View {
     let title: String
@@ -74,7 +94,8 @@ struct TideSectionLabel: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(trailing.map { "\(title), \($0)" } ?? title)
         .accessibilityAddTraits(.isHeader)
     }
 }
@@ -148,7 +169,7 @@ struct TideDial: View {
             }
             VStack(spacing: Tide.s1) {
                 TideNumber(score.map(String.init) ?? "--", size: diameter * 0.36, relativeTo: .largeTitle)
-                Text(caption).tideLabel()
+                TideLabel(caption)
                     .lineLimit(1)
                     .minimumScaleFactor(Tide.labelShrink)
                     // The caption sits where the ring is narrowest: it does not grow past the default.

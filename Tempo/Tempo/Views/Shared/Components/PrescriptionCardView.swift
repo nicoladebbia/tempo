@@ -25,7 +25,7 @@ struct PrescriptionCardView: View {
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Drill sergeant").tideLabel(mood.accent)
+                    TideLabel("Drill sergeant", color: mood.accent)
                     Spacer(minLength: Tide.s2)
                     Text(timestamp)
                         .font(Tide.label)

@@ -30,6 +30,8 @@ struct SignInPromptCard: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var isSigningIn = false
     @State
@@ -52,29 +54,23 @@ struct SignInPromptCard: View {
 
     private var card: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .top, spacing: Tide.s3) {
-                TideIconTile(systemName: "sparkles", tint: mood.accent)
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text(Self.title)
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(Self.detail)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                if let onDismiss {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(Tide.label)
-                            .foregroundStyle(Tide.text2)
-                            .frame(width: Tide.hit, height: Tide.hit)
-                            .contentShape(.rect)
+            if typeSize.isAccessibilitySize {
+                // The words get the full card width; the icon and the close
+                // button share the row above them.
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
+                        TideIconTile(systemName: "sparkles", tint: mood.accent)
+                        Spacer(minLength: 0)
+                        dismissButton
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Not now")
+                    copy
+                }
+            } else {
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    TideIconTile(systemName: "sparkles", tint: mood.accent)
+                    copy
+                    Spacer(minLength: 0)
+                    dismissButton
                 }
             }
             // Always the white button: Tide is a dark surface.
@@ -86,6 +82,34 @@ struct SignInPromptCard: View {
             }
         }
         .tideCard()
+    }
+
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(Self.title)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(Self.detail)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var dismissButton: some View {
+        if let onDismiss {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
+        }
     }
 
     // MARK: Shared

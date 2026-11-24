@@ -56,6 +56,8 @@ struct CaptureSheet: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var waterTotal = 0
@@ -64,7 +66,13 @@ struct CaptureSheet: View {
 
     static let waterStepMl = 250
 
-    private let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
+    /// Two tiles across; at accessibility sizes one full-width tile per row, so
+    /// no title is broken mid-word.
+    private var columns: [GridItem] {
+        typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
+    }
 
     var body: some View {
         ScrollView {
@@ -95,21 +103,32 @@ struct CaptureSheet: View {
     // MARK: Water
 
     private var waterRow: some View {
-        HStack(spacing: Tide.s4) {
-            TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit)
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Water today").tideLabel()
-                TideNumber(waterTotal.formatted(), unit: "ml", size: Tide.numeralSheet)
+        // At accessibility sizes the button drops under the total and takes the
+        // full width, so "+250 ml" never wraps inside its capsule.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: Tide.s4))
+        return layout {
+            HStack(spacing: Tide.s4) {
+                TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    TideLabel("Water today")
+                    TideNumber(waterTotal.formatted(), unit: "ml", size: Tide.numeralSheet)
+                }
             }
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
             Button {
                 addWater()
             } label: {
                 Text("+\(Self.waterStepMl) ml")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.ink)
+                    .lineLimit(1)
+                    .fixedSize()
                     .padding(.horizontal, Tide.s4)
-                    .frame(minHeight: Tide.hit)
+                    .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: Tide.hit)
                     .background(Tide.water, in: .capsule)
             }
             .buttonStyle(.plain)
@@ -137,10 +156,15 @@ struct CaptureSheet: View {
     // MARK: Actions
 
     private func actionTile(_ action: CaptureAction) -> some View {
-        Button {
+        // Icon beside the words at accessibility sizes (a full-width row), above
+        // them in the two-across grid.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+        return Button {
             onAction(action)
         } label: {
-            VStack(alignment: .leading, spacing: Tide.s3) {
+            layout {
                 TideIconTile(systemName: action.icon, tint: mood.accent, size: Tide.hit)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(action.title).font(Tide.headline).foregroundStyle(Tide.text)
@@ -172,6 +196,9 @@ private struct CaptureHost: ViewModifier {
     @Environment(\.tideMood)
     private var mood
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     @State
     private var pending: CaptureAction?
     @State
@@ -192,7 +219,8 @@ private struct CaptureHost: ViewModifier {
                     isPresented = false
                 }
                 .environment(\.tideMood, mood)
-                .presentationDetents([.height(Tide.captureHeight), .large])
+                // The short sheet cannot hold the tiles at accessibility sizes.
+                .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(Tide.captureHeight), .large])
                 .presentationDragIndicator(.visible)
                 // Opaque field: plain glass let the page's colours (tab bar,
                 // buttons) bleed through as a glow along the bottom edge.
