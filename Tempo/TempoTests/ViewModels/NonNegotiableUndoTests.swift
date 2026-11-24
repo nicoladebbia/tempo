@@ -16,7 +16,7 @@ final class NonNegotiableUndoTests: XCTestCase {
     private var context: ModelContext!
     private var viewModel: AccountabilityViewModel!
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         let schema = Schema([
             DailyAccountability.self, NonNegotiableProgress.self, NonNegotiable.self,
             StudySession.self, Streak.self,

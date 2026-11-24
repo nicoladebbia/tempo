@@ -41,6 +41,17 @@ struct LockdownTabView: View {
     /// nested stack would pop back to the root on every push.
     var embedded = false
 
+    /// What the Study page opens with from here. Its exams load themselves.
+    private var studyData: MindQuadrantData {
+        let target = viewModel.progressItems.first { $0.nonNegotiable?.type == .study }?.targetValue ?? 120
+        return MindQuadrantData(
+            studyMinutesToday: viewModel.totalFocusMinutesToday,
+            studyTargetMinutes: Int(target),
+            currentStreakDays: viewModel.streakCount,
+            exams: []
+        )
+    }
+
     var body: some View {
         EmbeddableNavigationStack(embedded: embedded) {
             LockdownMainView(viewModel: viewModel, showFocusTimer: $showFocusTimer)
@@ -70,9 +81,9 @@ struct LockdownTabView: View {
 
                             if focusTimerEnabled {
                                 NavigationLink {
-                                    FocusHistoryView()
+                                    MindQuadrantDetailView(data: studyData)
                                 } label: {
-                                    Label("Focus History", systemImage: "chart.bar.fill")
+                                    Label("Study", systemImage: "book.fill")
                                 }
                             }
 
