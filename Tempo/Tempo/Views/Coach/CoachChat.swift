@@ -1,39 +1,39 @@
 //
-// CoachTabView.swift
+// CoachChat.swift
 // Tempo
 //
-// Coach v2.1 Phase 8a — top-level host that owns the CoachViewModel,
-// gates on the interview, and builds the system prompt on every send via
-// CoachContextAssembler.
+// The one way into the Coach chat. Present it from anywhere (a sheet, a
+// navigation push, a tab): it builds everything the chat needs from the app's
+// services, so the caller passes nothing.
 //
-// This is the entry the main TabView routes to. It assembles all the
-// adapters from Phase 7a (chat / summarizer / dispatcher) + the new
-// Phase 8a extractor + evidence provider, and presents either the
-// CoachInterviewView sheet or the live CoachChatView.
+//     .sheet(isPresented: $showAsk) { CoachChat() }
 //
-// Per .plans/coach-v2.1/05-ui-surfaces.md "Coach tab".
+// It owns the `CoachViewModel`, assembles the agent loop's adapters from the
+// shared `APIClient`, and builds the system prompt fresh on every send so
+// today's live state and the learned preferences are never stale.
+//
+// The interview, memory and history screens that used to sit around the chat
+// are gone; the chat, its view model, the services and the backend calls stay.
 //
 
 import SwiftData
 import SwiftUI
 
-// MARK: - CoachTabView
+// MARK: - CoachChat
 
-struct CoachTabView: View {
-    /// Caller (the app's tab router) provides the APIClient so all the
-    /// adapters share the same auth + retry infrastructure as the rest
-    /// of the app.
-    let apiClient: APIClient
-    /// Optional sleep reader for the OutcomeEvidenceProvider. nil →
-    /// uses NoopHKSleepReader (bedtime grading falls back to .unclear).
+struct CoachChat: View {
+    /// Optional sleep reader for the OutcomeEvidenceProvider. The default
+    /// reads nothing, so bedtime grading falls back to "unclear".
     var sleepReader: HKSleepReader = NoopHKSleepReader()
-    /// Override for tests / previews. nil → real VoiceTranscriber.
+    /// Override for tests and previews. nil uses the real voice transcriber.
     var voiceOverride: (any CoachVoiceControlling)?
 
-    @Environment(\.modelContext) private var modelContext
-    @Environment(ServiceContainer.self) private var services
-    @State private var viewModel: CoachViewModel?
-    @State private var presentingInterview: Bool = false
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+    @State
+    private var viewModel: CoachViewModel?
 
     var body: some View {
         Group {
@@ -50,29 +50,21 @@ struct CoachTabView: View {
             }
         }
         .tidePage(energy: 1)
-        .tideCovered(presentingInterview)
         .task {
-            await bootstrapViewModelIfNeeded()
-        }
-        .sheet(isPresented: $presentingInterview) {
-            CoachInterviewView { _ in
-                presentingInterview = false
-                // After interview saves, refresh the VM gate snapshot
-                // so re-presentation doesn't fire.
-                Task { await bootstrapViewModelIfNeeded(force: true) }
-            }
-            .environment(\.tideInsidePage, false)
+            bootstrapViewModelIfNeeded()
         }
     }
 
     // MARK: - Bootstrap
 
-    private func bootstrapViewModelIfNeeded(force: Bool = false) async {
-        if viewModel != nil, !force {
+    private func bootstrapViewModelIfNeeded() {
+        guard viewModel == nil else {
             return
         }
 
-        // Build the agent loop's adapters from APIClient.
+        // The agent loop's adapters share the app's auth and retry
+        // infrastructure through the one APIClient.
+        let apiClient = services.apiClient
         let chatClient = CoachChatAIClientAdapter(requester: apiClient)
         let summarizer = ConversationSummarizerAIClientAdapter(requester: apiClient)
         let dispatcher = CoachToolDispatcherAdapter(
@@ -87,20 +79,12 @@ struct CoachTabView: View {
             summarizerClient: summarizer,
             toolDispatcher: dispatcher
         )
-        let extractor = PreferenceExtractorAdapter(requester: apiClient)
-        let gate = interviewGate(from: modelContext)
-
         let vm = CoachViewModel(
             service: service,
-            interviewGateProvider: { gate },
-            extractorClient: extractor
+            extractorClient: PreferenceExtractorAdapter(requester: apiClient)
         )
+        vm.loadOrStartConversation(context: modelContext)
         viewModel = vm
-        if vm.shouldPresentInterview() {
-            presentingInterview = true
-        } else {
-            vm.loadOrStartConversation(context: modelContext)
-        }
 
         // Register the evidence provider for the daily reset grader (idempotent).
         if DailyResetCoordinator.coachEvidenceProvider == nil {
@@ -119,22 +103,18 @@ struct CoachTabView: View {
         let snapshot = CoachContextAssembler.assemble(
             modelContext: modelContext,
             todayLive: liveSnapshot(),
-            calendarEvents: [], // calendar wire-up landed in Phase 5; the caller
-            // can extend this when a CalendarService is
-            // present in the environment.
+            calendarEvents: [],
             recentConversationSummaries: []
         )
         return snapshot.render()
     }
 
-    /// Live-state snapshot for today. Minimal — the full HK/Whoop wiring
-    /// lives in the existing nutrition/recovery view models; pulling
-    /// it into this host belongs in a follow-up commit (Phase 8b sticks
-    /// to memory UI).
+    /// Live-state snapshot for today. Minimal: the meals planned and their
+    /// timing. Recovery, steps and the workout are not read here yet.
     private func liveSnapshot() -> TodayLiveSnapshot {
         let todayMeals = CanonicalMeals.meals(on: Date(), in: modelContext)
-        // Phase 6: per-meal planned vs actual timing rows, sorted by
-        // mealNumber so Coach reads breakfast → lunch → dinner.
+        // Per-meal planned vs actual timing rows, sorted by mealNumber so
+        // Coach reads breakfast, lunch, dinner.
         let timings = todayMeals
             .sorted { $0.mealNumber < $1.mealNumber }
             .compactMap(PlannedMealTimingEntry.from(_:))
@@ -155,19 +135,6 @@ struct CoachTabView: View {
         )
         snapshot.mealTimings = timings
         return snapshot
-    }
-
-    // MARK: - Interview gate
-
-    private func interviewGate(from context: ModelContext) -> InterviewGate {
-        let settings = (try? context.fetch(FetchDescriptor<UserSettings>()))?.first
-        if settings?.coachInterviewCompleted == true {
-            return .completed
-        }
-        if settings?.coachInterviewSkipped == true {
-            return .skipped
-        }
-        return .needsInterview
     }
 
     private func currentVoiceMode() -> CoachVoiceMode {

@@ -10,10 +10,7 @@
 //   - Published messages / thinking / error / undo state for SwiftUI
 //   - Budget banner state (caution / critical)
 //
-// The view (Phase 7b) binds to this VM with @Bindable. The interview
-// gate logic also lives here — `shouldPresentInterview()` returns true
-// when both `coachInterviewCompleted` and `coachInterviewSkipped` are
-// false.
+// The view (CoachChatView) binds to this VM with @Bindable.
 //
 
 import Foundation
@@ -60,35 +57,22 @@ final class CoachViewModel {
     // MARK: - Dependencies
 
     private let service: CoachService
-    private let interviewGateProvider: () -> InterviewGate
     /// Post-chat preference extractor. Fired in a background Task on
-    /// `endConversation`. nil → skip extraction (default; Phase 8
-    /// CoachTabView injects a real APIClient-backed adapter).
+    /// `endConversation`. nil → skip extraction (default; `CoachChat`
+    /// injects a real APIClient-backed adapter).
     private let extractorClient: PreferenceExtractionAIClient?
 
     // MARK: - Init
 
     init(
         service: CoachService,
-        interviewGateProvider: @escaping () -> InterviewGate = { .needsInterview },
         extractorClient: PreferenceExtractionAIClient? = nil
     ) {
         self.service = service
-        self.interviewGateProvider = interviewGateProvider
         self.extractorClient = extractorClient
     }
 
     // MARK: - Public — lifecycle
-
-    /// Returns true when the chat view should present the interview sheet
-    /// before letting the user type. Wired against UserSettings flags by
-    /// the caller (Phase 7b's CoachTabView).
-    func shouldPresentInterview() -> Bool {
-        switch interviewGateProvider() {
-        case .needsInterview: return true
-        case .skipped, .completed: return false
-        }
-    }
 
     /// Loads or creates the active CoachConversation, refreshes the UI
     /// messages mirror, and reads the pending-review preferences queue
@@ -121,6 +105,15 @@ final class CoachViewModel {
         systemPrompt: String,
         context: ModelContext
     ) async {
+        await send(text, systemPrompt: systemPrompt, context: context, appendUserMessage: true)
+    }
+
+    private func send(
+        _ text: String,
+        systemPrompt: String,
+        context: ModelContext,
+        appendUserMessage: Bool
+    ) async {
         guard let conversation = activeConversation else {
             pendingError = "No active conversation."
             return
@@ -133,7 +126,8 @@ final class CoachViewModel {
                 text,
                 conversation: conversation,
                 systemPrompt: systemPrompt,
-                context: context
+                context: context,
+                appendUserMessage: appendUserMessage
             )
             refreshMirror()
             refreshUndoLabel()
@@ -144,6 +138,10 @@ final class CoachViewModel {
                 break
             }
         } catch {
+            // The user's turn is already in the conversation (it is added
+            // before the network call): show it, so a retry doesn't look like
+            // a second message.
+            refreshMirror()
             // 503 from the backend means sub-cap exhausted.
             pendingError = mapError(error)
             if case .critical = budgetState {
@@ -152,6 +150,35 @@ final class CoachViewModel {
                 budgetState = .critical
             }
         }
+    }
+
+    /// True when the last turn went unanswered: the conversation ends on the
+    /// user's own message (or a tool result) and an error is showing, so
+    /// "Retry" has something to resend.
+    var canRetry: Bool {
+        pendingError != nil && !isThinking
+            && Self.lastUnansweredUserText(in: activeConversation?.messages ?? []) != nil
+    }
+
+    /// Asks again for the turn that failed, without adding the user's message
+    /// a second time (it is already in the transcript).
+    func retryLast(systemPrompt: String, context: ModelContext) async {
+        guard !isThinking,
+              let conversation = activeConversation,
+              let text = Self.lastUnansweredUserText(in: conversation.messages)
+        else {
+            return
+        }
+        await send(text, systemPrompt: systemPrompt, context: context, appendUserMessage: false)
+    }
+
+    /// The text of the user's last typed message when nothing answered it.
+    /// nil when the conversation ends on an assistant turn (nothing to retry).
+    static func lastUnansweredUserText(in messages: [CoachMessage]) -> String? {
+        guard let last = messages.last, last.role == "user" else {
+            return nil
+        }
+        return messages.last(where: { $0.role == "user" && $0.text?.isEmpty == false })?.text
     }
 
     /// Pops the last undo entry from the service. UI refresh after.
@@ -219,7 +246,7 @@ final class CoachViewModel {
         if Self.is503(error) {
             return "Coach is at this month's limit — back in a few days."
         }
-        return "Couldn't reach Coach. Tap to retry."
+        return "Couldn't reach Coach."
     }
 
     private static func is503(_ error: Error) -> Bool {
@@ -229,14 +256,4 @@ final class CoachViewModel {
         return description.contains("503") || description.contains("service unavailable")
             || description.contains("budget")
     }
-}
-
-// MARK: - InterviewGate
-
-/// Snapshot of the interview gating flags. Caller (Phase 7b's
-/// CoachTabView) computes from UserSettings and passes through.
-enum InterviewGate: Equatable, Sendable {
-    case needsInterview
-    case completed
-    case skipped
 }

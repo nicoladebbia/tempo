@@ -76,12 +76,17 @@ final class CoachService {
     /// or a hard cap. Returns the run report so the UI can surface caps
     /// reached / errors / undo availability. Throws on network or
     /// persistence failure that the loop can't self-recover from.
+    ///
+    /// `appendUserMessage: false` is a retry: the user's turn is already in the
+    /// conversation (it is appended before the network call, so it survives a
+    /// failed one), and the loop just asks again without adding it twice.
     @discardableResult
     func sendMessage(
         _ userText: String,
         conversation: CoachConversation,
         systemPrompt: String,
-        context: ModelContext
+        context: ModelContext,
+        appendUserMessage: Bool = true
     ) async throws -> RunReport {
         var report = RunReport()
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -91,8 +96,10 @@ final class CoachService {
         }
 
         // Append the user turn first so it's part of the prompt history.
-        let userMessage = CoachMessage(role: "user", text: trimmed)
-        conversation.append(userMessage)
+        if appendUserMessage {
+            let userMessage = CoachMessage(role: "user", text: trimmed)
+            conversation.append(userMessage)
+        }
 
         var turnCount = 0
         var toolCallCount = 0
