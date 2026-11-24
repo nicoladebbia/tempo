@@ -25,6 +25,23 @@ struct FocusHistoryView: View {
     private var heatCell: CGFloat = 14
 
     var body: some View {
+        Group {
+            if sessions.isEmpty {
+                // Nothing logged: a page that says so, not a chart of empty bars and four zeros.
+                ArenaEmptyPage(
+                    title: "No sessions yet",
+                    message: "Start a focus timer and every session lands here, with what you studied and when.",
+                    art: { ArenaEmptyArt(systemImage: "timer", tint: mood.accent) }
+                )
+            } else {
+                history
+            }
+        }
+        .navigationTitle("Focus History")
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private var history: some View {
         TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
             // 7-day bar chart
             weeklyChartSection
@@ -41,8 +58,6 @@ struct FocusHistoryView: View {
             // Session list
             sessionListSection
         }
-        .navigationTitle("Focus History")
-        .navigationBarTitleDisplayMode(.large)
     }
 
     // MARK: - Weekly Chart
@@ -79,10 +94,11 @@ struct FocusHistoryView: View {
             TideSectionLabel(title: "Stats")
 
             LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Tide.s3),
-                    GridItem(.flexible(), spacing: Tide.s3),
-                ],
+                // One tile per row at accessibility sizes, so the numbers keep their width.
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: Tide.s3),
+                    count: typeSize.isAccessibilitySize ? 1 : 2
+                ),
                 spacing: Tide.s3
             ) {
                 TideMetricTile(
@@ -159,13 +175,19 @@ struct FocusHistoryView: View {
 
     private func subjectRow(_ row: (subject: String, minutes: Int), total: Int) -> some View {
         let fraction = Double(row.minutes) / Double(total)
+        let stacks = typeSize.isAccessibilitySize
+        let head = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
         return VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline) {
+            head {
                 Text(row.subject)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(1)
-                Spacer(minLength: Tide.s2)
+                    .lineLimit(stacks ? 3 : 1)
+                if !stacks {
+                    Spacer(minLength: Tide.s2)
+                }
                 Text(formatMinutes(row.minutes))
                     .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
                     .foregroundStyle(Tide.text2)
@@ -299,33 +321,46 @@ struct FocusHistoryView: View {
     }
 
     private func sessionRow(_ session: StudySession) -> some View {
-        HStack(spacing: Tide.s3) {
+        let stacks = typeSize.isAccessibilitySize
+        let score = session.effectiveFocusScore > 0
+            ? TideNumber(
+                "\(session.effectiveFocusScore)",
+                unit: "%",
+                size: Tide.numeralS,
+                relativeTo: .headline,
+                weight: .semibold,
+                color: focusScoreColor(session.effectiveFocusScore)
+            )
+            : nil
+
+        return HStack(alignment: stacks ? .top : .center, spacing: Tide.s3) {
             TideAreaIconTile(systemName: "book.fill", tint: mood.accent)
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(session.subject ?? "Focus Session")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(2)
+                    .lineLimit(stacks ? 4 : 2)
 
                 Text(
                     "\(session.durationFormatted) \u{00B7} \(Text(session.startTime, format: .dateTime.month(.abbreviated).day().hour().minute()))"
                 )
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+
+                // At large text the focus score sits under the time, not beside the name.
+                if stacks, let score {
+                    score
+                }
             }
 
-            Spacer(minLength: Tide.s2)
+            if !stacks {
+                Spacer(minLength: Tide.s2)
 
-            if session.effectiveFocusScore > 0 {
-                TideNumber(
-                    "\(session.effectiveFocusScore)",
-                    unit: "%",
-                    size: Tide.numeralS,
-                    relativeTo: .headline,
-                    weight: .semibold,
-                    color: focusScoreColor(session.effectiveFocusScore)
-                )
+                if let score {
+                    score
+                }
             }
         }
         .padding(.horizontal, Tide.s4)

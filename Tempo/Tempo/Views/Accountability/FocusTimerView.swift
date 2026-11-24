@@ -209,16 +209,17 @@ struct FocusTimerView: View {
                             .padding(.horizontal, Tide.edge)
                             .padding(.bottom, Tide.s4)
                     }
-
-                    // Primary controls
-                    primaryControls
-                        .padding(.horizontal, Tide.edge)
-                        .padding(.bottom, Tide.s4)
                 }
                 .frame(minHeight: proxy.size.height)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
+        }
+        // Start, Pause and Stop stay under the thumb, even when large text makes the page scroll.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            primaryControls
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s4)
         }
     }
 
@@ -234,7 +235,12 @@ struct FocusTimerView: View {
     private var focusRecommendationBanner: some View {
         let recommendation = focusRecommendation
 
-        return HStack(spacing: Tide.s3) {
+        // Icon, words and the suggested length in a line, or one under the other at large text.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+
+        return layout {
             Image(systemName: recommendation.icon)
                 .font(Tide.headline)
                 .foregroundStyle(recommendation.color)
@@ -252,7 +258,9 @@ struct FocusTimerView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
 
             if let suggestedMinutes = recommendation.suggestedDuration {
                 Button {
@@ -271,6 +279,7 @@ struct FocusTimerView: View {
                 .accessibilityLabel("Set timer to \(suggestedMinutes) minutes")
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideTintedCard(recommendation.color, padding: Tide.s3, radius: Tide.tileRadius)
         .accessibilityElement(children: .contain)
     }
@@ -871,33 +880,50 @@ struct FocusTimerView: View {
                 .overlay(Tide.ink.opacity(0.55))
                 .ignoresSafeArea()
 
-            VStack(spacing: Tide.s5) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(Tide.numeral(Tide.numeralHero, .light))
-                    .foregroundStyle(TideTone.mint)
-                    .shadow(color: TideTone.mint.opacity(0.5), radius: Tide.s6)
-                    .accessibilityHidden(true)
+            ArenaBurst(accent: TideTone.mint)
+                .ignoresSafeArea()
 
-                Text("All sessions complete!")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .multilineTextAlignment(.center)
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: Tide.s5) {
+                        Spacer(minLength: Tide.s6)
 
-                Text("\(totalSessions) sessions of focused study")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
+                        // The ring closes around the check: the run is sealed.
+                        LockdownSeal(systemImage: "checkmark", diameter: Tide.dialHero)
 
-                LockdownSessionDots(completed: totalSessions, total: totalSessions, running: false)
+                        Text("All sessions complete!")
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.center)
+                            .arenaReveal(5)
 
+                        Text("\(totalSessions) sessions of focused study")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .arenaReveal(7)
+
+                        LockdownSessionDots(completed: totalSessions, total: totalSessions, running: false)
+                            .arenaReveal(9)
+
+                        Spacer(minLength: Tide.s6)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                    .padding(.horizontal, Tide.edge)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            // The one way on stays under the thumb.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 Button("Done") {
                     viewModel.focusState = .review
                 }
                 .buttonStyle(.tidePrimary)
-                .frame(maxWidth: Tide.s10 * 6)
-                .padding(.top, Tide.s4)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s4)
             }
-            .padding(.horizontal, Tide.edge)
             .accessibilityElement(children: .contain)
         }
         .transition(.opacity)
