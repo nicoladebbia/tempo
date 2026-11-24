@@ -313,14 +313,14 @@ struct KitchenEmpty: View {
 
     var body: some View {
         VStack(spacing: Tide.s3) {
-            Image(systemName: systemImage)
-                .font(Tide.largeTitle)
-                .foregroundStyle(mood.accent)
-                .accessibilityHidden(true)
+            // The same tile as a failure, in the accent: an empty shelf and a
+            // broken one are two states of one family.
+            KitchenIconTile(systemName: systemImage, tint: mood.accent, size: Tide.tileLarge)
             Text(title)
-                .font(Tide.headline)
+                .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
             Text(message)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -1292,7 +1292,31 @@ struct KitchenStatePage<Hero: View>: View {
         if actions.isEmpty {
             page
         } else {
-            page.kitchenBottomBar { bar }
+            page.kitchenBottomBar {
+                bar.background { backing }
+            }
+        }
+    }
+
+    /// At the accessibility text sizes the bar is tall and the hero scrolls
+    /// under it, so the bar gets ink under it that fades out just above it.
+    /// At the usual sizes the hero never reaches it.
+    @ViewBuilder
+    private var backing: some View {
+        if typeSize.isAccessibilitySize {
+            LinearGradient(
+                stops: [
+                    .init(color: Tide.ink.opacity(0), location: 0),
+                    .init(color: Tide.ink, location: 0.2),
+                    .init(color: Tide.ink, location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .padding(.top, -Tide.s8)
+            .padding(.bottom, -Tide.s10)
+            .padding(.horizontal, -Tide.edge)
+            .allowsHitTesting(false)
         }
     }
 

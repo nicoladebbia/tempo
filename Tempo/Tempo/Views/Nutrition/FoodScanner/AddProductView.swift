@@ -74,6 +74,8 @@ struct AddProductView: View {
     private var labelBlocker: AIBlocker?
     @State
     private var picker: PickerTarget?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @ScaledMetric
     private var photoSize: CGFloat = Tide.Kitchen.heroDisc
     @ScaledMetric
@@ -144,19 +146,12 @@ struct AddProductView: View {
                 numberField("Serving size (optional)", text: $servingText, unit: isBeverage ? "ml" : "g", id: "addProductServing")
             }
 
-            KitchenFormSection(
-                "Per 100 \(isBeverage ? "ml" : "g")",
-                footer: "Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score."
-            ) {
-                coreMeter
-                numberField("Calories", text: $kcal, unit: "kcal", id: "addProductKcal")
-                numberField("Protein", text: $protein, unit: "g", id: "addProductProtein")
-                numberField("Carbs", text: $carbs, unit: "g", id: "addProductCarbs")
-                numberField("of which sugars", text: $sugars, unit: "g", id: "addProductSugars")
-                numberField("Fat", text: $fat, unit: "g", id: "addProductFat")
-                numberField("of which saturated", text: $saturatedFat, unit: "g", id: "addProductSatFat")
-                numberField("Fiber", text: $fiber, unit: "g", id: "addProductFiber")
-                numberField("Salt", text: $salt, unit: "g", id: "addProductSalt")
+            Section {
+                valuesCard
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+            } header: {
+                Text("Per 100 \(isBeverage ? "ml" : "g")").tideLabel()
             }
 
             KitchenFormSection("Ingredients", footer: "E-numbers in the ingredients are used to rate additives.") {
@@ -165,16 +160,10 @@ struct AddProductView: View {
             }
         }
         .kitchenPage()
+        .kitchenBottomBar { saveBar }
         .onAppear(perform: applyPrefill)
         .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save", action: save)
-                    .disabled(draft == nil)
-                    .accessibilityIdentifier("addProductSave")
-            }
-        }
         .fullScreenCover(item: $picker) { target in
             switch target {
             case let .front(source):
@@ -221,7 +210,10 @@ struct AddProductView: View {
     // MARK: - Photo
 
     private var photoRow: some View {
-        HStack(spacing: Tide.s4) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s4))
+        return layout {
             ZStack {
                 if let photo, let image = UIImage(data: photo) {
                     Image(uiImage: image)
@@ -247,7 +239,7 @@ struct AddProductView: View {
                         .font(Tide.caption)
                         .foregroundStyle(photoIsCutOut ? Tide.Kitchen.good : Tide.text2)
                 }
-                captureButtons(camera: { picker = .front(.camera) }, library: { picker = .front(.photoLibrary) })
+                captureButtons(camera: { picker = .front(.camera) }, library: { picker = .front(.photoLibrary) }, stacked: true)
             }
         }
         .padding(.vertical, Tide.s1)
@@ -414,17 +406,96 @@ struct AddProductView: View {
 
     // MARK: - Helpers
 
-    private func captureButtons(camera: @escaping () -> Void, library: @escaping () -> Void) -> some View {
-        GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
+    private func captureButtons(camera: @escaping () -> Void, library: @escaping () -> Void, stacked: Bool = false) -> some View {
+        let layout = stacked || typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return GlassEffectContainer(spacing: Tide.s2) {
+            layout {
                 Button(action: camera) {
                     Label("Camera", systemImage: "camera")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
                 }
                 Button(action: library) {
                     Label("Library", systemImage: "photo.on.rectangle")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.tideGlass)
+        }
+    }
+
+    /// The four values needed to log it first, big, in the colours of Today's
+    /// macro rings; salt, fiber and the two "of which" lines after.
+    private var valuesCard: some View {
+        let unit = "g"
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            coreMeter
+            KitchenPair {
+                KitchenNumberField(label: "Calories", unit: "kcal", placeholder: "—", tint: Tide.streak, text: $kcal, identifier: "addProductKcal")
+            } second: {
+                KitchenNumberField(label: "Protein", unit: unit, placeholder: "—", tint: Tide.protein, text: $protein, identifier: "addProductProtein")
+            }
+            KitchenPair {
+                KitchenNumberField(label: "Carbs", unit: unit, placeholder: "—", tint: Tide.carbs, text: $carbs, identifier: "addProductCarbs")
+            } second: {
+                KitchenNumberField(label: "Fat", unit: unit, placeholder: "—", tint: Tide.fat, text: $fat, identifier: "addProductFat")
+            }
+            Text("Also on the label").tideLabel(Tide.text3)
+                .padding(.top, Tide.s2)
+            KitchenPair {
+                KitchenNumberField(label: "Sugars", unit: unit, placeholder: "—", text: $sugars, identifier: "addProductSugars")
+            } second: {
+                KitchenNumberField(label: "Saturated", unit: unit, placeholder: "—", text: $saturatedFat, identifier: "addProductSatFat")
+            }
+            KitchenPair {
+                KitchenNumberField(label: "Fiber", unit: unit, placeholder: "—", text: $fiber, identifier: "addProductFiber")
+            } second: {
+                KitchenNumberField(label: "Salt", unit: unit, placeholder: "—", text: $salt, identifier: "addProductSalt")
+            }
+            Text("Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+    }
+
+    /// Save sits under the thumb. While it can't save, one line says what is
+    /// still missing.
+    private var saveBar: some View {
+        VStack(spacing: Tide.s2) {
+            if draft == nil {
+                Text(missingHint)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s3)
+                    .padding(.vertical, Tide.s1)
+                    .glassEffect(.regular, in: .rect(cornerRadius: Tide.controlRadius))
+                    .transition(.opacity)
+            }
+            Button(action: save) {
+                Text(prefill == nil ? "Save product" : "Save label")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.kitchenBar)
+            .disabled(draft == nil)
+            .accessibilityIdentifier("addProductSave")
+        }
+        .animation(Tide.snap, value: draft == nil)
+    }
+
+    private var missingHint: String {
+        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch (hasName, coreFilled == 4) {
+        case (false, false): return "Add a name and the four values to save."
+        case (false, true): return "Add a name to save."
+        default: return "Add the four values to save."
         }
     }
 
