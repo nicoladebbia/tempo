@@ -34,7 +34,7 @@ struct LoggedMealsList: View {
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
                 title: "Logged today",
-                trailing: meals.count == 1 ? "1 meal" : "\(meals.count) meals"
+                trailing: FuelWords.count(meals.count, "meal")
             )
             TideNumber("\(totals.calories)", unit: "kcal", size: Tide.numeralL)
             // How the day's calories divide, then the grams (stacked at large text sizes).

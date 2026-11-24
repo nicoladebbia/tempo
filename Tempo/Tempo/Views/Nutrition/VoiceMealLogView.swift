@@ -266,7 +266,7 @@ struct VoiceMealLogView: View {
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
                 title: "Confirm your meal",
-                trailing: resolved.count == 1 ? "1 item" : "\(resolved.count) items"
+                trailing: FuelWords.count(resolved.count, "item")
             )
             TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralL)
 

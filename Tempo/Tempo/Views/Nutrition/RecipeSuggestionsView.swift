@@ -319,11 +319,11 @@ struct RecipeDetailView: View {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Tide.s4) {
                     metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
-                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                    metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
-                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                    metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
             }
             FuelMacroInline(

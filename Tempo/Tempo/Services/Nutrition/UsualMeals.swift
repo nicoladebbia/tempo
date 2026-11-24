@@ -151,11 +151,11 @@ enum UsualMeals {
         guard !names.isEmpty else {
             return "Meal"
         }
-        if names.count <= 2 {
-            return names.joined(separator: ", ")
-        }
-        let rest = names.count - 2
-        return "\(names[0]), \(names[1]) and \(rest) more"
+        // Sentence case: "Oats, banana", not "oats, banana".
+        let title = names.count <= 2
+            ? names.joined(separator: ", ")
+            : "\(names[0]), \(names[1]) and \(names.count - 2) more"
+        return title.prefix(1).uppercased() + title.dropFirst()
     }
 
     private static func minutesIntoDay(_ date: Date, calendar: Calendar) -> Int {

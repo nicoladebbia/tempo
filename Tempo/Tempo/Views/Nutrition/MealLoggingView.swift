@@ -341,7 +341,7 @@ struct MealLoggingView: View {
                     mealHero
                     TideSectionLabel(
                         title: "In this meal",
-                        trailing: foodItems.count == 1 ? "1 item" : "\(foodItems.count) items"
+                        trailing: FuelWords.count(foodItems.count, "item")
                     )
                     VStack(spacing: 0) {
                         ForEach(foodItems) { item in

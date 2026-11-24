@@ -4,7 +4,7 @@
 //
 // The one Fuel coach page: the hydration tips quote the same water target as the
 // Water card, the weigh-in push opens Fuel > Coach, and the page's session line
-// reads the way the old Recovery screen did.
+// reads the way the old Recovery screen did. Also the "1 meal" / "2 meals" words.
 //
 
 @testable import Tempo
@@ -37,5 +37,14 @@ final class NutritionCoachMergeTests: XCTestCase {
         let line = RecoveryCoachSection.sessionLine(session, now: now)
         XCTAssertTrue(line.contains("80 min"), line)
         XCTAssertTrue(line.hasPrefix(session.label), line)
+    }
+
+    func testCountsUseTheSingularForOne() {
+        XCTAssertEqual(FuelWords.count(0, "meal"), "0 meals")
+        XCTAssertEqual(FuelWords.count(1, "meal"), "1 meal")
+        XCTAssertEqual(FuelWords.count(2, "serving"), "2 servings")
+        XCTAssertEqual(FuelWords.count(1, "serving"), "1 serving")
+        XCTAssertEqual(FuelWords.count(2, "day", plural: "days"), "2 days")
+        XCTAssertEqual(FuelWords.count(3, "match", plural: "matches"), "3 matches")
     }
 }

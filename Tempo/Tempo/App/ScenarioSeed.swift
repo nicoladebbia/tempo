@@ -57,6 +57,10 @@ import SwiftData
             case "eaten-before-update": // meals marked eaten by an old build (no undo detail) — test undo
                 fuelReady(context)
                 eatenBeforeUpdate(context)
+            case "usual-meals": // fuel-ready + 5 days of repeated meals and one favourite — the usual / same-as-yesterday rows on the
+                // capture screen
+                fuelReady(context)
+                usualMeals(context, now: now)
             case "training": // onboarded + trainer program with a guided run today
                 onboarded(context)
                 GuidedRunUITestSeed.seed(context: context)
@@ -166,6 +170,61 @@ import SwiftData
                 ("olive oil", "Olive Oil", 1, .bottles, .cupboard),
                 ("banana", "Bananas", 6, .pieces, .pantry),
             ])
+        }
+
+        /// Real eaten history for the one-tap rows: oats and banana for breakfast 4 days
+        /// running, chicken and rice for lunch 3 days, salmon on 2 dinners, a one-off tuna
+        /// lunch (not a habit), and a pinned favourite. Yesterday was breakfast and lunch.
+        @MainActor
+        private static func usualMeals(_ context: ModelContext, now: Date) {
+            let calendar = Calendar.current
+            let oats = PlannedFood(name: "oats", quantityGrams: 80, calories: 303, proteinG: 10.6, carbsG: 54, fatG: 5.3)
+            let banana = PlannedFood(name: "banana", quantityGrams: 120, calories: 107, proteinG: 1.3, carbsG: 27, fatG: 0.4)
+            let chicken = PlannedFood(name: "chicken breast", quantityGrams: 180, calories: 297, proteinG: 55.8, carbsG: 0, fatG: 6.5)
+            let rice = PlannedFood(name: "white rice", quantityGrams: 220, calories: 286, proteinG: 5.9, carbsG: 62, fatG: 0.6)
+            let salmon = PlannedFood(name: "salmon", quantityGrams: 160, calories: 333, proteinG: 33, carbsG: 0, fatG: 21)
+            let potatoes = PlannedFood(name: "potatoes", quantityGrams: 250, calories: 192, proteinG: 5, carbsG: 43, fatG: 0.3)
+            let tuna = PlannedFood(name: "tuna", quantityGrams: 120, calories: 140, proteinG: 30, carbsG: 0, fatG: 1.5)
+            let meals: [(daysAgo: Int, number: Int, name: String, time: String, foods: [PlannedFood])] = [
+                (1, 1, "Breakfast", "08:00", [oats, banana]),
+                (2, 1, "Breakfast", "08:05", [oats, banana]),
+                (3, 1, "Breakfast", "07:50", [oats, banana]),
+                (4, 1, "Breakfast", "08:10", [oats, banana]),
+                (1, 2, "Lunch", "12:30", [chicken, rice]),
+                (2, 2, "Lunch", "12:40", [chicken, rice]),
+                (3, 2, "Lunch", "12:20", [chicken, rice]),
+                (4, 2, "Lunch", "13:00", [tuna]),
+                (2, 3, "Dinner", "19:30", [salmon, potatoes]),
+                (4, 3, "Dinner", "19:45", [salmon, potatoes]),
+            ]
+            for entry in meals {
+                guard let day = calendar.date(byAdding: .day, value: -entry.daysAgo, to: calendar.startOfDay(for: now)) else {
+                    continue
+                }
+                let parts = entry.time.split(separator: ":").compactMap { Int($0) }
+                let eatenAt = calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day) ?? day
+                context.insert(PlannedMeal(
+                    dayDate: day,
+                    mealNumber: entry.number,
+                    mealName: entry.name,
+                    scheduledTime: entry.time,
+                    foods: entry.foods,
+                    totalCalories: entry.foods.reduce(0) { $0 + $1.calories },
+                    totalProtein: entry.foods.reduce(0) { $0 + $1.proteinG },
+                    totalCarbs: entry.foods.reduce(0) { $0 + $1.carbsG },
+                    totalFat: entry.foods.reduce(0) { $0 + $1.fatG },
+                    status: .eaten,
+                    actualEatenAt: eatenAt
+                ))
+            }
+            _ = try? MealOutcomeService.savePreset(
+                name: "Pre-training toast",
+                foods: [
+                    PlannedFood(name: "wholegrain toast", quantityGrams: 80, calories: 200, proteinG: 8, carbsG: 36, fatG: 3),
+                    PlannedFood(name: "honey", quantityGrams: 20, calories: 61, proteinG: 0, carbsG: 16, fatG: 0),
+                ],
+                mealType: .snack, isPinned: true, modelContext: context
+            )
         }
 
         /// The undo-after-update bug: an old build marked meals eaten and

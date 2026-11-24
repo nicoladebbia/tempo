@@ -202,7 +202,7 @@ struct NutritionWeeklyPlanView: View {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber("\(eatenMeals)", size: Tide.numeralM)
-                    Text("of \(totalMeals) meals completed")
+                    Text("of \(FuelWords.count(totalMeals, "meal")) completed")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -328,7 +328,7 @@ struct NutritionWeeklyPlanView: View {
             VStack(alignment: alignment, spacing: Tide.hair) {
                 TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
 
-                Text("\(mealCount) meals")
+                Text(FuelWords.count(mealCount, "meal"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }

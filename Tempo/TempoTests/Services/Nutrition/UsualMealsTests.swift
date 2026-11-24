@@ -40,7 +40,7 @@ final class UsualMealsRankingTests: XCTestCase {
         ]
         let ranked = UsualMeals.ranked(entries, type: .lunch, now: now)
         XCTAssertEqual(ranked.map(\.days), [3, 2])
-        XCTAssertEqual(ranked.first?.title, "rice, chicken")
+        XCTAssertEqual(ranked.first?.title, "Rice, chicken")
     }
 
     func testOnlyTheAskedMealType() {
@@ -48,8 +48,8 @@ final class UsualMealsRankingTests: XCTestCase {
             entry(1, 8, .breakfast, ["oats"]), entry(2, 8, .breakfast, ["oats"]),
             entry(1, 12, .lunch, ["salad"]), entry(2, 12, .lunch, ["salad"]),
         ]
-        XCTAssertEqual(UsualMeals.ranked(entries, type: .breakfast, now: now).map(\.title), ["oats"])
-        XCTAssertEqual(UsualMeals.ranked(entries, type: .lunch, now: now).map(\.title), ["salad"])
+        XCTAssertEqual(UsualMeals.ranked(entries, type: .breakfast, now: now).map(\.title), ["Oats"])
+        XCTAssertEqual(UsualMeals.ranked(entries, type: .lunch, now: now).map(\.title), ["Salad"])
         XCTAssertTrue(UsualMeals.ranked(entries, type: .dinner, now: now).isEmpty)
     }
 
@@ -88,7 +88,7 @@ final class UsualMealsRankingTests: XCTestCase {
             entry(1, 12, .lunch, ["noon bowl"]), entry(2, 12, .lunch, ["noon bowl"]),
         ]
         let ranked = UsualMeals.ranked(entries, type: .lunch, at: now, now: now)
-        XCTAssertEqual(ranked.map(\.title), ["noon bowl", "late wrap"])
+        XCTAssertEqual(ranked.map(\.title), ["Noon bowl", "Late wrap"])
     }
 
     func testLimitAndEmptyHistory() {
@@ -132,8 +132,8 @@ final class UsualMealsRankingTests: XCTestCase {
     }
 
     func testTitleIsShortForLongMeals() {
-        XCTAssertEqual(UsualMeals.title(of: [food("oats")]), "oats")
-        XCTAssertEqual(UsualMeals.title(of: [food("oats"), food("milk"), food("banana"), food("honey")]), "oats, milk and 2 more")
+        XCTAssertEqual(UsualMeals.title(of: [food("oats")]), "Oats")
+        XCTAssertEqual(UsualMeals.title(of: [food("oats"), food("milk"), food("banana"), food("honey")]), "Oats, milk and 2 more")
         XCTAssertEqual(UsualMeals.title(of: []), "Meal")
     }
 }
