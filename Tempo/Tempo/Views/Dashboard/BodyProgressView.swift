@@ -107,7 +107,7 @@ struct BodyProgressView: View {
             ProgressPhotoCamera { image in
                 showCamera = false
                 if let image {
-                    add(image)
+                    Task { await add(image) }
                 }
             }
             .ignoresSafeArea()
@@ -449,26 +449,29 @@ struct BodyProgressView: View {
         photos = store.photos()
     }
 
-    private func add(_ image: UIImage) {
-        guard let data = ProgressPhotoStore.jpegData(from: image) else {
-            problem = "That picture could not be read."
-            return
-        }
-        do {
-            try store.add(jpegData: data)
-            reloadPhotos()
-        } catch {
-            problem = "Check that your phone has free space, then try again."
-        }
+    private func add(_ image: UIImage) async {
+        await save { try await store.add(picture: image) }
     }
 
     private func load(_ item: PhotosPickerItem) async {
         defer { libraryItem = nil }
-        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
             problem = "That picture could not be read."
             return
         }
-        add(image)
+        await save { try await store.add(pictureData: data) }
+    }
+
+    /// Runs a save and shows the right words if it fails.
+    private func save(_ work: () async throws -> ProgressPhoto) async {
+        do {
+            _ = try await work()
+            reloadPhotos()
+        } catch ProgressPhotoStore.AddError.unreadable {
+            problem = "That picture could not be read."
+        } catch {
+            problem = "Check that your phone has free space, then try again."
+        }
     }
 
     private func delete(_ photo: ProgressPhoto) {

@@ -125,12 +125,16 @@ enum BodyProgress {
     }
 
     /// The latest reading, and where the series has been going. Nil with no points.
-    static func trend(of points: [Point]) -> Trend? {
+    static func trend(of points: [Point], calendar: Calendar = .current) -> Trend? {
         let sorted = points.sorted { $0.date < $1.date }
         guard let first = sorted.first, let latest = sorted.last else {
             return nil
         }
-        let spanDays = latest.date.timeIntervalSince(first.date) / 86400
+        // Calendar days, not elapsed seconds: a week that crosses a clock change
+        // is 6.96 days of seconds and must still count as a week.
+        let spanDays = Double(calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: first.date), to: calendar.startOfDay(for: latest.date)
+        ).day ?? 0)
         guard sorted.count >= minimumPoints, spanDays >= minimumSpanDays,
               let slopePerDay = leastSquaresSlope(sorted)
         else {

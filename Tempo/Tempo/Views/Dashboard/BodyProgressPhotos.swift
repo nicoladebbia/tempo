@@ -199,13 +199,13 @@ struct ProgressPhotoCompare: View {
             Text(title).tideLabel(Tide.text3)
             Menu {
                 ForEach(options) { option in
-                    Button(option.date.formatted(date: .abbreviated, time: .omitted)) {
+                    Button(option.menuLabel(among: photos)) {
                         selection.wrappedValue = option.id
                     }
                 }
             } label: {
                 HStack(spacing: Tide.s1) {
-                    Text(photo?.date.formatted(date: .abbreviated, time: .omitted) ?? "--")
+                    Text(photo?.menuLabel(among: photos) ?? "--")
                         .font(Tide.bodyStrong)
                         .lineLimit(1)
                         .minimumScaleFactor(Tide.labelShrink)

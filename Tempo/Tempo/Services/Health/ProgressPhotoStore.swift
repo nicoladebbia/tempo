@@ -21,6 +21,16 @@ struct ProgressPhoto: Identifiable, Equatable {
     let url: URL
 }
 
+extension ProgressPhoto {
+    /// "24 Nov 2026", with the time added when another of `photos` was taken the
+    /// same day, so two photos of one day can be told apart in a menu.
+    func menuLabel(among photos: [ProgressPhoto], calendar: Calendar = .current) -> String {
+        let day = date.formatted(date: .abbreviated, time: .omitted)
+        let sharesTheDay = photos.contains { $0.id != id && calendar.isDate($0.date, inSameDayAs: date) }
+        return sharesTheDay ? "\(day), \(date.formatted(date: .omitted, time: .shortened))" : day
+    }
+}
+
 // MARK: - ProgressPhotoStore
 
 struct ProgressPhotoStore {
@@ -91,6 +101,38 @@ struct ProgressPhotoStore {
         // Readable only while the phone is unlocked.
         try jpegData.write(to: url, options: [.atomic, .completeFileProtection])
         return ProgressPhoto(id: name, date: Self.date(fromFileName: name) ?? date, url: url)
+    }
+
+    /// A picture that could not be turned into a photo.
+    enum AddError: Error {
+        case unreadable
+    }
+
+    /// Saves a camera picture: scaled, encoded and written off the main thread, so
+    /// a 12 MP photo never freezes the page.
+    @discardableResult
+    func add(picture image: UIImage) async throws -> ProgressPhoto {
+        try await Task.detached(priority: .userInitiated) { [self] in
+            try addScaled(image)
+        }.value
+    }
+
+    /// Saves a library picture from its bytes, decoded off the main thread too.
+    @discardableResult
+    func add(pictureData data: Data) async throws -> ProgressPhoto {
+        try await Task.detached(priority: .userInitiated) { [self] in
+            guard let image = UIImage(data: data) else {
+                throw AddError.unreadable
+            }
+            return try addScaled(image)
+        }.value
+    }
+
+    private func addScaled(_ image: UIImage) throws -> ProgressPhoto {
+        guard let data = Self.jpegData(from: image) else {
+            throw AddError.unreadable
+        }
+        return try add(jpegData: data)
     }
 
     /// Makes the folder and keeps it out of iCloud and computer backups: the

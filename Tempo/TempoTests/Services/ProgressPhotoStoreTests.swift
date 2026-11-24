@@ -110,6 +110,41 @@ final class ProgressPhotoStoreTests: XCTestCase {
         XCTAssertLessThanOrEqual(max(thumb.size.width, thumb.size.height) * thumb.scale, 200)
     }
 
+    func testAPictureIsScaledAndSavedOffTheMainThread() async throws {
+        let big = UIGraphicsImageRenderer(size: CGSize(width: 4000, height: 3000)).image { context in
+            UIColor.orange.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4000, height: 3000))
+        }
+        let fromCamera = try await store.add(picture: big)
+        let fromLibrary = try await store.add(pictureData: XCTUnwrap(big.pngData()))
+        XCTAssertEqual(store.photos().count, 2)
+        for photo in [fromCamera, fromLibrary] {
+            let size = try XCTUnwrap(store.image(for: photo)).size
+            XCTAssertEqual(max(size.width, size.height), ProgressPhotoStore.maxStoredDimension)
+        }
+    }
+
+    func testBytesThatAreNotAPictureAreRefusedAndNothingIsSaved() async {
+        do {
+            _ = try await store.add(pictureData: Data([0x00, 0x01, 0x02]))
+            XCTFail("expected the bytes to be refused")
+        } catch {
+            XCTAssertEqual(error as? ProgressPhotoStore.AddError, .unreadable)
+        }
+        XCTAssertTrue(store.photos().isEmpty)
+    }
+
+    func testTwoPhotosOfOneDayAreToldApartByTime() {
+        let morning = ProgressPhoto(id: "a", date: date(10, hour: 8), url: folder)
+        let evening = ProgressPhoto(id: "b", date: date(10, hour: 19), url: folder)
+        let other = ProgressPhoto(id: "c", date: date(17), url: folder)
+        let all = [morning, evening, other]
+
+        XCTAssertNotEqual(morning.menuLabel(among: all), evening.menuLabel(among: all))
+        XCTAssertTrue(morning.menuLabel(among: all).contains(":") || morning.menuLabel(among: all).contains("."))
+        XCTAssertEqual(other.menuLabel(among: all), other.date.formatted(date: .abbreviated, time: .omitted))
+    }
+
     func testThePhotoFolderIsKeptOutOfBackups() throws {
         XCTAssertFalse(store.isExcludedFromBackup)
         try store.add(jpegData: bytes, date: date(10))

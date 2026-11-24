@@ -524,14 +524,16 @@ struct RecoveryStagesBar: View {
     let accessibilityValue: String
 
     var body: some View {
-        let total = Double(segments.reduce(0) { $0 + $1.minutes })
+        // A stage with no minutes has no slice: it would otherwise show as a sliver.
+        let shown = segments.filter { $0.minutes > 0 }
+        let total = Double(shown.reduce(0) { $0 + $1.minutes })
         GeometryReader { geo in
-            let gaps = Tide.hair * CGFloat(max(segments.count - 1, 0))
+            let gaps = Tide.hair * CGFloat(max(shown.count - 1, 0))
             HStack(spacing: Tide.hair) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                ForEach(Array(shown.enumerated()), id: \.offset) { _, segment in
                     RoundedRectangle(cornerRadius: Tide.s1 + Tide.hair, style: .continuous)
                         .fill(segment.color)
-                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * (total > 0 ? Double(segment.minutes) / total : 0)))
+                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * Double(segment.minutes) / total))
                 }
             }
         }

@@ -31,10 +31,15 @@ enum BodyCompositionRefresh {
             predicate: #Predicate<BodyComposition> { $0.date >= start && $0.date < end }
         )).first
         if let existing {
-            existing.weightKg = data.weightKg
-            existing.bodyFatPercent = data.bodyFatPercent
-            existing.leanMassKg = data.leanMassKg
-            existing.measurementDate = data.measurementDate
+            // A reading Health did not give this time (a query that failed) never
+            // blanks the one already stored, and the measurement date only moves
+            // with the weight it belongs to.
+            if let weight = data.weightKg {
+                existing.weightKg = weight
+                existing.measurementDate = data.measurementDate ?? existing.measurementDate
+            }
+            existing.bodyFatPercent = data.bodyFatPercent ?? existing.bodyFatPercent
+            existing.leanMassKg = data.leanMassKg ?? existing.leanMassKg
             existing.capturedAt = Date()
         } else {
             context.insert(BodyComposition(

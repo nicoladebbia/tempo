@@ -59,6 +59,24 @@ final class BodyCompositionRefreshTests: XCTestCase {
         XCTAssertEqual(try rows().first?.weightKg, 80.2)
     }
 
+    func testAReadingMissingOneFieldNeverBlanksTheStoredOne() throws {
+        let weighedAt = Date().addingTimeInterval(-7200)
+        BodyCompositionRefresh.store(
+            BodyCompositionData(weightKg: 80.2, bodyFatPercent: 18.1, leanMassKg: 65.7, heightCm: nil, measurementDate: weighedAt),
+            in: context
+        )
+        // Later the same day Health answers with only body fat (the weight query failed).
+        BodyCompositionRefresh.store(
+            BodyCompositionData(weightKg: nil, bodyFatPercent: 18.0, leanMassKg: nil, heightCm: nil, measurementDate: nil),
+            in: context
+        )
+        let row = try XCTUnwrap(rows().first)
+        XCTAssertEqual(row.weightKg, 80.2)
+        XCTAssertEqual(row.leanMassKg, 65.7)
+        XCTAssertEqual(row.bodyFatPercent, 18.0)
+        XCTAssertEqual(row.measurementDate, weighedAt, "the measurement date belongs to the stored weight")
+    }
+
     func testAnotherDayGetsItsOwnRow() throws {
         let yesterday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -1, to: Date()))
         BodyCompositionRefresh.store(data(kg: 80.5), on: yesterday, in: context)

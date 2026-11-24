@@ -89,6 +89,30 @@ final class BodyProgressTests: XCTestCase {
         values.map { BodyProgress.Point(date: calendar.startOfDay(for: day($0.day)), value: $0.kg) }
     }
 
+    func testAWeekAcrossTheSpringClockChangeStillCountsAsAWeek() throws {
+        // Europe/Rome puts its clocks forward on 2026-03-29: 25 Mar to 1 Apr is 7
+        // calendar days but one hour short of 7 x 24 h in seconds.
+        var rome = Calendar(identifier: .gregorian)
+        rome.timeZone = try XCTUnwrap(TimeZone(identifier: "Europe/Rome"))
+        func at(_ month: Int, _ d: Int) -> Date {
+            rome.date(from: DateComponents(year: 2026, month: month, day: d))!
+        }
+        let points = [
+            BodyProgress.Point(date: at(3, 25), value: 80),
+            BodyProgress.Point(date: at(3, 28), value: 79.8),
+            BodyProgress.Point(date: at(4, 1), value: 79.6),
+        ]
+        XCTAssertNotNil(BodyProgress.trend(of: points, calendar: rome)?.weeklyRate)
+
+        // Six calendar days is still not a week.
+        let short = [
+            BodyProgress.Point(date: at(3, 25), value: 80),
+            BodyProgress.Point(date: at(3, 28), value: 79.8),
+            BodyProgress.Point(date: at(3, 31), value: 79.6),
+        ]
+        XCTAssertNil(BodyProgress.trend(of: short, calendar: rome)?.weeklyRate)
+    }
+
     func testNoPointsMeansNoTrend() {
         XCTAssertNil(BodyProgress.trend(of: []))
     }
