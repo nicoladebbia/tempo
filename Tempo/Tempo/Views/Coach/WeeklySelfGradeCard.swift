@@ -24,14 +24,18 @@ struct WeeklySelfGradeStats: Equatable {
     let regrettedCount: Int
 
     var acceptanceRate: Double {
-        guard suggestionsMade > 0 else { return 0 }
+        guard suggestionsMade > 0 else {
+            return 0
+        }
         return Double(takenCount) / Double(suggestionsMade)
     }
 
     /// True when there's nothing to report yet (no graded outcomes in
     /// the window). Caller skips rendering rather than showing a
     /// zeroed card.
-    var isEmpty: Bool { suggestionsMade == 0 }
+    var isEmpty: Bool {
+        suggestionsMade == 0
+    }
 
     /// Per Phase 8.13: "I made N suggestions, you took M, X went well,
     /// Y you regretted." Single line.
@@ -57,7 +61,9 @@ struct WeeklySelfGradeStats: Equatable {
         // not goodness.
         let suggestions = recent.count
         let taken = recent.filter { row in
-            guard let outcome = row.outcome else { return false }
+            guard let outcome = row.outcome else {
+                return false
+            }
             return outcome != .abandoned
         }.count
         // userOverride is the user explicitly saying "this didn't work
@@ -97,6 +103,8 @@ struct WeeklySelfGradeCard: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var ringSize: CGFloat = Tide.dialSheet - Tide.s6
     @State
     private var expanded: Bool = false
 
@@ -146,69 +154,96 @@ struct WeeklySelfGradeCard: View {
         }
     }
 
-    /// How much of Coach's advice you took: the one number of the card.
+    /// How much of Coach's advice you took: the one number of the card, in a ring.
     private var headline: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber("\(acceptancePercent)", unit: "%", size: Tide.numeralL)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
+        return layout {
+            ZStack {
+                TideRing(progress: stats.acceptanceRate, color: mood.accent, lineWidth: Tide.s2)
+                TideNumber("\(acceptancePercent)", unit: "%", size: Tide.numeralS, relativeTo: .headline)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .lineLimit(1)
+                    .padding(Tide.s3)
+            }
+            .frame(width: ringSize, height: ringSize)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text("of suggestions taken")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Text("You took \(stats.takenCount) of \(stats.suggestionsMade)")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
             }
-            .accessibilityElement(children: .combine)
-            TideLevelBar(progress: stats.acceptanceRate, height: Tide.bar)
+            .fixedSize(horizontal: false, vertical: true)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            Text("\(acceptancePercent) percent of suggestions taken. You took \(stats.takenCount) of \(stats.suggestionsMade)")
+        )
     }
 
     @ViewBuilder
     private var statsRow: some View {
         if typeSize.isAccessibilitySize {
-            // One per line: no row of four fits at these sizes.
-            VStack(alignment: .leading, spacing: Tide.s3) { statItems(oneLine: false) }
+            // One per line: no row of tiles fits at these sizes.
+            VStack(spacing: Tide.s2) { statTiles }
         } else {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .top, spacing: Tide.s4) { statItems(oneLine: true) }
-                Grid(alignment: .topLeading, horizontalSpacing: Tide.s4, verticalSpacing: Tide.s3) {
-                    GridRow {
-                        stat(label: "Suggestions", value: stats.suggestionsMade, color: Tide.text, oneLine: false)
-                        stat(label: "You took", value: stats.takenCount, color: Tide.text, oneLine: false)
-                    }
-                    GridRow {
-                        stat(label: "Worked well", value: stats.workedWellCount, color: mood.accent, oneLine: false)
-                        stat(label: "Regretted", value: stats.regrettedCount, color: Tide.danger, oneLine: false)
-                    }
+            Grid(horizontalSpacing: Tide.s2, verticalSpacing: Tide.s2) {
+                GridRow {
+                    statTile(label: "Suggestions", value: stats.suggestionsMade, icon: "text.bubble.fill", tint: Tide.text2)
+                    statTile(label: "You took", value: stats.takenCount, icon: "checkmark.circle.fill", tint: Tide.text2)
+                }
+                GridRow {
+                    statTile(label: "Worked well", value: stats.workedWellCount, icon: "hand.thumbsup.fill", tint: Tide.good)
+                    statTile(
+                        label: "Regretted", value: stats.regrettedCount,
+                        icon: "arrow.uturn.backward.circle.fill", tint: Tide.danger
+                    )
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func statItems(oneLine: Bool) -> some View {
-        stat(label: "Suggestions", value: stats.suggestionsMade, color: Tide.text, oneLine: oneLine)
-        stat(label: "You took", value: stats.takenCount, color: Tide.text, oneLine: oneLine)
-        stat(label: "Worked well", value: stats.workedWellCount, color: mood.accent, oneLine: oneLine)
-        stat(label: "Regretted", value: stats.regrettedCount, color: Tide.danger, oneLine: oneLine)
+    private var statTiles: some View {
+        statTile(label: "Suggestions", value: stats.suggestionsMade, icon: "text.bubble.fill", tint: Tide.text2)
+        statTile(label: "You took", value: stats.takenCount, icon: "checkmark.circle.fill", tint: Tide.text2)
+        statTile(label: "Worked well", value: stats.workedWellCount, icon: "hand.thumbsup.fill", tint: Tide.good)
+        statTile(
+            label: "Regretted", value: stats.regrettedCount,
+            icon: "arrow.uturn.backward.circle.fill", tint: Tide.danger
+        )
     }
 
-    private func stat(label: String, value: Int, color: Color, oneLine: Bool) -> some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
-            TideNumber(
-                "\(value)", size: Tide.numeralS, relativeTo: .headline, color: color
-            )
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .lineLimit(oneLine ? 1 : 2)
-                .fixedSize(horizontal: oneLine, vertical: true)
+    private func statTile(label: String, value: Int, icon: String, tint: Color) -> some View {
+        HStack(spacing: Tide.s2) {
+            TideIconTile(systemName: icon, tint: tint, size: Tide.tile - Tide.s2).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                TideNumber("\(value)", size: Tide.numeralS, relativeTo: .headline, color: Tide.text)
+                // One line, shrinking a little, so "Suggestions" is never split
+                // mid-word; accessibility sizes get a full-width tile and may wrap.
+                Text(label)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .fixedSize(horizontal: false, vertical: typeSize.isAccessibilitySize)
+            }
+            Spacer(minLength: 0)
         }
+        .padding(Tide.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius, style: .continuous))
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
     private var adjustmentsSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Rectangle().fill(Tide.hairline).frame(height: 1)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Rectangle().fill(Tide.hairline).frame(height: TideCoach.rule)
                 .accessibilityHidden(true)
             Text("I'm adjusting confidence on")
                 .font(Tide.caption)
@@ -233,21 +268,26 @@ struct WeeklySelfGradeCard: View {
     }
 
     private func adjustmentRow(_ adj: WeeklyConfidenceAdjustment) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+        let tint = adj.delta < 0 ? Tide.danger : Tide.good
+        return HStack(alignment: .center, spacing: Tide.s3) {
             Image(systemName: adj.delta < 0 ? "arrow.down.right" : "arrow.up.right")
                 .font(Tide.caption)
-                .foregroundStyle(adj.delta < 0 ? Tide.danger : mood.accent)
+                .foregroundStyle(tint)
+                .frame(width: Tide.tile - Tide.s2, height: Tide.tile - Tide.s2)
+                .background(tint.opacity(0.16), in: .rect(cornerRadius: Tide.controlRadius, style: .continuous))
                 .accessibilityHidden(true)
-            Text(adj.subject)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(adj.subject)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                TideNumber(
+                    String(format: "%.2f → %.2f", adj.oldConfidence, adj.newConfidence),
+                    size: TideCoach.figureSmall, relativeTo: .footnote, weight: .semibold, color: Tide.text2
+                )
+            }
             Spacer(minLength: Tide.s2)
-            TideNumber(
-                String(format: "%.2f → %.2f", adj.oldConfidence, adj.newConfidence),
-                size: TideCoach.figureSmall, relativeTo: .footnote, weight: .semibold, color: Tide.text2
-            )
-            .fixedSize()
+            TideCoachPill(title: String(format: "%+.2f", adj.delta), color: tint)
         }
         .accessibilityElement(children: .combine)
     }
@@ -263,5 +303,7 @@ struct WeeklyConfidenceAdjustment: Equatable, Identifiable {
     let oldConfidence: Double
     let newConfidence: Double
 
-    var delta: Double { newConfidence - oldConfidence }
+    var delta: Double {
+        newConfidence - oldConfidence
+    }
 }

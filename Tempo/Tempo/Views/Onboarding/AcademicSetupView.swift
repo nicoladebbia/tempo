@@ -12,6 +12,9 @@ import SwiftUI
 
 // Per STATE_MACHINES.md Section 10 — Academic profile. OPTIONAL.
 // Per BUILD_PLAN step 16.1 — Exam schedule, study targets.
+//
+// A school search with a proper result list, then the year as cards with a
+// symbol each, so the six answers read at a glance.
 
 struct AcademicSetupView: View {
     @Bindable
@@ -19,7 +22,19 @@ struct AcademicSetupView: View {
     @Environment(\.tideMood)
     private var mood
 
-    private let years = ["1st Year", "2nd Year", "3rd Year", "4th Year", "Postgrad", "Not in school"]
+    private struct Year: Hashable {
+        let name: String
+        let icon: String
+    }
+
+    private let years = [
+        Year(name: "1st Year", icon: "1.circle.fill"),
+        Year(name: "2nd Year", icon: "2.circle.fill"),
+        Year(name: "3rd Year", icon: "3.circle.fill"),
+        Year(name: "4th Year", icon: "4.circle.fill"),
+        Year(name: "Postgrad", icon: "graduationcap.fill"),
+        Year(name: "Not in school", icon: "figure.walk"),
+    ]
 
     @FocusState
     private var isSchoolFieldFocused: Bool
@@ -61,6 +76,7 @@ struct AcademicSetupView: View {
                     Image(systemName: isSchoolPicked ? "checkmark.circle.fill" : "magnifyingglass")
                         .font(Tide.headline)
                         .foregroundStyle(isSchoolPicked ? mood.accent : Tide.text3)
+                        .contentTransition(.symbolEffect(.replace))
                         .accessibilityHidden(true)
                     TextField("", text: $viewModel.university, prompt: Text("Search your school").foregroundStyle(Tide.text3))
                         .font(Tide.headline.weight(.regular))
@@ -89,6 +105,7 @@ struct AcademicSetupView: View {
                     }
                 }
                 .tideFieldSurface(focused: isSchoolFieldFocused)
+                .animation(Tide.snap, value: isSchoolPicked)
 
                 if showSchoolSuggestions {
                     schoolSuggestions
@@ -100,11 +117,14 @@ struct AcademicSetupView: View {
             // Year of study
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingSectionLabel("Year of Study")
-                VStack(spacing: Tide.s2) {
-                    ForEach(years, id: \.self) { year in
-                        OnboardingOptionRow(title: year, isSelected: viewModel.yearOfStudy == year) {
-                            viewModel.yearOfStudy = year
-                        }
+                OnboardingChoiceGrid(items: years, stretchesLast: false) { year in
+                    OnboardingChoiceCard(
+                        title: year.name,
+                        systemImage: year.icon,
+                        isSelected: viewModel.yearOfStudy == year.name,
+                        layout: .compact
+                    ) {
+                        viewModel.yearOfStudy = year.name
                     }
                 }
             }
@@ -135,14 +155,20 @@ private extension AcademicSetupView {
                 Button {
                     choose(school.name)
                 } label: {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(school.name)
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
-                            .multilineTextAlignment(.leading)
-                        Text(school.countryName)
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
+                    HStack(spacing: Tide.s3) {
+                        TideIconTile(systemName: "building.columns.fill", tint: mood.accent, size: Tide.tile)
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(school.name)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(school.countryName)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
+                        }
+                        Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                     .padding(.horizontal, Tide.s4)
@@ -159,16 +185,22 @@ private extension AcademicSetupView {
                 Button {
                     choose(typed)
                 } label: {
-                    HStack(spacing: Tide.s2) {
+                    HStack(spacing: Tide.s3) {
                         Image(systemName: "plus.circle")
+                            .font(Tide.headline)
                             .foregroundStyle(mood.accent)
+                            .frame(width: Tide.tile)
+                            .accessibilityHidden(true)
                         Text(matches.isEmpty ? "Not listed — use \u{201C}\(typed)\u{201D}" : "Use \u{201C}\(typed)\u{201D}")
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
-                            .lineLimit(1)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                     .padding(.horizontal, Tide.s4)
+                    .padding(.vertical, Tide.s2)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

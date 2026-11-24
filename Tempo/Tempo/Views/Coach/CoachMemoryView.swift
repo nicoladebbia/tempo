@@ -26,6 +26,8 @@ struct CoachMemoryView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @Query(filter: #Predicate<LearnedPreference> { $0.isActive })
     private var preferences: [LearnedPreference]
@@ -65,25 +67,50 @@ struct CoachMemoryView: View {
         .tideCovered(editingPreference != nil || presentingRedoInterview)
         .sheet(item: $editingPreference) { pref in
             EditPreferenceSheet(preference: pref, onDelete: { delete(pref) })
+                .environment(\.tideInsidePage, false)
         }
         .sheet(isPresented: $presentingRedoInterview) {
             CoachInterviewView { _ in
                 presentingRedoInterview = false
             }
+            .environment(\.tideInsidePage, false)
         }
     }
 
     // MARK: - Header
 
-    /// The one number of the page: how much Coach has learned.
+    /// The one number of the page: how much Coach has learned, and how it
+    /// splits between likes, dislikes and hard avoids.
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            TideNumber("\(activeCount)", size: Tide.numeralL)
-            Text(activeCount == 1 ? "thing Coach knows about you" : "things Coach knows about you")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                TideNumber("\(activeCount)", size: Tide.numeralL)
+                Text(activeCount == 1 ? "thing Coach knows about you" : "things Coach knows about you")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+            }
+            .accessibilityElement(children: .combine)
+            if activeCount > 0 {
+                TideCoachSegmentBar(
+                    segments: LearnedPreference.Polarity.allCases.enumerated().map { index, polarity in
+                        .init(id: index, value: count(of: polarity), color: polarity.tint)
+                    }
+                )
+                FlowLayout(spacing: Tide.s4, lineSpacing: Tide.s1) {
+                    ForEach(LearnedPreference.Polarity.allCases, id: \.self) { polarity in
+                        HStack(spacing: Tide.s1) {
+                            Circle().fill(polarity.tint).frame(width: Tide.s2, height: Tide.s2)
+                            Text("\(count(of: polarity)) \(polarity.pluralLabel)")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
         }
-        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5, radius: Tide.cardRadius)
     }
 
     // MARK: - Polarity tabs
@@ -124,7 +151,13 @@ struct CoachMemoryView: View {
 
     private func scopeSection(_ group: CoachMemoryGrouping.Group) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: group.scope.displayLabel, trailing: "\(group.preferences.count)")
+            HStack(spacing: Tide.s2) {
+                Image(systemName: group.scope.symbol)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+                TideSectionLabel(title: group.scope.displayLabel, trailing: "\(group.preferences.count)")
+            }
             GlassEffectContainer(spacing: Tide.s3) {
                 VStack(spacing: Tide.s3) {
                     ForEach(group.preferences, id: \.id) { pref in
@@ -137,33 +170,39 @@ struct CoachMemoryView: View {
 
     private func preferenceRow(_ pref: LearnedPreference) -> some View {
         Button { editingPreference = pref } label: {
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    Text(pref.text)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: Tide.s2)
-                    if pref.needsReview {
-                        TideCoachPill(title: "Review", color: Tide.streak)
+            HStack(alignment: .top, spacing: Tide.s3) {
+                if !typeSize.isAccessibilitySize {
+                    TideIconTile(systemName: pref.polarity.symbol, tint: pref.polarity.tint, size: Tide.tile)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                }
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        Text(pref.text)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: Tide.s2)
+                        if pref.needsReview {
+                            TideCoachPill(title: "Review", color: Tide.streak)
+                        }
                     }
-                }
-                HStack(spacing: Tide.s3) {
-                    TideLevelBar(progress: pref.confidence, height: Tide.barSlim)
-                    TideNumber(
-                        "\(Int(pref.confidence * 100))", unit: "%",
-                        size: TideCoach.figureSmall, relativeTo: .subheadline, weight: .semibold, color: Tide.text2
-                    )
-                    .fixedSize()
-                }
-                HStack(spacing: Tide.s2) {
-                    sourcePill(pref.source)
-                    Spacer(minLength: Tide.s2)
-                    Text("Seen \(relativeDate(pref.lastSeenAt))")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .lineLimit(1)
+                    HStack(spacing: Tide.s3) {
+                        TideLevelBar(progress: pref.confidence, height: Tide.barSlim)
+                        TideNumber(
+                            "\(Int(pref.confidence * 100))", unit: "%",
+                            size: TideCoach.figureSmall, relativeTo: .subheadline, weight: .semibold, color: Tide.text2
+                        )
+                        .fixedSize()
+                    }
+                    HStack(spacing: Tide.s2) {
+                        sourcePill(pref.source)
+                        Spacer(minLength: Tide.s2)
+                        Text("Seen \(relativeDate(pref.lastSeenAt))")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(1)
+                    }
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -175,12 +214,7 @@ struct CoachMemoryView: View {
     }
 
     private func sourcePill(_ source: LearnedPreference.Source) -> some View {
-        switch source {
-        case .explicit: TideCoachPill(title: "Explicit", color: Tide.fat)
-        case .observed: TideCoachPill(title: "Observed", color: Tide.text2)
-        case .inferred: TideCoachPill(title: "Inferred", color: Tide.text2)
-        case .userVerified: TideCoachPill(title: "Verified", color: mood.accent)
-        }
+        TideCoachPill(title: source.pillTitle, color: source.pillColor(accent: mood.accent))
     }
 
     private var emptyState: some View {
@@ -270,6 +304,27 @@ private struct EditPreferenceSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s4) {
+                    // Where this came from; the tile follows the polarity you pick.
+                    HStack(spacing: Tide.s3) {
+                        TideIconTile(
+                            systemName: draftPolarity.symbol,
+                            tint: draftPolarity.tint,
+                            size: Tide.tileLarge - Tide.s2
+                        ).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            TideCoachPill(
+                                title: preference.source.pillTitle,
+                                color: preference.source.pillColor(accent: mood.accent)
+                            )
+                            Text("Seen \(preference.lastSeenAt.formatted(.relative(presentation: .named)))")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .animation(Tide.snap, value: draftPolarity)
+                    .accessibilityElement(children: .combine)
+
                     card("Text") {
                         TextField(
                             text: $draftText,
@@ -415,6 +470,70 @@ extension LearnedPreference.Polarity {
         case .positive: "Like"
         case .negative: "Dislike"
         case .avoidAtAllCosts: "Hard Avoid"
+        }
+    }
+}
+
+extension LearnedPreference.Scope {
+    /// A symbol for the group heading.
+    var symbol: String {
+        switch self {
+        case .always: "infinity"
+        case .weekday: "briefcase.fill"
+        case .weekend: "sun.max.fill"
+        case .dayTypeHard: "figure.strengthtraining.traditional"
+        case .dayTypeRest: "bed.double.fill"
+        case .eventTravel: "airplane"
+        case .eventMatch: "sportscourt.fill"
+        case .seasonalSummer: "sun.haze.fill"
+        }
+    }
+}
+
+extension LearnedPreference.Polarity {
+    /// Likes read green, dislikes amber, hard avoids red.
+    var tint: Color {
+        switch self {
+        case .positive: Tide.good
+        case .negative: Tide.warn
+        case .avoidAtAllCosts: Tide.danger
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .positive: "hand.thumbsup.fill"
+        case .negative: "hand.thumbsdown.fill"
+        case .avoidAtAllCosts: "nosign"
+        }
+    }
+
+    /// "likes", "dislikes", "hard avoids": how the page counts them.
+    var pluralLabel: String {
+        switch self {
+        case .positive: "likes"
+        case .negative: "dislikes"
+        case .avoidAtAllCosts: "hard avoids"
+        }
+    }
+}
+
+private extension LearnedPreference.Source {
+    var pillTitle: String {
+        switch self {
+        case .explicit: "Explicit"
+        case .observed: "Observed"
+        case .inferred: "Inferred"
+        case .userVerified: "Verified"
+        }
+    }
+
+    func pillColor(accent: Color) -> Color {
+        switch self {
+        case .explicit: Tide.fat
+        case .observed,
+             .inferred: Tide.text2
+        case .userVerified: accent
         }
     }
 }

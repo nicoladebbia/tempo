@@ -28,9 +28,17 @@ enum CoachInlinePillSource: String, Sendable, CaseIterable {
 
     var tabLabel: String {
         switch self {
-        case .training: return "Training"
-        case .nutritionToday: return "Nutrition Today"
-        case .recovery: return "Recovery"
+        case .training: "Training"
+        case .nutritionToday: "Nutrition Today"
+        case .recovery: "Recovery"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .training: "dumbbell.fill"
+        case .nutritionToday: "fork.knife"
+        case .recovery: "bed.double.fill"
         }
     }
 }
@@ -74,10 +82,23 @@ struct CoachInlineChatSheet: View {
     var voice: any CoachVoiceControlling = CoachVoiceController()
     var voiceMode: CoachVoiceMode = .tapToggle
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Asking from \(source.tabLabel)").tideLabel()
+                // Where the question comes from, so Coach's answer has a frame.
+                HStack(spacing: Tide.s2) {
+                    Image(systemName: source.symbol)
+                        .font(Tide.label)
+                        .accessibilityHidden(true)
+                    Text("Asking from \(source.tabLabel)").tideLabel()
+                }
+                .foregroundStyle(mood.accent)
+                .padding(.horizontal, Tide.s3)
+                .padding(.vertical, Tide.s1)
+                .background(mood.accent.opacity(0.16), in: .capsule)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, Tide.edge)
@@ -92,6 +113,7 @@ struct CoachInlineChatSheet: View {
             )
         }
         .tidePage()
+        .environment(\.tideInsidePage, false)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

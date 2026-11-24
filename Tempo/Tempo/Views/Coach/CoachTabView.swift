@@ -61,13 +61,16 @@ struct CoachTabView: View {
                 // so re-presentation doesn't fire.
                 Task { await bootstrapViewModelIfNeeded(force: true) }
             }
+            .environment(\.tideInsidePage, false)
         }
     }
 
     // MARK: - Bootstrap
 
     private func bootstrapViewModelIfNeeded(force: Bool = false) async {
-        if viewModel != nil, !force { return }
+        if viewModel != nil, !force {
+            return
+        }
 
         // Build the agent loop's adapters from APIClient.
         let chatClient = CoachChatAIClientAdapter(requester: apiClient)
@@ -117,8 +120,8 @@ struct CoachTabView: View {
             modelContext: modelContext,
             todayLive: liveSnapshot(),
             calendarEvents: [], // calendar wire-up landed in Phase 5; the caller
-                                // can extend this when a CalendarService is
-                                // present in the environment.
+            // can extend this when a CalendarService is
+            // present in the environment.
             recentConversationSummaries: []
         )
         return snapshot.render()
@@ -158,8 +161,12 @@ struct CoachTabView: View {
 
     private func interviewGate(from context: ModelContext) -> InterviewGate {
         let settings = (try? context.fetch(FetchDescriptor<UserSettings>()))?.first
-        if settings?.coachInterviewCompleted == true { return .completed }
-        if settings?.coachInterviewSkipped == true { return .skipped }
+        if settings?.coachInterviewCompleted == true {
+            return .completed
+        }
+        if settings?.coachInterviewSkipped == true {
+            return .skipped
+        }
         return .needsInterview
     }
 

@@ -138,9 +138,7 @@ struct OnboardingAuthView: View {
                 .buttonStyle(.plain)
             #endif
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s3)
-        .padding(.bottom, Tide.s2)
+        .modifier(OnboardingFooterBar())
     }
 
     private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {
