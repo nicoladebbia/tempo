@@ -32,6 +32,8 @@ struct TrainerProgramImportView: View {
     private var services
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     @State
     private var importService: TrainerProgramImportService?
@@ -355,10 +357,11 @@ struct TrainerProgramImportView: View {
     }
 
     private var processingOverlay: some View {
-        VStack(spacing: Tide.s4) {
-            ProgressView().controlSize(.large)
+        VStack(spacing: Tide.s3) {
+            TideIconTile(systemName: "doc.text.magnifyingglass", tint: TideTrain.violet, size: TideTrain.thumb)
+                .symbolEffect(.pulse, isActive: !reduceMotion)
             Text(processingLabel)
-                .font(Tide.bodyStrong)
+                .font(Tide.headline)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -367,9 +370,11 @@ struct TrainerProgramImportView: View {
                 .foregroundStyle(Tide.text3)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+            ProgressView()
+                .padding(.top, Tide.s1)
         }
-        .padding(Tide.s6)
-        .tideCard(padding: Tide.s5, radius: Tide.cardRadius)
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s6, radius: Tide.cardRadius)
         .padding(.horizontal, Tide.edge)
         .accessibilityElement(children: .combine)
     }

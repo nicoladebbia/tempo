@@ -29,6 +29,14 @@ struct WorkoutSummaryView: View {
     /// §8.2 completion ring animation state.
     @State
     private var ringProgress: Double = 0
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var scaledRing = TideTrainSession.summaryRing
+
+    /// The ring grows with the text inside it, up to half as big again.
+    private var ringSize: CGFloat {
+        min(scaledRing, TideTrainSession.summaryRing * 1.5)
+    }
+
     /// Fix #8 — "send report to trainer" entry point (TrainerReportSheet.swift, new file).
     @State
     private var showTrainerReport = false
@@ -138,7 +146,7 @@ struct WorkoutSummaryView: View {
             TrainRing(
                 progress: ringProgress,
                 tint: completionFraction >= 1 ? TideTrain.positive : TideTrain.caution,
-                diameter: TideTrainSession.summaryRing
+                diameter: ringSize
             ) {
                 VStack(spacing: Tide.hair) {
                     TideNumber(
@@ -259,20 +267,23 @@ struct WorkoutSummaryView: View {
     // MARK: - Stats
 
     private var statsCard: some View {
-        // Two across; one column at the accessibility sizes so a long volume
+        // Time and volume lead, big; sets and exercises sit under them. Two
+        // across; one column at the accessibility sizes so a long volume
         // ("12,480 kg") never squeezes its neighbour.
-        LazyVGrid(
-            columns: Array(
-                repeating: GridItem(.flexible(), spacing: Tide.s4, alignment: .topLeading),
-                count: typeSize.isAccessibilitySize ? 1 : 2
-            ),
-            alignment: .leading,
-            spacing: Tide.s4
-        ) {
-            TrainStat(value: viewModel.formattedElapsedTime, label: "Duration")
-            TrainStat(value: viewModel.formattedVolume, label: "Volume")
-            TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
-            TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s4, alignment: .topLeading),
+            count: typeSize.isAccessibilitySize ? 1 : 2
+        )
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
+                TrainStat(value: viewModel.formattedElapsedTime, label: "Duration", size: Tide.numeralM)
+                TrainStat(value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM)
+            }
+            TrainSessionRule()
+            LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
+                TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
+                TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5, radius: Tide.tileRadius)

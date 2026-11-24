@@ -36,39 +36,75 @@ struct DataExportView: View {
     @State
     private var exportFileURL: URL?
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    /// The export action: pinned under the thumb, or in the page at a big text size.
+    private var exportButton: some View {
+        Button {
+            exportData()
+        } label: {
+            if isExporting {
+                HStack(spacing: Tide.s2) {
+                    ProgressView()
+                        .tint(Tide.ink)
+                    Text("Preparing your export")
+                }
+            } else {
+                Label("Export My Data", systemImage: "square.and.arrow.up")
+            }
+        }
+        .buttonStyle(.tidePrimary)
+        .disabled(isExporting)
+    }
+
+    /// How far back the file reaches, as one big figure with the choice under it.
+    private var rangeHero: some View {
+        TideSettingsHero {
+            TideLabel("Your data")
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    exportRange.figure.value, unit: exportRange.figure.unit,
+                    size: Tide.numeralL, relativeTo: .largeTitle
+                )
+                .contentTransition(.numericText())
+            }
+            Text("Saved as a JSON file that you can keep or share.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            if typeSize.isAccessibilitySize {
+                SettingsControlRow(label: "Date Range", icon: "calendar") {
+                    rangePicker.pickerStyle(.menu)
+                }
+                .padding(.horizontal, -Tide.s4)
+            } else {
+                rangePicker
+                    .pickerStyle(.segmented)
+                    .padding(.top, Tide.s2)
+            }
+        }
+        .animation(Tide.snap, value: exportRange)
+    }
+
+    private var rangePicker: some View {
+        Picker("Date Range", selection: $exportRange) {
+            ForEach(ExportRange.allCases) { range in
+                Text(typeSize.isAccessibilitySize ? range.displayName : range.shortName).tag(range)
+            }
+        }
+        .labelsHidden()
+        .disabled(isExporting)
+        .sensoryFeedback(.selection, trigger: exportRange)
+    }
+
     var body: some View {
         TideSettingsPage {
-            SettingsFormCard(
-                title: "Export range",
-                footnote: "Your data will be exported as a JSON file that you can save or share."
-            ) {
-                SettingsControlRow(label: "Date Range", icon: "calendar") {
-                    Picker("Date Range", selection: $exportRange) {
-                        ForEach(ExportRange.allCases) { range in
-                            Text(range.displayName).tag(range)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .disabled(isExporting)
-                }
-            }
+            rangeHero
 
-            Button {
-                exportData()
-            } label: {
-                if isExporting {
-                    HStack(spacing: Tide.s2) {
-                        ProgressView()
-                            .tint(Tide.ink)
-                        Text("Preparing your export")
-                    }
-                } else {
-                    Label("Export My Data", systemImage: "square.and.arrow.up")
-                }
+            if typeSize.isAccessibilitySize {
+                exportButton
             }
-            .buttonStyle(.tidePrimary)
-            .disabled(isExporting)
 
             if let error = exportError {
                 exportStatusCard(
@@ -94,6 +130,13 @@ struct DataExportView: View {
                 exportInfoRow(icon: "brain.head.profile", text: "Study sessions")
                 SettingsRowDivider()
                 exportInfoRow(icon: "flame.fill", text: "Streaks & achievements")
+            }
+        }
+        .safeAreaBar(edge: .bottom) {
+            if !typeSize.isAccessibilitySize {
+                exportButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
             }
         }
         .animation(Tide.snap, value: isExporting)
@@ -319,6 +362,10 @@ struct DataExportView: View {
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Tide.s2)
+            Image(systemName: "checkmark")
+                .font(Tide.caption)
+                .foregroundStyle(mood.accent)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, Tide.s4)
         .padding(.vertical, Tide.s3)
@@ -345,6 +392,26 @@ enum ExportRange: String, CaseIterable, Identifiable {
         case .last30Days: "Last 30 Days"
         case .last90Days: "Last 90 Days"
         case .allTime: "All Time"
+        }
+    }
+
+    /// The label on the segmented control, short enough for four to share a row.
+    var shortName: String {
+        switch self {
+        case .last7Days: "7 days"
+        case .last30Days: "30 days"
+        case .last90Days: "90 days"
+        case .allTime: "All time"
+        }
+    }
+
+    /// The big figure in the export hero.
+    var figure: (value: String, unit: String) {
+        switch self {
+        case .last7Days: ("7", "days")
+        case .last30Days: ("30", "days")
+        case .last90Days: ("90", "days")
+        case .allTime: ("All", "time")
         }
     }
 

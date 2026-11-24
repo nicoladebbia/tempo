@@ -30,6 +30,8 @@ enum TideTrain {
     /// Exercise picture sizes.
     static let thumb: CGFloat = 56
     static let hero: CGFloat = 168
+    /// The ring on the monthly debrief, at the default text size.
+    static let debriefRing: CGFloat = 120
 
     /// Condensed tabular figures that scale with Dynamic Type through a text
     /// style, for numbers that are not worth a `TideNumber`.
@@ -210,6 +212,31 @@ struct TrainStat: View {
     }
 }
 
+// MARK: - TrainStatGrid
+
+/// Stats side by side as far as they fit, one per row at accessibility text sizes
+/// (a fixed minimum column would crowd three big numerals into one line).
+struct TrainStatGrid<Content: View>: View {
+    var minimum: CGFloat = TideTrain.statColumn
+    var rowSpacing: CGFloat = Tide.s3
+    @ViewBuilder var content: Content
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        LazyVGrid(
+            columns: typeSize.isAccessibilitySize
+                ? [GridItem(.flexible(), alignment: .topLeading)]
+                : [GridItem(.adaptive(minimum: minimum), spacing: Tide.s3, alignment: .topLeading)],
+            alignment: .leading,
+            spacing: rowSpacing
+        ) {
+            content
+        }
+    }
+}
+
 // MARK: - TrainStatRow
 
 /// A row of stats on one glass card, separated by thin lines.
@@ -230,6 +257,8 @@ struct TrainTag: View {
     let text: String
     var systemImage: String?
     var color: Color = Tide.text2
+    /// A long tag may run to several lines (at big text sizes) instead of being cut off.
+    var wraps = false
 
     var body: some View {
         HStack(spacing: Tide.s1) {
@@ -238,7 +267,9 @@ struct TrainTag: View {
             }
             Text(text)
                 .font(Tide.label)
-                .lineLimit(1)
+                .lineLimit(wraps ? nil : 1)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: wraps)
         }
         .foregroundStyle(color)
         .padding(.horizontal, Tide.s2)
@@ -1161,6 +1192,8 @@ struct TrainPlanTrendChart: View {
                     .foregroundStyle(Tide.text3)
             }
         }
+        // Axis labels stop growing at xxxLarge: past that they overlap on a phone.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.chartHeight)
     }
 }
@@ -1246,6 +1279,7 @@ struct TrainPlanBarChart: View {
                 AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.barsHeight)
     }
 }
@@ -1274,6 +1308,7 @@ struct TrainPlanDateBars: View {
             }
         }
         .chartXAxis(.hidden)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.barsHeight * 0.72)
     }
 }

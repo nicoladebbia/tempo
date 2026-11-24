@@ -631,38 +631,53 @@ struct ActiveWorkoutView: View {
         if currentSetIsWarmup || currentSetIsCalibration || painFlagged
             || viewModel.currentSupersetPartnerName != nil || dropIndex != nil
         {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Tide.s1) {
-                    if currentSetIsWarmup {
-                        // §13 — a trainer day's ramp is one Tempo added.
-                        let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
-                        chip(
-                            "flame",
-                            isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
-                            Color.accentColor
-                        )
-                    }
-                    if currentSetIsCalibration {
-                        chip("ruler", "CALIBRATION SET", TideTrain.caution)
-                    }
-                    if painFlagged {
-                        chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", TideTrain.caution)
-                    }
-                    if let partner = viewModel.currentSupersetPartnerName {
-                        let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
-                        chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.accentColor)
-                    }
-                    // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
-                    if let dropIndex {
-                        chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", TideTrain.caution)
+            // A big text size stacks the tags so each can wrap; otherwise a row that scrolls.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    alertChipItems
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Tide.s1) {
+                        alertChipItems
                     }
                 }
             }
         }
     }
 
+    @ViewBuilder
+    private var alertChipItems: some View {
+        let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
+        let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
+        let dropIndex = viewModel.currentSet?.dropStepIndex
+        if currentSetIsWarmup {
+            // §13 — a trainer day's ramp is one Tempo added.
+            let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
+            chip(
+                "flame",
+                isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
+                Color.accentColor
+            )
+        }
+        if currentSetIsCalibration {
+            chip("ruler", "CALIBRATION SET", TideTrain.caution)
+        }
+        if painFlagged {
+            chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", TideTrain.caution)
+        }
+        if let partner = viewModel.currentSupersetPartnerName {
+            let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
+            chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.accentColor)
+        }
+        // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
+        if let dropIndex {
+            chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", TideTrain.caution)
+        }
+    }
+
     private func chip(_ icon: String, _ text: String, _ color: Color) -> some View {
-        TrainTag(text: text, systemImage: icon, color: color)
+        TrainTag(text: text, systemImage: icon, color: color, wraps: typeSize.isAccessibilitySize)
     }
 
     // MARK: - Context Strip (§11.7 — the "more data")

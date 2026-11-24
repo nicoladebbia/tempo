@@ -278,11 +278,7 @@ struct ProgressChartsView: View {
             .reduce(0) { $0 + $1.completedSets }
 
         return TrainPlanCard(label: "All-time") {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: TideTrain.statColumn), spacing: Tide.s3, alignment: .topLeading)],
-                alignment: .leading,
-                spacing: Tide.s3
-            ) {
+            TrainStatGrid {
                 TrainStat(value: "\(totalWorkouts)", label: "Workouts")
                 TrainStat(
                     value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit),
@@ -482,11 +478,7 @@ struct ProgressChartsView: View {
             } else {
                 // All-time totals
                 TrainPlanCard {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: TideTrain.statColumn), spacing: Tide.s3, alignment: .topLeading)],
-                        alignment: .leading,
-                        spacing: Tide.s3
-                    ) {
+                    TrainStatGrid {
                         TrainStat(value: "\(activitySessions.count)", label: "Sessions")
                         TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
                         TrainStat(value: String(format: "%.0f", totalActivityStrain), label: "Total Strain")

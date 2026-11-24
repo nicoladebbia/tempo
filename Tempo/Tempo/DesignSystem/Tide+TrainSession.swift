@@ -43,8 +43,6 @@ enum TideTrainSession {
     static let rule: CGFloat = 1
     /// One dot of a step trail, and the long one that is "now".
     static let dot: CGFloat = 8
-    /// The line that joins the cards of a superset.
-    static let rail: CGFloat = 2
     /// How strong a tinted outline is drawn.
     static let outlineOpacity = 0.4
     /// A small number field beside its label (minutes, metres, rounds).
@@ -353,6 +351,8 @@ struct TrainSessionStateView<Actions: View>: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     init(
         systemImage: String,
@@ -396,10 +396,10 @@ struct TrainSessionStateView<Actions: View>: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                VStack(spacing: Tide.s3) {
-                    actions
+                if typeSize.isAccessibilitySize {
+                    // Too big to pin: the actions follow the words.
+                    actionStack.padding(.top, Tide.s2)
                 }
-                .padding(.top, Tide.s2)
             }
             .frame(maxWidth: Tide.stateWidth)
             .frame(maxWidth: .infinity)
@@ -408,6 +408,22 @@ struct TrainSessionStateView<Actions: View>: View {
             .containerRelativeFrame(.vertical, alignment: .center)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // The way out sits under the thumb, not in the middle of the page.
+        .safeAreaBar(edge: .bottom) {
+            if !typeSize.isAccessibilitySize {
+                actionStack
+                    .frame(maxWidth: Tide.stateWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
+            }
+        }
+    }
+
+    private var actionStack: some View {
+        VStack(spacing: Tide.s3) {
+            actions
+        }
     }
 }
 

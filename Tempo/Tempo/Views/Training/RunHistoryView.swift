@@ -72,70 +72,101 @@ struct RunHistoryView: View {
         return runs.filter { $0.date >= cutoff }
     }
 
+    /// Distance as the number and the unit apart, so the number can be big.
+    private func distanceParts(meters: Double, decimals: Int = 1) -> (value: String, unit: String) {
+        let value = useMiles ? meters / 1609.344 : meters / 1000
+        return (String(format: "%.\(decimals)f", value), useMiles ? "mi" : "km")
+    }
+
+    /// Distance per week for the last four weeks, oldest first.
+    private var weeklyBars: [TrainPlanBarChart.Bar] {
+        let calendar = Calendar.current
+        let thisWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
+        return (0 ..< 4).reversed().compactMap { back in
+            guard let start = calendar.date(byAdding: .weekOfYear, value: -back, to: thisWeek),
+                  let end = calendar.date(byAdding: .weekOfYear, value: 1, to: start)
+            else {
+                return nil
+            }
+            let meters = runs.filter { $0.date >= start && $0.date < end }.reduce(0) { $0 + $1.distanceKm * 1000 }
+            let value = useMiles ? meters / 1609.344 : meters / 1000
+            return TrainPlanBarChart.Bar(
+                id: "\(back)", label: start.formatted(.dateTime.day().month(.abbreviated)), value: value
+            )
+        }
+    }
+
     private var statsHeader: some View {
         let totalKm = recentRuns.reduce(0) { $0 + $1.distanceKm }
-        let useMiles = useMiles
+        let total = distanceParts(meters: totalKm * 1000)
         let paces = recentRuns.compactMap(\.avgPaceSecondsPerKm)
         let bestPace = paces.min()
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
 
-        return layout {
-            TrainStat(value: "\(recentRuns.count)", label: "Runs · 30 days")
-            TrainStat(
-                value: GuidedRunFormatting.totalDistance(meters: totalKm * 1000, useMiles: useMiles),
-                label: "Distance"
-            )
-            TrainStat(
-                value: GuidedRunFormatting.pace(secondsPerKm: bestPace, useMiles: useMiles) ?? "—",
-                label: "Best pace"
-            )
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideLabel("Last 30 days")
+            TideNumber(total.value, unit: total.unit, size: Tide.numeralL, relativeTo: .largeTitle)
+                .contentTransition(.numericText())
+            if !recentRuns.isEmpty {
+                TrainPlanBarChart(bars: weeklyBars)
+                    .accessibilityHidden(true)
+            }
+            layout {
+                TrainStat(value: "\(recentRuns.count)", label: "Runs")
+                TrainStat(
+                    value: GuidedRunFormatting.pace(secondsPerKm: bestPace, useMiles: useMiles) ?? "—",
+                    label: "Best pace"
+                )
+            }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
         .padding(.top, Tide.s2)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Rows
 
+    /// One run: the distance big, the day and the time under it, the pace at the end.
     private func runRow(_ run: RunSession) -> some View {
-        HStack(spacing: Tide.s3) {
-            TideIconTile(systemName: "figure.run")
-
+        let distance = distanceParts(meters: run.distanceKm * 1000, decimals: 2)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s3))
+        return layout {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(run.date, format: .dateTime.weekday(.wide).month().day())
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                Text(
-                    "\(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles)) · \(run.durationFormatted)"
-                )
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .fixedSize(horizontal: false, vertical: true)
-                if typeSize.isAccessibilitySize, let pace = paceText(run) {
-                    Text(pace)
-                        .font(TideTrain.figure(.headline))
-                        .foregroundStyle(Tide.text)
+                    .tideLabel(Tide.text3)
+                TideNumber(distance.value, unit: distance.unit, size: Tide.numeralS, relativeTo: .title2)
+                Text(run.durationFormatted)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s2) {
+                if let pace = paceText(run) {
+                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.hair) {
+                        Text(pace)
+                            .font(TideTrain.figure(.headline))
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                        Text("pace").font(Tide.caption).foregroundStyle(Tide.text3)
+                    }
                 }
+                Image(systemName: "chevron.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-
-            Spacer(minLength: Tide.s2)
-
-            if !typeSize.isAccessibilitySize, let pace = paceText(run) {
-                Text(pace)
-                    .font(TideTrain.figure(.headline))
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
     }
 
     private func paceText(_ run: RunSession) -> String? {
@@ -177,24 +208,14 @@ struct RunDetailView: View {
         GuidedRunFormatting.useMiles(weightUnit: userSettings.first?.weightUnit)
     }
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: Tide.s4) {
-                // Headline stats
-                VStack(spacing: Tide.hair) {
-                    Text(GuidedRunFormatting.distance(meters: run.distanceKm * 1000, useMiles: useMiles))
-                        .trainNumeral(TideTrainSession.figure, weight: .bold)
-                        .foregroundStyle(Tide.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(Tide.labelShrink)
-                    Text(run.date, format: .dateTime.weekday(.wide).month(.wide).day().hour().minute())
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .tideCard(padding: Tide.s5)
-                .padding(.top, Tide.s3)
+                heroCard
+                    .padding(.top, Tide.s3)
 
                 LazyVGrid(
                     columns: Array(
@@ -203,12 +224,6 @@ struct RunDetailView: View {
                     ),
                     spacing: Tide.s2
                 ) {
-                    detailCell(icon: "timer", label: "Duration", value: run.durationFormatted)
-                    detailCell(
-                        icon: "speedometer",
-                        label: "Avg Pace",
-                        value: GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: useMiles) ?? "—"
-                    )
                     if let hr = run.avgHR {
                         detailCell(icon: "heart.fill", label: "Avg HR", value: "\(Int(hr)) bpm")
                     }
@@ -239,25 +254,52 @@ struct RunDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func detailCell(icon: String, label: String, value: String) -> some View {
-        VStack(spacing: Tide.s1) {
-            Image(systemName: icon)
-                .font(Tide.body)
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
-            Text(label)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-            Text(value)
-                .font(TideTrain.figure(.headline))
-                .foregroundStyle(Tide.text)
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
+    /// The run in one card: the day, the distance big, then time and pace.
+    private var heroCard: some View {
+        let miles = useMiles
+        let distance = miles ? run.distanceKm * 1000 / 1609.344 : run.distanceKm
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text(run.date, format: .dateTime.weekday(.wide).month(.wide).day().hour().minute())
+                .tideLabel()
+            TideNumber(
+                String(format: "%.2f", distance), unit: miles ? "mi" : "km",
+                size: Tide.numeralL, relativeTo: .largeTitle
+            )
+            TrainSessionRule()
+            layout {
+                TrainStat(value: run.durationFormatted, label: "Time")
+                TrainStat(
+                    value: GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: miles) ?? "—",
+                    label: "Avg pace"
+                )
+            }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func detailCell(icon: String, label: String, value: String) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: icon, tint: mood.accent)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(label)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                Text(value)
+                    .font(TideTrain.figure(.headline))
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .padding(.vertical, Tide.s4)
-        .tideCard(padding: 0, radius: Tide.tileRadius)
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
     private var splitsSection: some View {
