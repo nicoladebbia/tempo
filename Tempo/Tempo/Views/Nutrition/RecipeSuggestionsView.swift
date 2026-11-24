@@ -228,6 +228,8 @@ struct RecipeSuggestionsView: View {
             showWriteRecipe = true
         } label: {
             Label("Write a recipe", systemImage: "square.and.pencil")
+                // One line, so the pair stacks instead of squeezing when side by side is too tight.
+                .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tidePrimary)
@@ -239,6 +241,7 @@ struct RecipeSuggestionsView: View {
             showTellAIRecipe = true
         } label: {
             Label("Tell AI", systemImage: "wand.and.stars")
+                .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tideGlass)

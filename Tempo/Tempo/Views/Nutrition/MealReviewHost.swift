@@ -177,6 +177,8 @@ struct MealReviewHost: ViewModifier {
     private var services
     @State
     private var duplicate: Pending?
+    @State
+    private var pendingDuplicate: Pending?
 
     private struct Pending: Identifiable {
         let id = UUID()
@@ -190,7 +192,7 @@ struct MealReviewHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .tideCovered(request != nil || duplicate != nil)
-            .sheet(item: $request) { current in
+            .sheet(item: $request, onDismiss: showPendingDuplicate) { current in
                 ParsedFoodReviewSheet(
                     items: current.items,
                     hintedMealType: current.mealType,
@@ -200,23 +202,33 @@ struct MealReviewHost: ViewModifier {
                     },
                     onCancel: {}
                 )
-                // Asked on top of the review it came from, so Cancel lands back on it.
-                .sheet(item: $duplicate) { pending in
-                    FuelDecisionSheet(
-                        icon: "square.on.square",
-                        title: "Already logged",
-                        message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
-                        chips: pending.names,
-                        primaryTitle: "Add another",
-                        primary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add) },
-                        secondaryTitle: "Edit existing",
-                        secondary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit) },
-                        cancel: { duplicate = nil }
-                    )
-                }
                 // The sheet is its own page, even when it comes up from inside one.
                 .environment(\.tideInsidePage, false)
             }
+            // Asked once the review sheet has finished leaving: the review closes
+            // itself on Confirm, so a sheet nested inside it would go with it.
+            .sheet(item: $duplicate) { pending in
+                FuelDecisionSheet(
+                    icon: "square.on.square",
+                    title: "Already logged",
+                    message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
+                    chips: pending.names,
+                    primaryTitle: "Add another",
+                    primary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add) },
+                    secondaryTitle: "Edit existing",
+                    secondary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit) },
+                    cancel: { duplicate = nil }
+                )
+                .environment(\.tideInsidePage, false)
+            }
+    }
+
+    /// The review sheet is gone: now the repeat question can come up.
+    private func showPendingDuplicate() {
+        if let pendingDuplicate {
+            duplicate = pendingDuplicate
+            self.pendingDuplicate = nil
+        }
     }
 
     private func confirm(_ items: [ParsedFoodItem], type: MealType, eatenAt: Date, origin: MealOrigin) {
@@ -224,7 +236,8 @@ struct MealReviewHost: ViewModifier {
         if names.isEmpty {
             finish(items, type, eatenAt, origin, .add)
         } else {
-            duplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
+            // Held until the review sheet (which closes itself next) has left.
+            pendingDuplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
         }
     }
 
