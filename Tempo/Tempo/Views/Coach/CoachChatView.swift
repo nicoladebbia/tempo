@@ -94,6 +94,11 @@ struct CoachChatView: View {
                 }
         }
         .animation(reduceMotion ? nil : Tide.snap, value: viewModel.pendingError)
+        .onChange(of: viewModel.pendingError) { _, message in
+            if let message {
+                AccessibilityNotification.Announcement(message).post()
+            }
+        }
         .tidePage()
         .alert("End this chat?", isPresented: $endChatConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -275,7 +280,7 @@ struct CoachChatView: View {
     /// message stays in the transcript; the banner just says what happened.
     private func errorBanner(_ message: String) -> some View {
         HStack(spacing: Tide.s3) {
-            Image(systemName: "wifi.exclamationmark")
+            Image(systemName: "exclamationmark.bubble.fill")
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.danger)
                 .accessibilityHidden(true)
@@ -454,6 +459,10 @@ struct CoachChatView: View {
                 systemPrompt: systemPromptBuilder(),
                 context: modelContext
             )
+            // Sent and answered: the real message is in the transcript now.
+            if viewModel.pendingError == nil {
+                pendingText = nil
+            }
         }
     }
 }
