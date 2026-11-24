@@ -177,7 +177,7 @@ struct HomeLocationSettingView: View {
                                         .font(Tide.bodyStrong)
                                         .foregroundStyle(Tide.text)
                                         .multilineTextAlignment(.leading)
-                                    if let title = item.placemark.title {
+                                    if let title = item.address?.fullAddress {
                                         Text(title)
                                             .font(Tide.caption)
                                             .foregroundStyle(Tide.text2)
@@ -234,7 +234,7 @@ struct HomeLocationSettingView: View {
     }
 
     private func choose(_ item: MKMapItem) {
-        save(item.placemark.coordinate, label: item.placemark.title ?? item.name)
+        save(item.location.coordinate, label: item.address?.fullAddress ?? item.name)
         results = []
     }
 

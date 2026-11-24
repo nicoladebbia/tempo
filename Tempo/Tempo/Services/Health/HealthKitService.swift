@@ -657,7 +657,8 @@ final class HealthKitService: HealthKitServiceProtocol, @unchecked Sendable {
                 endDate: workout.endDate,
                 workoutType: Self.mapActivityType(workout.workoutActivityType),
                 durationMinutes: workout.duration / 60,
-                activeCalories: workout.totalEnergyBurned?.doubleValue(for: .kilocalorie()) ?? 0,
+                activeCalories: workout.statistics(for: HKQuantityType(.activeEnergyBurned))?.sumQuantity()?
+                    .doubleValue(for: .kilocalorie()) ?? 0,
                 // Present for Watch-recorded workouts; nil otherwise.
                 averageHeartRate: heartRate?.averageQuantity()?.doubleValue(for: bpm),
                 maxHeartRate: heartRate?.maximumQuantity()?.doubleValue(for: bpm),

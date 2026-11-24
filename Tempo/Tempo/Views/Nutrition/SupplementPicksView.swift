@@ -323,8 +323,7 @@ struct SupplementPicksView: View {
     }
 
     private func openInMaps(_ result: NearbyStoreResult) {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude))
-        let mapItem = MKMapItem(placemark: placemark)
+        let mapItem = MKMapItem(location: CLLocation(latitude: result.latitude, longitude: result.longitude), address: nil)
         mapItem.name = result.name
         mapItem.openInMaps()
     }

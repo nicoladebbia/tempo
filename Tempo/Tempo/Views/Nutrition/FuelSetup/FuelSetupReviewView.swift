@@ -288,10 +288,10 @@ enum PlaceLocator {
             guard let item = try? await MKLocalSearch(request: request).start().mapItems.first else {
                 continue
             }
-            let coordinate = item.placemark.coordinate
+            let coordinate = item.location.coordinate
             out.places[index].latitude = coordinate.latitude
             out.places[index].longitude = coordinate.longitude
-            out.places[index].address = out.places[index].address ?? item.placemark.title
+            out.places[index].address = out.places[index].address ?? item.address?.fullAddress
         }
         return out
     }

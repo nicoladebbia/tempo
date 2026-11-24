@@ -17,14 +17,19 @@ struct TideBackground: View {
     private var mood
 
     var body: some View {
+        // Read on the main actor; the effect closure runs off it.
+        let glowA = mood.glowA
+        let glowB = mood.glowB
+        let ember = mood.ember
+        let level = energy
         TideClock { time in
             Rectangle()
                 .fill(Tide.ink)
                 .visualEffect { content, proxy in
                     content.colorEffect(ShaderLibrary.tideField(
                         .float2(proxy.size), .float(time),
-                        .color(Tide.ink), .color(mood.glowA), .color(mood.glowB), .color(mood.ember),
-                        .float(energy)
+                        .color(Tide.ink), .color(glowA), .color(glowB), .color(ember),
+                        .float(level)
                     ))
                 }
         }
