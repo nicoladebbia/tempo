@@ -49,55 +49,62 @@ struct VenueProposalCard: View {
     // MARK: - Card
 
     private func card(pattern: VenuePattern, venue: TrainingVenue) -> some View {
-        TrainBanner(
-            systemImage: "mappin.and.ellipse",
+        // The ask is about a place and a time, so the card opens on both: the
+        // venue over its usual clock time (or "Today" while it is still a guess).
+        let asserted = pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime
+        return TrainAskCard(
             label: "Venue check",
             title: proposalText(pattern: pattern, venue: venue)
         ) {
+            TrainFigureTile(
+                label: venue.displayName,
+                figure: asserted ? pattern.medianStartMin.map(VenuePatternMath.clockLabel) ?? "Today" : "Today",
+                tint: Color.accentColor
+            )
+        } actions: {
             if changing {
                 changePickers
             } else {
-                HStack(spacing: Tide.s2) {
-                    Button {
-                        confirm(venue: venue, startMin: pattern.medianStartMin)
-                    } label: {
-                        Text("Yes")
-                    }
-                    .buttonStyle(.trainBanner())
+                Button {
+                    confirm(venue: venue, startMin: pattern.medianStartMin)
+                } label: {
+                    Text("Yes")
+                }
+                .buttonStyle(.trainBanner())
 
-                    Button {
-                        pickedVenue = venue
-                        pickedTime = timeFromMinutes(pattern.medianStartMin)
-                        withAnimation(Tide.snap) { changing = true }
-                    } label: {
-                        Text("Change")
+                // Two quiet answers side by side, stacked once they no longer fit.
+                let change = Button {
+                    pickedVenue = venue
+                    pickedTime = timeFromMinutes(pattern.medianStartMin)
+                    withAnimation(Tide.snap) { changing = true }
+                } label: {
+                    Text("Change")
+                }
+                .buttonStyle(.trainQuiet)
+                let notNow = Button {
+                    dismissed = true
+                } label: {
+                    Text("Not now")
+                }
+                .buttonStyle(.trainQuiet)
+                .accessibilityLabel("Dismiss venue check")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        change
+                        notNow
                     }
-                    .buttonStyle(.trainBanner(filled: false))
+                    VStack(spacing: Tide.s1) {
+                        change
+                        notNow
+                    }
                 }
             }
-        }
-        .overlay(alignment: .topTrailing) {
-            Button {
-                dismissed = true
-            } label: {
-                Image(systemName: "xmark")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-                    .frame(width: Tide.hit, height: Tide.hit)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss venue check")
         }
     }
 
     private var changePickers: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack {
-                Text("Venue")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                Spacer()
+            LabeledContent("Venue") {
                 Picker("Venue", selection: $pickedVenue) {
                     ForEach(TrainingVenue.allCases, id: \.self) { venue in
                         Text(venue.displayName).tag(venue)
@@ -105,14 +112,14 @@ struct VenueProposalCard: View {
                 }
                 .tint(Tide.text)
             }
-            HStack {
-                Text("Time")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                Spacer()
-                DatePicker("", selection: $pickedTime, displayedComponents: .hourAndMinute)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
+            LabeledContent("Time") {
+                DatePicker("Time", selection: $pickedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
             }
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
             Button {
                 confirm(
                     venue: pickedVenue,

@@ -63,31 +63,29 @@ struct TrainingLoadCard: View {
         let strainDays = dailyStrain.suffix(ReadinessAssembler.strainWindow).filter { $0.strain != nil }.count
 
         VStack(alignment: .leading, spacing: Tide.s3) {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Training load")
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                    Spacer(minLength: Tide.s2)
-                    currentReading(points.last?.ratio)
-                }
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("Training load")
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                    currentReading(points.last?.ratio)
-                }
-            }
+            Text("Training load")
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .accessibilityAddTraits(.isHeader)
+
+            // The hero: this week against the last four, as one tinted figure.
+            currentReading(points.last?.ratio)
 
             if points.isEmpty {
+                let have = min(strainDays, Self.minStrainDays)
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    Text(
-                        "Building your baseline — \(min(strainDays, Self.minStrainDays))/\(Self.minStrainDays) days of Whoop strain. Keep the strap on."
-                    )
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    TideLevelBar(progress: Double(min(strainDays, Self.minStrainDays)) / Double(Self.minStrainDays))
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        TideNumber("\(have)/\(Self.minStrainDays)", size: Tide.numeralM, relativeTo: .title)
+                        Text("days of Whoop strain")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
+                    TideLevelBar(progress: Double(have) / Double(Self.minStrainDays))
+                    Text("Building your baseline. Keep the strap on.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, minHeight: TideTrainSession.chartEmptyHeight, alignment: .leading)
             } else {
@@ -106,14 +104,9 @@ struct TrainingLoadCard: View {
     @ViewBuilder
     private func currentReading(_ ratio: Double?) -> some View {
         if let current = ratio {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Text(String(format: "%.2f", current))
-                    .font(TideTrain.figure(.title2))
-                    .foregroundStyle(zoneColor(current))
-                    .contentTransition(.numericText())
-                Text(zoneLabel(current))
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+            FlowLayout(spacing: Tide.s3, lineSpacing: Tide.s1) {
+                TideNumber(String(format: "%.2f", current), size: Tide.numeralL, relativeTo: .largeTitle, color: zoneColor(current))
+                TrainTag(text: zoneLabel(current), color: zoneColor(current))
             }
             .accessibilityElement(children: .combine)
         }

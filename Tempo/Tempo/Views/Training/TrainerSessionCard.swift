@@ -36,6 +36,8 @@ struct TrainerSessionCard: View {
 
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var loggingBlock: ProgramExercise?
@@ -47,24 +49,50 @@ struct TrainerSessionCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(heading).tideLabel()
-            Text(day.title ?? day.workoutType.displayName)
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-                .padding(.bottom, Tide.s1)
-            ForEach(Array(day.exercises.enumerated()), id: \.element.id) { index, block in
-                if index > 0 {
-                    TrainPlanDivider()
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // What this is and how big: the trainer's words, then the day.
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Label {
+                        Text(heading).tideLabel()
+                    } icon: {
+                        Image(systemName: "person.fill.checkmark")
+                            .font(Tide.label)
+                            .foregroundStyle(Color.accentColor)
+                            .accessibilityHidden(true)
+                    }
+                    Spacer(minLength: Tide.s2)
+                    TrainTag(text: blockCountText)
                 }
-                blockRow(block)
-            }
-            if let notes = day.notes {
-                Text(notes)
-                    .font(Tide.caption)
-                    .italic()
-                    .foregroundStyle(Tide.text2)
+                Text(day.title ?? day.workoutType.displayName)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+
+            VStack(spacing: 0) {
+                ForEach(Array(day.exercises.enumerated()), id: \.element.id) { index, block in
+                    if index > 0 {
+                        TrainPlanDivider()
+                    }
+                    blockRow(block, number: index + 1)
+                }
+            }
+
+            if let notes = day.notes {
+                // The trainer's own note, set off with a rule so it reads as theirs.
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    Capsule()
+                        .fill(Color.accentColor.opacity(TideTrainSession.outlineOpacity))
+                        .frame(width: TideTrain.groupRail)
+                    Text(notes)
+                        .font(Tide.caption)
+                        .italic()
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
             if canLog {
                 if isDone {
@@ -99,8 +127,13 @@ struct TrainerSessionCard: View {
         }
     }
 
+    private var blockCountText: String {
+        let count = day.exercises.count
+        return count == 1 ? "1 block" : "\(count) blocks"
+    }
+
     private var loggedRow: some View {
-        HStack(spacing: Tide.s1) {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(TideTrain.positive)
             Text("Logged")
@@ -108,7 +141,7 @@ struct TrainerSessionCard: View {
                 .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity, minHeight: Tide.fieldHeight)
-        .padding(.top, Tide.s1)
+        .background(TideTrain.positive.opacity(TideTrainSession.zoneBandOpacity), in: .capsule)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("guidedRunLoggedRow")
     }
@@ -124,33 +157,19 @@ struct TrainerSessionCard: View {
             }
         }
         .buttonStyle(.tidePrimary)
-        .padding(.top, Tide.s2)
         .accessibilityIdentifier("startGuidedRunButton")
     }
 
-    private func blockRow(_ block: ProgramExercise) -> some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(block.name)
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                Spacer()
-                if canLog {
-                    Button {
-                        HapticManager.selection()
-                        loggingBlock = block
-                    } label: {
-                        Text("Log")
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .trailing)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+    /// One block of the session: its number, its name, what to do, and (for
+    /// conditioning) a Log button and the result once logged.
+    private func blockRow(_ block: ProgramExercise, number: Int) -> some View {
+        let text = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(block.name)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
             Text(trainerPrescription(block))
-                .font(Tide.caption)
+                .font(TideTrain.figure(.footnote, weight: .medium))
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             if let notes = block.notes {
@@ -167,7 +186,45 @@ struct TrainerSessionCard: View {
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+        let badge = Text("\(number)")
+            .font(TideTrain.figure(.caption2, weight: .bold))
+            .foregroundStyle(Tide.text2)
+            .frame(minWidth: Tide.s6, minHeight: Tide.s6)
+            .background(Tide.fill, in: .circle)
+            .accessibilityHidden(true)
+        return HStack(alignment: .top, spacing: Tide.s3) {
+            badge
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    text
+                    logButton(block)
+                }
+            } else {
+                text
+                logButton(block)
+            }
+        }
+        .padding(.vertical, Tide.s2)
+    }
+
+    @ViewBuilder
+    private func logButton(_ block: ProgramExercise) -> some View {
+        if canLog {
+            Button {
+                HapticManager.selection()
+                loggingBlock = block
+            } label: {
+                Text("Log")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, Tide.s3)
+                    .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     /// The compact "4/4 under 65\" · best 58\"" / "35' · 5.2 km · RPE 8" line

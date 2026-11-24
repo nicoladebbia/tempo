@@ -1328,7 +1328,46 @@ struct TrainPlanWeekStrip: View {
             }
         }
         .animation(Tide.lively, value: selected)
-        .accessibilityHidden(true)
+        // One adjustable element: swipe up or down to step through the week,
+        // which runs the same code as dragging a finger across the columns.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Training week")
+        .accessibilityValue(spokenValue)
+        .accessibilityHint("Swipe up or down to read each day.")
+        .accessibilityAdjustableAction { direction in
+            let current = selected ?? (direction == .increment ? -1 : days.count)
+            let next = direction == .increment ? current + 1 : current - 1
+            guard days.indices.contains(next) else {
+                return
+            }
+            onScrub(next)
+            // A large travel keeps the release from reading as a tap that
+            // closes the day again.
+            onRelease(next, Self.stepTravel)
+        }
+    }
+
+    /// Distance reported with an accessibility step so it never counts as a tap.
+    private static let stepTravel: CGFloat = 100
+
+    private var spokenValue: String {
+        guard let selected, let day = days.first(where: { $0.id == selected }) else {
+            return "No day selected"
+        }
+        var parts = [day.weekday]
+        parts.append(day.code ?? "no session")
+        if let extra = day.extra {
+            parts.append(extra)
+        }
+        if day.isToday {
+            parts.append("today")
+        }
+        if day.isDone {
+            parts.append("done")
+        } else if day.isMatch {
+            parts.append("match")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func index(at x: CGFloat, width: CGFloat) -> Int {
@@ -1527,5 +1566,7 @@ struct TrainPlanSecondaryButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == TrainPlanSecondaryButtonStyle {
-    static var trainPlanSecondary: TrainPlanSecondaryButtonStyle { TrainPlanSecondaryButtonStyle() }
+    static var trainPlanSecondary: TrainPlanSecondaryButtonStyle {
+        TrainPlanSecondaryButtonStyle()
+    }
 }

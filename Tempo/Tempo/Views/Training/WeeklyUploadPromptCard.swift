@@ -70,33 +70,54 @@ struct WeeklyUploadPromptCard: View {
     }
 
     private func card(for program: TrainerProgram) -> some View {
-        TrainBanner(
-            systemImage: "calendar.badge.exclamationmark",
+        // The ask is about a week, so the card opens on that week: its month
+        // over its Monday-to-Sunday range.
+        let tile = Self.weekTile()
+        return TrainAskCard(
             label: "NEW WEEK",
             tint: TideTrain.violet,
             title: Self.title(for: program),
             message: "Recap the week, send your trainer the report, and load what's next."
         ) {
-            VStack(spacing: Tide.s1) {
-                Button {
-                    showWrapUp = true
-                } label: {
-                    Label("Wrap up the week", systemImage: "checkmark.seal")
-                }
-                .buttonStyle(.trainBanner(tint: TideTrain.violet))
-
-                Button {
-                    showImport = true
-                } label: {
-                    Text("Upload only")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
+            TrainFigureTile(label: tile.month, figure: tile.days, tint: TideTrain.violet)
+        } actions: {
+            Button {
+                showWrapUp = true
+            } label: {
+                Label("Wrap up the week", systemImage: "checkmark.seal")
             }
+            .buttonStyle(.trainBanner(tint: TideTrain.violet))
+
+            Button {
+                showImport = true
+            } label: {
+                Text("Upload only")
+            }
+            .buttonStyle(.trainQuiet)
         }
+    }
+
+    /// The tile's two lines for the week a wrap-up covers: "Sep" over "21–27",
+    /// or "Sep–Oct" over "28–4" when the week straddles two months.
+    static func weekTile(
+        now: Date = Date(),
+        calendar: Calendar = TrainingCalendar.iso8601
+    ) -> (month: String, days: String) {
+        let sunday = calendar.startOfDay(for: TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: now, calendar: calendar))
+        let monday = calendar.date(byAdding: .day, value: -6, to: sunday) ?? sunday
+        func format(_ pattern: String, _ date: Date) -> String {
+            let f = DateFormatter()
+            f.calendar = calendar
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = calendar.timeZone
+            f.dateFormat = pattern
+            return f.string(from: date)
+        }
+        let days = "\(format("d", monday))–\(format("d", sunday))"
+        if calendar.component(.month, from: monday) == calendar.component(.month, from: sunday) {
+            return (format("MMM", sunday), days)
+        }
+        return ("\(format("MMM", monday))–\(format("MMM", sunday))", days)
     }
 
     /// "Wrap up last week · 21–27 Sep" once the served week is behind us,
