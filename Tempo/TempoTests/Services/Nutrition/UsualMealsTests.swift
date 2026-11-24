@@ -291,6 +291,48 @@ final class EatenMealUndoTests: XCTestCase {
         XCTAssertFalse(try EatenMealRecorder.undoLog(result, env: env))
     }
 
+    func testUndoOfAMergeGivesThePantryBackWhatTheMergeTook() throws {
+        let item = PantryItem(rawName: "Chicken", quantity: 1000, unit: .grams)
+        context.insert(item)
+        try context.save()
+        _ = try EatenMealRecorder.record(
+            [input("eggs")], type: .lunch, eatenAt: Date(), source: .manual, modelContext: context
+        )
+        XCTAssertEqual(item.quantity, 1000, accuracy: 0.001, "the first log is not from the kitchen")
+        let merge = try EatenMealRecorder.record(
+            [input("Chicken")], type: .lunch, eatenAt: Date(), source: .manual, origin: .kitchen, modelContext: context
+        )
+        XCTAssertNotNil(merge.merged, "the second lunch log merges into the first")
+        XCTAssertLessThan(item.quantity, 1000, "the kitchen food came off the shelf")
+
+        XCTAssertTrue(try EatenMealRecorder.undoLog(merge, env: env))
+        XCTAssertEqual(item.quantity, 1000, accuracy: 0.001, "Undo puts back exactly what was taken")
+        XCTAssertEqual(eatenMeals().first?.foods.map(\.name), ["eggs"])
+    }
+
+    func testUndoOfAnEditOfAPlanSlotEatenAsPlannedBringsThePlannedDishBack() throws {
+        let plan = WeeklyMealPlan(startDate: Date(), endDate: Date(), isActive: true)
+        context.insert(plan)
+        let slot = PlannedMeal(
+            dayDate: Date(), mealNumber: 1, mealName: "Breakfast", scheduledTime: "08:00",
+            foods: [PlannedFood(name: "planned oats", quantityGrams: 80, calories: 300, proteinG: 10, carbsG: 50, fatG: 6)],
+            totalCalories: 300, totalProtein: 10, totalCarbs: 50, totalFat: 6, mealPlan: plan
+        )
+        context.insert(slot)
+        try context.save()
+        // Eaten exactly as planned, then edited to a bigger portion of the same food.
+        try MealOutcomeService.markEaten(slot, env: env)
+        let edit = try EatenMealRecorder.record(
+            [input("planned oats", kcal: 450)], type: .breakfast, eatenAt: Date(), source: .manual,
+            resolution: .edit, modelContext: context
+        )
+        XCTAssertEqual(slot.totalCalories, 450)
+        XCTAssertTrue(try EatenMealRecorder.undoLog(edit, env: env))
+        XCTAssertEqual(slot.status, .eaten, "the meal stays eaten as planned")
+        XCTAssertEqual(slot.foods.map(\.name), ["planned oats"])
+        XCTAssertEqual(slot.totalCalories, 300)
+    }
+
     func testUndoOfAFilledPlanSlotGivesThePlannedDishBack() throws {
         let plan = WeeklyMealPlan(startDate: Date(), endDate: Date(), isActive: true)
         context.insert(plan)

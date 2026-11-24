@@ -175,6 +175,9 @@ struct MealReviewHost: ViewModifier {
     var request: MealReviewRequest?
     /// Called once a meal was saved (not on cancel): close the screen that started the flow.
     var onLogged: () -> Void = {}
+    /// Where a failed save is told. nil: the Fuel toast host. A screen that sits on top of
+    /// that host (the capture sheet) passes its own toast, which is drawn on the sheet itself.
+    var onFailed: ((ToastData) -> Void)?
 
     @Environment(\.modelContext)
     private var modelContext
@@ -273,7 +276,11 @@ struct MealReviewHost: ViewModifier {
             duplicate = nil
             onLogged()
         case let .failed(toast):
-            FuelLogToast.post(toast)
+            if let onFailed {
+                onFailed(toast)
+            } else {
+                FuelLogToast.post(toast)
+            }
         case .needsDecision:
             break
         }
@@ -282,7 +289,11 @@ struct MealReviewHost: ViewModifier {
 
 extension View {
     /// Shows the Confirm Meal sheet for `request` on top of this screen and saves what it confirms.
-    func mealReview(_ request: Binding<MealReviewRequest?>, onLogged: @escaping () -> Void = {}) -> some View {
-        modifier(MealReviewHost(request: request, onLogged: onLogged))
+    func mealReview(
+        _ request: Binding<MealReviewRequest?>,
+        onLogged: @escaping () -> Void = {},
+        onFailed: ((ToastData) -> Void)? = nil
+    ) -> some View {
+        modifier(MealReviewHost(request: request, onLogged: onLogged, onFailed: onFailed))
     }
 }

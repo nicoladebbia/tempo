@@ -253,9 +253,7 @@ struct MealLoggingView: View {
             .tempoToast($toast)
             // Typed text opens Confirm Meal (time, meal, portions, where from);
             // a saved meal closes this screen, the toast carries the Undo.
-            .mealReview($reviewRequest) {
-                closeAfterLog()
-            }
+            .mealReview($reviewRequest, onLogged: { closeAfterLog() }, onFailed: { toast = $0 })
             .aiBlockerAlert($aiBlocker) {
                 submitTypedText()
             }
@@ -350,9 +348,11 @@ struct MealLoggingView: View {
                 }
                 if foodItems.isEmpty {
                     // Open, add, done: what you eat most is already at the top.
-                    QuickLogRows(type: selectedMealType.appMealType) { choice in
-                        quickLog(choice)
-                    }
+                    QuickLogRows(
+                        type: selectedMealType.appMealType,
+                        onFailure: { toast = $0 },
+                        onLog: { choice in quickLog(choice) }
+                    )
                     typeField
                     emptyMethods
                 } else {
@@ -467,6 +467,22 @@ struct MealLoggingView: View {
         .animation(Tide.settle, value: typedMessage)
     }
 
+    /// What the typed line says when the AI could not turn the text into foods.
+    nonisolated static let typedFailureMessage = "Couldn't read that. Name the food and an amount, or use Search."
+
+    /// A reply that did not make sense gets the plain line; a network or server problem
+    /// says what it was (the readable text of the error).
+    nonisolated static func typedMessage(for error: Error) -> String {
+        switch error as? NaturalLanguageLoggingError {
+        case let .parseFailed(detail) where detail != NaturalLanguageLoggingError.unreadableReply:
+            "Couldn't read that: \(detail)"
+        case .parseFailed, .noFoodsDetected, .emptyInput:
+            typedFailureMessage
+        case nil:
+            "Couldn't read that: \(AIBlocker.message(for: error))"
+        }
+    }
+
     private var canSubmitText: Bool {
         !typedText.trimmingCharacters(in: .whitespaces).isEmpty && !isParsing
     }
@@ -484,7 +500,7 @@ struct MealLoggingView: View {
             defer { isParsing = false }
             do {
                 guard var request = try await MealReviewRequest.parsing(trimmed, apiClient: services.apiClient) else {
-                    typedMessage = "Couldn't parse that. Try being more specific."
+                    typedMessage = Self.typedFailureMessage
                     return
                 }
                 // The meal chip the user tapped counts unless the text names one.
@@ -496,7 +512,7 @@ struct MealLoggingView: View {
                 if let blocker = AIBlocker(error) {
                     aiBlocker = blocker
                 } else {
-                    typedMessage = "Couldn't parse that: \(AIBlocker.message(for: error))"
+                    typedMessage = Self.typedMessage(for: error)
                 }
             }
         }

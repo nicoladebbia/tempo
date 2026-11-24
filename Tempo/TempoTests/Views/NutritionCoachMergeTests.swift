@@ -39,6 +39,16 @@ final class NutritionCoachMergeTests: XCTestCase {
         XCTAssertTrue(line.hasPrefix(session.label), line)
     }
 
+    func testTypedLineNeverShowsTheRawParseText() {
+        let raw = NaturalLanguageLoggingError.parseFailed(NaturalLanguageLoggingError.unreadableReply)
+        XCTAssertEqual(MealLoggingView.typedMessage(for: raw), MealLoggingView.typedFailureMessage)
+        XCTAssertEqual(MealLoggingView.typedMessage(for: NaturalLanguageLoggingError.noFoodsDetected), MealLoggingView.typedFailureMessage)
+        XCTAssertFalse(MealLoggingView.typedFailureMessage.lowercased().contains("parse"))
+        // A real server problem still says what it was.
+        let server = NaturalLanguageLoggingError.parseFailed("Server error. We're working on it.")
+        XCTAssertEqual(MealLoggingView.typedMessage(for: server), "Couldn't read that: Server error. We're working on it.")
+    }
+
     func testCountsUseTheSingularForOne() {
         XCTAssertEqual(FuelWords.count(0, "meal"), "0 meals")
         XCTAssertEqual(FuelWords.count(1, "meal"), "1 meal")
