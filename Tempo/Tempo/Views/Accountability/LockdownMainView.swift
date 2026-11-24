@@ -68,36 +68,28 @@ struct LockdownMainView: View {
                 // Date display
                 dateHeader
 
-                // Status banner
-                statusBanner
-
-                // At accessibility sizes the bar is too tall to pin; it scrolls
-                // with the page, right under the status it belongs to.
-                if typeSize.isAccessibilitySize {
-                    leisureStatusBar
-                        .padding(.horizontal, -Tide.edge)
-                }
-
-                // Progress prediction
-                progressPredictionSection
-
-                // Drill sergeant bubble
-                drillSergeantSection
-
-                // Non-negotiable cards
                 if viewModel.isLoading, viewModel.progressItems.isEmpty {
+                    // The page's own shape, shimmering, instead of a false "Locked, 0 done".
                     loadingState
                 } else if viewModel.progressItems.isEmpty {
+                    // Nothing to be done yet: the orders and the one way forward,
+                    // with no dial counting 0 of 0.
+                    drillSergeantSection
                     emptyState
                 } else {
+                    // The day in one read: the dial, whether it is on pace, the orders...
+                    statusBanner
+                    progressPredictionSection
+                    drillSergeantSection
+
+                    // ...then what is still open, with what is finished under it.
                     nonNegotiableCards
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                // Pinned bottom: quick action + leisure status
-                if !typeSize.isAccessibilitySize {
-                    leisureStatusBar
-                }
+                // The one primary action, under the thumb. It is the same at every
+                // text size; the scrim keeps the cards from reading through it.
+                pinnedAction
             }
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)
@@ -182,15 +174,16 @@ struct LockdownMainView: View {
             TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
         } side: {
             HStack(spacing: Tide.s2) {
-                Image(systemName: viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill")
+                Image(systemName: heroIcon)
                     .font(Tide.title2)
                     .foregroundStyle(lockColor)
                     .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
                     .accessibilityHidden(true)
 
-                Text(viewModel.isLeisureUnlocked ? "Unlocked" : "Locked")
+                Text(heroTitle)
                     .font(Tide.title2)
                     .foregroundStyle(lockColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Text(statusTimeContext)
@@ -207,16 +200,48 @@ struct LockdownMainView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(viewModel.isLeisureUnlocked ? "Unlocked" : "Locked"). \(viewModel.completedCount) of \(viewModel.totalCount) done. \(statusTimeContext)"
+            "\(heroTitle). \(viewModel.completedCount) of \(viewModel.totalCount) done. \(statusTimeContext)"
         )
     }
 
+    /// A rest day says so; the lock only speaks for a normal day.
+    private var heroTitle: String {
+        if let override = viewModel.activeOverride {
+            return Self.overrideTitle(override)
+        }
+        return viewModel.isLeisureUnlocked ? "Unlocked" : "Locked"
+    }
+
+    private var heroIcon: String {
+        if viewModel.activeOverride != nil {
+            return "bed.double.fill"
+        }
+        return viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill"
+    }
+
+    private static func overrideTitle(_ type: AccountabilityOverrideType) -> String {
+        switch type {
+        case .restDayFull: "Full rest day"
+        case .restDayReduced: "Reduced rest day"
+        case .sickDay: "Sick day"
+        case .mentalHealthDay: "Mental health day"
+        case .injuryMode: "Injury mode"
+        case .vacationMode: "Vacation mode"
+        }
+    }
+
     private var lockColor: Color {
-        viewModel.isLeisureUnlocked ? TideTone.mint : Tide.danger
+        if viewModel.activeOverride != nil {
+            return Tide.text
+        }
+        return viewModel.isLeisureUnlocked ? TideTone.mint : Tide.danger
     }
 
     /// Per UX_COPY_BIBLE.md — time context strings
     private var statusTimeContext: String {
+        if viewModel.activeOverride != nil {
+            return "Rest days don't count toward your streak."
+        }
         if viewModel.isLeisureUnlocked {
             let hour = Calendar.current.component(.hour, from: Date())
             if hour < 12 {
@@ -252,6 +277,9 @@ struct LockdownMainView: View {
     }
 
     private var statusTimeColor: Color {
+        if viewModel.activeOverride != nil {
+            return Tide.text2
+        }
         if viewModel.isLeisureUnlocked {
             return TideTone.mint
         }
@@ -387,73 +415,113 @@ struct LockdownMainView: View {
 
     // MARK: - Non-Negotiable Cards
 
-    @ViewBuilder
+    /// What is still open comes first, so the next thing to do is never below the fold.
+    private var openItems: [NonNegotiableProgress] {
+        viewModel.progressItems.filter { !$0.isCompleted }
+    }
+
+    /// Done and skipped, in the order they were set up.
+    private var finishedItems: [NonNegotiableProgress] {
+        viewModel.progressItems.filter(\.isCompleted)
+    }
+
     private var nonNegotiableCards: some View {
-        TideSectionLabel(title: "Non-negotiables")
-            .padding(.top, Tide.s2)
-        ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
-            NonNegotiableCardView(
-                progress: progress,
-                isExpanded: expandedCardID == progress.persistentModelID,
-                habitStreakCount: viewModel.habitStreakCount(for: progress.nonNegotiable?.type ?? .custom),
-                onTap: {
-                    withAnimation(Tide.snap) {
-                        expandedCardID = expandedCardID == progress.persistentModelID
-                            ? nil
-                            : progress.persistentModelID
-                    }
-                },
-                onComplete: {
-                    viewModel.completeItem(progress, modelContext: modelContext)
-                },
-                onSkip: {
-                    viewModel.skipItem(progress, modelContext: modelContext)
-                },
-                onUpdateValue: { value in
-                    viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
-                },
-                onStartTimer: focusTimerEnabled ? {
-                    viewModel.configureFocusTimer()
-                    showFocusTimer = true
-                } : nil,
-                onLogMeal: {
-                    showMealLogging = true
-                },
-                onEditNonNegotiable: {
-                    editingNonNegotiable = progress
-                },
-                onViewHistory: {
-                    showHistoryAlert = true
-                },
-                secondaryActions: showsQuickAction
-            )
+        let open = openItems
+        let finished = finishedItems
+        return VStack(spacing: Tide.s4) {
+            if !open.isEmpty {
+                TideSectionLabel(title: "To do", trailing: "\(open.count) left")
+                    .padding(.top, Tide.s2)
+                ForEach(open, id: \.persistentModelID) { progress in
+                    card(for: progress)
+                }
+            }
+            if !finished.isEmpty {
+                TideSectionLabel(title: "Done", trailing: "\(finished.count) of \(viewModel.progressItems.count)")
+                    .padding(.top, open.isEmpty ? Tide.s2 : Tide.s1)
+                ForEach(finished, id: \.persistentModelID) { progress in
+                    card(for: progress)
+                }
+            }
         }
+        // A finished task slides down to the Done group instead of jumping.
+        .animation(Tide.snap, value: finished.count)
+    }
+
+    private func card(for progress: NonNegotiableProgress) -> some View {
+        NonNegotiableCardView(
+            progress: progress,
+            isExpanded: expandedCardID == progress.persistentModelID,
+            habitStreakCount: viewModel.habitStreakCount(for: progress.nonNegotiable?.type ?? .custom),
+            onTap: {
+                withAnimation(Tide.snap) {
+                    expandedCardID = expandedCardID == progress.persistentModelID
+                        ? nil
+                        : progress.persistentModelID
+                }
+            },
+            onComplete: {
+                viewModel.completeItem(progress, modelContext: modelContext)
+            },
+            onSkip: {
+                viewModel.skipItem(progress, modelContext: modelContext)
+            },
+            onUpdateValue: { value in
+                viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
+            },
+            onStartTimer: focusTimerEnabled ? {
+                viewModel.configureFocusTimer()
+                showFocusTimer = true
+            } : nil,
+            onLogMeal: {
+                showMealLogging = true
+            },
+            onEditNonNegotiable: {
+                editingNonNegotiable = progress
+            },
+            onViewHistory: {
+                showHistoryAlert = true
+            },
+            secondaryActions: showsQuickAction
+        )
     }
 
     // MARK: - Empty State
 
     // Per MODULE_ACCOUNTABILITY.md — empty state when no non-negotiables.
+    // The way forward is the pinned button; this is the explanation above it.
 
     private var emptyState: some View {
-        VStack(spacing: Tide.s4) {
-            TideEmptyPanel(
-                systemImage: "lock.fill",
-                title: "No non-negotiables set",
-                message: "Define what you MUST do each day before you earn your downtime."
-            )
-
-            Button("Set up non-negotiables") {
-                showNonNegotiableSetup = true
-            }
-            .buttonStyle(.tidePrimary)
-        }
+        TideEmptyPanel(
+            systemImage: "lock.fill",
+            title: "No non-negotiables set",
+            message: "Define what you MUST do each day before you earn your downtime."
+        )
         .tideCard()
     }
 
     // MARK: - Loading State
 
+    /// The shape of the page while the day loads: the dial and its lines, then three cards.
     private var loadingState: some View {
-        VStack(spacing: Tide.s3) {
+        VStack(spacing: Tide.s4) {
+            HStack(spacing: Tide.s5) {
+                Circle()
+                    .fill(Tide.fill)
+                    .frame(width: Tide.dialHero, height: Tide.dialHero)
+                    .shimmer()
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(0 ..< 3, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(height: index == 0 ? Tide.s6 : Tide.s4)
+                            .frame(maxWidth: index == 2 ? Tide.s10 * 2 : .infinity)
+                            .shimmer()
+                    }
+                }
+            }
+            .padding(.vertical, Tide.s2)
+
             ForEach(0 ..< 3, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
                     .fill(Tide.fill)
@@ -509,110 +577,31 @@ struct LockdownMainView: View {
         }
     }
 
-    // MARK: - Leisure Status Bar
+    // MARK: - Pinned Action
 
-    // Per MODULE_ACCOUNTABILITY.md — pinned above the tab bar.
+    // The page's one primary action, pinned above the tab bar: the study timer
+    // on a day with tasks, "Set up" on a day without any.
 
-    private var leisureStatusBar: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            // Quick action button (only when focus timer is enabled)
-            if showsQuickAction {
-                quickActionButton
-            }
-
-            HStack(spacing: Tide.s3) {
-                // Lock icon
-                Image(systemName: leisureLockIcon)
-                    .font(Tide.title2)
-                    .foregroundStyle(leisureLockColor)
-                    .symbolEffect(.pulse, isActive: viewModel.dailyState == .dayFailed)
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text("Leisure status").tideLabel(Tide.text3)
-
-                    Text(leisureStatusText)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(leisureStatusTextColor)
-                        .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder
+    private var pinnedAction: some View {
+        if viewModel.progressItems.isEmpty, !viewModel.isLoading {
+            pinnedBar {
+                Button("Set up non-negotiables") {
+                    showNonNegotiableSetup = true
                 }
-
-                Spacer(minLength: 0)
+                .buttonStyle(.tidePrimary)
             }
-            .accessibilityElement(children: .combine)
-
-            // Progress bar
-            if viewModel.activeOverride == nil {
-                TideLevelBar(
-                    progress: viewModel.completionPercentage,
-                    color: leisureProgressColor,
-                    height: Tide.bar
-                )
-            }
+        } else if showsQuickAction, !viewModel.progressItems.isEmpty {
+            pinnedBar { quickActionButton }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.cardRadius)
-        .background(Tide.ink.opacity(0.6), in: .rect(cornerRadius: Tide.cardRadius))
-        .padding(.horizontal, Tide.edge)
-        .padding(.bottom, Tide.s2)
     }
 
-    private var leisureLockIcon: String {
-        if viewModel.isLeisureUnlocked || viewModel.activeOverride != nil {
-            return "lock.open.fill"
-        }
-        return "lock.fill"
-    }
-
-    private var leisureLockColor: Color {
-        if viewModel.isLeisureUnlocked {
-            return TideTone.mint
-        }
-        if viewModel.activeOverride != nil {
-            return Tide.text3
-        }
-        return Tide.danger
-    }
-
-    private var leisureStatusText: String {
-        if viewModel.activeOverride != nil {
-            return "Rest day. No non-negotiables active."
-        }
-        if viewModel.isLeisureUnlocked {
-            return "You earned it. Enjoy your evening."
-        }
-        if viewModel.dailyState == .dayFailed {
-            return "PS5 time has passed. Tasks still incomplete."
-        }
-        let remaining = viewModel.totalCount - viewModel.completedCount
-        if remaining == 1 {
-            return "Just 1 more. You're right there."
-        }
-        return "Complete \(remaining) more to unlock"
-    }
-
-    private var leisureStatusTextColor: Color {
-        if viewModel.isLeisureUnlocked {
-            return TideTone.mint
-        }
-        if viewModel.dailyState == .dayFailed {
-            return Tide.danger
-        }
-        let remaining = viewModel.totalCount - viewModel.completedCount
-        if remaining == 1 {
-            return TideTone.amber
-        }
-        return Tide.text
-    }
-
-    private var leisureProgressColor: Color {
-        let pct = viewModel.completionPercentage
-        if pct >= 1.0 {
-            return TideTone.mint
-        }
-        if pct >= 0.5 {
-            return TideTone.amber
-        }
-        return Tide.danger
+    private func pinnedBar(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s2)
+            .lockdownPinnedScrim()
     }
 
     // MARK: - Unlock Celebration
@@ -679,21 +668,21 @@ struct NonNegotiableCardView: View {
             // Row 1: Icon + Name + Status
             headerRow
 
-            // Row 2: Progress bar
-            if cardState != .skipped {
+            if !isFinished {
+                // Row 2: Progress bar
                 progressRow
+
+                // Row 3: Supporting text + Action
+                supportingRow
             }
 
-            // Row 3: Supporting text + Action
-            supportingRow
-
-            // Expanded detail
-            if isExpanded {
+            // Expanded detail (a finished row has nothing left to do)
+            if isExpanded, !progress.isCompleted {
                 expandedContent
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .tideCard(padding: isFinished ? Tide.s3 : Tide.s4, radius: Tide.tileRadius)
         .overlay(cardBorder)
         .opacity(cardState == .skipped ? 0.6 : 1.0)
         .contentShape(.rect(cornerRadius: Tide.tileRadius))
@@ -702,7 +691,7 @@ struct NonNegotiableCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(isExpanded ? "Hides actions" : "Shows actions")
+        .accessibilityHint(progress.isCompleted ? "" : (isExpanded ? "Hides actions" : "Shows actions"))
     }
 
     // MARK: - Header Row
@@ -737,17 +726,40 @@ struct NonNegotiableCardView: View {
                     }
                 }
 
-                // Source badge
-                sourceBadge
+                // Source badge; a finished row says how it ended instead.
+                if isFinished {
+                    Text(finishedText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    sourceBadge
+                }
             }
 
             if !typeSize.isAccessibilitySize {
                 Spacer(minLength: Tide.s2)
             }
 
-            // Status indicator
-            statusIndicator
+            // Status indicator (a finished row keeps its one action beside the check)
+            if isFinished {
+                HStack(spacing: Tide.s2) {
+                    actionButton
+                    statusIndicator
+                }
+            } else {
+                statusIndicator
+            }
         }
+    }
+
+    /// Done and skipped rows are one line: what is open is what gets the room.
+    private var isFinished: Bool {
+        cardState == .completed || cardState == .skipped
+    }
+
+    private var finishedText: String {
+        cardState == .skipped ? "Skipped today" : supportingText
     }
 
     private var iconColor: Color {
@@ -771,17 +783,18 @@ struct NonNegotiableCardView: View {
                 .monospacedDigit()
                 .foregroundStyle(Tide.text2)
         case .completed:
-            HStack(spacing: Tide.s1) {
-                Text("Done").tideLabel(TideTone.mint)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(Tide.headline)
-                    .foregroundStyle(TideTone.mint)
-                    .accessibilityHidden(true)
-            }
+            // The "Done" section says the word; the row keeps just the tick.
+            Image(systemName: "checkmark.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(TideTone.mint)
+                .accessibilityHidden(true)
         case .overdue:
             Text("Overdue").tideLabel(Tide.danger)
         case .skipped:
-            Text("Skipped").tideLabel(Tide.text3)
+            Image(systemName: "forward.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
     }
 
@@ -1000,6 +1013,8 @@ struct NonNegotiableCardView: View {
             Text(title)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(style == .filled ? Tide.ink : Tide.text)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, Tide.s4)
                 .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                 .background {
@@ -1059,7 +1074,7 @@ struct NonNegotiableCardView: View {
     private var cardBorder: some View {
         if let stateColor = borderColor {
             RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
-                .strokeBorder(stateColor.opacity(0.55), lineWidth: Tide.rule)
+                .strokeBorder(stateColor.opacity(cardState == .completed ? 0.3 : 0.55), lineWidth: Tide.rule)
                 .allowsHitTesting(false)
         }
     }

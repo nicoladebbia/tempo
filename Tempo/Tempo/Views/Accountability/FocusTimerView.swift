@@ -149,7 +149,10 @@ struct FocusTimerView: View {
                     navigationBar
                         .padding(.horizontal, Tide.edge)
 
-                    Spacer(minLength: Tide.s4)
+                    // Everything down to the dial is top-aligned and the same
+                    // height in every state, so the dial never moves when the
+                    // timer starts, pauses or goes on a break.
+                    Color.clear.frame(height: max(Tide.s6, proxy.size.height * 0.04))
 
                     // Session label and the run's sessions as dots
                     sessionLabel
@@ -170,30 +173,18 @@ struct FocusTimerView: View {
 
                     // Timer dial
                     timerDial(diameter: diameter)
-                        .padding(.bottom, Tide.s3)
+                        .padding(.bottom, Tide.s4)
 
-                    // Phase label
-                    phaseLabel
-                        .padding(.bottom, Tide.s3)
-
-                    // Accumulated time
-                    accumulatedTime
-                        .padding(.bottom, Tide.s3)
-
-                    // Focus score (only during focusing)
-                    if case .focusing = viewModel.focusState {
-                        focusScoreDisplay
-                            .padding(.bottom, Tide.s4)
-                    } else {
-                        Spacer().frame(height: Tide.s4)
+                    // Phase, today's total, and the focus score or break line
+                    // in one slot: what changes lives below the dial.
+                    VStack(spacing: Tide.s3) {
+                        phaseLabel
+                        accumulatedTime
+                        statusLine
                     }
 
-                    // Break message
-                    if isBreakState {
-                        breakMessageView
-                            .padding(.bottom, Tide.s4)
-                    }
-
+                    // Whatever is left of the page sits between the status and
+                    // the buttons.
                     Spacer(minLength: Tide.s4)
 
                     // Smart recommendation: next to the Start button, in thumb reach
@@ -207,25 +198,43 @@ struct FocusTimerView: View {
                     if viewModel.focusState.isActive {
                         secondaryButtons
                             .padding(.horizontal, Tide.edge)
-                            .padding(.bottom, Tide.s4)
+                            .padding(.bottom, Tide.s3)
                     }
                 }
                 .frame(minHeight: proxy.size.height)
+                .animation(Tide.snap, value: viewModel.focusState.isActive)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
         }
-        // Start, Pause and Stop stay under the thumb, even when large text makes the page scroll.
+        // Start, Pause and Stop stay under the thumb, even when large text
+        // makes the page scroll. The bar is the same height in every state, so
+        // the dial is not resized by it, and the scrim keeps the page from
+        // reading through the buttons.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             primaryControls
                 .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
                 .padding(.bottom, Tide.s4)
+                .lockdownPinnedScrim()
+        }
+    }
+
+    /// One line under the total, always reserved: the focus score while focusing, a break line on a break.
+    @ViewBuilder
+    private var statusLine: some View {
+        if case .focusing = viewModel.focusState {
+            focusScoreDisplay
+        } else if isBreakState {
+            breakMessageView
+        } else {
+            Color.clear.frame(height: Tide.s5)
         }
     }
 
     /// The dial grows to 300pt on a roomy phone and shrinks on a short or narrow one.
     private func dialDiameter(in size: CGSize) -> CGFloat {
-        min(Tide.dialTimer, size.width - Tide.edge * 2, size.height * 0.38)
+        min(Tide.dialTimer, size.width - Tide.edge * 2, size.height * 0.42)
     }
 
     // MARK: - Smart Focus Recommendation Banner
@@ -533,8 +542,17 @@ struct FocusTimerView: View {
         .accessibilityAddTraits(.updatesFrequently)
     }
 
+    /// Before Start the dial shows the length of the session that will run, not 0:00.
+    private var timerString: String {
+        guard isIdleOrConfiguring else {
+            return viewModel.formattedFocusTimer
+        }
+        let total = Int(viewModel.focusDuration)
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
     private var timerParts: (minutes: String, seconds: String) {
-        let parts = viewModel.formattedFocusTimer.split(separator: ":")
+        let parts = timerString.split(separator: ":")
         let minutes = parts.first.map(String.init) ?? "0"
         let seconds = parts.count > 1 ? String(parts[1]) : "00"
         return (minutes, seconds)
@@ -567,7 +585,7 @@ struct FocusTimerView: View {
         }
         .lineLimit(1)
         .minimumScaleFactor(Tide.labelShrink)
-        .animation(Tide.snap, value: viewModel.formattedFocusTimer)
+        .animation(Tide.snap, value: timerString)
     }
 
     private var ringColor: Color {

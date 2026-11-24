@@ -9,6 +9,26 @@
 
 import SwiftUI
 
+// MARK: - Pinned bar scrim
+
+extension View {
+    /// The ink fade behind a bar pinned to the bottom of a scrolling page, so
+    /// the content that scrolls under it never reads through the buttons.
+    /// It runs on past the home indicator and starts a little above the bar.
+    func lockdownPinnedScrim() -> some View {
+        background {
+            LinearGradient(
+                colors: [.clear, Tide.ink.opacity(0.85), Tide.ink.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .padding(.top, -Tide.s6)
+            .ignoresSafeArea(edges: .bottom)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - TideStreakDots
 
 /// One column per day of the week, Monday first: a letter above a disc that is
@@ -516,6 +536,11 @@ struct LockdownUnlockMoment: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: proxy.size.height)
                     .padding(.horizontal, Tide.edge)
+                    // The scroll view covers the backdrop, so a tap anywhere on
+                    // the moment (not only the Continue button) closes it. A
+                    // drag still scrolls.
+                    .contentShape(.rect)
+                    .onTapGesture(perform: onContinue)
                 }
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
@@ -524,7 +549,9 @@ struct LockdownUnlockMoment: View {
                 Button("Continue", action: onContinue)
                     .buttonStyle(.tidePrimary)
                     .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s2)
                     .padding(.bottom, Tide.s2)
+                    .lockdownPinnedScrim()
             }
         }
         // The unlock itself already buzzes (triple success), so the lock opens silently.
@@ -547,10 +574,11 @@ struct LockdownUnlockMoment: View {
     @ViewBuilder
     private var hero: some View {
         if let score {
-            // The dial's caption has no room to wrap, so it is shorter at large text.
+            // The dial's caption has no room to wrap: the same short caption as
+            // Today's dial, and shorter still at large text.
             TideDial(
                 score: score,
-                caption: typeSize.isAccessibilitySize ? "Score" : "Today's score",
+                caption: typeSize.isAccessibilitySize ? "Score" : "Day score",
                 diameter: Tide.dialHero
             )
             .accessibilityElement(children: .combine)
