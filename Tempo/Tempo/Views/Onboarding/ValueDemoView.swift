@@ -18,6 +18,8 @@ struct ValueDemoView: View {
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var filled = false
 
@@ -61,36 +63,14 @@ struct ValueDemoView: View {
             skipAction: onContinue,
             centered: true
         ) {
-            TideDial(score: 72, caption: "Sample", diameter: Tide.dialSheet)
+            hero
 
             VStack(spacing: Tide.s3) {
                 GlassEffectContainer(spacing: Tide.s3) {
-                    Grid(horizontalSpacing: Tide.s3, verticalSpacing: Tide.s3) {
-                        GridRow {
-                            sampleTile(samples[0])
-                            sampleTile(samples[1])
-                        }
-                        GridRow {
-                            sampleTile(samples[2])
-                            sampleTile(samples[3])
-                        }
-                    }
+                    tiles
                 }
                 OnboardingNote("Sample data. Yours fills in as you use Tempo.", systemImage: "info.circle")
             }
-
-            // Consolidation pitch
-            VStack(spacing: Tide.s1) {
-                Text("One app. Not five.")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                Text("Replaces your workout tracker, meal planner, sleep app, habit tracker, and study timer.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity)
         }
         .onAppear {
             if reduceMotion {
@@ -99,6 +79,54 @@ struct ValueDemoView: View {
                 withAnimation(Tide.settle.delay(0.35)) { filled = true }
             }
         }
+    }
+
+    // MARK: - Tiles
+
+    /// Two by two, or one column when the text is too big for half a screen.
+    @ViewBuilder
+    private var tiles: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: Tide.s3) {
+                ForEach(samples) { sampleTile($0) }
+            }
+        } else {
+            Grid(horizontalSpacing: Tide.s3, verticalSpacing: Tide.s3) {
+                GridRow {
+                    sampleTile(samples[0])
+                    sampleTile(samples[1])
+                }
+                GridRow {
+                    sampleTile(samples[2])
+                    sampleTile(samples[3])
+                }
+            }
+        }
+    }
+
+    // MARK: - Hero
+
+    /// A sample day score beside the pitch: what you get, and why it is one app.
+    private var hero: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: Tide.s5))
+        return layout {
+            // The dial keeps its size and its text stays inside the ring.
+            TideDial(score: 72, caption: "Sample", diameter: Tide.dialSheet + Tide.s6)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            VStack(alignment: typeSize.isAccessibilitySize ? .center : .leading, spacing: Tide.s1) {
+                Text("One app. Not five.")
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Text("Replaces your workout tracker, meal planner, sleep app, habit tracker, and study timer.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(typeSize.isAccessibilitySize ? .center : .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Sample Tile
