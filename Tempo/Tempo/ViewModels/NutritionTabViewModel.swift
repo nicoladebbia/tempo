@@ -271,10 +271,15 @@ final class NutritionTabViewModel {
 
     // MARK: - Computed
 
+    /// What was eaten today, as whole numbers rounded once from the unrounded
+    /// sum (`CanonicalMeals`). The ring, the macro columns, the Log tab and the
+    /// product page's "fits today" all read this one value.
+    var todayEatenTotals: RoundedMacros {
+        CanonicalMeals.eatenRoundedTotals(of: todayMeals)
+    }
+
     var todayCaloriesConsumed: Int {
-        todayMeals
-            .filter { $0.status == .eaten }
-            .reduce(0) { $0 + Int($1.totalCalories) }
+        todayEatenTotals.calories
     }
 
     /// Today's active carryover refund, fetched in loadToday. Stored so the
@@ -385,9 +390,7 @@ final class NutritionTabViewModel {
     }
 
     var todayProteinConsumed: Int {
-        todayMeals
-            .filter { $0.status == .eaten }
-            .reduce(0) { $0 + Int($1.totalProtein) }
+        todayEatenTotals.protein
     }
 
     var todayProteinTarget: Int {
@@ -395,9 +398,7 @@ final class NutritionTabViewModel {
     }
 
     var todayCarbsConsumed: Int {
-        todayMeals
-            .filter { $0.status == .eaten }
-            .reduce(0) { $0 + Int($1.totalCarbs) }
+        todayEatenTotals.carbs
     }
 
     var todayCarbsTarget: Int {
@@ -405,9 +406,7 @@ final class NutritionTabViewModel {
     }
 
     var todayFatConsumed: Int {
-        todayMeals
-            .filter { $0.status == .eaten }
-            .reduce(0) { $0 + Int($1.totalFat) }
+        todayEatenTotals.fat
     }
 
     var todayFatTarget: Int {

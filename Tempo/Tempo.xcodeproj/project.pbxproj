@@ -153,6 +153,7 @@
 		1841839ABE681280A8ABE4CD /* WidgetSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850A670BE69721FF450168DB /* WidgetSyncService.swift */; };
 		1926D115A4B3332150CFC26B /* TestServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F74E16CD09D164A6620E6 /* TestServer.swift */; };
 		196C0579ED7F6C96DA8105E9 /* SignInWithAppleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C45C46FA2A2369C89483AF2 /* SignInWithAppleView.swift */; };
+		19F956381727DFC0621775EB /* FuelTotalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A83EA8F32098EAF17C20D3 /* FuelTotalsTests.swift */; };
 		1A3BA3F40E3BB522B58B3356 /* ReadinessEaseGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFA468A63FCC5C9A71C363A /* ReadinessEaseGateTests.swift */; };
 		1A3E8CB6D1200BBACC143B62 /* ReceiptCrossCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E61C92079213D5C559D5BC /* ReceiptCrossCheckerTests.swift */; };
 		1B0F731B517744F7A43CB598 /* PersonalRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193D846D23A581EEC1EF738C /* PersonalRecord.swift */; };
@@ -2353,6 +2354,7 @@
 		B2FEA5BE0326DCBC50F9BD94 /* GuidedRunLoggingIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedRunLoggingIntegrationTests.swift; sourceTree = "<group>"; };
 		B38137B67BF85B1AD8E1DD0A /* Tide+Lockdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Tide+Lockdown.swift"; sourceTree = "<group>"; };
 		B3A63083CF496418C4A7B0F8 /* testQuadrantCardFuel.1.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = testQuadrantCardFuel.1.png; sourceTree = "<group>"; };
+		B3A83EA8F32098EAF17C20D3 /* FuelTotalsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelTotalsTests.swift; sourceTree = "<group>"; };
 		B3F8D3874146880249B5802D /* DebugTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugTrace.swift; sourceTree = "<group>"; };
 		B41099FE41B5BF95B0966875 /* RecipeSuggestionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSuggestionEngine.swift; sourceTree = "<group>"; };
 		B411EF0070812F1E8314D592 /* GroceryPriceEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryPriceEstimatorTests.swift; sourceTree = "<group>"; };
@@ -4545,6 +4547,7 @@
 			children = (
 				9A352958698A3025EE16EE8C /* CanonicalMealReadersTests.swift */,
 				B8318F2AC21C9BDFFFEF0C42 /* ConfirmMealRound3ATests.swift */,
+				B3A83EA8F32098EAF17C20D3 /* FuelTotalsTests.swift */,
 				0F8B44F7F2D81B532D2E8839 /* HomeAwayTests.swift */,
 				AE5712263755A5454A040725 /* SupplementMacrosTests.swift */,
 				2B2DD53DE45DB363005436BD /* SupplementReorderServiceTests.swift */,
@@ -5773,6 +5776,7 @@
 				C4A3EBABD786636880484C95 /* FuelSetupSectionTests.swift in Sources */,
 				2736E1F727E58FE5491570DF /* FuelSetupSingleStoreTests.swift in Sources */,
 				26D53EB85F274583A5B52529 /* FuelSetupTests.swift in Sources */,
+				19F956381727DFC0621775EB /* FuelTotalsTests.swift in Sources */,
 				5A59139655C9571DD7D712B6 /* GenericFoodImagesTests.swift in Sources */,
 				82836BE1021100D971F02C74 /* GroceryBudgetTests.swift in Sources */,
 				A513B71D6EDF0278CFB5421F /* GroceryCategoryTests.swift in Sources */,

@@ -80,4 +80,44 @@ enum CanonicalMeals {
     static func planBaseline(of meals: [PlannedMeal]) -> MealMacros {
         meals.reduce(MealMacros.zero) { $0 + $1.planBaseline }
     }
+
+    /// The whole numbers every screen shows for a day: the live totals summed
+    /// from the unrounded meals and rounded ONCE, at the end. Rounding (or
+    /// truncating) each meal before adding them up drifts by a gram or a kcal
+    /// per meal, which is how Fuel, the Log tab and the product page ended up
+    /// showing different values for the same day.
+    static func roundedTotals(of meals: [PlannedMeal]) -> RoundedMacros {
+        totals(of: meals).rounded
+    }
+
+    /// `roundedTotals` for the meals that were actually eaten.
+    static func eatenRoundedTotals(of meals: [PlannedMeal]) -> RoundedMacros {
+        roundedTotals(of: meals.filter { $0.status == .eaten })
+    }
+}
+
+// MARK: - RoundedMacros
+
+/// A day's macros as whole numbers (kcal and grams). Built only from
+/// `MealMacros.rounded` so there is one rounding rule.
+struct RoundedMacros: Equatable {
+    var calories: Int
+    var protein: Int
+    var carbs: Int
+    var fat: Int
+
+    static let zero = RoundedMacros(calories: 0, protein: 0, carbs: 0, fat: 0)
+}
+
+extension MealMacros {
+    /// Rounds each figure to the nearest whole number. Call it on a SUM, never
+    /// on one meal before adding.
+    var rounded: RoundedMacros {
+        RoundedMacros(
+            calories: Int(calories.rounded()),
+            protein: Int(protein.rounded()),
+            carbs: Int(carbs.rounded()),
+            fat: Int(fat.rounded())
+        )
+    }
 }

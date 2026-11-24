@@ -352,9 +352,9 @@ struct DailyNutritionSummaryView: View {
     // MARK: - Hydration Section (Task 4)
 
     private var hydrationSection: some View {
-        // Saved water (WaterStore) — one source for this screen, Nutrition
-        // Today and the Dashboard Fuel tile.
-        WaterCardView(targetMl: fuelData?.hydrationTargetMl)
+        // Saved water (WaterStore) and the one canonical water target — the
+        // same figures as Nutrition Today and the Today tile.
+        WaterCardView()
     }
 
     // MARK: - Meal Timing Section (Task 3)

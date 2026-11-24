@@ -15,9 +15,6 @@ import SwiftUI
 // MARK: - WaterCardView
 
 struct WaterCardView: View {
-    /// Today's target in ml. nil = work it out from the canonical daily target.
-    var targetMl: Int?
-
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -27,17 +24,23 @@ struct WaterCardView: View {
     private var totalMl = 0
     @State
     private var lastEntryMl: Int?
+    /// nil until the first read, so a placeholder 2,500 never flashes up.
     @State
-    private var resolvedTargetMl = 2500
+    private var resolvedTargetMl: Int?
     @State
     private var showCustom = false
 
-    private var target: Int {
-        max(targetMl ?? resolvedTargetMl, 1)
+    /// Today's target, always the canonical one (`todayWaterTargetMl`), so this
+    /// card, the Today tile and the coach show the same number.
+    private var target: Int? {
+        resolvedTargetMl.map { max($0, 1) }
     }
 
     private var progress: Double {
-        min(Double(totalMl) / Double(target), 1.0)
+        guard let target else {
+            return 0
+        }
+        return min(Double(totalMl) / Double(target), 1.0)
     }
 
     var body: some View {
@@ -54,15 +57,15 @@ struct WaterCardView: View {
                     totalMl.formatted(),
                     size: Tide.numeralS,
                     relativeTo: .headline,
-                    color: totalMl >= target ? Tide.good : Tide.text
+                    color: target.map { totalMl >= $0 } == true ? Tide.good : Tide.text
                 )
-                Text("/ \(target.formatted()) ml")
+                Text(target.map { "/ \($0.formatted()) ml" } ?? "ml")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Water \(totalMl) of \(target) millilitres")
+            .accessibilityLabel(target.map { "Water \(totalMl) of \($0) millilitres" } ?? "Water \(totalMl) millilitres")
             .accessibilityIdentifier("water.total")
 
             ViewThatFits(in: .horizontal) {
@@ -173,13 +176,7 @@ struct WaterCardView: View {
     private func reload() {
         totalMl = WaterStore.total(in: modelContext)
         lastEntryMl = WaterStore.entries(on: Date(), in: modelContext).last?.ml
-        if targetMl == nil {
-            resolvedTargetMl = DailyNutritionTargets.today(
-                in: modelContext,
-                whoopAvgTDEE: nil,
-                recoveryScore: DailyNutritionTargets.storedRecoveryScore(in: modelContext)
-            ).hydrationMl
-        }
+        resolvedTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
     }
 }
 
