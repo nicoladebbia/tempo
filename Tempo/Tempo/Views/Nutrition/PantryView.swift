@@ -57,6 +57,7 @@ struct PantryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s5) {
+                pageControls
                 hero
                 // In the flow of the page, never pinned over the rows it would hide.
                 if showsStaplesPeek {
@@ -95,43 +96,6 @@ struct PantryView: View {
         .tideCovered(isCovered)
         .animation(Tide.snap, value: showsStaplesPeek)
         .sensoryFeedback(.selection, trigger: cycles)
-        .toolbar {
-            // Visible home control (it used to hide in the ⋯ menu only).
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showHomeSetting = true
-                } label: {
-                    Image(systemName: HomeLocationStore().home == nil ? "house" : "house.fill")
-                }
-                .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
-                .accessibilityIdentifier("pantryHomeButton")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Add item", systemImage: "plus") {
-                        showManualAddSheet = true
-                    }
-                    .accessibilityIdentifier("pantryAddItem")
-                    Button("Staples", systemImage: "leaf") {
-                        viewModel.applyStapleEvent(.reopen)
-                        staplesDetent = .large
-                        showStaples = true
-                    }
-                    Button("Set home", systemImage: "house") {
-                        showHomeSetting = true
-                    }
-                    .accessibilityIdentifier("pantrySetHome")
-                    Button("Empty pantry", systemImage: "trash", role: .destructive) {
-                        confirmEmpty = true
-                    }
-                    .disabled(viewModel.pantryState.items.isEmpty)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel("More")
-                .accessibilityIdentifier("pantryMoreMenu")
-            }
-        }
         .sheet(isPresented: $showHomeSetting) {
             HomeLocationSettingView()
         }
@@ -230,6 +194,45 @@ struct PantryView: View {
     // MARK: - Hero
 
     /// What you have, what needs using, and the two ways to add more.
+    /// Home and More live in the page: the Fuel tab hides the navigation bar,
+    /// so toolbar items here could never be reached.
+    private var pageControls: some View {
+        HStack(spacing: Tide.s2) {
+            Spacer(minLength: 0)
+            Button {
+                showHomeSetting = true
+            } label: {
+                KitchenGlassIcon(systemImage: HomeLocationStore().home == nil ? "house" : "house.fill")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
+            .accessibilityIdentifier("pantryHomeButton")
+            Menu {
+                Button("Add item", systemImage: "plus") {
+                    showManualAddSheet = true
+                }
+                .accessibilityIdentifier("pantryAddItem")
+                Button("Staples", systemImage: "leaf") {
+                    viewModel.applyStapleEvent(.reopen)
+                    staplesDetent = .large
+                    showStaples = true
+                }
+                Button("Set home", systemImage: "house") {
+                    showHomeSetting = true
+                }
+                .accessibilityIdentifier("pantrySetHome")
+                Button("Empty pantry", systemImage: "trash", role: .destructive) {
+                    confirmEmpty = true
+                }
+                .disabled(viewModel.pantryState.items.isEmpty)
+            } label: {
+                KitchenGlassIcon(systemImage: "ellipsis")
+            }
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("pantryMoreMenu")
+        }
+    }
+
     private var hero: some View {
         let state = viewModel.pantryState
         let soon = state.expiringSoon.count
