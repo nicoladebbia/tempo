@@ -58,7 +58,16 @@ struct PantryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s5) {
                 hero
-                if !showsStaplesPeek {
+                // In the flow of the page, never pinned over the rows it would hide.
+                if showsStaplesPeek {
+                    if !showStaples {
+                        StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
+                            staplesDetent = .large
+                            showStaples = true
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                } else {
                     staplesChip
                 }
                 if !viewModel.pantryState.expiringSoon.isEmpty {
@@ -84,17 +93,6 @@ struct PantryView: View {
         .scrollEdgeEffectStyle(.soft, for: .all)
         .tidePage()
         .tideCovered(isCovered)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showsStaplesPeek, !showStaples {
-                StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
-                    staplesDetent = .large
-                    showStaples = true
-                }
-                .padding(.horizontal, Tide.edge)
-                .padding(.bottom, Tide.s2)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .animation(Tide.snap, value: showsStaplesPeek)
         .sensoryFeedback(.selection, trigger: cycles)
         .toolbar {
@@ -459,6 +457,9 @@ struct PantryView: View {
         }
         // Long press: the "Used up" and "Freezer" actions that used to sit on a
         // swipe (a swipe only works inside a List, so it never showed).
+        .overlay(alignment: .leading) {
+            freshnessStripe(item)
+        }
         .contextMenu {
             Button {
                 viewModel.updatePantryItem(item, quantity: 0)
@@ -472,6 +473,21 @@ struct PantryView: View {
                     Label("Freezer", systemImage: "snowflake")
                 }
             }
+        }
+    }
+
+    /// A thin light on the card's edge: red once the use-by date has passed,
+    /// amber when it is close, green while it is fine. Nothing without a date.
+    @ViewBuilder
+    private func freshnessStripe(_ item: PantryItem) -> some View {
+        if item.useBy != nil, !item.isDepleted {
+            let color = item.isExpired ? Tide.danger : (item.isExpiringSoon ? Tide.Kitchen.warn : Tide.Kitchen.good)
+            Capsule()
+                .fill(color)
+                .frame(width: Tide.Kitchen.stripe)
+                .padding(.vertical, Tide.s1)
+                .offset(x: -Tide.s3)
+                .accessibilityHidden(true)
         }
     }
 
@@ -568,13 +584,34 @@ struct PantryManualAddSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && (Double(quantityText) ?? 0) > 0
     }
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         NavigationStack {
-            KitchenForm {
-                currentRowSection
-                if !staged.isEmpty {
-                    stagedSection
+            ScrollView {
+                VStack(spacing: Tide.s4) {
+                    currentRowSection
+                    if !staged.isEmpty {
+                        stagedSection
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+                .animation(Tide.snap, value: staged.count)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            // Saving is the one thing left to do, so it sits under the thumb.
+            .kitchenBottomBar {
+                Button(saveButtonTitle) {
+                    commitAndClose()
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(staged.isEmpty && !canAddCurrent)
+                .accessibilityIdentifier("pantryAddSave")
             }
             .navigationTitle(stagedTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -584,13 +621,6 @@ struct PantryManualAddSheet: View {
                         transcriber.stop()
                         dismiss()
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(saveButtonTitle) {
-                        commitAndClose()
-                    }
-                    .disabled(staged.isEmpty && !canAddCurrent)
-                    .fontWeight(.semibold)
                 }
             }
             .onChange(of: transcriber.transcribedText) { _, newText in
@@ -609,58 +639,90 @@ struct PantryManualAddSheet: View {
     // MARK: - Sections
 
     private var currentRowSection: some View {
-        KitchenFormSection("New item") {
-            HStack(spacing: Tide.s2) {
-                TextField("Name (e.g. Chicken Breast)", text: $name)
-                    .submitLabel(.next)
-                micButton
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            Text("New item").tideLabel()
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
+                    TextField("Name (e.g. Chicken Breast)", text: $name)
+                        .submitLabel(.next)
+                        .kitchenField()
+                    micButton
+                }
+                if transcriber.isListening {
+                    Text("Listening… speak the item name.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                } else if let error = transcriber.error {
+                    Text(error)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                }
+                TextField("Brand (optional)", text: $brand)
+                    .textInputAutocapitalization(.words)
+                    .kitchenField()
             }
-            if transcriber.isListening {
-                Text("Listening… speak the item name.")
-                    .font(Tide.caption)
+            let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
+            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
+                KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+                KitchenNumberField(label: "Price paid", unit: "$", placeholder: "Optional", text: $priceText)
+            }
+            HStack {
+                Text("Unit")
+                    .font(Tide.body)
                     .foregroundStyle(Tide.text2)
-            } else if let error = transcriber.error {
-                Text(error)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.danger)
-            }
-            TextField("Brand (optional)", text: $brand)
-                .textInputAutocapitalization(.words)
-            TextField("Quantity", text: $quantityText)
-                .keyboardType(.decimalPad)
-            Picker("Unit", selection: $unit) {
-                ForEach(PantryUnit.allCases, id: \.rawValue) { u in
-                    Text(u.displayName).tag(u)
+                Spacer(minLength: Tide.s2)
+                Picker("Unit", selection: $unit) {
+                    ForEach(PantryUnit.allCases, id: \.rawValue) { u in
+                        Text(u.displayName).tag(u)
+                    }
                 }
+                .pickerStyle(.menu)
+                .tint(mood.accent)
             }
-            Picker("Storage", selection: $location) {
-                ForEach(PantryStorageLocation.allCases, id: \.rawValue) { loc in
-                    Text(loc.displayName).tag(loc)
-                }
-            }
-            TextField("Price paid (optional, USD)", text: $priceText)
-                .keyboardType(.decimalPad)
+            .frame(minHeight: Tide.hit)
+            KitchenSegmented(options: Array(PantryStorageLocation.allCases), selection: $location) { $0.displayName }
+                .accessibilityLabel("Storage")
             Button {
                 stageCurrentRow()
             } label: {
                 Label("Add to list", systemImage: "plus.circle.fill")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(canAddCurrent ? mood.accent : Tide.text3)
-                    .frame(minHeight: Tide.hit)
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.tideGlass)
             .disabled(!canAddCurrent)
         }
+        .tideCard()
     }
 
     private var stagedSection: some View {
-        KitchenFormSection("Staged (\(staged.count))") {
-            ForEach(staged) { item in
-                stagedRow(item)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Staged (\(staged.count))").tideLabel()
+            VStack(spacing: 0) {
+                ForEach(Array(staged.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 {
+                        Rectangle().fill(Tide.hairline).frame(height: 1)
+                            .accessibilityHidden(true)
+                    }
+                    HStack(spacing: Tide.s2) {
+                        stagedRow(item)
+                        Button {
+                            withAnimation(Tide.snap) {
+                                staged.removeAll { $0.id == item.id }
+                            }
+                            HapticManager.lightImpact()
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(Tide.text3)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(item.name)")
+                    }
+                    .padding(.vertical, Tide.s1)
+                }
             }
-            .onDelete { offsets in
-                staged.remove(atOffsets: offsets)
-                HapticManager.lightImpact()
-            }
+            .tideCard(padding: Tide.s4)
         }
     }
 
