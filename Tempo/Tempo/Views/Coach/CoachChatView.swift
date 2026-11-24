@@ -36,6 +36,8 @@ struct CoachChatView: View {
     /// at the call site; default tapToggle per the locked Q2 decision.
     var voiceMode: CoachVoiceMode = .tapToggle
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Environment(\.modelContext)
     private var modelContext
     @Environment(\.dismiss)
@@ -118,6 +120,7 @@ struct CoachChatView: View {
 
     private var topBar: some View {
         HStack(spacing: Tide.s3) {
+            TideCoachAvatar()
             Text("Coach")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
@@ -195,7 +198,7 @@ struct CoachChatView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: Tide.s3) {
                         ForEach(visibleMessages, id: \.id) { wrapper in
-                            messageRow(wrapper.message)
+                            transcriptEntry(wrapper)
                                 .id(wrapper.id)
                                 .transition(rowTransition)
                         }
@@ -311,11 +314,32 @@ struct CoachChatView: View {
 
     // MARK: - Visible messages (filters system_summary)
 
+    /// What the transcript shows, with where each message sits in the page: a
+    /// day heading above the first message of a day, Coach's mark on the first
+    /// bubble of a run, the time under the last.
     private var visibleMessages: [IdentifiedMessage] {
-        viewModel.messages
+        // Only what draws something: runs and times are worked out over these,
+        // so a hidden tool_result message never splits a run.
+        let kept = viewModel.messages
             .enumerated()
-            .filter { _, msg in msg.role != "system_summary" }
-            .map { idx, msg in IdentifiedMessage(id: idx, message: msg) }
+            .filter { _, msg in
+                (msg.role == "user" || msg.role == "assistant") && msg.text?.isEmpty == false
+            }
+        let calendar = Calendar.current
+        return kept.enumerated().map { position, entry in
+            let message = entry.element
+            let previous = position > 0 ? kept[position - 1].element : nil
+            let next = position + 1 < kept.count ? kept[position + 1].element : nil
+            let startsDay = previous.map { !calendar.isDate($0.timestamp, inSameDayAs: message.timestamp) } ?? true
+            return IdentifiedMessage(
+                id: entry.offset,
+                message: message,
+                dayHeading: startsDay ? message.timestamp : nil,
+                startsRun: previous?.role != message.role || startsDay,
+                endsRun: next?.role != message.role
+                    || next.map { !calendar.isDate($0.timestamp, inSameDayAs: message.timestamp) } ?? false
+            )
+        }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
@@ -327,8 +351,29 @@ struct CoachChatView: View {
 
     // MARK: - One message row (dispatches by role)
 
+    /// A message with the day heading and the time that belong to it.
     @ViewBuilder
-    private func messageRow(_ message: CoachMessage) -> some View {
+    private func transcriptEntry(_ entry: IdentifiedMessage) -> some View {
+        let isVisible = entry.message.text?.isEmpty == false
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            if let day = entry.dayHeading {
+                TideCoachDaySeparator(date: day)
+                    .padding(.vertical, Tide.s2)
+            }
+            messageRow(entry.message, showsAvatar: entry.startsRun)
+            if entry.endsRun, isVisible, entry.message.role == "user" || entry.message.role == "assistant" {
+                Text(entry.message.timestamp.formatted(date: .omitted, time: .shortened))
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: entry.message.role == "user" ? .trailing : .leading)
+                    .padding(.leading, entry.message.role == "user" ? 0 : TideCoachAvatar.inset(for: typeSize))
+                    .padding(.bottom, Tide.s1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func messageRow(_ message: CoachMessage, showsAvatar: Bool) -> some View {
         switch message.role {
         case "user":
             // User-role messages with toolResults are protocol housekeeping
@@ -345,7 +390,7 @@ struct CoachChatView: View {
                 // text usually mirrors the question already, so we just
                 // render the assistant bubble + question chips if any
                 // tool calls are askUser.
-                CoachAssistantBubble(text: text)
+                CoachAssistantBubble(text: text, showsAvatar: showsAvatar)
                 if let pending = extractAskUser(from: message.toolCalls) {
                     CoachPendingQuestionBubble(
                         question: pending.question,
@@ -472,6 +517,12 @@ struct CoachChatView: View {
 private struct IdentifiedMessage: Identifiable, Equatable {
     let id: Int
     let message: CoachMessage
+    /// Set on the first message of a day: the day to show above it.
+    var dayHeading: Date?
+    /// First message of a run from the same speaker (Coach's mark goes here).
+    var startsRun = true
+    /// Last message of a run (the time goes under it).
+    var endsRun = true
 }
 
 // MARK: - AskUserPayload
@@ -506,6 +557,12 @@ struct CoachUserBubble: View {
 
 struct CoachAssistantBubble: View {
     let text: String
+    /// Coach's mark beside the bubble: on the first bubble of a run. Later
+    /// bubbles keep the space free so the column stays straight.
+    var showsAvatar = false
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Strip [pref_xxxx] citation markers from the visible body so the
     /// text reads cleanly. Phase 7c (when citation chips are wired to
@@ -516,7 +573,15 @@ struct CoachAssistantBubble: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top, spacing: Tide.s2) {
+            // No room for a column of marks at accessibility sizes.
+            if !typeSize.isAccessibilitySize {
+                if showsAvatar {
+                    TideCoachAvatar()
+                } else {
+                    Color.clear.frame(width: TideCoachAvatar.width, height: Tide.hair)
+                }
+            }
             Text(displayText)
                 .tideCoachBubble(.assistant)
             Spacer(minLength: TideCoach.bubbleGutter)
@@ -533,6 +598,8 @@ struct CoachToolResultCard: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var expanded = false
 
@@ -542,23 +609,27 @@ struct CoachToolResultCard: View {
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: Tide.s1) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 HStack(spacing: Tide.s3) {
-                    Image(systemName: isError ? "xmark.octagon.fill" : "checkmark.seal.fill")
-                        .foregroundStyle(tint)
-                        .accessibilityHidden(true)
+                    TideIconTile(
+                        systemName: isError ? "xmark.octagon.fill" : "checkmark.seal.fill",
+                        tint: tint,
+                        size: Tide.tile - Tide.s2
+                    ).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     Text(summary)
-                        .font(Tide.body)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: Tide.s2)
                     if detail != nil {
                         Button {
                             withAnimation(Tide.snap) { expanded.toggle() }
                         } label: {
-                            Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            Image(systemName: "chevron.down")
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
+                                .rotationEffect(.degrees(expanded ? 180 : 0))
                                 .frame(width: Tide.hit, height: Tide.hit)
                                 .contentShape(.rect)
                         }
@@ -571,13 +642,15 @@ struct CoachToolResultCard: View {
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, Tide.tile - Tide.s2 + Tide.s3)
                 }
             }
             .padding(.horizontal, Tide.s4)
-            .padding(.vertical, Tide.s2)
+            .padding(.vertical, Tide.s3)
             .glassEffect(.regular.tint(tint.opacity(0.2)), in: .rect(cornerRadius: Tide.tileRadius))
             Spacer(minLength: TideCoach.bubbleGutter)
         }
+        .padding(.leading, TideCoachAvatar.inset(for: typeSize))
     }
 }
 
@@ -588,22 +661,30 @@ struct CoachPendingQuestionBubble: View {
     let choices: [String]
     let onChoiceTap: (String) -> Void
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                if !typeSize.isAccessibilitySize {
+                    Color.clear.frame(width: TideCoachAvatar.width, height: Tide.hair)
+                }
                 Text(question)
                     .tideCoachBubble(.assistant)
                 Spacer(minLength: TideCoach.bubbleGutter)
             }
             if !choices.isEmpty {
+                // Suggested answers, aligned under the question's bubble.
                 GlassEffectContainer(spacing: Tide.s2) {
                     FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                         ForEach(choices, id: \.self) { choice in
                             Button(choice) { onChoiceTap(choice) }
-                                .buttonStyle(.tideGlass)
+                                .buttonStyle(.tideCoachReply)
                         }
                     }
                 }
+                .padding(.leading, TideCoachAvatar.inset(for: typeSize))
             }
         }
     }
@@ -612,15 +693,20 @@ struct CoachPendingQuestionBubble: View {
 // MARK: - CoachThinkingBubble
 
 struct CoachThinkingBubble: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        HStack {
-            HStack(spacing: Tide.s2) {
-                Image(systemName: "sparkle")
-                    .accessibilityHidden(true)
-                Text("Thinking…")
+        HStack(alignment: .top, spacing: Tide.s2) {
+            if !typeSize.isAccessibilitySize {
+                TideCoachAvatar()
             }
-            .foregroundStyle(Tide.text2)
-            .tideCoachShimmer()
+            HStack(spacing: Tide.s3) {
+                TideCoachTypingDots()
+                Text("Thinking…")
+                    .foregroundStyle(Tide.text2)
+                    .tideCoachShimmer()
+            }
             .tideCoachBubble(.assistant)
             Spacer(minLength: TideCoach.bubbleGutter)
         }
@@ -634,6 +720,9 @@ struct CoachThinkingBubble: View {
 struct CoachEmptyState: View {
     let seeds: [String]
     let onSeedTap: (String) -> Void
+
+    /// One symbol per seed, in order: a plan, a feeling, something to remember.
+    private static let seedIcons = ["calendar.badge.clock", "bed.double.fill", "brain.head.profile"]
 
     @State
     private var taps = 0
@@ -656,12 +745,16 @@ struct CoachEmptyState: View {
 
                 GlassEffectContainer(spacing: Tide.s3) {
                     VStack(spacing: Tide.s3) {
-                        ForEach(seeds, id: \.self) { seed in
+                        ForEach(Array(seeds.enumerated()), id: \.element) { index, seed in
                             Button {
                                 taps += 1
                                 onSeedTap(seed)
                             } label: {
                                 HStack(spacing: Tide.s3) {
+                                    TideIconTile(
+                                        systemName: Self.seedIcons[index % Self.seedIcons.count],
+                                        size: Tide.tile - Tide.s2
+                                    ).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                                     Text(seed)
                                         .font(Tide.bodyStrong)
                                         .foregroundStyle(Tide.text)
@@ -730,7 +823,7 @@ struct CoachInputBar: View {
     private var field: some View {
         TextField(
             text: $text,
-            prompt: Text("Type a message…").foregroundStyle(Tide.text3),
+            prompt: Text(isRecording ? "Listening…" : "Type a message…").foregroundStyle(Tide.text3),
             axis: .vertical
         ) {
             Text("Message Coach")
