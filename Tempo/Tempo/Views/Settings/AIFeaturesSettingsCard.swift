@@ -21,19 +21,19 @@ struct AIFeaturesSettingsCard: View {
     private var errorMessage: String?
 
     var body: some View {
-        SettingsFormCard(
-            title: "AI features",
-            footnote: errorMessage ?? "Plans, Quick Log, photo and voice logging, receipts and coaching send "
-                + "what you type or snap to Tempo's AI. Turn off to keep everything on the device. "
-                + "Needs Tempo Pro.",
-            footnoteColor: errorMessage == nil ? Tide.text2 : Tide.danger
+        SettingsModeCard(
+            icon: "sparkles",
+            title: "Use AI features",
+            detail: "Plans, Quick Log, photo and voice logging, receipts and coaching.",
+            identifier: "aiFeaturesToggle",
+            isDisabled: isSaving,
+            isOn: binding
         ) {
-            SettingsControlRow(label: "Use AI features", icon: "sparkles") {
-                Toggle("Use AI features", isOn: binding)
-                    .labelsHidden()
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("aiFeaturesToggle")
-            }
+            Text(errorMessage ?? "They send what you type or snap to Tempo's AI. Turn off to keep everything "
+                + "on the device. Needs Tempo Pro.")
+                .font(Tide.caption)
+                .foregroundStyle(errorMessage == nil ? Tide.text2 : Tide.danger)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .sensoryFeedback(.selection, trigger: isOn)
         .task { await refresh() }

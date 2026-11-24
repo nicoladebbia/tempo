@@ -33,6 +33,20 @@ extension Tide {
     static let settingsOK = success
     /// The danger zone's glass: the card ink with a push of red.
     static let settingsDangerGlass = danger.opacity(0.2)
+    /// The ring in a settings hero (the day dial, the focus cycle), at the default text size.
+    static let settingsDial: CGFloat = 148
+    /// How far the ring may grow with the text size before it crowds its legend.
+    static let settingsDialCap: CGFloat = settingsDial * 1.4
+    /// The stroke of that ring.
+    static let settingsDialLine: CGFloat = 12
+    /// The gap, in degrees, left between two arcs of a ring.
+    static let settingsArcGap = 3.0
+    /// The dot that marks a time on the day dial.
+    static let settingsMarker: CGFloat = 12
+    /// A big symbol tile at the head of a mode or a plan.
+    static let settingsBigTile: CGFloat = 52
+    /// A night: sleep reads as a cool, quiet colour on every mood.
+    static let settingsNight = fat
 }
 
 // MARK: - TideSettingsHairline
@@ -226,5 +240,217 @@ struct TideSettingsAvatar: View {
             .frame(width: diameter * scale, height: diameter * scale)
             .background(mood.accent, in: .circle)
             .accessibilityHidden(true)
+    }
+}
+
+
+// MARK: - Rings (hero pieces)
+
+/// One coloured stretch of a ring, as fractions of the full turn from the top.
+struct SettingsArc: Identifiable {
+    let id: String
+    /// Where it starts: 0 is the top, 0.25 is three o'clock.
+    let start: Double
+    /// How much of the turn it covers, 0...1.
+    let length: Double
+    let color: Color
+}
+
+/// A time marked on a ring: a dot sitting on the line.
+struct SettingsRingMarker: Identifiable {
+    let id: String
+    let position: Double
+    let color: Color
+}
+
+/// Arcs of colour round a dark track, dots on the line, and whatever the
+/// caller puts in the middle. Moving an arc animates with the Tide snap.
+struct SettingsRing<Center: View>: View {
+    let arcs: [SettingsArc]
+    var markers: [SettingsRingMarker] = []
+    @ViewBuilder var center: Center
+
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var scaledDiameter = Tide.settingsDial
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    private var diameter: CGFloat { min(scaledDiameter, Tide.settingsDialCap) }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Tide.track, lineWidth: Tide.settingsDialLine)
+            ForEach(arcs) { arc in
+                ForEach(Array(Self.pieces(of: arc).enumerated()), id: \.offset) { _, piece in
+                    Circle()
+                        .trim(from: piece.lowerBound, to: piece.upperBound)
+                        .stroke(arc.color, style: StrokeStyle(lineWidth: Tide.settingsDialLine, lineCap: .butt))
+                        .rotationEffect(.degrees(-90))
+                }
+            }
+            ForEach(markers) { marker in
+                Circle()
+                    .fill(Tide.text)
+                    .overlay(Circle().strokeBorder(marker.color, lineWidth: Tide.hair * 2))
+                    .frame(width: Tide.settingsMarker, height: Tide.settingsMarker)
+                    .offset(Self.offset(of: marker.position, radius: diameter / 2))
+            }
+            center
+                .padding(Tide.settingsDialLine + Tide.s2)
+        }
+        .padding(Tide.settingsDialLine / 2)
+        .frame(width: diameter, height: diameter)
+        .animation(reduceMotion ? nil : Tide.snap, value: arcs.map(\.length))
+        .animation(reduceMotion ? nil : Tide.snap, value: arcs.map(\.start))
+    }
+
+    /// An arc as one or two `trim` ranges (it may run past the top), with a
+    /// small gap taken off each end so neighbours never touch.
+    private static func pieces(of arc: SettingsArc) -> [Range<Double>] {
+        let gap = Tide.settingsArcGap / 360
+        guard arc.length > gap * 2 else {
+            return []
+        }
+        let from = arc.start + gap / 2
+        let to = arc.start + arc.length - gap / 2
+        let wrapped = from.truncatingRemainder(dividingBy: 1)
+        let end = wrapped + (to - from)
+        if end <= 1 {
+            return [wrapped ..< end]
+        }
+        return [wrapped ..< 1, 0 ..< end - 1]
+    }
+
+    private static func offset(of position: Double, radius: CGFloat) -> CGSize {
+        let angle = (position * 360 - 90) * .pi / 180
+        return CGSize(width: cos(angle) * radius, height: sin(angle) * radius)
+    }
+}
+
+// MARK: - SettingsLegendRow
+
+/// A colour dot, a name and a value: one line of the key beside a ring.
+struct SettingsLegendRow: View {
+    let color: Color
+    let title: String
+    let value: String
+    var detail: String?
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Circle()
+                .fill(color)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(value)
+                    .font(Tide.bodyStrong)
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let detail {
+                Spacer(minLength: Tide.s1)
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - SettingsRingHero
+
+/// The ring on the left, its key on the right; stacked at accessibility sizes.
+struct SettingsRingHero<Ring: View, Key: View>: View {
+    @ViewBuilder var ring: Ring
+    @ViewBuilder var key: Key
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
+        layout {
+            ring
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                key
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - SettingsModeCard
+
+/// A switch that deserves more than a row: a big symbol tile, what it is, what
+/// it does, and the switch. Whatever else belongs to the mode (a date) goes
+/// in `extra` and shows under a hairline.
+struct SettingsModeCard<Extra: View>: View {
+    let icon: String
+    let title: String
+    let detail: String
+    var tint: Color?
+    /// The switch's accessibility identifier, where a test drives it.
+    var identifier: String?
+    var isDisabled = false
+    @Binding var isOn: Bool
+    @ViewBuilder var extra: Extra
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        let color = tint ?? mood.accent
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            let head = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s3))
+            head {
+                TideIconTile(systemName: icon, tint: isOn ? color : Tide.text3, size: Tide.settingsBigTile)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(title)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(detail)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
+                Toggle(title, isOn: $isOn)
+                    .labelsHidden()
+                    .disabled(isDisabled)
+                    .accessibilityIdentifier(identifier ?? "")
+            }
+            extra
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .animation(Tide.snap, value: isOn)
+    }
+}
+
+extension SettingsModeCard where Extra == EmptyView {
+    init(
+        icon: String, title: String, detail: String, tint: Color? = nil,
+        identifier: String? = nil, isDisabled: Bool = false, isOn: Binding<Bool>
+    ) {
+        self.init(
+            icon: icon, title: title, detail: detail, tint: tint,
+            identifier: identifier, isDisabled: isDisabled, isOn: isOn
+        ) { EmptyView() }
     }
 }
