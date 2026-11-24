@@ -998,3 +998,195 @@ enum FuelMealStyle {
         }
     }
 }
+
+// MARK: - Second wave: progress and grouped rows
+
+extension Tide {
+    /// The ring that leads a screen about "how far along" (setup, a weekly review).
+    static let fuelHeroRing: CGFloat = 88
+    static let fuelHeroRingLine: CGFloat = 8
+}
+
+// MARK: - FuelProgressHero
+
+/// The head of a "how far along are you" screen: a lit ring with the count
+/// inside, a title, and one sentence. Reads as one object, so a screen that
+/// is mostly a list still opens with a figure.
+struct FuelProgressHero: View {
+    let done: Int
+    let total: Int
+    let title: String
+    var caption: String?
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ScaledMetric(relativeTo: .title)
+    private var ring = Tide.fuelHeroRing
+
+    private var progress: Double {
+        total > 0 ? min(Double(done) / Double(total), 1) : 0
+    }
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
+        layout {
+            ZStack {
+                TideRing(progress: progress, color: tint ?? mood.accent, lineWidth: Tide.fuelHeroRingLine)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.hair) {
+                    TideNumber("\(done)", size: Tide.numeralS, relativeTo: .headline)
+                    Text("/\(total)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, Tide.s3)
+            }
+            .frame(width: ring, height: ring)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(title)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                if let caption {
+                    Text(caption)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityValue("\(done) of \(total)")
+    }
+}
+
+// MARK: - FuelDecisionSheet
+
+/// A small sheet that asks one question with two or three answers: a symbol,
+/// the question, what it is about (as pills), the main answer as the one
+/// filled button, a second answer in glass and a quiet cancel. Replaces a
+/// system alert where the choice deserves a sentence of explanation.
+struct FuelDecisionSheet: View {
+    let icon: String
+    var tint: Color?
+    let title: String
+    let message: String
+    var chips: [String] = []
+    let primaryTitle: String
+    let primary: () -> Void
+    var secondaryTitle: String?
+    var secondary: (() -> Void)?
+    var cancelTitle = "Cancel"
+    let cancel: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: Tide.s4) {
+                TideIconTile(systemName: icon, tint: tint ?? Tide.warn, size: Tide.tileLarge)
+                    .padding(.top, Tide.s4)
+                VStack(spacing: Tide.s2) {
+                    Text(title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !chips.isEmpty {
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(chips, id: \.self) { chip in
+                            Text(chip)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                                .padding(.horizontal, Tide.s3)
+                                .frame(minHeight: Tide.hit)
+                                .background(Tide.fill, in: .capsule)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(maxWidth: Tide.stateWidth)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Tide.edge)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .fuelBottomBar {
+            VStack(spacing: Tide.s2) {
+                Button(primaryTitle, action: primary)
+                    .buttonStyle(.tidePrimary)
+                if let secondaryTitle, let secondary {
+                    Button(action: secondary) {
+                        Text(secondaryTitle).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
+                }
+                Button(action: cancel) {
+                    Text(cancelTitle)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .tidePage()
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
+        .presentationDetents([.height(Tide.fuelDetentConfirm), .large])
+        .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - FuelRowGroup
+
+/// A label over ONE glass card that holds several rows with hairlines
+/// between them: the answer to a stack of identical cards.
+struct FuelRowGroup<Content: View>: View {
+    var title: String?
+    var trailing: String?
+    /// A quiet sentence under the card (what a setting does).
+    var footnote: String?
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            if let title {
+                TideSectionLabel(title: title, trailing: trailing)
+                    .padding(.horizontal, Tide.s1)
+            }
+            VStack(spacing: 0) {
+                Group(subviews: content) { rows in
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 {
+                            Divider().overlay(Tide.hairline)
+                        }
+                        row.padding(.vertical, Tide.s2)
+                    }
+                }
+            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            if let footnote {
+                Text(footnote)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s1)
+            }
+        }
+    }
+}

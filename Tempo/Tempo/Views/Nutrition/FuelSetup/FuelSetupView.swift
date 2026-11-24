@@ -183,6 +183,8 @@ struct FuelSetupView: View {
                     .id(section)
                     .toolbar(.hidden, for: .navigationBar)
                 }
+                // The presenter sits inside a page; the cover is its own page and needs its own field.
+                .environment(\.tideInsidePage, false)
             }
         }
         .onChange(of: openSection) { _, new in
@@ -229,8 +231,8 @@ struct FuelSetupView: View {
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                promptList
-                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 130)
+                // The voice box is the hero: it comes first, what to cover sits under it.
+                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 160)
                     .accessibilityIdentifier("fuelSetupSaid")
                 if let blocker {
                     AIBlockerCard(blocker: blocker) {
@@ -238,11 +240,9 @@ struct FuelSetupView: View {
                         extract(said)
                     }
                 } else if let errorMessage {
-                    Text(errorMessage)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
-                        .fixedSize(horizontal: false, vertical: true)
+                    FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.warn, title: errorMessage)
                 }
+                promptList
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
@@ -275,23 +275,34 @@ struct FuelSetupView: View {
         }
     }
 
+    /// What worth saying, one idea per line with its own symbol.
     private var promptList: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            ForEach(Self.prompts, id: \.self) { prompt in
-                Label {
-                    Text(prompt)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(mood.accent)
+            TideSectionLabel(title: "Worth mentioning")
+                .padding(.horizontal, Tide.s1)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                ForEach(Array(Self.prompts.enumerated()), id: \.offset) { index, prompt in
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                        Image(systemName: Self.promptIcons[index % Self.promptIcons.count])
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.icon, alignment: .leading)
+                            .accessibilityHidden(true)
+                        Text(prompt)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
+
+    private static let promptIcons = [
+        "figure.stand", "leaf.fill", "clock.fill", "calendar", "fork.knife", "cart.fill",
+    ]
 
     static let prompts = [
         "Age, height, weight — and your goal",
@@ -305,14 +316,19 @@ struct FuelSetupView: View {
     // MARK: - Thinking
 
     private var thinkingStep: some View {
-        VStack(spacing: Tide.s3) {
-            ProgressView()
-                .tint(mood.accent)
-            Text("Building your profile…")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                Text("Building your profile…")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                FuelAIState(kind: .working("Reading what you said and filling in the sections."))
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollDisabled(true)
     }
 
     // MARK: - Follow-ups
@@ -326,9 +342,21 @@ struct FuelSetupView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                    VStack(alignment: .leading, spacing: Tide.s2) {
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("\(index + 1) of \(questions.count)").tideLabel(mood.accent)
+                            Spacer(minLength: Tide.s2)
+                            if !(answers[question] ?? "").isEmpty {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.good)
+                                    .transition(.scale.combined(with: .opacity))
+                                    .accessibilityLabel("Answered")
+                            }
+                        }
+                        .animation(Tide.snap, value: (answers[question] ?? "").isEmpty)
                         Text(question)
-                            .font(Tide.bodyStrong)
+                            .font(Tide.headline)
                             .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
                         VoiceTextField(
@@ -338,6 +366,7 @@ struct FuelSetupView: View {
                         )
                         .accessibilityIdentifier("fuelSetupAnswer\(index)")
                     }
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 }
             }
             .padding(.horizontal, Tide.edge)

@@ -105,6 +105,7 @@ struct FuelSetupSectionFlow: View {
 
     var body: some View {
         FuelFlowScaffold(
+            eyebrow: section.title,
             title: Self.title(for: step),
             subtitle: Self.subtitle(for: step),
             index: min(index, steps.count - 1),
@@ -577,8 +578,9 @@ struct FuelSetupSectionFlow: View {
         .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
     }
 
+    /// The seven days as one glass card of rows, not seven cards.
     private var weekDays: some View {
-        choiceStack {
+        FuelRowGroup {
             ForEach(working.routine.days) { day in
                 NavigationLink {
                     DayRoutineEditor(day: $working.routine[day.weekday], places: working.routine.places)
@@ -601,10 +603,9 @@ struct FuelSetupSectionFlow: View {
                             .accessibilityHidden(true)
                     }
                     .frame(minHeight: Tide.hit)
-                    .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-                    .contentShape(.rect(cornerRadius: Tide.tileRadius))
+                    .contentShape(.rect)
                 }
-                .buttonStyle(FuelPressStyle())
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("fuelDay\(day.weekday)")
             }
         }
