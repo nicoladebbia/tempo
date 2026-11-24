@@ -11,12 +11,34 @@ import SwiftUI
 // MARK: - HealthKit Permission View (Onboarding)
 
 // Per STATE_MACHINES.md Section 10 — Request HealthKit permissions. OPTIONAL.
+//
+// The step shows what the permission buys: a small "Health today" board with
+// the four things Tempo reads, filled with sample numbers.
 
 struct HealthKitPermissionView: View {
     @Bindable
     var viewModel: OnboardingViewModel
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var filled = false
+
+    private struct Reading: Hashable {
+        let icon: String
+        let value: String
+        var unit: String?
+        let progress: Double
+        let caption: String
+    }
+
+    private let readings = [
+        Reading(icon: "figure.walk", value: "8,420", unit: "steps", progress: 0.84, caption: "Steps & active calories"),
+        Reading(icon: "heart.fill", value: "62", unit: "bpm", progress: 0.5, caption: "Heart rate data"),
+        Reading(icon: "bed.double.fill", value: "7.2", unit: "h", progress: 0.9, caption: "Sleep tracking"),
+        Reading(icon: "flame.fill", value: "540", unit: "kcal", progress: 0.7, caption: "Workout integration"),
+    ]
 
     var body: some View {
         OnboardingScaffold(
@@ -32,20 +54,32 @@ struct HealthKitPermissionView: View {
             skipAction: { viewModel.skip() },
             centered: true
         ) {
-            OnboardingHeroTile(systemName: "heart.text.square.fill", tint: Tide.protein)
-
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                OnboardingBenefitRow(systemImage: "figure.walk", text: "Steps & active calories", tint: Tide.protein)
-                OnboardingBenefitRow(systemImage: "heart.fill", text: "Heart rate data", tint: Tide.protein)
-                OnboardingBenefitRow(systemImage: "bed.double.fill", text: "Sleep tracking", tint: Tide.protein)
-                OnboardingBenefitRow(systemImage: "flame.fill", text: "Workout integration", tint: Tide.protein)
+            OnboardingPreviewFrame(title: "Health today") {
+                OnboardingChoiceGrid(items: readings) { reading in
+                    OnboardingMetricTile(
+                        systemImage: reading.icon,
+                        value: reading.value,
+                        unit: reading.unit,
+                        progress: reading.progress,
+                        caption: reading.caption,
+                        tint: Tide.protein,
+                        filled: filled
+                    )
+                }
             }
-            .onboardingCard()
 
             OnboardingNote(
                 "Your health data stays on your device. Tempo never uploads raw HealthKit data.",
                 systemImage: "lock.fill"
             )
+        }
+        .task {
+            if reduceMotion {
+                filled = true
+            } else {
+                try? await Task.sleep(for: .milliseconds(450))
+                withAnimation(Tide.settle) { filled = true }
+            }
         }
     }
 }

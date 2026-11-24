@@ -8,6 +8,9 @@
 //
 // Per INTELLIGENCE_REMEDIATION_PLAN.md §4.6.
 //
+// The step shows what the consent switches on: a sample Coach message, the
+// four things it powers, and the plain statement of what is sent.
+//
 
 import SwiftUI
 
@@ -31,7 +34,18 @@ struct AIConsentView: View {
             errorMessage: viewModel.aiConsentError,
             centered: true
         ) {
-            OnboardingHeroTile(systemName: "brain.head.profile")
+            // A Coach message, the way it will read in the app.
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                HStack {
+                    Label("Coach", systemImage: "sparkles")
+                        .tideLabel()
+                    Spacer(minLength: Tide.s2)
+                    OnboardingSampleTag()
+                }
+                Text("Your sleep dropped 38 minutes on training days this week. I moved tomorrow's squats to the afternoon.")
+                    .tideCoachBubble(.assistant)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingBenefitRow(systemImage: "chart.line.uptrend.xyaxis", text: "Weekly intelligence reports")

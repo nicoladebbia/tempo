@@ -12,17 +12,39 @@ import SwiftUI
 
 // Per WIREFRAMES.md Screen 45 — Training profile: train?, types, days/week, split, experience.
 // Per STATE_MACHINES.md Section 10 — OPTIONAL (can skip).
+//
+// Each question gets the control that fits it: a big yes/no, symbol chips for
+// the kind of training, rising pillars for days a week, cards for the split
+// and level bars for experience.
 
 struct TrainingSetupView: View {
     @Bindable
     var viewModel: OnboardingViewModel
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
-    private let trainingTypes = ["Gym", "Running", "Team Sport", "Other"]
+    private struct TrainingType: Hashable {
+        let name: String
+        let icon: String
+    }
+
+    private struct Level: Hashable {
+        let name: String
+        let detail: String
+        let bars: Int
+    }
+
+    private let trainingTypes = [
+        TrainingType(name: "Gym", icon: "dumbbell.fill"),
+        TrainingType(name: "Running", icon: "figure.run"),
+        TrainingType(name: "Team Sport", icon: "sportscourt.fill"),
+        TrainingType(name: "Other", icon: "ellipsis"),
+    ]
     private let splits = ["PPL", "Upper/Lower", "Full Body", "Bro Split", "I Don't Know"]
     private let levels = [
-        ("Beginner", "Less than 1yr consistent"),
-        ("Intermediate", "1-3yr, compound lifts OK"),
-        ("Advanced", "3+yr, tracking overload"),
+        Level(name: "Beginner", detail: "Less than 1yr consistent", bars: 1),
+        Level(name: "Intermediate", detail: "1-3yr, compound lifts OK", bars: 2),
+        Level(name: "Advanced", detail: "3+yr, tracking overload", bars: 3),
     ]
 
     var body: some View {
@@ -36,11 +58,25 @@ struct TrainingSetupView: View {
             // Do you train?
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingSectionLabel("Do you train?")
-                HStack(spacing: Tide.s2) {
-                    OnboardingChip(title: "YES", isSelected: viewModel.doesTrain == true, expands: true) {
+                // Side by side, one under the other at accessibility text sizes.
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Tide.s3))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
+                    OnboardingChoiceCard(
+                        title: "YES",
+                        systemImage: "figure.strengthtraining.traditional",
+                        isSelected: viewModel.doesTrain == true,
+                        layout: .inline
+                    ) {
                         viewModel.doesTrain = true
                     }
-                    OnboardingChip(title: "NO", isSelected: viewModel.doesTrain == false, expands: true) {
+                    OnboardingChoiceCard(
+                        title: "NO",
+                        systemImage: "figure.cooldown",
+                        isSelected: viewModel.doesTrain == false,
+                        layout: .inline
+                    ) {
                         viewModel.doesTrain = false
                     }
                 }
@@ -52,11 +88,15 @@ struct TrainingSetupView: View {
                     OnboardingSectionLabel("What do you do?")
                     FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                         ForEach(trainingTypes, id: \.self) { type in
-                            OnboardingChip(title: type, isSelected: viewModel.trainingTypes.contains(type)) {
-                                if viewModel.trainingTypes.contains(type) {
-                                    viewModel.trainingTypes.remove(type)
+                            OnboardingChip(
+                                title: type.name,
+                                systemImage: type.icon,
+                                isSelected: viewModel.trainingTypes.contains(type.name)
+                            ) {
+                                if viewModel.trainingTypes.contains(type.name) {
+                                    viewModel.trainingTypes.remove(type.name)
                                 } else {
-                                    viewModel.trainingTypes.insert(type)
+                                    viewModel.trainingTypes.insert(type.name)
                                 }
                             }
                         }
@@ -66,20 +106,15 @@ struct TrainingSetupView: View {
 
                 // Days per week
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    OnboardingSectionLabel("How many days/week?")
-
-                    // Seven equal-width cells (not fixed-width circles): fixed
+                    OnboardingSectionLabel(
+                        "How many days/week?",
+                        trailing: "\(viewModel.daysPerWeek) \(viewModel.daysPerWeek == 1 ? "day" : "days")"
+                    )
+                    // Seven flexible pillars (not fixed-width circles): fixed
                     // widths have an intrinsic total that cannot compress,
-                    // which once forced the whole screen wider than the device
-                    // (content rendered 516pt on a 402pt screen, shifted off
-                    // the left edge). Flexible cells always fit.
-                    HStack(spacing: Tide.s1) {
-                        ForEach(1 ... 7, id: \.self) { day in
-                            OnboardingChip(title: "\(day)", isSelected: viewModel.daysPerWeek == day, expands: true) {
-                                viewModel.daysPerWeek = day
-                            }
-                        }
-                    }
+                    // which once forced the whole screen wider than the
+                    // device. Flexible cells always fit.
+                    OnboardingDayPillars(selection: $viewModel.daysPerWeek)
                 }
                 .transition(.opacity)
 
@@ -100,13 +135,14 @@ struct TrainingSetupView: View {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     OnboardingSectionLabel("Experience level")
                     VStack(spacing: Tide.s2) {
-                        ForEach(levels, id: \.0) { name, desc in
+                        ForEach(levels, id: \.self) { level in
                             OnboardingOptionRow(
-                                title: name,
-                                subtitle: desc,
-                                isSelected: viewModel.experienceLevel == name
+                                title: level.name,
+                                subtitle: level.detail,
+                                level: level.bars,
+                                isSelected: viewModel.experienceLevel == level.name
                             ) {
-                                viewModel.experienceLevel = name
+                                viewModel.experienceLevel = level.name
                             }
                         }
                     }

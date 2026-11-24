@@ -12,20 +12,41 @@ import SwiftUI
 
 // Per WIREFRAMES.md Screen 46 — Goals + Non-negotiables + time-waster + evening time.
 // Per STATE_MACHINES.md Section 10 — REQUIRED (primaryGoal must be set).
+//
+// The question is "what are you fighting for?", so the answers are big cards
+// with a symbol each, not a list. The time-waster chips carry a symbol too and
+// the evening start is a large time control instead of a small field.
 
 struct GoalSetupView: View {
     @Bindable
     var viewModel: OnboardingViewModel
 
+    private struct Goal: Hashable {
+        let name: String
+        let detail: String
+        let icon: String
+    }
+
+    private struct TimeWaster: Hashable {
+        let name: String
+        let icon: String
+    }
+
     private let goals = [
-        ("Build Muscle", "Gain size and strength"),
-        ("Lose Fat", "Cut while keeping muscle"),
-        ("Improve Performance", "Sport-specific gains"),
-        ("Stay Healthy", "Maintain and prevent"),
-        ("All-Around", "Balance everything"),
+        Goal(name: "Build Muscle", detail: "Gain size and strength", icon: "dumbbell.fill"),
+        Goal(name: "Lose Fat", detail: "Cut while keeping muscle", icon: "flame.fill"),
+        Goal(name: "Improve Performance", detail: "Sport-specific gains", icon: "bolt.fill"),
+        Goal(name: "Stay Healthy", detail: "Maintain and prevent", icon: "heart.fill"),
+        Goal(name: "All-Around", detail: "Balance everything", icon: "circle.hexagongrid.fill"),
     ]
 
-    private let timeWasterOptions = ["PS5/Gaming", "Social Media", "Netflix/Streaming", "YouTube", "Other"]
+    private let timeWasters = [
+        TimeWaster(name: "PS5/Gaming", icon: "gamecontroller.fill"),
+        TimeWaster(name: "Social Media", icon: "bubble.left.and.bubble.right.fill"),
+        TimeWaster(name: "Netflix/Streaming", icon: "tv.fill"),
+        TimeWaster(name: "YouTube", icon: "play.rectangle.fill"),
+        TimeWaster(name: "Other", icon: "ellipsis"),
+    ]
 
     var body: some View {
         // Per WIREFRAMES.md Screen 46 — "WHAT ARE YOU FIGHTING FOR?"
@@ -35,32 +56,35 @@ struct GoalSetupView: View {
             primaryEnabled: viewModel.canContinue,
             primaryAction: { viewModel.advance() }
         ) {
-            // Primary goal — the goal rows are the cards.
+            // Primary goal: one card each, the last one across the row.
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingSectionLabel("Primary goal")
-                VStack(spacing: Tide.s2) {
-                    ForEach(goals, id: \.0) { name, desc in
-                        OnboardingOptionRow(
-                            title: name,
-                            subtitle: desc,
-                            isSelected: viewModel.primaryGoal == name
-                        ) {
-                            viewModel.primaryGoal = name
-                        }
+                OnboardingChoiceGrid(items: goals) { goal in
+                    OnboardingChoiceCard(
+                        title: goal.name,
+                        subtitle: goal.detail,
+                        systemImage: goal.icon,
+                        isSelected: viewModel.primaryGoal == goal.name
+                    ) {
+                        viewModel.primaryGoal = goal.name
                     }
                 }
             }
 
-            // Time-waster — chips flow inline.
+            // Time-waster: chips flow inline, each with its own symbol.
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingSectionLabel("What's your biggest time-waster?")
                 FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
-                    ForEach(timeWasterOptions, id: \.self) { option in
-                        OnboardingChip(title: option, isSelected: viewModel.timeWasters.contains(option)) {
-                            if viewModel.timeWasters.contains(option) {
-                                viewModel.timeWasters.remove(option)
+                    ForEach(timeWasters, id: \.self) { waster in
+                        OnboardingChip(
+                            title: waster.name,
+                            systemImage: waster.icon,
+                            isSelected: viewModel.timeWasters.contains(waster.name)
+                        ) {
+                            if viewModel.timeWasters.contains(waster.name) {
+                                viewModel.timeWasters.remove(waster.name)
                             } else {
-                                viewModel.timeWasters.insert(option)
+                                viewModel.timeWasters.insert(waster.name)
                             }
                         }
                     }
@@ -68,24 +92,30 @@ struct GoalSetupView: View {
             }
 
             // Evening start time
-            // Per WIREFRAMES.md Screen 46 — Time picker, 15min increments.
-            // `.compact` style instead of `.wheel` because the wheel picker
-            // has a fixed intrinsic minimum width (~320pt) that forces the
-            // parent VStack to expand past the screen width, dragging every
-            // sibling card off the left edge inside the vertical ScrollView.
-            // (Diagnosed via border-frame visualization on 2026-05-12.)
+            // Per WIREFRAMES.md Screen 46 — time, 15 minute steps. A big figure
+            // with a minus and a plus: no system wheel, which has a fixed
+            // minimum width that once pushed every sibling off the left edge.
             VStack(alignment: .leading, spacing: Tide.s3) {
                 OnboardingSectionLabel("When does your evening start?")
-                HStack {
-                    DatePicker("", selection: $viewModel.eveningStartTime, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.compact)
-                        .labelsHidden()
-                        .frame(minHeight: Tide.hit)
-                    Spacer()
-                }
+                OnboardingTimeControl(title: "Evening starts", systemImage: "moon.stars.fill", minutes: eveningMinutes)
                 OnboardingNote("This is when the drill sergeant gets serious.")
             }
         }
+    }
+
+    /// The evening start is stored as a date; the control works in minutes.
+    private var eveningMinutes: Binding<Int> {
+        Binding(
+            get: {
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: viewModel.eveningStartTime)
+                return (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            },
+            set: { minutes in
+                viewModel.eveningStartTime = Calendar.current.date(
+                    bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: viewModel.eveningStartTime
+                ) ?? viewModel.eveningStartTime
+            }
+        )
     }
 }
 
