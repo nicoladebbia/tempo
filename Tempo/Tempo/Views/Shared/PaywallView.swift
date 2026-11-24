@@ -38,6 +38,11 @@ struct PaywallView: View {
     private var errorMessage: String?
     @State
     private var products: [Product] = []
+    /// Length in days of the free trial this Apple ID can still get, read
+    /// from the store. nil until the store confirms one: a lapsed subscriber
+    /// usually can't have it again, and the paywall must not promise it then.
+    @State
+    private var trialDays: Int?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -63,6 +68,11 @@ struct PaywallView: View {
                 // Legal disclosure
                 // Per APP_STORE_COMPLIANCE.md Section 5.2
                 legalText
+
+                // Too big to pin: the actions follow the page instead.
+                if dynamicTypeSize.isAccessibilitySize {
+                    footer(pinned: false)
+                }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s8)
@@ -70,7 +80,9 @@ struct PaywallView: View {
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            footer
+            if !dynamicTypeSize.isAccessibilitySize {
+                footer(pinned: true)
+            }
         }
         .tidePage(energy: 1)
         .overlay(alignment: .topTrailing) {
@@ -130,12 +142,16 @@ struct PaywallView: View {
     /// The trial and the price that follows it, in one line: the line the
     /// button below is agreeing to.
     private var trialTerms: String {
-        "7-day free trial, then \(price(for: effectiveProduct)) per \(period(for: effectiveProduct))"
+        let plan = "\(price(for: effectiveProduct)) per \(period(for: effectiveProduct))"
+        guard let trialDays else {
+            return "Billed \(plan). Cancel anytime."
+        }
+        return "\(trialDays)-day free trial, then \(plan)"
     }
 
     private var priceHero: some View {
         VStack(spacing: Tide.s2) {
-            Text("7 DAYS FREE, THEN")
+            Text(trialDays.map { "\($0) DAYS FREE, THEN" } ?? "PRO FOR")
                 .tideLabel(mood.accent)
             TideNumber(
                 price(for: effectiveProduct),
@@ -376,7 +392,7 @@ struct PaywallView: View {
 
     // MARK: - Footer (pinned)
 
-    private var footer: some View {
+    private func footer(pinned: Bool) -> some View {
         VStack(spacing: Tide.s1) {
             Text(trialTerms)
                 .font(Tide.caption)
@@ -389,24 +405,31 @@ struct PaywallView: View {
 
             footerActions
         }
-        // The pinned footer stays a size the content can still be read behind.
-        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s6)
+        .padding(.horizontal, pinned ? Tide.edge : 0)
+        .padding(.top, pinned ? Tide.s6 : Tide.s2)
         .padding(.bottom, Tide.s1)
         .background {
-            LinearGradient(
-                stops: [
-                    .init(color: Tide.ink.opacity(0), location: 0),
-                    .init(color: Tide.ink.opacity(0.94), location: 0.16),
-                    .init(color: Tide.ink.opacity(0.97), location: 1),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            if pinned {
+                pinnedFade
+            }
+        }
+    }
+
+    /// Solid under the actions, with a short fade above so the page scrolls
+    /// away softly instead of running through the price line.
+    private var pinnedFade: some View {
+        Tide.ink.opacity(0.97)
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [Tide.ink.opacity(0), Tide.ink.opacity(0.97)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: Tide.s6)
+                .offset(y: -Tide.s6)
+            }
             .ignoresSafeArea(edges: .bottom)
             .allowsHitTesting(false)
-        }
     }
 
     private var purchaseButton: some View {
@@ -415,7 +438,7 @@ struct PaywallView: View {
         } label: {
             ZStack {
                 // Per MONETIZATION_STRATEGY.md — "Start Free Trial" CTA
-                Text("Start Free Trial")
+                Text(trialDays == nil ? "Subscribe" : "Start Free Trial")
                     .opacity(isPurchasing ? 0 : 1)
                 if isPurchasing {
                     ProgressView()
@@ -425,11 +448,14 @@ struct PaywallView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(isPurchasing)
-        .accessibilityLabel("Start free trial")
+        .accessibilityLabel(trialDays == nil ? "Subscribe" : "Start free trial")
     }
 
     private var footerActions: some View {
-        HStack(spacing: Tide.s2) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             // Per APP_STORE_COMPLIANCE.md Section 5.4 — Restore Purchases button
             Button {
                 Task { await restorePurchases() }
@@ -459,7 +485,7 @@ struct PaywallView: View {
     /// Per APP_STORE_COMPLIANCE.md Section 5.2, 5.5 — Required subscription disclosure.
     private var legalText: some View {
         Text(
-            "7-day free trial, then auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
+            "\(trialDays.map { "\($0)-day free trial, then auto-renews." } ?? "Auto-renews.") Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
         )
         .font(Tide.label.weight(.regular))
         .foregroundStyle(Tide.text3)
@@ -488,6 +514,24 @@ struct PaywallView: View {
         // Retries the StoreKit catalogue if launch couldn't reach the store.
         await services.subscriptions.startObserving()
         products = services.subscriptions.availableProducts()
+        trialDays = await eligibleTrialDays()
+    }
+
+    /// The free trial's length in days, only when the store offers one and this
+    /// Apple ID is still eligible. One subscription group, so one answer.
+    private func eligibleTrialDays() async -> Int? {
+        guard let info = products.first?.subscription,
+              let offer = info.introductoryOffer,
+              offer.paymentMode == .freeTrial,
+              await info.isEligibleForIntroOffer
+        else {
+            return nil
+        }
+        switch offer.period.unit {
+        case .day: return offer.period.value
+        case .week: return offer.period.value * 7
+        default: return nil
+        }
     }
 
     private func performPurchase() async {
