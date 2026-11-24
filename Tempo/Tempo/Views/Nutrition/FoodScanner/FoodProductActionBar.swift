@@ -21,6 +21,8 @@ struct FoodProductActionBar: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var inventory: FoodProductActions.Inventory?
@@ -38,65 +40,80 @@ struct FoodProductActionBar: View {
     }
 
     var body: some View {
-        VStack(spacing: Tide.s3) {
+        VStack(spacing: Tide.s2) {
             if let inventory {
                 Text(inventory.line)
                     .font(Tide.caption)
                     .foregroundStyle(inventory.atHome != nil || inventory.onList ? Tide.text : Tide.text2)
-                    .padding(.horizontal, Tide.s3)
-                    .padding(.vertical, Tide.s2)
-                    .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                    .minimumScaleFactor(Tide.labelShrink)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Tide.s2)
                     .accessibilityIdentifier("foodInventoryLine")
+                    .transition(.opacity)
             }
-            Button {
-                HapticManager.lightImpact()
-                mealType = EatenMealRecorder.defaultMealType()
-                showLogSheet = true
-            } label: {
-                Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .buttonStyle(.tidePrimary)
-            .disabled(!product.per100g.hasCoreMacros || grams <= 0)
-            .accessibilityIdentifier("foodCheckLog")
-
-            // Two equal secondary buttons under the primary: same width, same
-            // height (the style's 52 pt), centred inside the screen gutters.
+            // One slim row: the primary action takes the width, the two
+            // secondary ones sit beside it as round glass buttons. At the
+            // accessibility sizes they drop under it with their words.
+            let stacked = typeSize.isAccessibilitySize
+            let layout = stacked
+                ? AnyLayout(VStackLayout(spacing: Tide.s3))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
             GlassEffectContainer(spacing: Tide.s3) {
-                HStack(spacing: Tide.s3) {
+                layout {
                     Button {
-                        addToPantry()
+                        HapticManager.lightImpact()
+                        mealType = EatenMealRecorder.defaultMealType()
+                        showLogSheet = true
                     } label: {
-                        Label("Pantry", systemImage: "refrigerator")
-                            .labelStyle(.titleAndIcon)
+                        Text("Log \(FoodProductView.format(grams)) \(product.unit) · \(portionKcal) kcal")
                             .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                            .contentTransition(.numericText())
                     }
-                    .buttonStyle(.tideGlass)
-                    .accessibilityIdentifier("foodCheckPantry")
+                    .buttonStyle(.tidePrimary)
+                    .disabled(!product.per100g.hasCoreMacros || grams <= 0)
+                    .accessibilityIdentifier("foodCheckLog")
 
-                    Button {
-                        addToList()
-                    } label: {
-                        Label("List", systemImage: "cart.badge.plus")
-                            .labelStyle(.titleAndIcon)
-                            .lineLimit(1)
+                    HStack(spacing: Tide.s3) {
+                        secondaryButton("Pantry", label: "Add to pantry", systemImage: "refrigerator", id: "foodCheckPantry", action: addToPantry)
+                        secondaryButton("List", label: "Add to list", systemImage: "cart.badge.plus", id: "foodCheckList", action: addToList)
                     }
-                    .buttonStyle(.tideGlass)
-                    .accessibilityIdentifier("foodCheckList")
                 }
             }
+            .animation(Tide.snap, value: portionKcal)
         }
         .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s3)
+        .padding(.top, Tide.s2)
         .padding(.bottom, Tide.s2)
+        .animation(Tide.snap, value: inventory)
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {
             logSheet
                 .presentationDetents([.height(300)])
                 .presentationDragIndicator(.visible)
         }
+    }
+
+    /// A round glass button with the icon alone; the words come back (and the
+    /// buttons grow to full width) at the accessibility text sizes.
+    private func secondaryButton(
+        _ title: String, label: String, systemImage: String, id: String, action: @escaping () -> Void
+    ) -> some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                Button(action: action) {
+                    Label(title, systemImage: systemImage)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityLabel(label)
+            } else {
+                KitchenIconButton(systemImage: systemImage, label: label, size: Tide.Kitchen.barButton, action: action)
+            }
+        }
+        .accessibilityIdentifier(id)
     }
 
     // MARK: - Log sheet

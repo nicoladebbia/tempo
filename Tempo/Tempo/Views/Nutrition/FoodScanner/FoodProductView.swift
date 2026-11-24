@@ -99,11 +99,10 @@ struct FoodProductView: View {
                 } else {
                     scoreCard
                 }
-                macroCard
                 forYouCard
                 gradesCard
-                additivesCard
                 nutritionCard
+                additivesCard
                 suggestionsSection
                 ingredientsCard
                 attribution
@@ -384,6 +383,11 @@ struct FoodProductView: View {
                     scorePart("Additives", score.additivePoints, of: 30)
                     scorePart("Organic", score.organicPoints, of: 10)
                 }
+                if showsGrades {
+                    Rectangle().fill(Tide.hairline).frame(height: 1)
+                        .accessibilityHidden(true)
+                    gradesContent
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
@@ -430,49 +434,50 @@ struct FoodProductView: View {
 
     // MARK: - Macros
 
+    /// The donut and its legend, inside the Nutrition card (it follows the portion picker above it).
     @ViewBuilder
-    private var macroCard: some View {
-        let portion = product.nutrients(forGrams: grams)
+    private func macroSummary(_ portion: FoodProduct.Nutrients) -> some View {
         if let split = FoodMacroSplit.compute(proteinGrams: portion.protein, carbsGrams: portion.carbs, fatGrams: portion.fat) {
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                sectionTitle("Macros · \(Self.format(grams)) \(product.unit)")
-                HStack(spacing: Tide.s5) {
-                    Chart(split.slices) { slice in
-                        SectorMark(angle: .value("Calories", slice.kcal), innerRadius: .ratio(0.62), angularInset: 1.5)
-                            .foregroundStyle(slice.color)
-                            .cornerRadius(3)
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+                : AnyLayout(HStackLayout(spacing: Tide.s5))
+            layout {
+                Chart(split.slices) { slice in
+                    SectorMark(angle: .value("Calories", slice.kcal), innerRadius: .ratio(0.62), angularInset: 1.5)
+                        .foregroundStyle(slice.color)
+                        .cornerRadius(3)
+                }
+                .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
+                .chartLegend(.hidden)
+                .overlay {
+                    VStack(spacing: 0) {
+                        // Ring segments are macro shares (Atwater), but the
+                        // number shown must always be the product's label
+                        // kcal — the same figure as the nutrition table and
+                        // the add bar — so the two never disagree (picky-QA
+                        // item 2).
+                        TideNumber(
+                            "\(Int((portion.kcal ?? split.totalKcal).rounded()))",
+                            size: Tide.numeralS,
+                            relativeTo: .title3
+                        )
+                        Text("kcal")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
-                    .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
-                    .chartLegend(.hidden)
-                    .overlay {
-                        VStack(spacing: 0) {
-                            // Ring segments are macro shares (Atwater), but the
-                            // number shown must always be the product's label
-                            // kcal — the same figure as the nutrition table and
-                            // the add bar — so the two never disagree (picky-QA
-                            // item 2).
-                            TideNumber(
-                                "\(Int((portion.kcal ?? split.totalKcal).rounded()))",
-                                size: Tide.numeralS,
-                                relativeTo: .title3
-                            )
-                            Text("kcal")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text3)
-                        }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
+                Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s2) {
+                    ForEach(split.slices) { slice in
+                        macroLegendRow(slice)
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
-                    Grid(alignment: .leading, horizontalSpacing: Tide.s2, verticalSpacing: Tide.s2) {
-                        ForEach(split.slices) { slice in
-                            macroLegendRow(slice)
-                        }
-                    }
+                }
+                if !typeSize.isAccessibilitySize {
                     Spacer(minLength: 0)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tideCard()
+            .animation(Tide.settle, value: grams)
         }
     }
 
@@ -514,59 +519,86 @@ struct FoodProductView: View {
     private var forYouCard: some View {
         let checks = FoodFit.checks(for: product.mergingAllergenData(from: enrichedAllergenSource), grams: grams, context: fitContext)
         if !checks.isEmpty {
-            VStack(alignment: .leading, spacing: Tide.s2) {
+            // The card wears the colour of its worst line, so a conflict is
+            // seen before a word is read.
+            let worst: FoodFitCheck.Kind = checks.contains { $0.kind == .conflict }
+                ? .conflict
+                : (checks.contains { $0.kind == .warning } ? .warning : .good)
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 sectionTitle("For you · \(Self.format(grams)) \(product.unit)")
                 ForEach(checks) { check in
-                    HStack(alignment: .top, spacing: Tide.s2) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
                         Image(systemName: check.kind.icon)
+                            .font(Tide.bodyStrong)
                             .foregroundStyle(check.kind.color)
+                            .frame(width: Tide.icon, alignment: .leading)
+                            .accessibilityHidden(true)
                         Text(check.text)
                             .font(Tide.body)
                             .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    .accessibilityElement(children: .combine)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
+            .overlay(
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                    .strokeBorder(worst.color.opacity(0.45), lineWidth: 1)
+            )
+            .animation(Tide.snap, value: grams)
         }
     }
 
     // MARK: - Nutri-Score + NOVA
 
+    /// Under the verdict when there is one; a card of its own when the score is withheld.
+    private var showsGrades: Bool {
+        product.implausibilityReason == nil && score != nil
+    }
+
     @ViewBuilder
     private var gradesCard: some View {
-        if score != nil || product.novaGroup != nil {
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                if let score {
-                    VStack(alignment: .leading, spacing: Tide.s1) {
-                        sectionTitle(score.nutriScoreEstimated ? "Nutri-Score · estimated" : "Nutri-Score")
-                        HStack(spacing: Tide.s1) {
-                            ForEach(NutriScore.grades, id: \.self) { grade in
-                                let selected = grade == score.nutriScoreGrade
-                                Text(grade.uppercased())
-                                    .font(selected ? Tide.headline : Tide.caption)
-                                    .foregroundStyle(selected ? Tide.ink : Tide.text3)
-                                    .frame(width: selected ? Tide.s10 : Tide.s8, height: selected ? Tide.s10 : Tide.s8)
-                                    .background(selected ? Self.gradeColor(grade) : Tide.fill)
-                                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-                            }
+        if !showsGrades, score != nil || product.novaGroup != nil {
+            gradesContent
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard()
+        }
+    }
+
+    private var gradesContent: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            if let score {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    sectionTitle(score.nutriScoreEstimated ? "Nutri-Score · estimated" : "Nutri-Score")
+                    HStack(spacing: Tide.s1) {
+                        ForEach(NutriScore.grades, id: \.self) { grade in
+                            let selected = grade == score.nutriScoreGrade
+                            Text(grade.uppercased())
+                                .font(selected ? Tide.headline : Tide.caption)
+                                .foregroundStyle(selected ? Tide.ink : Tide.text3)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: selected ? Tide.s10 : Tide.s8)
+                                .background(selected ? Self.gradeColor(grade) : Tide.fill)
+                                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                         }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Nutri-Score \(score.nutriScoreGrade.uppercased())")
                     }
-                }
-                if let nova = product.novaGroup {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        sectionTitle("Processing · NOVA \(nova)")
-                        Text(Self.novaText(nova))
-                            .font(Tide.body)
-                            .foregroundStyle(nova == 4 ? Tide.Kitchen.warn : Tide.text)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .animation(Tide.snap, value: score.nutriScoreGrade)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Nutri-Score \(score.nutriScoreGrade.uppercased())")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tideCard()
+            if let nova = product.novaGroup {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    sectionTitle("Processing · NOVA \(nova)")
+                    Text(Self.novaText(nova))
+                        .font(Tide.body)
+                        .foregroundStyle(nova == 4 ? Tide.Kitchen.warn : Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
@@ -615,9 +647,10 @@ struct FoodProductView: View {
     private var nutritionCard: some View {
         let per100 = product.per100g
         let portion = product.nutrients(forGrams: grams)
-        return VStack(alignment: .leading, spacing: Tide.s3) {
+        return VStack(alignment: .leading, spacing: Tide.s4) {
             sectionTitle("Nutrition")
             portionPicker
+            macroSummary(portion)
             Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s2) {
                 GridRow {
                     Text("")
@@ -654,13 +687,22 @@ struct FoodProductView: View {
         .tideCard()
     }
 
+    /// The portion the whole card is about: two quick chips and a free grams field.
+    /// At the accessibility sizes the field drops under the chips.
     private var portionPicker: some View {
-        HStack(spacing: Tide.s2) {
-            if let serving = product.servingGrams, serving > 0, serving != 100 {
-                portionChip(product.servingLabel.map { "Serving · \($0)" } ?? "Serving", grams: serving)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
+            HStack(spacing: Tide.s2) {
+                if let serving = product.servingGrams, serving > 0, serving != 100 {
+                    portionChip(product.servingLabel.map { "Serving · \($0)" } ?? "Serving", grams: serving)
+                }
+                portionChip("100 \(product.unit)", grams: 100)
             }
-            portionChip("100 \(product.unit)", grams: 100)
-            Spacer(minLength: 0)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+            }
             HStack(spacing: Tide.hair) {
                 TextField("g", text: $gramsText)
                     .keyboardType(.decimalPad)
@@ -677,10 +719,10 @@ struct FoodProductView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
-            .padding(.horizontal, Tide.s2)
-            .padding(.vertical, Tide.s1)
+            .padding(.horizontal, Tide.s3)
+            .frame(minHeight: Tide.hit)
             .background(Tide.fill)
-            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+            .clipShape(.capsule)
         }
     }
 

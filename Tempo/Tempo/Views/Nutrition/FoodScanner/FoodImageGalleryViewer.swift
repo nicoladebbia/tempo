@@ -33,6 +33,18 @@ struct FoodImageGalleryViewer: View {
             .tabViewStyle(.page(indexDisplayMode: sources.count > 1 ? .always : .never))
             VStack {
                 HStack {
+                    // Where you are in the set, on glass so it reads over any photo.
+                    if sources.count > 1 {
+                        Text("\(page + 1) of \(sources.count)")
+                            .font(Tide.bodyStrong.monospacedDigit())
+                            .foregroundStyle(Tide.text)
+                            .padding(.horizontal, Tide.s4)
+                            .frame(minHeight: Tide.hit)
+                            .glassEffect(.regular, in: .capsule)
+                            .contentTransition(.numericText())
+                            .animation(Tide.snap, value: page)
+                            .accessibilityLabel("Photo \(page + 1) of \(sources.count)")
+                    }
                     Spacer()
                     Button {
                         dismiss()
@@ -43,9 +55,9 @@ struct FoodImageGalleryViewer: View {
                             .frame(width: Tide.hit, height: Tide.hit)
                             .glassEffect(.regular.interactive(), in: .circle)
                     }
-                    .padding(Tide.s4)
                     .accessibilityLabel("Close")
                 }
+                .padding(Tide.s4)
                 Spacer()
             }
         }

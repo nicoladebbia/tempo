@@ -66,13 +66,9 @@ struct FoodCheckView: View {
                 }
 
                 Section {
-                    Picker("List", selection: $tab) {
-                        ForEach(Tab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowInsets(EdgeInsets())
+                    KitchenSegmented(options: Tab.allCases, selection: $tab) { $0.rawValue }
+                        .accessibilityLabel("List")
+                        .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 }
 
