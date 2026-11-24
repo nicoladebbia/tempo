@@ -715,6 +715,34 @@ struct ProfileSettingsDetailView: View {
             }
             SettingsRowDivider(underTitle: false)
             identityLabelRow
+            SettingsRowDivider(underTitle: false)
+            goalRow
+        }
+    }
+
+    /// The goal picked in onboarding, changeable here.
+    private var goalRow: some View {
+        SettingsControlRow(label: "Goal") {
+            Picker(
+                "Goal",
+                selection: Binding(
+                    get: { settings?.primaryGoal },
+                    set: { newValue in
+                        settings?.primaryGoal = newValue
+                        touch()
+                    }
+                )
+            ) {
+                Text("Not set").tag(PrimaryGoal?.none)
+                ForEach(PrimaryGoal.allCases, id: \.self) { goal in
+                    Text(goal.title).tag(PrimaryGoal?.some(goal))
+                }
+            }
+            .labelsHidden()
+            .font(Tide.bodyStrong)
+            .tint(Tide.text2)
+            .padding(typeSize.isAccessibilitySize ? .leading : .trailing, -Tide.s3)
+            .accessibilityIdentifier("settingsGoalPicker")
         }
     }
 

@@ -61,6 +61,8 @@ struct TrainingSettingsDetailView: View {
     private var autoStartRest = true
     @State
     private var defaultRestSeconds = 120
+    @State
+    private var trainingTime: TrainingTimePreference = .anyFree
 
     private var footballCount: Int {
         settings?.footballDaysRaw.nonzeroBitCount ?? 0
@@ -161,6 +163,29 @@ struct TrainingSettingsDetailView: View {
                             value: settings?.experienceLevelRaw ?? "Beginner"
                         )
                     }
+
+                    SettingsRowDivider()
+
+                    // When you usually train: trainer reminders, supplement timing and the
+                    // readiness check read it. It used to be asked in onboarding.
+                    Menu {
+                        Picker("Usual training time", selection: $trainingTime) {
+                            ForEach(TrainingTimePreference.allCases, id: \.self) { time in
+                                Text(time.label).tag(time)
+                            }
+                        }
+                    } label: {
+                        menuRowLabel(
+                            icon: "clock.fill",
+                            tint: Tide.water,
+                            title: "Usual training time",
+                            value: trainingTime.label
+                        )
+                    }
+                    .onChange(of: trainingTime) { _, newValue in
+                        setTrainingTime(newValue)
+                    }
+                    .accessibilityIdentifier("settingsTrainingTime")
                 }
 
                 // Football days — editable chips (Mon=1<<0 … Sun=1<<6).
@@ -343,6 +368,7 @@ struct TrainingSettingsDetailView: View {
             deloadStyle = settings?.deloadStyle ?? .intensityCut
             autoStartRest = settings?.autoStartRestTimer ?? true
             defaultRestSeconds = settings?.defaultRestSeconds ?? 120
+            trainingTime = UserDailyPlanProfile.current(in: modelContext)?.trainingTimePreference ?? .anyFree
         }
     }
 
@@ -466,6 +492,21 @@ struct TrainingSettingsDetailView: View {
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: today))
         save()
         HapticManager.selection()
+    }
+
+    /// Writes the training time to the daily-plan profile (made with its defaults if there is none yet).
+    private func setTrainingTime(_ value: TrainingTimePreference) {
+        let profile = UserDailyPlanProfile.current(in: modelContext) ?? {
+            let created = UserDailyPlanProfile()
+            modelContext.insert(created)
+            return created
+        }()
+        guard profile.trainingTimePreference != value else {
+            return
+        }
+        profile.trainingTimePreference = value
+        profile.updatedAt = Date()
+        save()
     }
 
     private func save() {
