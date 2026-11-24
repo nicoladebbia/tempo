@@ -214,9 +214,17 @@ struct MealReviewHost: ViewModifier {
                     message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
                     chips: pending.names,
                     primaryTitle: "Add another",
-                    primary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add) },
+                    primary: {
+                        // A second tap while the sheet is leaving must not log twice.
+                        guard duplicate != nil else { return }
+                        finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
+                    },
                     secondaryTitle: "Edit existing",
-                    secondary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit) },
+                    secondary: {
+                        // A second tap while the sheet is leaving must not log twice.
+                        guard duplicate != nil else { return }
+                        finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit)
+                    },
                     cancel: { duplicate = nil }
                 )
                 .environment(\.tideInsidePage, false)

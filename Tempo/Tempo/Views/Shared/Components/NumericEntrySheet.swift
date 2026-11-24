@@ -134,7 +134,9 @@ struct NumericEntrySheet: View {
     /// A decimal key only where a fraction can survive: when every value on the
     /// wheel is whole (reps, pounds in whole steps) the key would do nothing.
     private var allowsDecimal: Bool {
-        wheelValues.contains { $0 != $0.rounded() }
+        // No wheel to judge by (no step or an empty range): keep the key, as
+        // the old decimal pad always had it.
+        wheelValues.isEmpty || wheelValues.contains { $0 != $0.rounded() }
     }
 
     /// Nothing typed yet but a minus sign: not wrong, just not finished.
