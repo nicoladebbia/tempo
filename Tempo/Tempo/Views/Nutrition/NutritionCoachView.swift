@@ -39,9 +39,6 @@ struct NutritionCoachView: View {
     private var showWeighIn = false
     @State
     private var showFluids = false
-    /// "Weight saved" / "Weight removed" with Undo.
-    @State
-    private var weighInToast: ToastData?
     /// Today's water target, the one the Water card shows (`todayWaterTargetMl`).
     @State
     private var waterTargetMl: Int?
@@ -110,7 +107,6 @@ struct NutritionCoachView: View {
                     .presentationDetents([.large])
             }
         }
-        .tempoToast($weighInToast)
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
             waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
@@ -127,19 +123,20 @@ struct NutritionCoachView: View {
         recovery.map(RecoveryCoachSection.needsWeighIn) ?? false
     }
 
-    /// Saves a weight typed by hand and offers to take it back.
+    /// Saves a weight typed by hand and offers to take it back. The Undo toast is the
+    /// Fuel one (`FuelLogToast`), so there is one toast on the page, not two.
     private func addWeighIn(kg: Double, at time: Date, to model: RecoveryCoachModel) {
         let replaced = model.manualWeighIn(at: time)
         Task {
             await model.addManualWeighIn(kg: kg, at: time)
-            weighInToast = ToastData(
+            FuelLogToast.post(ToastData(
                 message: "Weight saved. \(String(format: "%.1f", kg)) kg.", style: .success, actionTitle: "Undo"
             ) {
                 Task {
                     await model.undoManualWeighIn(at: time, restoring: replaced)
-                    weighInToast = ToastData(message: "Weight taken back.", style: .info)
+                    FuelLogToast.post(ToastData(message: "Weight taken back.", style: .info))
                 }
-            }
+            })
         }
     }
 
@@ -147,14 +144,14 @@ struct NutritionCoachView: View {
     private func removeWeighIn(_ weighIn: CoachWeighIn, from model: RecoveryCoachModel) {
         Task {
             await model.removeManualWeighIn(at: weighIn.time)
-            weighInToast = ToastData(
+            FuelLogToast.post(ToastData(
                 message: "Weight removed. \(String(format: "%.1f", weighIn.kg)) kg.", style: .info, actionTitle: "Undo"
             ) {
                 Task {
                     await model.addManualWeighIn(kg: weighIn.kg, at: weighIn.time)
-                    weighInToast = ToastData(message: "Weight put back.", style: .info)
+                    FuelLogToast.post(ToastData(message: "Weight put back.", style: .info))
                 }
-            }
+            })
         }
     }
 
@@ -602,7 +599,7 @@ struct NutritionCoachView: View {
 
             Spacer(minLength: Tide.s2)
 
-            TideNumber("\(Int(meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
+            TideNumber("\(Int(meal.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
         }
         .accessibilityElement(children: .combine)
     }

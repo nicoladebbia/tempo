@@ -132,13 +132,15 @@ struct ParsedFoodReviewSheet: View {
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             TideNumber("\(draft.totalCalories)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
-            FuelMacroRings(protein: Int(draft.totalProtein), carbs: Int(draft.totalCarbs), fat: Int(draft.totalFat))
+            FuelMacroRings(
+                protein: Int(draft.totalProtein.rounded()), carbs: Int(draft.totalCarbs.rounded()), fat: Int(draft.totalFat.rounded())
+            )
         }
         .tideCard()
         .animation(Tide.snap, value: draft.totalCalories)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Total \(draft.totalCalories) kilocalories. Protein \(Int(draft.totalProtein)) grams, carbs \(Int(draft.totalCarbs)) grams, fat \(Int(draft.totalFat)) grams."
+            "Total \(draft.totalCalories) kilocalories. Protein \(Int(draft.totalProtein.rounded())) grams, carbs \(Int(draft.totalCarbs.rounded())) grams, fat \(Int(draft.totalFat.rounded())) grams."
         )
         .accessibilityIdentifier("reviewTotal")
     }

@@ -247,7 +247,7 @@ struct NutritionWeeklyPlanView: View {
                             date: date,
                             dayType: dayType,
                             mealCount: dayMeals.count,
-                            totalCalories: dayMeals.reduce(0) { $0 + Int($1.totalCalories) },
+                            totalCalories: Int(dayMeals.reduce(0.0) { $0 + $1.totalCalories }.rounded()),
                             isToday: isToday,
                             isExpanded: isExpanded
                         )
@@ -395,7 +395,7 @@ struct NutritionWeeklyPlanView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
 
-            Text("\(Int(meal.totalCalories)) kcal")
+            Text("\(Int(meal.totalCalories.rounded())) kcal")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .monospacedDigit()

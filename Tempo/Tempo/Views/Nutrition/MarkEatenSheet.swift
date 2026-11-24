@@ -141,7 +141,7 @@ struct MarkEatenSheet: View {
                         .foregroundStyle(Tide.text)
                         .lineLimit(2)
                     if meal.totalCalories > 0 {
-                        Text("\(Int(meal.totalCalories)) kcal planned")
+                        Text("\(Int(meal.totalCalories.rounded())) kcal planned")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
                     }

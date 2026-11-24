@@ -14,8 +14,8 @@ import SwiftData
 import SwiftUI
 
 extension EnvironmentValues {
-    // True below a view that already shows Fuel log toasts, so a log screen
-    // knows it can close at once and leave the toast to that host.
+    /// True below a view that already shows Fuel log toasts, so a log screen
+    /// knows it can close at once and leave the toast to that host.
     @Entry var fuelLogToastHosted: Bool = false
 }
 
@@ -89,8 +89,23 @@ struct FuelLogToastHost: ViewModifier {
                 .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
                     if let next = FuelLogToast.toast(from: note) {
                         toast = next
+                        dismissLater(next)
                     }
                 }
+        }
+    }
+
+    /// The toast's own timer does not run for one posted from inside another toast's
+    /// Undo ("Log taken back." stayed up for ever), so the host also takes it down.
+    /// A newer toast is never dismissed by an older timer.
+    private func dismissLater(_ shown: ToastData) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(shown.duration + 0.5))
+            if toast?.id == shown.id {
+                withAnimation(Tide.snap) {
+                    toast = nil
+                }
+            }
         }
     }
 }

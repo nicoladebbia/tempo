@@ -409,19 +409,19 @@ struct MealDetailView: View {
         let foods = meal.foods
         if shouldRenderActualFoods || (meal.recipe == nil && !foods.isEmpty) {
             return (
-                Int(foods.reduce(0.0) { $0 + $1.calories }),
-                Int(foods.reduce(0.0) { $0 + $1.proteinG }),
-                Int(foods.reduce(0.0) { $0 + $1.carbsG }),
-                Int(foods.reduce(0.0) { $0 + $1.fatG })
+                Int(foods.reduce(0.0) { $0 + $1.calories }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.proteinG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.carbsG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.fatG }.rounded())
             )
         }
         if let recipe = meal.recipe {
             return (
-                Int(recipe.totalCalories), Int(recipe.totalProteinGrams),
-                Int(recipe.totalCarbsGrams), Int(recipe.totalFatGrams)
+                Int(recipe.totalCalories.rounded()), Int(recipe.totalProteinGrams.rounded()),
+                Int(recipe.totalCarbsGrams.rounded()), Int(recipe.totalFatGrams.rounded())
             )
         }
-        return (Int(meal.totalCalories), Int(meal.totalProtein), Int(meal.totalCarbs), Int(meal.totalFat))
+        return (Int(meal.totalCalories.rounded()), Int(meal.totalProtein.rounded()), Int(meal.totalCarbs.rounded()), Int(meal.totalFat.rounded()))
     }
 
     /// A meal that is not eaten or skipped yet, on a day that has begun: the
