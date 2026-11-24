@@ -48,25 +48,29 @@ struct UndoMealSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-
-                VStack(spacing: Tide.s2) {
-                    Button(action: onConfirm) {
-                        Text(isLog ? "Delete log" : "Mark as not eaten")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.fuelDestructive)
-                    .accessibilityIdentifier("undoMealConfirm")
-                    Button("Keep it", action: onCancel)
-                        .buttonStyle(.tideGlass)
-                        .accessibilityIdentifier("undoMealCancel")
-                }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s6)
             .padding(.bottom, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // The answers sit under the thumb, whatever the text size.
+        .fuelBottomBar {
+            VStack(spacing: Tide.s2) {
+                Button(action: onConfirm) {
+                    Text(isLog ? "Delete log" : "Mark as not eaten")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.fuelDestructive)
+                .accessibilityIdentifier("undoMealConfirm")
+                Button("Keep it", action: onCancel)
+                    .buttonStyle(.tideGlass)
+                    .accessibilityIdentifier("undoMealCancel")
+            }
+        }
         .tidePage()
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
     }
 
     private func consequence(_ icon: String, _ text: String) -> some View {

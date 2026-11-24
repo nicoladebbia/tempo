@@ -81,6 +81,8 @@ struct QuickLogSheet: View {
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s5)
             .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
             .navigationTitle("Quick Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
