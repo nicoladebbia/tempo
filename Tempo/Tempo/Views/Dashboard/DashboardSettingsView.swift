@@ -6,7 +6,6 @@
 //
 //
 
-import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -62,8 +61,6 @@ struct DashboardSettingsView: View {
     @State private var showPaywall = false
     @State private var isRestoring = false
     @State private var restoreError: String?
-    /// Refreshed on appear — location auth can change in iOS Settings while away.
-    @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
 
     var body: some View {
         TideSettingsPage {
@@ -97,18 +94,6 @@ struct DashboardSettingsView: View {
                     SettingsNavRow(icon: "bolt.fill", title: "Modes", subtitle: modesSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
-            }
-
-            SettingsGroupCard(title: "Connections") {
-                NavigationLink {
-                    WhoopConnectionView()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "waveform.path.ecg", title: "Whoop",
-                        status: whoopStatusText, statusColor: whoopStatusColor
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
 
                 NavigationLink {
                     FuelSetupView(embedded: true)
@@ -130,43 +115,24 @@ struct DashboardSettingsView: View {
                 }
                 .buttonStyle(.tideSettingsRow)
                 .accessibilityIdentifier("settingsWeeklyHabits")
-
-                Button {
-                    openSystemSettings()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "heart.text.square", title: "HealthKit",
-                        status: healthKitStatusText, statusColor: healthKitStatusColor,
-                        showsChevron: false
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
-
-                Button {
-                    openSystemSettings()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "cloud.sun.fill", title: "Weather (Location)",
-                        status: locationStatusText, statusColor: locationStatusColor,
-                        showsChevron: false
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
             }
-            .onAppear { locationStatus = CLLocationManager().authorizationStatus }
 
-            SettingsGroupCard(title: "Notifications & plan") {
+            SettingsGroupCard(title: "Connections & alerts") {
+                NavigationLink {
+                    ConnectionsView()
+                } label: {
+                    SettingsStatusRow(
+                        icon: "link", title: "Connections",
+                        status: connectionsSummary, statusColor: connectionsSummaryColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsConnections")
+
                 NavigationLink {
                     NotificationSettingsView()
                 } label: {
                     SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
-                }
-                .buttonStyle(.tideSettingsRow)
-
-                NavigationLink {
-                    SubscriptionDetailView()
-                } label: {
-                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
                 }
                 .buttonStyle(.tideSettingsRow)
             }
@@ -174,6 +140,13 @@ struct DashboardSettingsView: View {
             AIFeaturesSettingsCard()
 
             SettingsGroupCard(title: "Account & data") {
+                NavigationLink {
+                    SubscriptionDetailView()
+                } label: {
+                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
+                }
+                .buttonStyle(.tideSettingsRow)
+
                 NavigationLink {
                     AccountDetailView()
                 } label: {
@@ -424,12 +397,6 @@ struct DashboardSettingsView: View {
         return "Lvl \(level) · \(xpStr)"
     }
 
-    private func openSystemSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-    }
-
     // MARK: - Subscription
 
     private var subscriptionStatusText: String {
@@ -529,25 +496,6 @@ struct DashboardSettingsView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    private var whoopStatusText: String {
-        switch services.whoop.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .error: "Error"
-        case .disconnected: "Not Connected"
-        }
-    }
-
-    private var whoopStatusColor: Color {
-        if case .connected = services.whoop.connectionState {
-            return Tide.settingsOK
-        }
-        if case .error = services.whoop.connectionState {
-            return Tide.danger
-        }
-        return Tide.text3
-    }
-
     private var dietProfileStatusText: String {
         let descriptor = FetchDescriptor<DietaryProfile>(
             predicate: #Predicate { $0.isActive == true }
@@ -564,33 +512,21 @@ struct DashboardSettingsView: View {
         return count > 0 ? Tide.settingsOK : Tide.text3
     }
 
-    private var healthKitStatusText: String {
-        healthKitAuthorized ? "Authorized" : "Not Authorized"
+    /// What the Connections row says: how many are on, or what needs the user.
+    private var connectionsSummary: String {
+        ConnectionStatus.summary(connectionStatuses)
     }
 
-    private var healthKitStatusColor: Color {
-        healthKitAuthorized ? Tide.settingsOK : Tide.text3
-    }
-
-    private var locationStatusText: String {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: "Authorized"
-        case .denied,
-             .restricted: "Denied"
-        case .notDetermined: "Not Set Up"
-        @unknown default: "Not Set Up"
+    private var connectionsSummaryColor: Color {
+        switch ConnectionStatus.summaryTone(connectionStatuses) {
+        case .ok: Tide.settingsOK
+        case .off: Tide.text3
+        case .attention: Tide.settingsAttention
         }
     }
 
-    private var locationStatusColor: Color {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: Tide.settingsOK
-        case .denied,
-             .restricted: Tide.danger
-        default: Tide.text3
-        }
+    private var connectionStatuses: [ConnectionStatus] {
+        ConnectionsSnapshot.statuses(whoop: services.whoop, healthAsked: healthKitAuthorized)
     }
 }
 
