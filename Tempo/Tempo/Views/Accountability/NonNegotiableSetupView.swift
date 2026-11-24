@@ -36,6 +36,9 @@ struct NonNegotiableSetupView: View {
     private var editingItem: NonNegotiable?
     @State
     private var pendingDeleteID: UUID?
+    /// An item with history waits here for the warning below before it is hidden.
+    @State
+    private var confirmDeleteItem: NonNegotiable?
     @State
     private var toast: ToastData?
 
@@ -80,6 +83,28 @@ struct NonNegotiableSetupView: View {
                     onSave: { _ in try? modelContext.save() }
                 )
             }
+            .confirmationDialog(
+                "Delete Non-Negotiable?",
+                isPresented: Binding(
+                    get: { confirmDeleteItem != nil },
+                    set: { if !$0 { confirmDeleteItem = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let item = confirmDeleteItem {
+                        removeWithUndo(item)
+                    }
+                    confirmDeleteItem = nil
+                }
+                Button("Cancel", role: .cancel) {
+                    confirmDeleteItem = nil
+                }
+            } message: {
+                Text(
+                    "This will permanently delete \"\(confirmDeleteItem?.name ?? "this item")\" and all its historical progress data. You get a few seconds to undo it."
+                )
+            }
             .tempoToast($toast)
             // A toast that ran out (or was swiped away) without Undo makes the delete final.
             .onChange(of: toast) { _, newValue in
@@ -106,7 +131,7 @@ struct NonNegotiableSetupView: View {
                 .onDelete { offsets in
                     let active = nonNegotiables.filter(\.isActive)
                     if let index = offsets.first {
-                        removeWithUndo(active[index])
+                        requestDelete(active[index])
                     }
                 }
                 .onMove { from, to in
@@ -139,7 +164,7 @@ struct NonNegotiableSetupView: View {
                     }
                     .onDelete { offsets in
                         if let index = offsets.first {
-                            removeWithUndo(inactive[index])
+                            requestDelete(inactive[index])
                         }
                     }
                 } header: {
@@ -307,6 +332,16 @@ struct NonNegotiableSetupView: View {
         nn.order = nonNegotiables.count
         modelContext.insert(nn)
         try? modelContext.save()
+    }
+
+    /// An item that has recorded days takes them with it, so it asks first. One
+    /// that has none is hidden straight away with an Undo.
+    private func requestDelete(_ item: NonNegotiable) {
+        if item.progressEntries?.isEmpty == false {
+            confirmDeleteItem = item
+        } else {
+            removeWithUndo(item)
+        }
     }
 
     /// Hides the item and offers Undo. It is only deleted when the toast is over.

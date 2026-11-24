@@ -6,6 +6,8 @@
 > **Last Updated**: 2026-05-19
 > **Audience**: iOS developers. This document is an **AS-BUILT description reconciled to the codebase on 2026-05-19**. It describes what the code actually does, not the original aspirational spec. Original spec intent is preserved inline in `> **Divergence from original spec:**` and `> **Status: NOT IMPLEMENTED.**` callouts so nothing is lost. The code is ground truth; if this doc and the code disagree, the code wins and this doc is the bug.
 
+> **UI rework, Nov 2026:** Recovery is now one page with a Day / Week / Month switch: `RecoveryTabView` hosts `RecoveryDayView`, `RecoveryPeriodView` (Week and Month), `RecoverySleepSection`, `RecoveryStrainSection` and `RecoveryMetricSheet`. `SleepDetailView`, `StrainDetailView`, `RecoveryTrendsView` and `WeeklyRecoverySummaryView` were deleted, so the Sleep / Strain / Trends tab sections below describe the old layout. The Body page's numbers now come only from Whoop or Health, with Body progress (weight, body fat, lean mass, private photos) behind it.
+
 Primary source files referenced throughout (cited by file + symbol, never line number — lines drift):
 - `Tempo/Tempo/Views/Recovery/RecoveryTodayView.swift`
 - `Tempo/Tempo/Views/Recovery/RecoveryTabView.swift`, `SleepDetailView.swift`, `StrainDetailView.swift`, `RecoveryTrendsView.swift`, `WeeklyRecoverySummaryView.swift`, `WhoopConnectionView.swift`, `RecoveryAIInsightView.swift`

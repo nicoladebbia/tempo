@@ -1,5 +1,5 @@
 //
-// study_head.swift
+// MindQuadrantDetailView.swift
 // Tempo
 //
 // Created by Tempo on 25/03/2026.
@@ -704,12 +704,9 @@ struct MindQuadrantDetailView: View {
         guard let session = allCompletedSessions.first(where: { $0.id == id }) else {
             return
         }
-        // Its minutes come off that day's study total, so Today and this page agree.
-        if let day = session.dailyAccountability {
-            day.totalStudyMinutes = max(0, day.totalStudyMinutes - session.durationMinutes)
-        }
-        modelContext.delete(session)
-        try? modelContext.save()
+        // Its minutes come off the day's total and the Study task, so Today,
+        // Lockdown and this page agree.
+        StudySessionRemoval.remove(session, modelContext: modelContext)
         // Today and Lockdown reload when study progress changes.
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
@@ -744,6 +741,7 @@ struct MindQuadrantDetailView: View {
         return Tide.danger
     }
 }
+
 // MARK: - AddExamSheet
 
 struct AddExamSheet: View {
