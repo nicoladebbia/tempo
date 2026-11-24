@@ -22,11 +22,7 @@ struct RecoveryCoachCard: View {
                     open(session)
                 } label: {
                     HStack(spacing: Tide.s3) {
-                        Image(systemName: "drop.fill")
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.water)
-                            .frame(width: Tide.icon, alignment: .leading)
-                            .accessibilityHidden(true)
+                        TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit - Tide.s2)
                         VStack(alignment: .leading, spacing: Tide.hair) {
                             Text(title(model, session))
                                 .font(Tide.bodyStrong)

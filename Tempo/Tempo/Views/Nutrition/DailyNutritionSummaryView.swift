@@ -524,6 +524,8 @@ struct DailyNutritionSummaryView: View {
             }
         }
         .frame(height: Tide.dialSheet + Tide.s10)
+        // Axis labels stop growing at xxxLarge, or the seven day names run into each other.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     /// Full 7-day window (start of first day → end of today) so empty days

@@ -280,7 +280,7 @@ struct FuelQuadrantDetailView: View {
     private func plannedMealRow(_ row: FuelMealRow) -> some View {
         HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
             // The meal's own symbol, tinted by how it went: green eaten,
-            // red skipped, the accent while it is still to come.
+            // red skipped, quiet grey while it is still to come.
             TideIconTile(
                 systemName: FuelMealStyle.icon(forName: row.meal.mealName),
                 tint: FuelMealStyle.tone(for: row.meal.status, accent: Tide.text3),
@@ -449,6 +449,9 @@ struct FuelQuadrantDetailView: View {
             }
         }
         .frame(height: Tide.fuelChart)
+        // Axis labels stop growing at xxxLarge, or the seven day names run into
+        // each other; the numbers are also read out by the label below.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .accessibilityLabel("Calories eaten per day over the last 7 days")
     }
 

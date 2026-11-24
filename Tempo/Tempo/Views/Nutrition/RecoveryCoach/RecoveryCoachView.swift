@@ -28,6 +28,12 @@ struct RecoveryCoachView: View {
             header
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Tide.s4) {
+                    if typeSize.isAccessibilitySize, let session = model.session {
+                        Text(Self.sessionLine(session, now: Date()))
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if model.isOfflineResult {
                         offlineBanner
                     }
@@ -43,6 +49,9 @@ struct RecoveryCoachView: View {
             .refreshable { await Task { await model.refresh(requestedID: model.session?.id) }.value }
         }
         .tidePage()
+        .fuelBottomBar(isShown: needsWeighIn && !showWeighIn && !showFluids) {
+            enterWeightBar
+        }
         .tideCovered(showWeighIn || showFluids)
         .sheet(isPresented: $showWeighIn) {
             if let session = model.session {
@@ -59,21 +68,33 @@ struct RecoveryCoachView: View {
         .accessibilityIdentifier("coach.screen")
     }
 
+    /// Something is missing (a weigh-in): the one thing to do is the bar at the bottom.
+    private var needsWeighIn: Bool {
+        model.session != nil && model.result != nil && model.startHere != nil
+    }
+
+    /// The one action while a weigh-in is missing, in the thumb zone.
+    private var enterWeightBar: some View {
+        Button(model.result?.status == .implausible ? "Enter my new weight" : "Enter my weight") {
+            showWeighIn = true
+        }
+        .buttonStyle(.tidePrimary)
+        .accessibilityIdentifier("coach.enterWeight")
+    }
+
     // MARK: Header (never scrolls)
 
     private var header: some View {
         HStack(alignment: .top, spacing: Tide.s3) {
-            Image(systemName: "drop.fill")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.water)
-                .frame(width: Tide.icon, height: Tide.hit, alignment: .leading)
-                .accessibilityHidden(true)
+            TideIconTile(systemName: "drop.fill", tint: Tide.water)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text("Recovery")
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .accessibilityAddTraits(.isHeader)
-                if let session = model.session {
+                // At accessibility sizes the session line moves into the scrolling
+                // page, so the pinned header stays one line and leaves room.
+                if let session = model.session, !typeSize.isAccessibilitySize {
                     Text(Self.sessionLine(session, now: Date()))
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
@@ -192,12 +213,6 @@ struct RecoveryCoachView: View {
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
-            Button(result.status == .implausible ? "Enter my new weight" : "Enter my weight") {
-                showWeighIn = true
-            }
-            .buttonStyle(.tidePrimary)
-            .padding(.top, Tide.s1)
-            .accessibilityIdentifier("coach.enterWeight")
             if result.status == .needsWeighIn, result.missingPost {
                 Text("Weigh before you drink or eat, after the toilet, in the same clothes (or none), towel-dry.")
                     .font(Tide.caption)
@@ -268,13 +283,16 @@ struct RecoveryCoachView: View {
                 }
                 .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("coach.recheck")
-                Button { showWeighIn = true } label: {
-                    Text("Enter a weight")
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
+                // While a weigh-in is missing, the bar at the bottom already is this button.
+                if model.startHere == nil {
+                    Button { showWeighIn = true } label: {
+                        Text("Enter a weight")
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
+                    .accessibilityIdentifier("coach.enterAnother")
                 }
-                .buttonStyle(.tideGlass)
-                .accessibilityIdentifier("coach.enterAnother")
             }
         }
     }
@@ -330,6 +348,23 @@ struct RecoveryCoachView: View {
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)
             .fixedSize(horizontal: false, vertical: true)
+            // The same percentage drawn against a 0 to 5% scale, so "how much" is seen.
+            VStack(spacing: Tide.s1) {
+                TideLevelBar(
+                    progress: min(max(sweat.percentBodyMassLost / 5, 0), 1),
+                    color: sweat.percentBodyMassLost >= 5 ? Tide.danger : Tide.water,
+                    height: Tide.bar
+                )
+                HStack {
+                    Text("0%")
+                    Spacer(minLength: Tide.s2)
+                    Text("5% of your weight")
+                }
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+            }
+            .padding(.top, Tide.s1)
+            .accessibilityHidden(true)
             if sweat.meetsFivePercentTarget {
                 Label("Within 5% (95% range)", systemImage: "checkmark.seal")
                     .font(Tide.caption)
@@ -380,11 +415,7 @@ struct RecoveryCoachView: View {
 
     private func planLine(icon: String, color: Color, title: String, detail: String?) -> some View {
         HStack(alignment: .top, spacing: Tide.s3) {
-            Image(systemName: icon)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(color)
-                .frame(width: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+            TideIconTile(systemName: icon, tint: color, size: Tide.hit - Tide.s2)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
                     .font(Tide.bodyStrong)
@@ -402,7 +433,8 @@ struct RecoveryCoachView: View {
 
     private var fluidRow: some View {
         Button { showFluids = true } label: {
-            HStack(spacing: Tide.s3) {
+            // The value sits beside the words; under them at accessibility sizes.
+            fluidRowLayout {
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("What you drank")
                         .font(Tide.bodyStrong)
@@ -413,18 +445,24 @@ struct RecoveryCoachView: View {
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: Tide.s2)
-                if let liters = model.fluids.liters {
-                    TideNumber(RecoveryCoachFormat.fluid(liters), size: Tide.numeralS, relativeTo: .headline, color: Tide.water)
-                } else {
-                    Text("Unknown")
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.water)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
                 }
-                Image(systemName: "chevron.right")
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text3)
-                    .accessibilityHidden(true)
+                HStack(spacing: Tide.s2) {
+                    if let liters = model.fluids.liters {
+                        TideNumber(RecoveryCoachFormat.fluid(liters), size: Tide.numeralS, relativeTo: .headline, color: Tide.water)
+                    } else {
+                        Text("Unknown")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.water)
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                }
             }
             .frame(minHeight: Tide.hit)
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -432,6 +470,13 @@ struct RecoveryCoachView: View {
         }
         .buttonStyle(FuelPressStyle())
         .accessibilityIdentifier("coach.fluids")
+    }
+
+    /// The value sits beside the words; under them at accessibility sizes.
+    private var fluidRowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
     }
 
     private var fluidSummary: String {
