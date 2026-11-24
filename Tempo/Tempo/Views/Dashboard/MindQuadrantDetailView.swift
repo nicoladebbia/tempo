@@ -89,7 +89,9 @@ struct MindQuadrantDetailView: View {
     private var minutesToday: Int {
         let counted = todayRecords.first?.totalStudyMinutes ?? data.studyMinutesToday
         let hidden = allCompletedSessions.first { $0.id == pendingDeleteID }
-        let hiddenToday = hidden.map { $0.startTime >= Calendar.current.startOfDay(for: Date()) ? $0.durationMinutes : 0 } ?? 0
+        let hiddenToday = hidden.map {
+            $0.startTime >= Calendar.current.startOfDay(for: Date()) ? StudySessionRemoval.creditedMinutes(of: $0) : 0
+        } ?? 0
         return StudyTodayList.shownMinutes(counted: counted, removed: hiddenToday)
     }
 
