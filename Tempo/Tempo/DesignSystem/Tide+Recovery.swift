@@ -40,6 +40,19 @@ extension RecoveryZone {
     }
 }
 
+extension StrainLevel {
+    /// The strain gauge's zone colour: green below 10, amber to 14, orange to 18, red above.
+    var tideColor: Color {
+        switch self {
+        case .light,
+             .low: TideTone.mint
+        case .moderate: TideTone.amber
+        case .moderateHigh: Tide.streak
+        case .overreaching: Tide.danger
+        }
+    }
+}
+
 // MARK: - TideSleepStage
 
 enum TideSleepStage {
@@ -472,6 +485,33 @@ private struct RecoveryGaugeArc: Shape {
             clockwise: false
         )
         return path
+    }
+}
+
+// MARK: - RecoveryStagesBar
+
+/// One night as a row of rounded segments, one per sleep stage, each as wide as
+/// its share of the night. Read aloud as a single value.
+struct RecoveryStagesBar: View {
+    let segments: [(minutes: Int, color: Color)]
+    let accessibilityValue: String
+
+    var body: some View {
+        let total = Double(segments.reduce(0) { $0 + $1.minutes })
+        GeometryReader { geo in
+            let gaps = Tide.hair * CGFloat(max(segments.count - 1, 0))
+            HStack(spacing: Tide.hair) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                    RoundedRectangle(cornerRadius: Tide.s1 + Tide.hair, style: .continuous)
+                        .fill(segment.color)
+                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * (total > 0 ? Double(segment.minutes) / total : 0)))
+                }
+            }
+        }
+        .frame(height: Tide.s8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sleep stages")
+        .accessibilityValue(accessibilityValue)
     }
 }
 

@@ -85,12 +85,27 @@ struct ProgressPhotoStore {
     /// Saves a photo and returns it. The folder is made on first use.
     @discardableResult
     func add(jpegData: Data, date: Date = Date()) throws -> ProgressPhoto {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try prepareFolder()
         let name = Self.fileName(for: date)
         let url = folder.appending(path: name)
         // Readable only while the phone is unlocked.
         try jpegData.write(to: url, options: [.atomic, .completeFileProtection])
         return ProgressPhoto(id: name, date: Self.date(fromFileName: name) ?? date, url: url)
+    }
+
+    /// Makes the folder and keeps it out of iCloud and computer backups: the
+    /// photos exist on this phone and nowhere else.
+    func prepareFolder() throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var url = folder
+        try url.setResourceValues(values)
+    }
+
+    /// Whether the folder is kept out of backups.
+    var isExcludedFromBackup: Bool {
+        (try? folder.resourceValues(forKeys: [.isExcludedFromBackupKey]))?.isExcludedFromBackup ?? false
     }
 
     /// Deletes one photo. Only a file in the folder, named like ours, can go.

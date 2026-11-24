@@ -208,3 +208,51 @@ enum RecoveryBalance {
         return "Moderate balance. Monitor how you feel and adjust training intensity day-by-day."
     }
 }
+
+// MARK: - StrainLevel
+
+/// What a day's strain (0 to 21) is called. The Recovery page and the Body page
+/// both name it from here, so one number never reads two ways.
+enum StrainLevel: Equatable {
+    case light
+    case low
+    case moderate
+    case moderateHigh
+    case overreaching
+
+    /// Nil for no reading or a value outside the 0 to 21 scale.
+    init?(strain: Double?) {
+        guard let strain else {
+            return nil
+        }
+        switch strain {
+        case 0 ..< 5: self = .light
+        case 5 ..< 10: self = .low
+        case 10 ..< 14: self = .moderate
+        case 14 ..< 18: self = .moderateHigh
+        case 18...: self = .overreaching
+        default: return nil
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .light: "Light"
+        case .low: "Low"
+        case .moderate: "Moderate"
+        case .moderateHigh: "Moderate-High"
+        case .overreaching: "Overreaching"
+        }
+    }
+
+    /// How hard to go today, from today's recovery score.
+    static func advice(recovery: Double?) -> String? {
+        guard let recovery else {
+            return nil
+        }
+        if recovery >= 80 {
+            return "Push it"
+        }
+        return recovery >= 50 ? "Moderate" : "Take it easy"
+    }
+}

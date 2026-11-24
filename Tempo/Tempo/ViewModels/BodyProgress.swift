@@ -142,6 +142,43 @@ enum BodyProgress {
         )
     }
 
+    enum Direction: Equatable {
+        case up
+        case down
+        case steady
+    }
+
+    /// Where a trend is heading. A weekly rate that would show as 0.0 is steady.
+    /// Nil when the trend has no rate yet.
+    static func direction(of trend: Trend) -> Direction? {
+        guard let rate = trend.weeklyRate else {
+            return nil
+        }
+        if abs(rate) < steadyBelowPerWeek {
+            return .steady
+        }
+        return rate > 0 ? .up : .down
+    }
+
+    /// A change smaller than this per week (kg, or points of body fat) reads as 0.0.
+    static let steadyBelowPerWeek = 0.05
+
+    /// The number for a stored value in the display unit: kg or lbs for weight and
+    /// lean mass, percent for body fat. "80", "80.2", "18.1".
+    static func displayNumber(_ storedValue: Double, metric: BodyMetric, unit: WeightUnit) -> String {
+        WeightFormat.number(displayValue(storedValue, metric: metric, unit: unit))
+    }
+
+    /// A stored value in the display unit.
+    static func displayValue(_ storedValue: Double, metric: BodyMetric, unit: WeightUnit) -> Double {
+        metric == .bodyFat ? storedValue : WeightUnit.kg.convert(storedValue, to: unit)
+    }
+
+    /// "kg", "lbs" or "%".
+    static func unitLabel(metric: BodyMetric, unit: WeightUnit) -> String {
+        metric == .bodyFat ? "%" : unit.abbreviation
+    }
+
     /// Value per day of the straight line that best fits the points.
     static func leastSquaresSlope(_ points: [Point]) -> Double? {
         guard let origin = points.first?.date, points.count >= 2 else {

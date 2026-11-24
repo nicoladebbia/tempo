@@ -196,6 +196,43 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(profile.currentWeightKg, latest.kg, accuracy: 0.001, "Fuel profile weight must match the latest weigh-in")
     }
 
+    func testBodyProgressHasWeighInsWithBodyFatSleepStagesAndThreePhotos() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "scenario-photos-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photoStore = ProgressPhotoStore(folder: folder)
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+
+        // Weigh-ins: all three readings, one real measurement a day, trending up.
+        let snapshots = fetchAll(BodyComposition.self).map(BodySnapshot.init)
+        let measurements = BodyProgress.measurements(from: snapshots)
+        XCTAssertGreaterThan(measurements.count, 20)
+        XCTAssertTrue(measurements.allSatisfy { $0.weightKg != nil && $0.bodyFatPercent != nil && $0.leanMassKg != nil })
+        let weight = BodyProgress.series(.weight, from: measurements, days: nil, now: Date())
+        let trend = try XCTUnwrap(BodyProgress.trend(of: weight))
+        XCTAssertEqual(trend.weeklyRate ?? 0, 0.25, accuracy: 0.08)
+
+        // The Body page's sleep stages and week of recovery.
+        let recovery = fetchAll(DailyRecovery.self)
+        let todayRow = try XCTUnwrap(recovery.first { cal.isDate($0.date, inSameDayAs: today()) })
+        XCTAssertNotNil(SleepStageMinutes(
+            deep: todayRow.deepSleepMin, rem: todayRow.remSleepMin, light: todayRow.lightSleepMin, awake: todayRow.awakeMin
+        ))
+        XCTAssertGreaterThanOrEqual(
+            RecoveryWindow.select(recovery.map(RecoveryViewModel.reading(from:)), days: 7, endingOn: Date()).count, 6
+        )
+
+        // Photos: three, oldest 8 weeks ago, newest today.
+        let photos = photoStore.photos()
+        XCTAssertEqual(photos.count, 3)
+        XCTAssertTrue(try cal.isDate(XCTUnwrap(photos.first).date, inSameDayAs: today()))
+        let oldest = try XCTUnwrap(photos.last).date
+        XCTAssertEqual(cal.dateComponents([.day], from: oldest, to: Date()).day, 56)
+
+        // Seeding again must not double the photos.
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+        XCTAssertEqual(photoStore.photos().count, 3)
+    }
+
     func testAthleteMealsHitTheirTargetsAndFeedTheAdaptiveEstimate() throws {
         ScenarioSeed.seed("athlete", context: context)
         let yesterday = try XCTUnwrap(cal.date(byAdding: .day, value: -1, to: today()))
@@ -239,7 +276,9 @@ final class ScenarioSeedTests: XCTestCase {
         let days = fetchAll(DailyAccountability.self).filter { $0.date < today() }.sorted { $0.date > $1.date }
         var run = 0
         for day in days {
-            guard day.allComplete else { break }
+            guard day.allComplete else {
+                break
+            }
             run += 1
         }
         let streak = try XCTUnwrap(fetchAll(Streak.self).first { $0.type == .overall })
@@ -327,7 +366,7 @@ final class ScenarioSeedTests: XCTestCase {
         }
         let settings = try XCTUnwrap(fetchAll(UserSettings.self).first)
         XCTAssertTrue(settings.examMode)
-        XCTAssertEqual(daysAgo(try XCTUnwrap(settings.examModeEndDate)), -4)
+        XCTAssertEqual(try daysAgo(XCTUnwrap(settings.examModeEndDate)), -4)
         // The training and overall streaks broke when the workouts stopped; study didn't.
         let streaks = Dictionary(uniqueKeysWithValues: fetchAll(Streak.self).map { ($0.type, $0) })
         XCTAssertEqual(streaks[.overall]?.currentCount, 0)
@@ -337,7 +376,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testInjuredHasSixWeeksThenAPauseAndAKneeReportFourDaysAgo() throws {
         ScenarioSeed.seed("injured", context: context)
         let workouts = fetchAll(WorkoutPlan.self).filter { $0.status == .completed }.sorted { $0.date < $1.date }
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(workouts.first).date), 6 * 7)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(workouts.first).date), 6 * 7)
         XCTAssertGreaterThanOrEqual(workouts.count, 21)
         XCTAssertEqual(workouts.filter { daysAgo($0.date) < 4 }.count, 0, "nothing trained since the injury")
 
@@ -367,7 +406,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testLapsedProHasTenWeeksThatStopThreeWeeksAgo() throws {
         ScenarioSeed.seed("lapsed-pro", context: context)
         func newest(_ dates: [Date], _ what: String) throws -> Int {
-            daysAgo(try XCTUnwrap(dates.max(), "no \(what)"))
+            try daysAgo(XCTUnwrap(dates.max(), "no \(what)"))
         }
         func oldest(_ dates: [Date]) -> Int {
             daysAgo(dates.min() ?? Date())
@@ -398,7 +437,7 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(overall.currentCount, 0)
         XCTAssertGreaterThan(overall.longestCount, 30)
         XCTAssertFalse(overall.isActive)
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(overall.lastCompletedDate)), 22)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(overall.lastCompletedDate)), 22)
         // The fresh food in the pantry went off while they were away.
         XCTAssertTrue(fetchAll(PantryItem.self).contains { ($0.useBy ?? .distantFuture) < Date() })
     }

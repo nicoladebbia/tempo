@@ -116,28 +116,10 @@ struct RecoveryStrainSection: View {
     // MARK: - Helpers
 
     private var strainClassification: String {
-        guard let strain else {
-            return "No strain yet"
-        }
-        switch strain {
-        case 0 ..< 5: return "Light"
-        case 5 ..< 10: return "Low"
-        case 10 ..< 14: return "Moderate"
-        case 14 ..< 18: return "Moderate-High"
-        case 18...: return "Overreaching"
-        default: return "No strain yet"
-        }
+        StrainLevel(strain: strain)?.name ?? "No strain yet"
     }
 
     private var strainColor: Color {
-        guard let strain else {
-            return Tide.text3
-        }
-        switch strain {
-        case 0 ..< 10: return TideTone.mint
-        case 10 ..< 14: return TideTone.amber
-        case 14 ..< 18: return Tide.streak
-        default: return Tide.danger
-        }
+        StrainLevel(strain: strain)?.tideColor ?? Tide.text3
     }
 }

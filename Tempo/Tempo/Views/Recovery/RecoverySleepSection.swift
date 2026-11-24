@@ -105,21 +105,9 @@ struct RecoverySleepSection: View {
     }
 
     private var stagesBar: some View {
-        let total = Double(stageMinutes.reduce(0) { $0 + $1.minutes })
-        return GeometryReader { geo in
-            let gaps = Tide.hair * 3
-            HStack(spacing: Tide.hair) {
-                ForEach(Array(stageMinutes.enumerated()), id: \.offset) { _, stage in
-                    RoundedRectangle(cornerRadius: Tide.s1 + Tide.hair, style: .continuous)
-                        .fill(stage.color)
-                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * (total > 0 ? Double(stage.minutes) / total : 0)))
-                }
-            }
-        }
-        .frame(height: Tide.s8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Sleep stages")
-        .accessibilityValue(
+        RecoveryStagesBar(
+            segments: stageMinutes,
+            accessibilityValue:
             "Awake \(formatMinutes(viewModel.awakeMinutes)), light \(formatMinutes(viewModel.lightSleepMinutes)), "
                 + "deep \(formatMinutes(viewModel.deepSleepMinutes)), REM \(formatMinutes(viewModel.remSleepMinutes))"
         )

@@ -43,7 +43,10 @@ import SwiftData
         }
 
         @MainActor
-        static func seed(_ name: String, context: ModelContext, now: Date = Date()) {
+        static func seed(
+            _ name: String, context: ModelContext, now: Date = Date(),
+            photoStore: ProgressPhotoStore = ProgressPhotoStore()
+        ) {
             switch name {
             case "fresh": // brand-new account, onboarding from the first screen
                 break
@@ -69,6 +72,9 @@ import SwiftData
                 edge(context)
             case "athlete": // 8 weeks of consistent training, meals, green recovery, long streak
                 seedPersona(.athlete, context: context, now: now)
+            case "body-progress": // athlete history (weigh-ins with body fat, 8 weeks of recovery) + 3 sample progress photos on this phone
+                seedPersona(.athlete, context: context, now: now)
+                ProgressPhotoSeed.seed(now: now, store: photoStore)
             case "picky-vegan": // vegan with nut/soy/mushroom/cilantro limits, 3 weeks of meals that respect them
                 seedPersona(.pickyVegan, context: context, now: now)
             case "exam-week": // student with exams this week: sleep dropping, recovery yellow/red, fewer workouts
