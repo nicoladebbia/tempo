@@ -28,11 +28,18 @@ struct ScheduleSettingsDetailView: View {
     private var bedtime = Date()
     @State
     private var leisureTime = Date()
+    /// The three times above start as placeholders until `loadSettings` runs.
+    @State
+    private var hasLoaded = false
 
     var body: some View {
         TideSettingsPage {
-            // Sleep-window summary (computed from bedtime → wake).
+            // Sleep-window summary (computed from bedtime → wake). Hidden until the
+            // saved times are in, and rebuilt then, so the ring never plays a
+            // sweep from placeholder values.
             sleepWindowCard
+                .id(hasLoaded)
+                .opacity(hasLoaded ? 1 : 0)
 
             SettingsFormCard(
                 title: "Daily rhythm",
@@ -147,7 +154,7 @@ struct ScheduleSettingsDetailView: View {
         let awake = day - night - windDown
         let wake = Double(minutes(wakeTime)) / day
         return [
-            SettingsArc(id: "day", start: wake, length: awake / day, color: Tide.text.opacity(0.28)),
+            SettingsArc(id: "day", start: wake, length: awake / day, color: Tide.settingsDay),
             SettingsArc(id: "wind", start: wake + awake / day, length: windDown / day, color: Tide.streak),
             SettingsArc(id: "night", start: wake + (awake + windDown) / day, length: night / day, color: Tide.settingsNight),
         ]
@@ -163,6 +170,7 @@ struct ScheduleSettingsDetailView: View {
     }
 
     private func loadSettings() {
+        defer { hasLoaded = true }
         guard let s = settings else {
             return
         }

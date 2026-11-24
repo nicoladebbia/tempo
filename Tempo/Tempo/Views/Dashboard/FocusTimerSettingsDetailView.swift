@@ -101,7 +101,9 @@ struct FocusTimerSettingsDetailView: View {
                 SettingsRing(arcs: cycleArcs) {
                     VStack(spacing: Tide.hair) {
                         HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                            TideNumber("\(cycleMinutes / 60)", unit: "h", size: Tide.numeralS, relativeTo: .title2)
+                            if cycleMinutes >= 60 {
+                                TideNumber("\(cycleMinutes / 60)", unit: "h", size: Tide.numeralS, relativeTo: .title2)
+                            }
                             TideNumber("\(cycleMinutes % 60)", unit: "m", size: Tide.numeralS, relativeTo: .title2)
                         }
                         .lineLimit(1)

@@ -47,6 +47,8 @@ extension Tide {
     static let settingsBigTile: CGFloat = 52
     /// A night: sleep reads as a cool, quiet colour on every mood.
     static let settingsNight = fat
+    /// The waking part of the day dial: a quiet neutral, so wind-down and night stand out.
+    static let settingsDay = Tide.text.opacity(0.28)
 }
 
 // MARK: - TideSettingsHairline
@@ -206,7 +208,7 @@ struct TideSettingsHero<Content: View>: View {
     }
 }
 
-// MARK: - Press (cards)
+// MARK: - TideSettingsCardPressStyle
 
 /// A card that opens something dips a little under the finger.
 struct TideSettingsCardPressStyle: ButtonStyle {
@@ -217,7 +219,7 @@ struct TideSettingsCardPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - Avatar
+// MARK: - TideSettingsAvatar
 
 /// The initial of the person's name on the mood colour. Text on the accent is
 /// ink, because the accent is a light colour.
@@ -231,7 +233,9 @@ struct TideSettingsAvatar: View {
     private var scaledScale = 1.0
 
     /// The picture grows with the text, but never past one and a half times.
-    private var scale: CGFloat { min(scaledScale, 1.5) }
+    private var scale: CGFloat {
+        min(scaledScale, 1.5)
+    }
 
     var body: some View {
         Text(initial)
@@ -243,8 +247,7 @@ struct TideSettingsAvatar: View {
     }
 }
 
-
-// MARK: - Rings (hero pieces)
+// MARK: - SettingsArc
 
 /// One coloured stretch of a ring, as fractions of the full turn from the top.
 struct SettingsArc: Identifiable {
@@ -256,12 +259,16 @@ struct SettingsArc: Identifiable {
     let color: Color
 }
 
+// MARK: - SettingsRingMarker
+
 /// A time marked on a ring: a dot sitting on the line.
 struct SettingsRingMarker: Identifiable {
     let id: String
     let position: Double
     let color: Color
 }
+
+// MARK: - SettingsRing
 
 /// Arcs of colour round a dark track, dots on the line, and whatever the
 /// caller puts in the middle. Moving an arc animates with the Tide snap.
@@ -275,7 +282,9 @@ struct SettingsRing<Center: View>: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    private var diameter: CGFloat { min(scaledDiameter, Tide.settingsDialCap) }
+    private var diameter: CGFloat {
+        min(scaledDiameter, Tide.settingsDialCap)
+    }
 
     var body: some View {
         ZStack {
@@ -294,7 +303,8 @@ struct SettingsRing<Center: View>: View {
                     .fill(Tide.text)
                     .overlay(Circle().strokeBorder(marker.color, lineWidth: Tide.hair * 2))
                     .frame(width: Tide.settingsMarker, height: Tide.settingsMarker)
-                    .offset(Self.offset(of: marker.position, radius: diameter / 2))
+                    // On the middle of the stroke, not its outer edge.
+                    .offset(Self.offset(of: marker.position, radius: (diameter - Tide.settingsDialLine) / 2))
             }
             center
                 .padding(Tide.settingsDialLine + Tide.s2)
@@ -409,6 +419,21 @@ struct SettingsModeCard<Extra: View>: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    /// The switch, carrying an identifier only where a test drives it.
+    @ViewBuilder
+    private var switchControl: some View {
+        let control = Toggle(title, isOn: $isOn)
+            .labelsHidden()
+            .disabled(isDisabled)
+        if let identifier {
+            control.accessibilityIdentifier(identifier)
+        } else {
+            control
+        }
+    }
 
     var body: some View {
         let color = tint ?? mood.accent
@@ -431,15 +456,12 @@ struct SettingsModeCard<Extra: View>: View {
                 if !typeSize.isAccessibilitySize {
                     Spacer(minLength: Tide.s2)
                 }
-                Toggle(title, isOn: $isOn)
-                    .labelsHidden()
-                    .disabled(isDisabled)
-                    .accessibilityIdentifier(identifier ?? "")
+                switchControl
             }
             extra
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        .animation(Tide.snap, value: isOn)
+        .animation(reduceMotion ? nil : Tide.snap, value: isOn)
     }
 }
 
