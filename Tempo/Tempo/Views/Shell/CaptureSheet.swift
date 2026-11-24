@@ -96,10 +96,7 @@ struct CaptureSheet: View {
 
     private var waterRow: some View {
         HStack(spacing: Tide.s4) {
-            Image(systemName: "drop.fill")
-                .font(.title2)
-                .foregroundStyle(Tide.water)
-                .frame(width: Tide.hit, height: Tide.hit)
+            TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text("Water today").tideLabel()
                 TideNumber(waterTotal.formatted(), unit: "ml", size: Tide.numeralSheet)
@@ -144,21 +141,18 @@ struct CaptureSheet: View {
             onAction(action)
         } label: {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                Image(systemName: action.icon)
-                    .font(.title2)
-                    .foregroundStyle(mood.accent)
-                    .frame(height: Tide.icon, alignment: .leading)
+                TideIconTile(systemName: action.icon, tint: mood.accent, size: Tide.hit)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(action.title).font(Tide.headline).foregroundStyle(Tide.text)
                     Text(action.detail).font(Tide.caption).foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: Tide.hit * 2, alignment: .topLeading)
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TideCardPressStyle())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("capture.\(action.rawValue)")
     }
