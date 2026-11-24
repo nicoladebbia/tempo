@@ -29,6 +29,8 @@ struct TodaySupplementsCard: View {
     private var reorderTarget: Supplement?
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         let board = makeBoard()
@@ -109,16 +111,44 @@ struct TodaySupplementsCard: View {
         .accessibilityIdentifier("today.supplements")
     }
 
+    /// Same header as the Water card: icon and label on the left, the count as
+    /// a numeral on the right, the bar under both.
     private func header(_ board: SupplementTodayBoard) -> some View {
         let fraction = board.total == 0 ? 0 : Double(board.takenCount) / Double(board.total)
-        return VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Today's supplements").tideLabel()
-                Spacer(minLength: Tide.s2)
-                Text(board.allTaken ? "All taken" : "Taken \(board.takenCount)/\(board.total)")
+        let title = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Image(systemName: "pills.fill")
+                .font(Tide.caption)
+                .foregroundStyle(board.allTaken ? Tide.Kitchen.good : mood.accent)
+                .accessibilityHidden(true)
+            Text("Today's supplements").tideLabel()
+        }
+        let count = HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+            if board.allTaken {
+                Text("All taken")
                     .font(Tide.bodyStrong)
-                    .foregroundStyle(board.allTaken ? Tide.Kitchen.good : Tide.text2)
+                    .foregroundStyle(Tide.Kitchen.good)
+            } else {
+                TideNumber("\(board.takenCount)", size: Tide.numeralS, relativeTo: .headline)
                     .contentTransition(.numericText())
+                Text("/ \(board.total) taken")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(board.allTaken ? "All supplements taken" : "Taken \(board.takenCount) of \(board.total)")
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    title
+                    Spacer(minLength: Tide.s2)
+                    count
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    title
+                    count
+                }
             }
             TideLevelBar(progress: fraction, color: board.allTaken ? Tide.Kitchen.good : mood.accent, height: Tide.bar)
                 .animation(Tide.lively, value: board.takenCount)
@@ -132,17 +162,20 @@ struct TodaySupplementsCard: View {
                 viewModel.openSupplement(row.dose.supplementID)
             } label: {
                 HStack(spacing: Tide.s3) {
-                    Image(systemName: row.dose.kind.icon)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(row.isTaken ? Tide.text3 : mood.accent)
-                        .frame(width: Tide.hit, height: Tide.hit)
-                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-                        .accessibilityHidden(true)
+                    // The kind icon gives way to the name at the accessibility sizes.
+                    if !typeSize.isAccessibilitySize {
+                        Image(systemName: row.dose.kind.icon)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(row.isTaken ? Tide.text3 : mood.accent)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                            .accessibilityHidden(true)
+                    }
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.dose.name)
                             .font(Tide.headline)
                             .foregroundStyle(row.isTaken ? Tide.text2 : Tide.text)
-                            .lineLimit(2)
+                            .lineLimit(typeSize.isAccessibilitySize ? 4 : 2)
                         detailLine(row)
                         if let macros = row.macrosLine {
                             Text(macros)
@@ -169,7 +202,7 @@ struct TodaySupplementsCard: View {
             Text(detailText(row))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
-                .lineLimit(1)
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
             if let days = row.lowDaysLeft {
                 Button {
                     reorderTarget = SupplementIntakeStore.supplement(id: row.dose.supplementID, name: row.dose.name, in: modelContext)

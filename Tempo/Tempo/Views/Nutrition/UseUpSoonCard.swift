@@ -49,13 +49,33 @@ struct UseUpSoonCard: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(spacing: Tide.s2) {
+            // Same header as the Water and Supplements cards: icon and label
+            // on the left, a live count on the right.
+            let title = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: "clock.badge.exclamationmark")
-                    .font(Tide.label)
+                    .font(Tide.caption)
                     .foregroundStyle(Tide.Kitchen.warn)
                     .accessibilityHidden(true)
                 Text("Use up soon").tideLabel()
-                Spacer()
+            }
+            let count = HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                TideNumber("\(expiryByName.count)", size: Tide.numeralS, relativeTo: .headline)
+                Text(expiryByName.count == 1 ? "item expiring" : "items expiring")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+            }
+            .accessibilityElement(children: .combine)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    title
+                    Spacer(minLength: Tide.s2)
+                    if !expiryByName.isEmpty { count }
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    title
+                    if !expiryByName.isEmpty { count }
+                }
             }
 
             VStack(spacing: 0) {
@@ -93,6 +113,13 @@ struct UseUpSoonCard: View {
             .sorted { $0.1 < $1.1 }
 
         return HStack(alignment: .center, spacing: Tide.s3) {
+            Image(systemName: "fork.knife")
+                .font(Tide.bodyStrong)
+                .dynamicTypeSize(.large)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(suggestion.recipeName)
                     .font(Tide.headline)
