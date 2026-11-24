@@ -37,32 +37,34 @@ struct MealOriginPicker: View {
     private var mood
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Picker("Where from", selection: Binding(
-                get: { origin },
-                set: { origin = $0; pickedByHand = true }
-            )) {
-                Text("Kitchen").tag(MealOrigin.kitchen)
-                Text("Ate out").tag(MealOrigin.out)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
+                tile(.kitchen, title: "Kitchen", icon: "refrigerator.fill")
+                tile(.out, title: "Ate out", icon: "takeoutbag.and.cup.and.straw.fill")
             }
-            .pickerStyle(.segmented)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Where from")
             .accessibilityIdentifier("mealOrigin")
-            if let headline {
-                Text(headline)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                if let headline {
+                    Text(headline)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("mealOriginHeadline")
+                }
+                Text(detail)
                     .font(Tide.caption)
-                    .foregroundStyle(Tide.text)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("mealOriginHeadline")
+                    .accessibilityIdentifier("mealOriginDetail")
             }
-            Text(detail)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("mealOriginDetail")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(Tide.snap, value: origin)
             Button {
                 showHomeSetting = true
             } label: {
-                Text(home == nil ? "Set home" : "Change home")
+                Label(home == nil ? "Set home" : "Change home", systemImage: "house")
                     .font(Tide.caption)
                     .foregroundStyle(mood.accent)
                     .frame(minHeight: Tide.hit, alignment: .leading)
@@ -75,6 +77,25 @@ struct MealOriginPicker: View {
         .sheet(isPresented: $showHomeSetting, onDismiss: { Task { await refresh() } }) {
             HomeLocationSettingView()
         }
+    }
+
+    /// One of the two answers: soft fill, accent ring when it is the one picked.
+    private func tile(_ value: MealOrigin, title: String, icon: String) -> some View {
+        let selected = origin == value
+        return Button {
+            HapticManager.selection()
+            origin = value
+            pickedByHand = true
+        } label: {
+            Label(title, systemImage: icon)
+                .font(Tide.bodyStrong)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity)
+                .fuelChoice(selected: selected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var headline: String? {

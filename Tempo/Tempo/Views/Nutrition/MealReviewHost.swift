@@ -200,27 +200,22 @@ struct MealReviewHost: ViewModifier {
                     },
                     onCancel: {}
                 )
-            }
-            .alert(
-                "Already logged",
-                isPresented: Binding(get: { duplicate != nil }, set: {
-                    if !$0 {
-                        duplicate = nil
-                    }
-                }),
-                presenting: duplicate
-            ) { pending in
-                Button("Add another") {
-                    finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
+                // Asked on top of the review it came from, so Cancel lands back on it.
+                .sheet(item: $duplicate) { pending in
+                    FuelDecisionSheet(
+                        icon: "square.on.square",
+                        title: "Already logged",
+                        message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
+                        chips: pending.names,
+                        primaryTitle: "Add another",
+                        primary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add) },
+                        secondaryTitle: "Edit existing",
+                        secondary: { finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit) },
+                        cancel: { duplicate = nil }
+                    )
                 }
-                Button("Edit existing") {
-                    finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { pending in
-                Text(
-                    "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?"
-                )
+                // The sheet is its own page, even when it comes up from inside one.
+                .environment(\.tideInsidePage, false)
             }
     }
 

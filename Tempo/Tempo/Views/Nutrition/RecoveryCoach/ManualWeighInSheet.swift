@@ -74,14 +74,27 @@ struct ManualWeighInSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s5) {
-                    Picker("When", selection: $when) {
-                        ForEach(When.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    HStack(spacing: Tide.s2) {
+                        ForEach(When.allCases, id: \.self) { option in
+                            Button {
+                                HapticManager.selection()
+                                when = option
+                            } label: {
+                                Text(option.rawValue)
+                                    .font(Tide.bodyStrong)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, Tide.s2)
+                                    .frame(maxWidth: .infinity)
+                                    .fuelChoice(selected: when == option)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(when == option ? .isSelected : [])
+                        }
                     }
-                    .pickerStyle(.segmented)
                     .onChange(of: when) { _, new in time = Self.defaultTime(for: new, session: session) }
-                    .sensoryFeedback(.selection, trigger: when)
 
-                    HStack(alignment: .center, spacing: Tide.s3) {
+                    // The number is the hero: big, centred, with the unit beside it.
+                    VStack(spacing: Tide.s3) {
                         TextField(useLb ? "172" : "78.0", text: $text)
                             .keyboardType(.decimalPad)
                             .focused($focused)
@@ -89,14 +102,23 @@ struct ManualWeighInSheet: View {
                             .foregroundStyle(Tide.text)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("coach.weightField")
-                        Picker("Unit", selection: $useLb) {
-                            Text("kg").tag(false)
-                            Text("lb").tag(true)
+                        HStack(spacing: Tide.s2) {
+                            ForEach([false, true], id: \.self) { lb in
+                                Button {
+                                    HapticManager.selection()
+                                    useLb = lb
+                                } label: {
+                                    Text(lb ? "lb" : "kg")
+                                        .font(Tide.bodyStrong)
+                                        .frame(minWidth: Tide.s10)
+                                        .fuelChip(selected: useLb == lb)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(useLb == lb ? .isSelected : [])
+                            }
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: unitWidth)
-                        .sensoryFeedback(.selection, trigger: useLb)
                     }
+                    .frame(maxWidth: .infinity)
                     .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
                     DatePicker("Time", selection: $time, in: ...Date(), displayedComponents: [.date, .hourAndMinute])
@@ -106,16 +128,9 @@ struct ManualWeighInSheet: View {
                         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
 
                     if let error {
-                        Text(error)
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.danger)
-                            .fixedSize(horizontal: false, vertical: true)
+                        FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: error)
                             .accessibilityIdentifier("coach.weightError")
                     }
-
-                    Button("Save weight") { save() }
-                        .buttonStyle(.tidePrimary)
-                        .accessibilityIdentifier("coach.saveWeight")
 
                     Text(
                         "Same clothes (or none), towel-dry, after the toilet, before you drink. A weight from the 3 hours before the session works as your \"before\"."
@@ -130,8 +145,16 @@ struct ManualWeighInSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar {
+                Button("Save weight") { save() }
+                    .buttonStyle(.tidePrimary)
+                    .accessibilityIdentifier("coach.saveWeight")
+            }
         }
         .tidePage()
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
+        .animation(Tide.snap, value: error)
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
         .onAppear { focused = true }
     }
