@@ -395,7 +395,7 @@ struct ParsedFoodReviewSheet: View {
                         .foregroundStyle(Tide.text2)
                 }
                 Spacer(minLength: Tide.s2)
-                Text("\(Int(current.calories)) kcal")
+                Text("\(Int(current.calories.rounded())) kcal")
                     .font(Tide.body.weight(.semibold).monospacedDigit())
                     .contentTransition(.numericText())
                     .foregroundStyle(Tide.text)

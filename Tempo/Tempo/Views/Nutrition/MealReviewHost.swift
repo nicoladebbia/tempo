@@ -16,6 +16,9 @@ extension Notification.Name {
     /// Posted after a meal was saved (or failed to), with an Undo when it can be taken back.
     /// `fuelLogToastHost()` shows it (see FuelLogToast).
     static let tempoMealLogToast = Notification.Name("tempoMealLogToast")
+    /// Posted when the Undo on a "logged" toast took the meal back, so a log screen
+    /// that was waiting to close knows it can stay open.
+    static let tempoFuelLogUndone = Notification.Name("tempoFuelLogUndone")
 }
 
 // MARK: - MealReviewRequest

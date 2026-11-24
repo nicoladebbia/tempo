@@ -1134,7 +1134,7 @@ struct MealDetailView: View {
                                     .font(Tide.caption).monospacedDigit()
                                     .foregroundStyle(Tide.text3)
                             }
-                            Text("\(Int(food.calories)) kcal")
+                            Text("\(Int(food.calories.rounded())) kcal")
                                 .font(Tide.bodyStrong).monospacedDigit()
                                 .foregroundStyle(Tide.text)
                         }

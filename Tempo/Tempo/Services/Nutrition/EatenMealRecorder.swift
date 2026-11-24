@@ -24,6 +24,8 @@
 import Foundation
 import SwiftData
 
+// MARK: - EatenMealRecorder
+
 @MainActor
 enum EatenMealRecorder {
     /// How to treat foods that already exist in an already-eaten meal.
@@ -172,7 +174,8 @@ enum EatenMealRecorder {
         switch origin {
         case .kitchen?: foods.filter { $0.origin != .out }
         case .mixed?: foods.filter { $0.origin == .kitchen }
-        case .out?, nil: []
+        case .out?,
+             nil: []
         }
     }
 
@@ -452,7 +455,6 @@ enum EatenMealRecorder {
             try MealOutcomeService.undo(meal, env: env)
             return true
         }
-        PantryDecrementService.creditExact(details: snapshot.deducted, modelContext: ctx)
         // An edit of a plan slot parked the planned dish: it was the foods the
         // meal had before, so putting it back also brings the recipe back.
         if meal.replacedPlanJSON != nil, !snapshot.hadStashedPlan {
@@ -473,6 +475,9 @@ enum EatenMealRecorder {
         meal.didDecrementPantry = snapshot.didDecrementPantry
         revertLegacyLog(of: meal, snapshot: snapshot, in: ctx)
         try commit(ctx)
+        // The pantry only gets its food back once the meal really changed back, so a
+        // failed save cannot leave the shelf fuller than the log says.
+        PantryDecrementService.creditExact(details: snapshot.deducted, modelContext: ctx)
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return true
     }
@@ -677,11 +682,16 @@ enum EatenMealRecorder {
         let factor: Double = switch unit {
         case "kg": 1000
         case "oz": 28.3495
-        case "lb", "lbs": 453.592
+        case "lb",
+             "lbs": 453.592
         case "floz": 29.5735
         case "cl": 10
         case "dl": 100
-        case "l", "liter", "liters", "litre", "litres": 1000
+        case "l",
+             "liter",
+             "liters",
+             "litre",
+             "litres": 1000
         default: 1 // g, gr, gram(s), ml
         }
         return number * factor

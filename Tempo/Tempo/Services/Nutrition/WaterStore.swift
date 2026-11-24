@@ -17,6 +17,8 @@ extension Notification.Name {
     static let tempoWaterLogged = Notification.Name("tempo.water.logged")
 }
 
+// MARK: - WaterStore
+
 @MainActor
 final class WaterStore {
     /// Largest single entry accepted (a typo guard, not a medical limit).
@@ -36,6 +38,14 @@ final class WaterStore {
     /// Total ml saved for `day`'s calendar date.
     static func total(on day: Date = Date(), in context: ModelContext) -> Int {
         entries(on: day, in: context).reduce(0) { $0 + $1.ml }
+    }
+
+    /// Total ml logged between two moments (the coach reads it for a session window).
+    static func total(from start: Date, to end: Date, in context: ModelContext) -> Int {
+        let descriptor = FetchDescriptor<WaterIntakeLog>(
+            predicate: #Predicate<WaterIntakeLog> { $0.loggedAt >= start && $0.loggedAt <= end }
+        )
+        return ((try? context.fetch(descriptor)) ?? []).reduce(0) { $0 + $1.ml }
     }
 
     func total(on day: Date = Date()) -> Int {

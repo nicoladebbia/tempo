@@ -40,6 +40,9 @@ struct MealLoggingView: View {
     /// tap can't log the same meal twice.
     @State
     private var didLog = false
+    /// The delayed close of an unhosted screen; an Undo cancels it.
+    @State
+    private var closeTask: Task<Void, Never>?
     @State
     private var originPickedByHand = false
     @State
@@ -259,6 +262,12 @@ struct MealLoggingView: View {
             // Below this, Fuel log toasts show here when nothing under the
             // screen shows them.
             .fuelLogToastHost()
+            // Undo took the meal back: stay open so it can be logged again.
+            .onReceive(NotificationCenter.default.publisher(for: .tempoFuelLogUndone)) { _ in
+                closeTask?.cancel()
+                closeTask = nil
+                didLog = false
+            }
             // A repeat is a question with two answers, so it gets a page of its
             // own with the answer under the thumb.
             .sheet(item: $quickDuplicate) { pending in
@@ -785,8 +794,12 @@ struct MealLoggingView: View {
             dismiss()
         } else {
             // Nothing under this screen shows toasts: stay up for the Undo.
-            DispatchQueue.main.asyncAfter(deadline: .now() + FuelLogToast.undoWindow) {
-                dismiss()
+            closeTask?.cancel()
+            closeTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(FuelLogToast.undoWindow))
+                if !Task.isCancelled {
+                    dismiss()
+                }
             }
         }
     }

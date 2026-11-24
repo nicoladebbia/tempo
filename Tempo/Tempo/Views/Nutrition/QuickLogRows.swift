@@ -161,26 +161,29 @@ struct QuickLogRows: View {
     }
 
     private func togglePin(_ choice: Choice) {
-        if let preset = choice.preset {
-            preset.isPinned.toggle()
-        } else {
-            // A derived row becomes a saved meal, pinned.
-            let foods = choice.foods.map(EatenMealRecorder.plannedFood(from:))
-            guard (try? MealOutcomeService.savePreset(
-                name: choice.title, foods: foods, mealType: choice.type, isPinned: true, modelContext: modelContext
-            )) != nil
-            else {
-                return
+        do {
+            if let preset = choice.preset {
+                try MealOutcomeService.setPinned(preset, to: !preset.isPinned, modelContext: modelContext)
+            } else {
+                // A derived row becomes a saved meal, pinned.
+                let foods = choice.foods.map(EatenMealRecorder.plannedFood(from:))
+                _ = try MealOutcomeService.savePreset(
+                    name: choice.title, foods: foods, mealType: choice.type, isPinned: true, modelContext: modelContext
+                )
             }
+            HapticManager.lightImpact()
+        } catch {
+            FuelLogToast.post(ToastData(message: "Couldn't save that change. Try again.", style: .error))
         }
-        try? modelContext.save()
-        HapticManager.lightImpact()
     }
 
     private func delete(_ preset: MealPreset) {
-        modelContext.delete(preset)
-        try? modelContext.save()
-        HapticManager.lightImpact()
+        do {
+            try MealOutcomeService.deletePreset(preset, modelContext: modelContext)
+            HapticManager.lightImpact()
+        } catch {
+            FuelLogToast.post(ToastData(message: "Couldn't remove that meal. Try again.", style: .error))
+        }
     }
 }
 

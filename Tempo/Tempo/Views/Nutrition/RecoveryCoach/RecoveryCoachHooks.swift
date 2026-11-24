@@ -94,12 +94,7 @@ private struct RecoveryCoachHooks: ViewModifier {
         return RecoveryCoachModel(
             api: LiveRecoveryCoachAPI(apiClient: services.apiClient),
             healthKit: services.healthKit,
-            waterMl: { from, to in
-                let descriptor = FetchDescriptor<WaterIntakeLog>(
-                    predicate: #Predicate<WaterIntakeLog> { $0.loggedAt >= from && $0.loggedAt <= to }
-                )
-                return ((try? context.fetch(descriptor)) ?? []).reduce(0) { $0 + $1.ml }
-            },
+            waterMl: { from, to in WaterStore.total(from: from, to: to, in: context) },
             location: CoreLocationFixProvider()
         )
     }

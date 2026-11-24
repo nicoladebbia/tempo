@@ -38,6 +38,7 @@ enum FuelLogToast {
             let env = MealOutcomeService.Env(modelContext: modelContext, notifications: notifications)
             do {
                 if try EatenMealRecorder.undoLog(result, env: env) {
+                    NotificationCenter.default.post(name: .tempoFuelLogUndone, object: nil)
                     post(ToastData(message: "Log taken back.", style: .info))
                 }
             } catch {

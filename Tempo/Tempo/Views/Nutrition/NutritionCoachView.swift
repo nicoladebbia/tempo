@@ -111,6 +111,13 @@ struct NutritionCoachView: View {
             viewModel.loadRecoveryData(whoop: services.whoop)
             waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
         }
+        // The tips quote the Water card's target, so they follow it when it moves.
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWaterLogged)) { _ in
+            waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+            waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
+        }
         .task(id: insightTrigger) {
             await loadInsights()
         }

@@ -23,7 +23,7 @@ struct NotificationDestination: Equatable {
     /// Kitchen sub-section (implies the Kitchen section).
     var kitchenSection: KitchenSection?
     var meal: MealRequest?
-    /// Open the Recovery Coach for this WHOOP session (id is a UUID string).
+    /// Open Fuel > Coach for this WHOOP session (id is a UUID string).
     var coachSessionID: String?
     /// Open the weekly check-in sheet.
     var weeklyCheckIn = false

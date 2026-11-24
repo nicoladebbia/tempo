@@ -283,6 +283,19 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 1)
     }
 
+    func testPinningAndRemovingASavedMeal() throws {
+        let foods = [PlannedFood(name: "Oats", quantityGrams: 80, calories: 300, proteinG: 10, carbsG: 50, fatG: 6)]
+        let preset = try MealOutcomeService.savePreset(
+            name: "Usual", foods: foods, mealType: .breakfast, modelContext: context
+        )
+        try MealOutcomeService.setPinned(preset, to: true, modelContext: context)
+        XCTAssertTrue(preset.isPinned)
+        try MealOutcomeService.setPinned(preset, to: false, modelContext: context)
+        XCTAssertFalse(preset.isPinned)
+        try MealOutcomeService.deletePreset(preset, modelContext: context)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 0)
+    }
+
     func testSavingTheSameMealAgainKeepsOneFavouriteAndPinsIt() throws {
         let foods = [PlannedFood(name: "Oats", quantityGrams: 80, calories: 300, proteinG: 10, carbsG: 50, fatG: 6)]
         let first = try MealOutcomeService.savePreset(

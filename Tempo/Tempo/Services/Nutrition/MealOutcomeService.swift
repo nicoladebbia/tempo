@@ -632,6 +632,25 @@ enum MealOutcomeService {
         return preset
     }
 
+    /// Pins or unpins a saved meal (a favourite sits at the top of the capture screen).
+    /// A failed save puts the star back where it was and throws.
+    static func setPinned(_ preset: MealPreset, to pinned: Bool, modelContext: ModelContext) throws {
+        let before = preset.isPinned
+        preset.isPinned = pinned
+        do {
+            try save(modelContext)
+        } catch {
+            preset.isPinned = before
+            throw error
+        }
+    }
+
+    /// Removes a saved meal. Meals already logged from it stay as they are.
+    static func deletePreset(_ preset: MealPreset, modelContext: ModelContext) throws {
+        modelContext.delete(preset)
+        try save(modelContext)
+    }
+
     // MARK: - Shared helpers
 
     /// Today's canonical meals in clock order.
