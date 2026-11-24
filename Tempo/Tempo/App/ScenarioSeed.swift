@@ -60,6 +60,10 @@ import SwiftData
             case "training": // onboarded + trainer program with a guided run today
                 onboarded(context)
                 GuidedRunUITestSeed.seed(context: context)
+            case "trainer-full": // onboarded + running trainer program with logged sessions, 3 trainer change batches, a skipped day, a
+                // queued and 2 past programs
+                onboarded(context)
+                TrainerPageScenarioSeed.seed(context: context, now: now)
             case "coach": // onboarded + a match kickoff in 3 h (pre-match weigh-in reminder due in 2 h) for the Recovery Coach loop
                 onboarded(context)
                 RecoveryCoachStore.shared.update { $0 = RecoveryCoachState() }

@@ -2,14 +2,14 @@
 // TrainerProgramView.swift
 // Tempo
 //
-// "Trainer Program": the athlete's own coach's program, imported from a
-// photo/PDF/pasted text. Shows the active program (weeks/days summary,
-// current week, repeats/ends + start-date controls, deactivate/delete),
-// past programs (activate one — only one active at a time), and the entry
-// point into the import flow. Reached from the Training tab's ☰ menu.
-//
-// Only ONE edit to an existing Training file backs this screen
-// (TrainingTabView's menu link) — everything else here is new.
+// "Trainer Program": the one page for the athlete's own coach. The active
+// program (completion so far, weeks, repeats and start-date controls, edit,
+// pause, delete), the report to send back to the trainer, the changes the
+// trainer sent (`TrainerChangesSection`), the programs queued next and the
+// past programs with how much of each was done. The program is imported from
+// a photo, PDF or pasted text; the import stays one tap away (the + button,
+// or the bottom button before there is a program). Reached from the Train
+// tab's ☰ menu.
 //
 
 import SwiftData
@@ -51,6 +51,9 @@ struct TrainerProgramView: View {
     /// inside `body`, which re-runs on every render.
     @State
     private var complianceStats: TrainerProgramHistoryStats.Stats?
+    /// The same numbers for each past program, by program id.
+    @State
+    private var pastStats: [UUID: TrainerProgramHistoryStats.Stats] = [:]
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
@@ -58,14 +61,25 @@ struct TrainerProgramView: View {
 
     /// What the compliance numbers depend on among the program's own fields.
     private var complianceKey: String {
-        guard let program = activeProgram else {
-            return "none"
-        }
-        return "\(program.id)-\(program.startDate.timeIntervalSince1970)-\(program.weeks.count)-\(program.skippedSessions.count)-\(program.scheduleMode.rawValue)"
+        let past = pastPrograms.map { "\($0.id)-\($0.startDate.timeIntervalSince1970)-\($0.endedAt?.timeIntervalSince1970 ?? 0)" }
+        let active = activeProgram.map {
+            "\($0.id)-\($0.startDate.timeIntervalSince1970)-\($0.weeks.count)-\($0.skippedSessions.count)-\($0.scheduleMode.rawValue)"
+        } ?? "none"
+        return "\(active)|\(past.joined(separator: ","))"
     }
 
+    /// One fetch of the plans and overrides feeds every program's numbers.
     private func refreshCompliance() {
-        complianceStats = activeProgram.map { TrainerProgramHistoryStats.stats(for: $0, modelContext: modelContext) }
+        let plans = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>())) ?? []
+        let overrides = TrainerScheduleOverrides.fetch(modelContext: modelContext)
+        complianceStats = activeProgram.map {
+            TrainerProgramHistoryStats.stats(for: $0, plans: plans, overrides: overrides)
+        }
+        var past: [UUID: TrainerProgramHistoryStats.Stats] = [:]
+        for program in pastPrograms {
+            past[program.id] = TrainerProgramHistoryStats.stats(for: program, plans: plans, overrides: overrides)
+        }
+        pastStats = past
     }
 
     /// Fix #11(b) — queued to auto-activate later; not "past" (history) and
@@ -74,8 +88,8 @@ struct TrainerProgramView: View {
         programs.filter { !$0.isActive && $0.queuedActivationDate != nil }
     }
 
-    /// Fix #11(c) — archived (finished/replaced) programs live in
-    /// `TrainerProgramHistoryView`; a queued one isn't history yet.
+    /// Fix #11(c) — archived (finished/replaced) programs, listed under "Past
+    /// programs" with their completion; a queued one isn't history yet.
     private var pastPrograms: [TrainerProgram] {
         programs.filter { !$0.isActive && $0.queuedActivationDate == nil }
     }
@@ -94,16 +108,6 @@ struct TrainerProgramView: View {
 
             if !pastPrograms.isEmpty {
                 pastSection
-
-                // Fix #11(c) — same programs, read-only, with basic
-                // completion stats (sessions done / scheduled).
-                NavigationLink {
-                    TrainerProgramHistoryView()
-                } label: {
-                    TrainRowLabel(systemImage: "chart.bar.fill", title: "Completion Stats")
-                        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-                }
-                .buttonStyle(.trainCard)
             }
         }
         .tidePage()
@@ -114,6 +118,11 @@ struct TrainerProgramView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
             refreshCompliance()
+        }
+        // The one thing to do here sits under the thumb: send the report back
+        // to the trainer, or bring the program in when there is none yet.
+        .safeAreaBar(edge: .bottom) {
+            mainActionBar
         }
         .toolbar {
             if activeProgram != nil {
@@ -217,43 +226,60 @@ struct TrainerProgramView: View {
     // MARK: - Active program card
 
     private func activeCard(_ program: TrainerProgram) -> some View {
-        VStack(spacing: Tide.s4) {
-            programCard(program)
-            settingsCard(program)
+        VStack(spacing: Tide.s5) {
+            programHero(program)
+            TrainerChangesSection(program: program) {
+                feedbackProgram = program
+            }
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "Program settings")
+                settingsCard(program)
+            }
             actionsBlock(program)
         }
     }
 
-    private func programCard(_ program: TrainerProgram) -> some View {
-        TrainPlanCard {
-            HStack(alignment: .top, spacing: Tide.s2) {
+    /// The hero: how much of the program is done, with the program's name,
+    /// its weeks and where it stands in time under it.
+    private func programHero(_ program: TrainerProgram) -> some View {
+        let scheduled = complianceStats?.scheduled ?? 0
+        let percent = Int(((complianceStats?.fraction ?? 0) * 100).rounded())
+        var chips = ["Active"]
+        if let current = program.weekIndex(on: Date()), program.weeks.count > 1 {
+            chips.append("Week \(current + 1) of \(program.weeks.count)")
+        }
+        return TrainDayHero(
+            label: "Sessions done",
+            figure: complianceStats.map { "\($0.done)" } ?? "–",
+            unit: scheduled > 0 ? "of \(scheduled)" : nil,
+            caption: scheduled > 0 ? program.name : "\(program.name) · No sessions due yet.",
+            chips: chips
+        ) {
+            if scheduled > 0 {
+                TrainRing(progress: complianceStats?.fraction ?? 0, diameter: TideTrain.heroRing) {
+                    TideNumber("\(percent)", unit: "%", size: Tide.numeralS, relativeTo: .title2)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Completion")
+                .accessibilityValue("\(percent) percent")
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(program.name)
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
                     Text(summary(for: program))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
+                    // A repeating block's duration line only repeats the summary above.
+                    if program.cadence != .block || !program.repeats {
+                        Text(TrainerProgramDurationText.summary(for: program))
+                            .font(Tide.caption)
+                            .foregroundStyle(program.isFinished(on: Date()) ? TideTrain.caution : Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Spacer(minLength: Tide.s2)
-                TrainTag(text: "ACTIVE", color: Color.accentColor)
+                weekList(program)
             }
-
-            Text(TrainerProgramDurationText.summary(for: program))
-                .font(Tide.caption)
-                .foregroundStyle(program.isFinished(on: Date()) ? TideTrain.caution : Tide.text3)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Compliance: sessions actually done / scheduled so far.
-            if let complianceStats {
-                TrainerComplianceBar(stats: complianceStats, emptyText: "No sessions due yet.")
-            }
-
-            TrainPlanDivider()
-
-            weekList(program)
         }
     }
 
@@ -359,50 +385,6 @@ struct TrainerProgramView: View {
 
     private func actionsBlock(_ program: TrainerProgram) -> some View {
         VStack(spacing: Tide.s3) {
-            // Fix #8 — report the athlete's logged sessions back to the trainer.
-            Button {
-                reportProgram = program
-            } label: {
-                Label("Send Report to Trainer", systemImage: "paperplane")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.trainPlanSecondary)
-
-            // trainer-feedback-tests — paste/screenshot the trainer's reply,
-            // review the resulting diff, apply what's accepted.
-            Button {
-                feedbackProgram = program
-            } label: {
-                Label("Trainer Sent Changes", systemImage: "text.bubble")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.trainPlanSecondary)
-
-            if !program.changeLog.isEmpty {
-                NavigationLink {
-                    TrainerProgramChangeLogView(program: program)
-                } label: {
-                    HStack(spacing: Tide.s2) {
-                        Text("Changes from Trainer")
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: Tide.s2)
-                        Text("\(program.changeLog.count)")
-                            .font(TideTrain.figure(.footnote, weight: .semibold))
-                            .foregroundStyle(Tide.text2)
-                        Image(systemName: "chevron.right")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
-                            .accessibilityHidden(true)
-                    }
-                    .frame(minHeight: Tide.hit)
-                    .contentShape(.rect)
-                    .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-                }
-                .buttonStyle(.trainCard)
-            }
-
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Tide.s2) {
                     editButton(program)
@@ -424,6 +406,32 @@ struct TrainerProgramView: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    /// The page's main action, in the thumb zone. With a program: report the
+    /// logged sessions back to the trainer (the weekly job). Without one:
+    /// bring the trainer's program in.
+    @ViewBuilder
+    private var mainActionBar: some View {
+        if let activeProgram {
+            Button {
+                reportProgram = activeProgram
+            } label: {
+                Label("Send Report to Trainer", systemImage: "paperplane")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        } else {
+            Button {
+                showImport = true
+            } label: {
+                Label("Import from Trainer", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 
@@ -462,7 +470,7 @@ struct TrainerProgramView: View {
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                         Spacer(minLength: Tide.s2)
-                        Text("\(count) exercises")
+                        Text(TrainCount.text(count, "exercise"))
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                     }
@@ -471,7 +479,7 @@ struct TrainerProgramView: View {
                         Text(dayNames(week))
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
-                        Text("\(count) exercises")
+                        Text(TrainCount.text(count, "exercise"))
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                     }
@@ -517,20 +525,11 @@ struct TrainerProgramView: View {
     // MARK: - Queued programs (fix #11(b))
 
     private var emptyState: some View {
-        VStack(spacing: Tide.s4) {
-            TrainEmptyCard(
-                systemImage: "figure.strengthtraining.traditional",
-                title: "No Trainer Program",
-                message: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days."
-            )
-            Button {
-                showImport = true
-            } label: {
-                Text("Import from Trainer")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tidePrimary)
-        }
+        TrainEmptyCard(
+            systemImage: "figure.strengthtraining.traditional",
+            title: "No trainer program yet",
+            message: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days."
+        )
         .padding(.top, Tide.s4)
     }
 
@@ -576,16 +575,23 @@ struct TrainerProgramView: View {
         }
     }
 
+    /// A past program: what it was, how much of it was done, and Run / delete.
     private func pastRow(_ program: TrainerProgram) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Tide.s3) {
-                pastInfo(program)
-                Spacer(minLength: Tide.s2)
-                pastActions(program)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s3) {
+                    pastInfo(program)
+                    Spacer(minLength: Tide.s2)
+                    pastActions(program)
+                }
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    pastInfo(program)
+                    pastActions(program)
+                }
             }
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                pastInfo(program)
-                pastActions(program)
+            if let stats = pastStats[program.id] {
+                TrainPlanDivider()
+                TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
             }
         }
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
@@ -600,6 +606,10 @@ struct TrainerProgramView: View {
             Text(summary(for: program))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("\(TrainerProgramDurationText.historyText(for: program)) · \(program.scheduleMode.displayName)")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

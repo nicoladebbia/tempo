@@ -83,6 +83,30 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(count(TrainerProgram.self), 1)
     }
 
+    func testTrainerFullFillsEverySectionOfTheTrainerPage() throws {
+        let now = Date()
+        ScenarioSeed.seed("trainer-full", context: context, now: now)
+
+        let programs = try context.fetch(FetchDescriptor<TrainerProgram>())
+        XCTAssertEqual(programs.count, 4)
+        let active = try XCTUnwrap(programs.first { $0.isActive })
+        XCTAssertEqual(active.changeLog.count, 3)
+        XCTAssertEqual(active.changeLog.flatMap { $0.undoneSummaries ?? [] }.count, 1)
+        XCTAssertEqual(active.skippedSessions.count, 1)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(active.skippedSessions.first).date, Calendar.current.startOfDay(for: now))
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate != nil }.count, 1)
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate == nil }.count, 2)
+
+        // Every program has a believable completion, never 0 and never 100 percent.
+        let plans = try context.fetch(FetchDescriptor<WorkoutPlan>())
+        for program in programs where program.queuedActivationDate == nil {
+            let stats = TrainerProgramHistoryStats.stats(for: program, plans: plans, today: now)
+            XCTAssertGreaterThan(stats.scheduled, 0, program.name)
+            XCTAssertGreaterThan(stats.done, 0, program.name)
+            XCTAssertLessThan(stats.done, stats.scheduled, program.name)
+        }
+    }
+
     func testEdgeSeedsExtremeValues() throws {
         ScenarioSeed.seed("edge", context: context)
         let items = try context.fetch(FetchDescriptor<PantryItem>())
@@ -239,7 +263,9 @@ final class ScenarioSeedTests: XCTestCase {
         let days = fetchAll(DailyAccountability.self).filter { $0.date < today() }.sorted { $0.date > $1.date }
         var run = 0
         for day in days {
-            guard day.allComplete else { break }
+            guard day.allComplete else {
+                break
+            }
             run += 1
         }
         let streak = try XCTUnwrap(fetchAll(Streak.self).first { $0.type == .overall })
@@ -327,7 +353,7 @@ final class ScenarioSeedTests: XCTestCase {
         }
         let settings = try XCTUnwrap(fetchAll(UserSettings.self).first)
         XCTAssertTrue(settings.examMode)
-        XCTAssertEqual(daysAgo(try XCTUnwrap(settings.examModeEndDate)), -4)
+        XCTAssertEqual(try daysAgo(XCTUnwrap(settings.examModeEndDate)), -4)
         // The training and overall streaks broke when the workouts stopped; study didn't.
         let streaks = Dictionary(uniqueKeysWithValues: fetchAll(Streak.self).map { ($0.type, $0) })
         XCTAssertEqual(streaks[.overall]?.currentCount, 0)
@@ -337,7 +363,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testInjuredHasSixWeeksThenAPauseAndAKneeReportFourDaysAgo() throws {
         ScenarioSeed.seed("injured", context: context)
         let workouts = fetchAll(WorkoutPlan.self).filter { $0.status == .completed }.sorted { $0.date < $1.date }
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(workouts.first).date), 6 * 7)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(workouts.first).date), 6 * 7)
         XCTAssertGreaterThanOrEqual(workouts.count, 21)
         XCTAssertEqual(workouts.filter { daysAgo($0.date) < 4 }.count, 0, "nothing trained since the injury")
 
@@ -367,7 +393,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testLapsedProHasTenWeeksThatStopThreeWeeksAgo() throws {
         ScenarioSeed.seed("lapsed-pro", context: context)
         func newest(_ dates: [Date], _ what: String) throws -> Int {
-            daysAgo(try XCTUnwrap(dates.max(), "no \(what)"))
+            try daysAgo(XCTUnwrap(dates.max(), "no \(what)"))
         }
         func oldest(_ dates: [Date]) -> Int {
             daysAgo(dates.min() ?? Date())
@@ -398,7 +424,7 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(overall.currentCount, 0)
         XCTAssertGreaterThan(overall.longestCount, 30)
         XCTAssertFalse(overall.isActive)
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(overall.lastCompletedDate)), 22)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(overall.lastCompletedDate)), 22)
         // The fresh food in the pantry went off while they were away.
         XCTAssertTrue(fetchAll(PantryItem.self).contains { ($0.useBy ?? .distantFuture) < Date() })
     }
