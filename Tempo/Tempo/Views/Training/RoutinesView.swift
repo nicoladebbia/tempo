@@ -30,6 +30,9 @@ struct RoutinesView: View {
     private var pendingApply: WorkoutRoutine?
     @State
     private var message: String?
+    /// The Undo toast after a routine is deleted.
+    @State
+    private var toast: ToastData?
 
     var body: some View {
         List {
@@ -58,8 +61,7 @@ struct RoutinesView: View {
                     .trainPlanListRow()
                     .swipeActions {
                         Button(role: .destructive) {
-                            modelContext.delete(routine)
-                            modelContext.saveOrAlert("routine change")
+                            delete(routine)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -97,6 +99,7 @@ struct RoutinesView: View {
             .padding(.bottom, Tide.s2)
         }
         .navigationTitle("My Routines")
+        .tempoToast($toast)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -171,19 +174,19 @@ struct RoutinesView: View {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s4) {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     TideNumber("\(routine.items.count)", size: Tide.numeralS, relativeTo: .title3)
-                    Text("exercises")
+                    Text(TrainCount.noun(routine.items.count, "exercise"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     TideNumber("\(setCount)", size: Tide.numeralS, relativeTo: .title3)
-                    Text("sets")
+                    Text(TrainCount.noun(setCount, "set"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(routine.items.count) exercises · \(setCount) sets")
+            .accessibilityLabel("\(TrainCount.text(routine.items.count, "exercise")) · \(TrainCount.text(setCount, "set"))")
             Text(routine.items.map(\.exerciseName).joined(separator: " · "))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -203,6 +206,20 @@ struct RoutinesView: View {
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .contentShape(.rect)
         .onTapGesture { editing = routine }
+    }
+
+    /// Deletes the routine and offers Undo for a few seconds. The routine is
+    /// copied first and put back with the same id and date.
+    private func delete(_ routine: WorkoutRoutine) {
+        let snapshot = RoutineSnapshot(routine)
+        modelContext.delete(routine)
+        guard modelContext.saveOrAlert("routine change") else {
+            return
+        }
+        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+            snapshot.restore(in: modelContext)
+            modelContext.saveOrAlert("routine change")
+        }
     }
 }
 
@@ -224,6 +241,9 @@ struct RoutineEditorView: View {
     private var showPicker = false
     @State
     private var loaded = false
+    /// The Undo toast after an exercise is taken out of the routine.
+    @State
+    private var toast: ToastData?
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && !items.isEmpty
@@ -231,7 +251,24 @@ struct RoutineEditorView: View {
 
     var body: some View {
         editorBody
+            .tempoToast($toast)
             .persistenceAlert()
+    }
+
+    /// Takes the exercises out and offers Undo for a few seconds; Undo puts
+    /// each back where it was. Nothing is saved until Save, so this only
+    /// touches the editor's own list.
+    private func removeItems(at offsets: IndexSet) {
+        let removal = RoutineItemRemoval(offsets: offsets, in: items)
+        guard !removal.isEmpty else {
+            return
+        }
+        items.remove(atOffsets: offsets)
+        toast = ToastData(message: removal.message, style: .info, actionTitle: "Undo") {
+            withAnimation(Tide.snap) {
+                removal.restore(into: &items)
+            }
+        }
     }
 
     private var editorBody: some View {
@@ -254,7 +291,7 @@ struct RoutineEditorView: View {
                             .listRowBackground(Tide.fill)
                     }
                     .onMove { items.move(fromOffsets: $0, toOffset: $1) }
-                    .onDelete { items.remove(atOffsets: $0) }
+                    .onDelete { removeItems(at: $0) }
 
                     Button {
                         showPicker = true
@@ -333,7 +370,7 @@ struct RoutineEditorView: View {
             .font(Tide.bodyStrong)
             .foregroundStyle(Tide.text)
         let stepper = Stepper(
-            "\(item.wrappedValue.workingSets) sets",
+            TrainCount.text(item.wrappedValue.workingSets, "set"),
             value: item.workingSets,
             in: 1 ... 10
         )

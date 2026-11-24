@@ -99,6 +99,30 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(count(TrainerProgram.self), 1)
     }
 
+    func testTrainerFullFillsEverySectionOfTheTrainerPage() throws {
+        let now = Date()
+        ScenarioSeed.seed("trainer-full", context: context, now: now)
+
+        let programs = try context.fetch(FetchDescriptor<TrainerProgram>())
+        XCTAssertEqual(programs.count, 4)
+        let active = try XCTUnwrap(programs.first { $0.isActive })
+        XCTAssertEqual(active.changeLog.count, 3)
+        XCTAssertEqual(active.changeLog.flatMap { $0.undoneSummaries ?? [] }.count, 1)
+        XCTAssertEqual(active.skippedSessions.count, 1)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(active.skippedSessions.first).date, Calendar.current.startOfDay(for: now))
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate != nil }.count, 1)
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate == nil }.count, 2)
+
+        // Every program has a believable completion, never 0 and never 100 percent.
+        let plans = try context.fetch(FetchDescriptor<WorkoutPlan>())
+        for program in programs where program.queuedActivationDate == nil {
+            let stats = TrainerProgramHistoryStats.stats(for: program, plans: plans, today: now)
+            XCTAssertGreaterThan(stats.scheduled, 0, program.name)
+            XCTAssertGreaterThan(stats.done, 0, program.name)
+            XCTAssertLessThan(stats.done, stats.scheduled, program.name)
+        }
+    }
+
     func testEdgeSeedsExtremeValues() throws {
         ScenarioSeed.seed("edge", context: context)
         let items = try context.fetch(FetchDescriptor<PantryItem>())

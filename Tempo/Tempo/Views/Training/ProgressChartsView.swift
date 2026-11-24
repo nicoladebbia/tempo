@@ -12,8 +12,11 @@ import SwiftUI
 
 // MARK: - Progress Charts View
 
-// Per MODULE_TRAINING.md Section 11 — Three tabs: Per Exercise, Muscle Groups, Overview.
-// Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
+// The one Progress page in Train. Five tabs: Overview (the week, load, totals,
+// frequency, muscle split, other training), Lifts (the Strength Lab and every
+// lift with history), Records (personal records), Body (the muscle map, volume
+// by muscle and push/pull balance) and History (every logged workout, with CSV
+// import and export). Per MODULE_TRAINING.md Section 11 and WIREFRAMES.md Screen 21.
 
 struct ProgressChartsView: View {
     /// modelContext intentionally removed — this view is now read-only. The
@@ -39,11 +42,11 @@ struct ProgressChartsView: View {
     private var selectedTab: ProgressTab = .overview
 
     enum ProgressTab: String, CaseIterable {
-        case lab = "Lab"
         case overview = "Overview"
-        case exercises = "Exercises"
-        case muscles = "Muscles"
-        case activity = "Activity"
+        case lifts = "Lifts"
+        case records = "Records"
+        case body = "Body"
+        case history = "History"
     }
 
     private var hasAnyData: Bool {
@@ -52,37 +55,25 @@ struct ProgressChartsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !hasAnyData {
-                TrainPlanPage {
-                    TrainEmptyCard(
-                        systemImage: "chart.line.uptrend.xyaxis",
-                        title: "No Progress Yet",
-                        message: "Complete your first workout to start tracking progress."
-                    )
-                }
-            } else {
-                // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
-                TrainPlanTabs(
-                    items: ProgressTab.allCases.map { (tag: $0, label: $0.rawValue) },
-                    selection: $selectedTab
-                )
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s2)
+            // Per MODULE_TRAINING.md Section 11.1 — segmented control at top.
+            // Always shown: History is where workouts are imported from
+            // another app, so it must be reachable before the first workout.
+            TrainPlanTabs(
+                items: ProgressTab.allCases.map { (tag: $0, label: $0.rawValue) },
+                selection: $selectedTab
+            )
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s2)
 
+            if selectedTab == .history {
+                // Its own scrolling list, import overlay and toolbar buttons.
+                WorkoutHistoryView()
+            } else {
                 TrainPlanPage {
-                    switch selectedTab {
-                    case .lab:
-                        // §11.2 — the interactive Strength Lab (scrubbable
-                        // e1RM curve, PR stars, compare lift, volume bars).
-                        StrengthProgressLabView()
-                    case .overview:
-                        overviewTab
-                    case .exercises:
-                        exercisesTab
-                    case .muscles:
-                        muscleGroupsTab
-                    case .activity:
-                        activityTab
+                    if hasAnyData {
+                        tabContent
+                    } else {
+                        noProgressCard
                     }
                 }
                 .id(selectedTab)
@@ -99,6 +90,45 @@ struct ProgressChartsView: View {
         // WorkoutPlan (no schema relationship); its validity is never derived
         // from plan status. Orphan cleanup happens only at explicit user
         // deletion in WorkoutHistoryView.deleteWorkout(), keyed by workoutPlanID.
+    }
+
+    /// The tab's content (History has its own list and is not in here).
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .overview:
+            overviewTab
+        case .lifts:
+            liftsTab
+        case .records:
+            ProgressRecordsView()
+        case .body:
+            bodyTab
+        case .history:
+            EmptyView()
+        }
+    }
+
+    /// Before the first workout every tab but History is empty: say so, and
+    /// where an earlier history can be brought in.
+    private var noProgressCard: some View {
+        VStack(spacing: Tide.s3) {
+            TrainEmptyCard(
+                systemImage: "chart.line.uptrend.xyaxis",
+                title: "No progress yet",
+                message: "Complete your first workout to start tracking progress."
+            )
+            Button {
+                withAnimation(Tide.snap) {
+                    selectedTab = .history
+                }
+            } label: {
+                Label("Import history from another app", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.trainPlanSecondary)
+        }
+        .padding(.top, Tide.s4)
     }
 
     // MARK: - Overview Tab
@@ -122,6 +152,34 @@ struct ProgressChartsView: View {
 
             // Body part split
             bodyPartSplitCard
+
+            // Football, sprints and conditioning (only once there are any).
+            if !activitySessions.isEmpty {
+                otherTrainingCards
+            }
+        }
+    }
+
+    // MARK: - Lifts Tab
+
+    /// The Strength Lab on top, then every lift that has history.
+    private var liftsTab: some View {
+        VStack(spacing: Tide.s4) {
+            // §11.2 — the interactive Strength Lab (scrubbable e1RM curve, PR
+            // stars, compare lift, volume bars).
+            StrengthProgressLabView()
+            exercisesList
+        }
+    }
+
+    // MARK: - Body Tab
+
+    /// The muscle map, then volume by muscle and the push/pull balance.
+    private var bodyTab: some View {
+        VStack(spacing: Tide.s4) {
+            MuscleHeatmapView()
+            muscleVolumeCard
+            balanceAnalysis
         }
     }
 
@@ -264,7 +322,7 @@ struct ProgressChartsView: View {
             color: weekStreak > 0 ? TideTrain.caution : Tide.text3
         )
         TrainTag(
-            text: "\(prCount30d) PRs this month",
+            text: "\(TrainCount.text(prCount30d, "PR")) this month",
             systemImage: "star.fill",
             color: prCount30d > 0 ? Color.accentColor : Tide.text3
         )
@@ -279,12 +337,12 @@ struct ProgressChartsView: View {
 
         return TrainPlanCard(label: "All-time") {
             TrainStatGrid {
-                TrainStat(value: "\(totalWorkouts)", label: "Workouts")
+                TrainStat(value: "\(totalWorkouts)", label: TrainCount.noun(totalWorkouts, "Workout"))
                 TrainStat(
                     value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit),
                     label: "Volume (\(weightUnit.abbreviation))"
                 )
-                TrainStat(value: "\(totalSets)", label: "Sets")
+                TrainStat(value: "\(totalSets)", label: TrainCount.noun(totalSets, "Set"))
             }
         }
     }
@@ -318,7 +376,7 @@ struct ProgressChartsView: View {
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
-        return TrainPlanCard(label: "Muscle group distribution") {
+        return TrainPlanCard(label: "Muscle group distribution", trailing: "30 days") {
             if distribution.isEmpty {
                 emptyLine("No data yet", height: TideTrain.barsHeight)
             } else {
@@ -340,27 +398,28 @@ struct ProgressChartsView: View {
             .frame(maxWidth: .infinity, minHeight: height)
     }
 
-    // MARK: - Exercises Tab
+    // MARK: - Lifts list
 
     // Per MODULE_TRAINING.md Section 11.2
 
-    private var exercisesTab: some View {
+    /// Every lift with history, each opening its exercise page. (When there
+    /// are none, the Strength Lab above already says so.)
+    @ViewBuilder
+    private var exercisesList: some View {
         let exercisesWithHistory = exercises.filter { ($0.history?.isEmpty ?? true) == false }
-
-        return LazyVStack(spacing: Tide.s2) {
-            if exercisesWithHistory.isEmpty {
-                TrainEmptyCard(
-                    systemImage: "chart.line.uptrend.xyaxis",
-                    title: "Complete workouts to see progress"
-                )
-            } else {
-                ForEach(exercisesWithHistory, id: \.id) { exercise in
-                    NavigationLink {
-                        ExerciseDetailView(exercise: exercise)
-                    } label: {
-                        exerciseProgressRow(exercise)
+        if !exercisesWithHistory.isEmpty {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "All lifts", trailing: TrainCount.text(exercisesWithHistory.count, "lift"))
+                    .padding(.top, Tide.s2)
+                LazyVStack(spacing: Tide.s2) {
+                    ForEach(exercisesWithHistory, id: \.id) { exercise in
+                        NavigationLink {
+                            ExerciseDetailView(exercise: exercise)
+                        } label: {
+                            exerciseProgressRow(exercise)
+                        }
+                        .buttonStyle(.trainCard)
                     }
-                    .buttonStyle(.trainCard)
                 }
             }
         }
@@ -406,32 +465,25 @@ struct ProgressChartsView: View {
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
-    // MARK: - Muscle Groups Tab
+    // MARK: - Muscle volume
 
     // Per MODULE_TRAINING.md Section 11.3
 
-    private var muscleGroupsTab: some View {
+    /// Volume per muscle group over the last 30 days (the distribution's own window).
+    private var muscleVolumeCard: some View {
         let distribution = muscleGroupDistribution
-
-        return VStack(spacing: Tide.s4) {
-            // Weekly volume by muscle group
-            TrainPlanCard(label: "Weekly volume by muscle group") {
-                if distribution.isEmpty {
-                    emptyLine("No data yet", height: TideTrain.barsHeight)
-                } else {
-                    ForEach(distribution, id: \.group) { item in
-                        TrainPlanMeterRow(
-                            label: item.group.displayName,
-                            value: formatVolume(item.volume),
-                            fraction: item.percentage
-                        )
-                    }
+        return TrainPlanCard(label: "Volume by muscle group", trailing: "30 days") {
+            if distribution.isEmpty {
+                emptyLine("No data yet", height: TideTrain.barsHeight)
+            } else {
+                ForEach(distribution, id: \.group) { item in
+                    TrainPlanMeterRow(
+                        label: item.group.displayName,
+                        value: formatVolume(item.volume),
+                        fraction: item.percentage
+                    )
                 }
             }
-
-            // Balance analysis
-            // Per MODULE_TRAINING.md Section 11.3 — Push/Pull ratio
-            balanceAnalysis
         }
     }
 
@@ -465,35 +517,27 @@ struct ProgressChartsView: View {
         }
     }
 
-    // MARK: - Activity Tab (non-gym: football / sprint / conditioning)
+    // MARK: - Other training (non-gym: football / sprint / conditioning)
 
-    private var activityTab: some View {
+    /// The all-time totals and the recent sessions of everything that is not a
+    /// gym workout. Shown on Overview only when there is at least one.
+    private var otherTrainingCards: some View {
         VStack(spacing: Tide.s4) {
-            if activitySessions.isEmpty {
-                TrainEmptyCard(
-                    systemImage: "figure.run",
-                    title: "No Activity Yet",
-                    message: "Log a football, run, or conditioning session to track it here."
-                )
-            } else {
-                // All-time totals
-                TrainPlanCard {
-                    TrainStatGrid {
-                        TrainStat(value: "\(activitySessions.count)", label: "Sessions")
-                        TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
-                        TrainStat(value: String(format: "%.0f", totalActivityStrain), label: "Total Strain")
-                    }
+            TrainPlanCard(label: "Football, runs and conditioning") {
+                TrainStatGrid {
+                    TrainStat(value: "\(activitySessions.count)", label: TrainCount.noun(activitySessions.count, "Session"))
+                    TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
+                    TrainStat(value: String(format: "%.0f", totalActivityStrain), label: "Total strain")
                 }
+            }
 
-                // Recent sessions
-                TrainPlanCard(label: "Recent sessions") {
-                    let recent = Array(activitySessions.prefix(20))
-                    ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
-                        if index > 0 {
-                            TrainPlanDivider()
-                        }
-                        activityRow(session)
+            TrainPlanCard(label: "Recent sessions") {
+                let recent = Array(activitySessions.prefix(20))
+                ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
+                    if index > 0 {
+                        TrainPlanDivider()
                     }
+                    activityRow(session)
                 }
             }
         }

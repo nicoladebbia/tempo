@@ -86,6 +86,15 @@ struct ExerciseDetailView: View {
                     .multilineTextAlignment(.center)
             }
 
+            // Technique: the form guide for the common lifts (cues and common
+            // mistakes), else the library's own cues. Above the numbers, since
+            // it is what you want in front of you before the bar is loaded.
+            if let technique = ExerciseTechniqueLibrary.technique(for: exercise) {
+                techniqueSection(technique)
+            } else if !exercise.cues.isEmpty {
+                cuesSection
+            }
+
             // Stats card
             // Per WIREFRAMES.md Screen 20 — YOUR STATS section
             statsCard
@@ -97,11 +106,6 @@ struct ExerciseDetailView: View {
             // Instructions
             if let instructions = exercise.instructions, !instructions.isEmpty {
                 instructionsSection(instructions)
-            }
-
-            // Coaching cues
-            if !exercise.cues.isEmpty {
-                cuesSection
             }
 
             // Rest timer customization
@@ -393,8 +397,18 @@ struct ExerciseDetailView: View {
         }
     }
 
+    // MARK: - Technique
+
+    private func techniqueSection(_ technique: ExerciseTechnique) -> some View {
+        TrainPlanCard(label: "Technique") {
+            ExerciseTechniqueLines(technique: technique)
+        }
+        .accessibilityIdentifier("exercise-technique")
+    }
+
     // MARK: - Coaching Cues
 
+    /// The library's own cues, for a lift the form guide does not cover.
     private var cuesSection: some View {
         TrainPlanCard(label: "Coaching cues") {
             ForEach(Array(exercise.cues.enumerated()), id: \.offset) { index, cue in

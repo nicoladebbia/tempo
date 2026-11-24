@@ -141,7 +141,7 @@ struct TrainerFeedbackReviewView: View {
         switch acceptedIDs.count {
         case 0: "Pick a change to apply"
         case 1: "Apply 1 change"
-        default: "Apply \(acceptedIDs.count) changes"
+        default: "Apply \(TrainCount.text(acceptedIDs.count, "change"))"
         }
     }
 

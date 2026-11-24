@@ -4,8 +4,9 @@
 //
 // §11.2 — the interactive Strength Lab: a scrubbable e1RM curve per lift
 // (drag to inspect any session), star markers on PR sessions, a ghost
-// compare lift, and a synced session-volume bar chart. Hosted as the "Lab"
-// tab of ProgressChartsView; math lives in ProgressLabMath (pure, tested).
+// compare lift, and a synced session-volume bar chart. Hosted at the top of
+// the "Lifts" tab of ProgressChartsView; math lives in ProgressLabMath (pure,
+// tested).
 //
 
 import SwiftData
@@ -66,7 +67,7 @@ struct StrengthProgressLabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             if rankedLifts.isEmpty {
-                TrainEmptyCard(systemImage: "chart.xyaxis.line", title: "Log workouts to unlock the Lab")
+                TrainEmptyCard(systemImage: "chart.xyaxis.line", title: "Log workouts to see your lifts")
             } else {
                 liftChips
                 controls
@@ -149,17 +150,30 @@ struct StrengthProgressLabView: View {
         let ghost = points(for: compareLift).filter { ($0.e1RM ?? 0) > 0 }
         let scrubbed = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }
 
+        // The label and the number sit side by side while they fit; at large
+        // text the number drops under the label instead of squeezing it into
+        // a hyphenated "ESTIMAT-ED".
+        let value = Group {
+            if let scrubbed {
+                scrubCallout(scrubbed)
+            } else if let latest = primary.last?.e1RM {
+                Text(weightLabel(latest))
+                    .font(TideTrain.figure(.title3))
+                    .foregroundStyle(Color.accentColor)
+                    .contentTransition(.numericText())
+            }
+        }
         return TrainPlanCard {
-            HStack(alignment: .top, spacing: Tide.s2) {
-                Text("Estimated 1RM").tideLabel()
-                Spacer(minLength: Tide.s2)
-                if let scrubbed {
-                    scrubCallout(scrubbed)
-                } else if let latest = primary.last?.e1RM {
-                    Text(weightLabel(latest))
-                        .font(TideTrain.figure(.title3))
-                        .foregroundStyle(Color.accentColor)
-                        .contentTransition(.numericText())
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: Tide.s2) {
+                    Text("Estimated 1RM").tideLabel()
+                        .lineLimit(1)
+                    Spacer(minLength: Tide.s2)
+                    value
+                }
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("Estimated 1RM").tideLabel()
+                    value
                 }
             }
 
