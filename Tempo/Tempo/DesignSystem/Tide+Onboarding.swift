@@ -39,34 +39,34 @@ struct OnboardingScaffold<Content: View>: View {
         ScrollView(.vertical) {
             VStack(alignment: centered ? .center : .leading, spacing: Tide.s6) {
                 header
-                content
+                    .modifier(OnboardingEntrance(index: 0, appeared: appeared))
+                // Each block of the step settles in a beat after the one above.
+                Group(subviews: content) { blocks in
+                    ForEach(Array(blocks.enumerated()), id: \.element.id) { index, block in
+                        block.modifier(OnboardingEntrance(index: index + 1, appeared: appeared))
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
             .padding(.horizontal, Tide.edge)
             .padding(.top, centered ? Tide.s6 : Tide.s4)
             .padding(.bottom, Tide.s6)
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared || reduceMotion ? 0 : Tide.s3)
         }
         .scrollIndicators(.hidden)
         .scrollBounceBehavior(.basedOnSize)
         .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             footer
+                .opacity(appeared ? 1 : 0)
+                .animation(reduceMotion ? nil : Tide.lively.delay(Tide.onboardingStagger * 3), value: appeared)
         }
-        .onAppear {
-            if reduceMotion {
-                appeared = true
-            } else {
-                withAnimation(Tide.lively) { appeared = true }
-            }
-        }
+        .onAppear { appeared = true }
     }
 
     private var header: some View {
         VStack(alignment: centered ? .center : .leading, spacing: Tide.s2) {
             Text(title)
-                .font(Tide.largeTitle)
+                .font(centered ? Tide.largeTitle : Tide.title)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(centered ? .center : .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -131,6 +131,33 @@ struct OnboardingScaffold<Content: View>: View {
                 .allowsHitTesting(false)
             }
         }
+    }
+}
+
+// MARK: - OnboardingEntrance
+
+extension Tide {
+    /// Delay between one block of an onboarding step and the next settling in.
+    static let onboardingStagger: Double = 0.06
+}
+
+/// Fades a block in and lifts it a few points, a beat after the one above.
+/// Reduce Motion shows it at once.
+private struct OnboardingEntrance: ViewModifier {
+    let index: Int
+    let appeared: Bool
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared || reduceMotion ? 0 : Tide.s3)
+            .animation(
+                reduceMotion ? nil : Tide.lively.delay(Double(min(index, 5)) * Tide.onboardingStagger),
+                value: appeared
+            )
     }
 }
 
@@ -280,13 +307,13 @@ struct OnboardingNote: View {
 
 // MARK: - OnboardingHeroTile
 
-/// The large symbol on a permission or celebration step.
+/// The large symbol on a permission or celebration step, breathing in its halo.
 struct OnboardingHeroTile: View {
     let systemName: String
     var tint: Color?
 
     var body: some View {
-        TideIconTile(systemName: systemName, tint: tint, size: Tide.tileLarge + Tide.s6)
+        TideStateMark(systemName: systemName, tint: tint, tileSize: Tide.tileLarge + Tide.s2, reach: Tide.s10)
     }
 }
 

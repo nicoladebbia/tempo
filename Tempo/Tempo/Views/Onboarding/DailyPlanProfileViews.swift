@@ -24,6 +24,8 @@ struct DailyRhythmView: View {
             primaryTitle: "CONTINUE",
             primaryAction: { viewModel.advance() }
         ) {
+            RhythmSummary(wakeMinutes: viewModel.wakeTimeMinutes, sleepHours: viewModel.sleepTargetHours)
+
             VStack(alignment: .leading, spacing: Tide.s2) {
                 OnboardingSectionLabel("Wake time")
                 minutesTimePicker(minutes: $viewModel.wakeTimeMinutes)
@@ -350,6 +352,8 @@ struct EatingWindowView: View {
                     minutesTimePicker(minutes: $viewModel.eatingWindowEndMinutes)
                     Spacer(minLength: 0)
                 }
+                EatingWindowBar(start: viewModel.eatingWindowStartMinutes, end: viewModel.eatingWindowEndMinutes)
+                    .padding(.top, Tide.s1)
             }
 
             VStack(spacing: 0) {
@@ -457,6 +461,73 @@ struct WeekendModeView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - RhythmSummary
+
+/// Wake time, sleep target and the bedtime they imply, live as the controls move.
+private struct RhythmSummary: View {
+    let wakeMinutes: Int
+    let sleepHours: Double
+
+    /// Minutes after midnight to be in bed by, wrapping past midnight.
+    private var bedMinutes: Int {
+        let day = 24 * 60
+        return ((wakeMinutes - Int((sleepHours * 60).rounded())) % day + day) % day
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Tide.s3) {
+            column("Wake", clock(wakeMinutes))
+            column("Sleep", formatHours(sleepHours))
+            column("In bed by", clock(bedMinutes))
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .animation(Tide.snap, value: wakeMinutes)
+        .animation(Tide.snap, value: sleepHours)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Wake \(clock(wakeMinutes)), sleep \(formatHours(sleepHours)), in bed by \(clock(bedMinutes))")
+    }
+
+    private func column(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(label).tideLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            TideNumber(value, size: Tide.numeralS + Tide.s1, relativeTo: .title3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func clock(_ minutes: Int) -> String {
+        let date = Calendar.current.date(from: DateComponents(hour: minutes / 60, minute: minutes % 60)) ?? Date()
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+// MARK: - EatingWindowBar
+
+/// The day as one bar, with the eating window lit.
+private struct EatingWindowBar: View {
+    let start: Int
+    let end: Int
+
+    private var eatingHours: Double {
+        Double(max(end - start, 0)) / 60
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideDayBar(start: start, end: end)
+
+            Text("Eating \(formatHours(eatingHours)) \u{00B7} Fasting \(formatHours(24 - eatingHours))")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Eating \(formatHours(eatingHours)), fasting \(formatHours(24 - eatingHours))")
     }
 }
 

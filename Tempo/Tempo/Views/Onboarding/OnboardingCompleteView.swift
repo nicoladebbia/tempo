@@ -27,8 +27,17 @@ struct OnboardingCompleteView: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var titleSize: CGFloat = Tide.numeralL
+
     @State private var shown = false
+    @State private var pulse = false
     @State private var didPersist = false
+
+    /// The closing ring: `dialSheet` plus a hand.
+    private let ring = Tide.dialSheet + Tide.s2
 
     var body: some View {
         VStack(spacing: Tide.s6) {
@@ -36,11 +45,17 @@ struct OnboardingCompleteView: View {
 
             // The ring closes, the check lands.
             ZStack {
-                TideRing(progress: shown ? 1 : 0, color: Color.tempoSuccess, lineWidth: Tide.s2)
-                    .frame(width: 128, height: 128)
+                // One soft ripple leaves the ring once it has closed.
+                Circle()
+                    .strokeBorder(mood.accent.opacity(0.5), lineWidth: Tide.hair)
+                    .frame(width: ring, height: ring)
+                    .scaleEffect(pulse ? 1.7 : 1)
+                    .opacity(shown && !pulse ? 0.8 : 0)
+                TideRing(progress: shown ? 1 : 0, color: mood.accent, lineWidth: Tide.s2)
+                    .frame(width: ring, height: ring)
                 Image(systemName: "checkmark")
-                    .font(Tide.numeral(56, .heavy))
-                    .foregroundStyle(Color.tempoSuccess)
+                    .font(Tide.numeral(Tide.numeralL + Tide.s3, .heavy))
+                    .foregroundStyle(mood.accent)
                     .scaleEffect(shown ? 1 : 0.5)
                     .opacity(shown ? 1 : 0)
             }
@@ -48,7 +63,7 @@ struct OnboardingCompleteView: View {
 
             VStack(spacing: Tide.s2) {
                 Text("YOU'RE IN.")
-                    .font(Tide.numeral(44, .heavy))
+                    .font(Tide.numeral(titleSize, .heavy))
                     .foregroundStyle(Tide.text)
                     .accessibilityAddTraits(.isHeader)
 
@@ -79,6 +94,7 @@ struct OnboardingCompleteView: View {
                 shown = true
             } else {
                 withAnimation(Tide.lively.delay(0.15)) { shown = true }
+                withAnimation(.easeOut(duration: 1.3).delay(1.1)) { pulse = true }
             }
             persistDailyPlanProfileIfNeeded()
         }

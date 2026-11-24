@@ -19,6 +19,8 @@ struct OnboardingContainerView: View {
     private var services
     @State
     private var viewModel = OnboardingViewModel()
+    @ScaledMetric(relativeTo: .footnote)
+    private var counterSize: CGFloat = 13
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,7 +40,8 @@ struct OnboardingContainerView: View {
         }
         // Onboarding is the one place the Tide field runs at full energy.
         .tidePage(energy: 1)
-        .environment(\.tideMood, .neutral)
+        // The field warms to "on pace" for the last screen: you are in.
+        .environment(\.tideMood, viewModel.currentStep == .complete ? TideMood(level: .onPace) : .neutral)
         .onAppear {
             viewModel.onComplete = {
                 services.appState.isOnboardingComplete = true
@@ -55,6 +58,20 @@ struct OnboardingContainerView: View {
 
     private var showsProgress: Bool {
         viewModel.currentStep != .splash && viewModel.currentStep != .valueDemo && viewModel.currentStep != .complete
+    }
+
+    /// The steps the bar counts: everything between the hook and the finish.
+    private var visibleSteps: [OnboardingStep] {
+        OnboardingStep.allCases.filter { $0 != .splash && $0 != .valueDemo && $0 != .complete }
+    }
+
+    /// 1-based place of the current step among the counted ones.
+    private var visiblePosition: Int {
+        (visibleSteps.firstIndex(of: viewModel.currentStep) ?? 0) + 1
+    }
+
+    private var visibleProgress: Double {
+        Double(visiblePosition) / Double(max(visibleSteps.count, 1))
     }
 
     // MARK: - Progress Bar
@@ -77,10 +94,24 @@ struct OnboardingContainerView: View {
                 .accessibilityLabel("Back")
             }
 
-            TideLevelBar(progress: viewModel.progress, color: .white, height: Tide.barSlim)
+            TideLevelBar(progress: visibleProgress, height: Tide.barSlim)
                 .background(Tide.fill, in: .capsule)
-                .animation(Tide.snap, value: viewModel.progress)
+                .animation(Tide.settle, value: visibleProgress)
                 .accessibilityLabel("Setup progress")
+
+            HStack(spacing: 0) {
+                Text("\(visiblePosition)")
+                    .font(Tide.numeral(counterSize, .bold))
+                    .foregroundStyle(Tide.text)
+                    .contentTransition(.numericText())
+                    .animation(Tide.snap, value: visiblePosition)
+                Text(" / \(visibleSteps.count)")
+                    .font(Tide.numeral(counterSize, .medium))
+                    .foregroundStyle(Tide.text3)
+            }
+            .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Step \(visiblePosition) of \(visibleSteps.count)")
         }
         .frame(minHeight: Tide.hit)
         .padding(.horizontal, Tide.edge)

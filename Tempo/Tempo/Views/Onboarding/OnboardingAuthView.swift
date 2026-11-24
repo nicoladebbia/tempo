@@ -26,6 +26,19 @@ struct OnboardingAuthView: View {
     /// closure. Sent to the backend in onCompletion to verify the token.
     @State
     private var pendingNonce: String?
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
+
+    private static let modules: [(title: String, icon: String, tint: Color)] = [
+        ("Training", "dumbbell.fill", Tide.fat),
+        ("Nutrition", "fork.knife", Tide.carbs),
+        ("Recovery", "heart.fill", Tide.protein),
+        ("Academics", "graduationcap.fill", Tide.water),
+    ]
+
+    private var moduleColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: Tide.s3), count: dynamicTypeSize.isAccessibilitySize ? 2 : 4)
+    }
 
     var body: some View {
         // Per WIREFRAMES.md Screen 44 — "STOP MANAGING YOUR LIFE IN 5 DIFFERENT APPS."
@@ -33,12 +46,37 @@ struct OnboardingAuthView: View {
             title: "STOP MANAGING YOUR LIFE\nIN 5 DIFFERENT APPS.",
             centered: true
         ) {
-            Text("Training. Nutrition.\nRecovery. Academics.\nOne system. One score.\nZero excuses.")
-                .font(Tide.headline.weight(.regular))
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .lineSpacing(Tide.s1)
-                .fixedSize(horizontal: false, vertical: true)
+            // The five apps fold into one: the four areas, then one line.
+            VStack(spacing: Tide.s5) {
+                LazyVGrid(columns: moduleColumns, spacing: Tide.s3) {
+                    ForEach(Self.modules, id: \.title) { module in
+                        VStack(spacing: Tide.s2) {
+                            TideIconTile(systemName: module.icon, tint: module.tint, size: Tide.tile + Tide.s2)
+                            Text(module.title)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .lineLimit(1)
+                                .minimumScaleFactor(Tide.labelShrink)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+                // ...become one.
+                Image(systemName: "chevron.down")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+                TempoLogoView(size: Tide.dialSheet - Tide.s6 * 2, showGlow: true)
+
+                Text("One system. One score.\nZero excuses.")
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(Tide.s1)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             signInFooter
