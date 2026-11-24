@@ -58,9 +58,8 @@ struct DashboardSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
-    @State private var showPaywall = false
-    @State private var isRestoring = false
-    @State private var restoreError: String?
+    /// The server's answer about the plan, shared with the Subscription page.
+    @State private var plan = PlanModel()
 
     var body: some View {
         TideSettingsPage {
@@ -141,7 +140,7 @@ struct DashboardSettingsView: View {
 
             SettingsGroupCard(title: "Account & data") {
                 NavigationLink {
-                    SubscriptionDetailView()
+                    SubscriptionDetailView(plan: plan)
                 } label: {
                     SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
                 }
@@ -238,10 +237,7 @@ struct DashboardSettingsView: View {
         } message: {
             Text(deleteAccountError ?? "")
         }
-        .tideCovered(showPaywall)
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-        }
+        .task { await plan.refresh(apiClient: services.apiClient) }
     }
 
     // MARK: - Profile Header Card
@@ -294,37 +290,6 @@ struct DashboardSettingsView: View {
             .contentShape(.rect(cornerRadius: Tide.cardRadius))
         }
         .buttonStyle(TideSettingsCardPressStyle())
-    }
-
-    // MARK: - Subscription Card
-
-    private var subscriptionCard: some View {
-        SettingsGroupCard(title: "Subscription") {
-            SettingsInfoRow(
-                label: "Plan",
-                value: subscriptionStatusText,
-                icon: "crown.fill",
-                iconTint: services.subscriptions.isPro ? mood.accent : Tide.text2,
-                valueColor: services.subscriptions.isPro ? mood.accent : Tide.text2
-            )
-
-            if !services.subscriptions.isPro {
-                Button {
-                    showPaywall = true
-                } label: {
-                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: mood.accent)
-                }
-                .buttonStyle(.tideSettingsRow)
-            }
-
-            Button {
-                Task { await restorePurchases() }
-            } label: {
-                SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: Tide.text)
-            }
-            .buttonStyle(.tideSettingsRow)
-            .disabled(isRestoring)
-        }
     }
 
     // MARK: - Live Summary Subtitles
@@ -400,35 +365,7 @@ struct DashboardSettingsView: View {
     // MARK: - Subscription
 
     private var subscriptionStatusText: String {
-        switch services.subscriptions.state {
-        case .free:
-            "Free"
-        case .trial:
-            "Pro · Trial"
-        case .active:
-            "Pro"
-        case .gracePeriod:
-            "Pro · Billing issue"
-        case .expired,
-             .churned:
-            "Expired"
-        }
-    }
-
-    @MainActor
-    private func restorePurchases() async {
-        guard !isRestoring else {
-            return
-        }
-        isRestoring = true
-        restoreError = nil
-        defer { isRestoring = false }
-
-        do {
-            try await services.subscriptions.restorePurchases()
-        } catch {
-            restoreError = error.localizedDescription
-        }
+        plan.status(device: services.subscriptions.state).title
     }
 
     #if DEBUG
