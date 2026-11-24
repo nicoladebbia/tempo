@@ -39,7 +39,7 @@ struct StatCardView: View {
 
         var color: Color {
             switch self {
-            case .up: .tempoSuccess
+            case .up: Tide.success
             case .down: Tide.danger
             case .flat: Tide.text3
             case .none: .clear

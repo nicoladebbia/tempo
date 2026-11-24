@@ -26,6 +26,15 @@ extension Tide {
     static let stateWidth: CGFloat = 420
     /// How far the halo reaches past the symbol tile of an empty or error state.
     static let stateHalo: CGFloat = 72
+    /// The number being typed in the entry sheet, at the default text size.
+    static let numeralReadout: CGFloat = 72
+    /// A digit on the entry keypad, and how tall a key is.
+    static let numeralKey: CGFloat = 30
+    static let keyHeight: CGFloat = 60
+    /// The entry sheet at rest, tall enough for the readout, the keys and the Set button.
+    static let keypadSheetHeight: CGFloat = 660
+    /// The wheel alternative in the entry sheet.
+    static let wheelHeight: CGFloat = 320
 }
 
 // MARK: - TideFieldSurface
@@ -62,6 +71,21 @@ extension View {
     /// danger ring when the value is not valid. At least 52 pt tall.
     func tideFieldSurface(focused: Bool = false, invalid: Bool = false) -> some View {
         modifier(TideFieldSurface(focused: focused, invalid: invalid))
+    }
+}
+
+// MARK: - TideKeyStyle
+
+/// A key on a number pad: a soft tile that lights the instant it is touched,
+/// with no easing, so fast typing never waits on an animation.
+struct TideKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+        configuration.label
+            .foregroundStyle(Tide.text)
+            .background(configuration.isPressed ? Tide.fillStrong : Tide.fill, in: shape)
+            .contentShape(shape)
+            .transaction { $0.animation = nil }
     }
 }
 

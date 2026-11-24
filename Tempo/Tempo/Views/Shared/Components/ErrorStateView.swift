@@ -11,24 +11,29 @@ import SwiftUI
 // MARK: - Error State View
 
 // Same calm glass card as the empty state, with a danger-tinted symbol. Retry
-// is the main action; going back, when offered, is quieter.
+// is the main action; going back, when offered, is quieter. Both are optional:
+// with no retry action there is no Retry button, and the title of the main
+// action can be changed ("Try again", "Reconnect").
 
 struct ErrorStateView: View {
     let title: String
     let message: String
-    let retryAction: () -> Void
+    let retryAction: (() -> Void)?
     let backAction: (() -> Void)?
+    let retryTitle: String
 
     init(
         title: String = "Something went wrong.",
         message: String = "Check your connection and try again.",
-        retryAction: @escaping () -> Void,
-        backAction: (() -> Void)? = nil
+        retryAction: (() -> Void)? = nil,
+        backAction: (() -> Void)? = nil,
+        retryTitle: String = "Retry"
     ) {
         self.title = title
         self.message = message
         self.retryAction = retryAction
         self.backAction = backAction
+        self.retryTitle = retryTitle
     }
 
     @State
@@ -57,11 +62,13 @@ struct ErrorStateView: View {
                 }
 
                 VStack(spacing: Tide.s2) {
-                    Button("Retry") {
-                        retries += 1
-                        retryAction()
+                    if let retryAction {
+                        Button(retryTitle) {
+                            retries += 1
+                            retryAction()
+                        }
+                        .buttonStyle(.tidePrimary)
                     }
-                    .buttonStyle(.tidePrimary)
 
                     if let backAction {
                         Button("Go Back", action: backAction)

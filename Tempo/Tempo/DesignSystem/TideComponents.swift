@@ -43,7 +43,8 @@ extension View {
             .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: radius))
     }
 
-    /// Small tracked capitals for section and field labels.
+    /// Small tracked capitals for section and field labels. Only the drawing is
+    /// capitals: VoiceOver and the accessibility tree keep the original text.
     func tideLabel(_ color: Color = Tide.text2) -> some View {
         font(Tide.label).tracking(1.1).textCase(.uppercase).foregroundStyle(color)
     }
@@ -54,14 +55,25 @@ struct TideSectionLabel: View {
     let title: String
     var trailing: String?
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        // At accessibility sizes the value sits under the title, so neither
+        // has to wrap inside half a line.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        layout {
             Text(title).tideLabel()
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
             if let trailing {
                 Text(trailing).font(Tide.caption).foregroundStyle(Tide.text2)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -139,8 +151,13 @@ struct TideDial: View {
                 Text(caption).tideLabel()
                     .lineLimit(1)
                     .minimumScaleFactor(Tide.labelShrink)
+                    // The caption sits where the ring is narrowest: it does not grow past the default.
+                    .dynamicTypeSize(...Tide.dialCaptionCap)
             }
             .padding(.horizontal, diameter * 0.2)
+            // The ring is a fixed size: its figure and caption stop growing at
+            // `dialTextCap`, so at accessibility sizes they stay inside it.
+            .dynamicTypeSize(...Tide.dialTextCap)
         }
         .frame(width: diameter, height: diameter)
         .onAppear {
@@ -216,7 +233,9 @@ struct TidePrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.headline)
             .foregroundStyle(Tide.ink)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s3)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(mood.accent.opacity(isEnabled ? 1 : 0.4), in: .capsule)
             .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
@@ -232,7 +251,9 @@ struct TideGlassButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.bodyStrong)
             .foregroundStyle(Tide.text)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s2)
             .frame(minWidth: Tide.hit, minHeight: Tide.hit)
             .glassEffect(.regular.interactive(), in: .capsule)
             .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)

@@ -72,7 +72,7 @@ enum DrillSergeantIntensity {
 
     var accentColor: Color {
         switch self {
-        case .encouraging: .tempoSuccess
+        case .encouraging: Tide.success
         case .standard: .tempoSignal
         case .urgent: .tempoAmber
         case .critical: Tide.danger

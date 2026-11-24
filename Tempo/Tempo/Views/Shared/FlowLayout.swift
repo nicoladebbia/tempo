@@ -80,7 +80,7 @@ struct FlowLayout: Layout {
 extension RecoveryZone {
     var color: Color {
         switch self {
-        case .green: Color.tempoRecoveryGreen
+        case .green: Tide.success
         case .yellow: Color.tempoRecoveryYellow
         case .red: Color.tempoRecoveryRed
         }

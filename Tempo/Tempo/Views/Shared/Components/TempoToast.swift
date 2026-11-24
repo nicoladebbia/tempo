@@ -37,7 +37,7 @@ struct TempoToast: View {
 
         var iconColor: Color {
             switch self {
-            case .success: .tempoSuccess
+            case .success: Tide.success
             case .warning: .tempoWarning
             case .error: .tempoError
             case .info: .tempoInfo
@@ -56,6 +56,8 @@ struct TempoToast: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         HStack(spacing: Tide.s3) {
@@ -67,7 +69,7 @@ struct TempoToast: View {
             Text(message)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
-                .lineLimit(2)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: Tide.s2)
@@ -89,7 +91,11 @@ struct TempoToast: View {
         .padding(.vertical, Tide.s2)
         .frame(minHeight: Tide.hit + Tide.s2)
         .frame(maxWidth: .infinity)
-        .glassEffect(.regular.tint(Tide.glassCard), in: .capsule)
+        .glassEffect(
+            .regular.tint(Tide.glassCard),
+            // A capsule cuts into a message that runs to several lines.
+            in: typeSize.isAccessibilitySize ? AnyShape(.rect(cornerRadius: Tide.tileRadius)) : AnyShape(.capsule)
+        )
         .padding(.horizontal, Tide.edge)
         .accessibilityElement(children: .combine)
     }

@@ -265,14 +265,14 @@ struct PaywallView: View {
                         }
 
                         if product.isStudent {
-                            planTag("40% OFF", color: Color.tempoSuccess)
+                            planTag("40% OFF", color: Tide.success)
                         }
                     }
 
                     if isAnnual {
                         Text("Save 33%")
                             .font(Tide.caption)
-                            .foregroundStyle(Color.tempoRecoveryGreen)
+                            .foregroundStyle(Tide.success)
                     }
                 }
 
@@ -338,7 +338,7 @@ struct PaywallView: View {
                     Spacer()
                     Image(systemName: isStudentMode ? "checkmark.circle.fill" : "circle")
                         .font(Tide.headline)
-                        .foregroundStyle(isStudentMode ? Color.tempoSuccess : Tide.text3)
+                        .foregroundStyle(isStudentMode ? Tide.success : Tide.text3)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Tide.s4)
@@ -376,7 +376,7 @@ struct PaywallView: View {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(Tide.caption)
-                        .foregroundStyle(Color.tempoSuccess)
+                        .foregroundStyle(Tide.success)
                         .accessibilityHidden(true)
                     Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
                         .font(Tide.caption)
