@@ -81,13 +81,6 @@ struct VenueProposalCard: View {
                     Text("Change")
                 }
                 .buttonStyle(.trainQuiet)
-                let notNow = Button {
-                    dismissed = true
-                } label: {
-                    Text("Not now")
-                }
-                .buttonStyle(.trainQuiet)
-                .accessibilityLabel("Dismiss venue check")
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: Tide.s2) {
                         change
@@ -100,6 +93,19 @@ struct VenueProposalCard: View {
                 }
             }
         }
+    }
+
+    /// Puts the question away for today. Reachable while picking a change too,
+    /// as the corner X was before.
+    private var notNow: some View {
+        Button {
+            dismissed = true
+        } label: {
+            Text("Not now")
+        }
+        .buttonStyle(.trainQuiet)
+        .accessibilityInputLabels(["Not now", "Dismiss venue check"])
+        .accessibilityHint("Dismisses the venue check")
     }
 
     private var changePickers: some View {
@@ -129,6 +135,7 @@ struct VenueProposalCard: View {
                 Text("Confirm")
             }
             .buttonStyle(.trainBanner())
+            notNow
         }
     }
 

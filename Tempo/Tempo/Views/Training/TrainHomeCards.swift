@@ -68,6 +68,9 @@ struct TrainMonthlyReviewCard: View {
             }
             .buttonStyle(.trainBanner(filled: false))
         }
+        // The whole card opens the debrief, as the old row did.
+        .contentShape(.rect)
+        .onTapGesture(perform: onOpen)
     }
 }
 
@@ -157,7 +160,7 @@ struct TrainRPECard: View {
                             .foregroundStyle(Tide.text)
                             .frame(maxWidth: .infinity, minHeight: Tide.hit)
                             .background(
-                                Self.tint(for: value).opacity(0.2),
+                                Self.tint(for: value).opacity(TideTrain.chipWash),
                                 in: .rect(cornerRadius: Tide.controlRadius, style: .continuous)
                             )
                             .contentShape(.rect)
@@ -266,7 +269,7 @@ struct TrainSkeleton: View {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 block(width: TideTrain.askTile * 2, height: Tide.s3)
                 block(width: TideTrain.askTile * 3, height: Tide.s10)
-                block(width: TideTrain.askTile * 4, height: Tide.s3)
+                block(width: TideTrain.skeletonLong, height: Tide.s3)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard(padding: Tide.s5)
@@ -281,8 +284,8 @@ struct TrainSkeleton: View {
                             .fill(Tide.fill)
                             .frame(width: TideTrain.rowPicture, height: TideTrain.rowPicture)
                         VStack(alignment: .leading, spacing: Tide.s2) {
-                            block(width: TideTrain.askTile * 2.5, height: Tide.s3)
-                            block(width: TideTrain.askTile * 1.5, height: Tide.s2)
+                            block(width: TideTrain.skeletonMedium, height: Tide.s3)
+                            block(width: TideTrain.skeletonShort, height: Tide.s2)
                         }
                         Spacer(minLength: 0)
                     }
@@ -296,12 +299,12 @@ struct TrainSkeleton: View {
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
         }
-        .opacity(dim ? 0.45 : 1)
+        .opacity(dim ? TideTrain.skeletonDim : 1)
         .onAppear {
             guard !reduceMotion else {
                 return
             }
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            withAnimation(TideTrain.skeletonPulse) {
                 dim = true
             }
         }

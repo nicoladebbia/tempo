@@ -604,6 +604,15 @@ extension TideTrain {
     static let groupRail: CGFloat = 3
     /// The most set ticks one row draws before it stops counting.
     static let tickLimit = 12
+    /// The wash behind an effort chip, and the resting dim of a loading skeleton.
+    static let chipWash = 0.2
+    static let skeletonDim = 0.45
+    /// One slow pulse of a loading skeleton.
+    static let skeletonPulse = Animation.easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+    /// The three widths a skeleton line takes: short, medium, long.
+    static let skeletonShort: CGFloat = 84
+    static let skeletonMedium: CGFloat = 140
+    static let skeletonLong: CGFloat = 224
 }
 
 // MARK: - TrainFigureTile
@@ -909,11 +918,24 @@ struct TrainSetTicks: View {
     /// What the ticks count, for VoiceOver ("Sets", "Questions").
     var label = "Sets"
 
+    /// How many ticks are drawn, and how many of them are lit. Past the limit
+    /// the trail shows the share done instead of looking full too early.
+    private var visible: Int {
+        min(max(total, 0), TideTrain.tickLimit)
+    }
+
+    private var lit: Int {
+        guard total > TideTrain.tickLimit else {
+            return done
+        }
+        return done >= total ? visible : max(done, 0) * visible / total
+    }
+
     var body: some View {
         HStack(spacing: Tide.s1) {
-            ForEach(0 ..< min(max(total, 0), TideTrain.tickLimit), id: \.self) { index in
+            ForEach(0 ..< visible, id: \.self) { index in
                 Capsule()
-                    .fill(index < done ? TideTrain.positive : Tide.fillStrong)
+                    .fill(index < lit ? TideTrain.positive : Tide.fillStrong)
                     .frame(width: TideTrain.tickWidth, height: TideTrain.tickHeight)
             }
         }
