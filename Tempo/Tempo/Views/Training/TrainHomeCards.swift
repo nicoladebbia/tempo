@@ -30,7 +30,8 @@ struct TrainWindowCard: View {
             Button(action: onAdd) {
                 Label("Add to Calendar", systemImage: "calendar.badge.plus")
             }
-            .buttonStyle(.trainBanner())
+            // Quiet: "Start workout" under the thumb is the one filled button here.
+            .buttonStyle(.trainBanner(filled: false))
         }
     }
 }
@@ -65,7 +66,7 @@ struct TrainMonthlyReviewCard: View {
             Button(action: onOpen) {
                 Text("Start the debrief")
             }
-            .buttonStyle(.trainBanner())
+            .buttonStyle(.trainBanner(filled: false))
         }
     }
 }

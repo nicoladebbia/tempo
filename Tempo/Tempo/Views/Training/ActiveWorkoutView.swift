@@ -1259,6 +1259,14 @@ struct ActiveWorkoutView: View {
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
+                // Where it sits in the day: a tick per exercise, filled as each is done.
+                VStack(spacing: Tide.s1) {
+                    TrainSetTicks(done: toIndex, total: exercises.count, label: "Exercises")
+                    Text("\(toIndex + 1) of \(exercises.count)")
+                        .font(TideTrain.figure(.caption, weight: .semibold))
+                        .foregroundStyle(Tide.text3)
+                }
+                .accessibilityElement(children: .combine)
             } else {
                 Text("Next exercise").tideLabel(Tide.text3)
             }

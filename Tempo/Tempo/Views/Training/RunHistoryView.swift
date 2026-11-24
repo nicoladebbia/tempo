@@ -271,7 +271,13 @@ struct RunDetailView: View {
                         TrainSessionRule()
                     }
                     let isFastest = split == fastest && run.splits.count > 1
-                    HStack(spacing: Tide.s3) {
+                    // A faster split fills more of its bar, so the run's shape
+                    // (a fast start, a fade) reads without doing the sums.
+                    let speedShare = split > 0 ? min(fastest / split, 1) : 0
+                    let row = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                        : AnyLayout(HStackLayout(spacing: Tide.s3))
+                    row {
                         Text("KM \(idx + 1)")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
@@ -279,7 +285,12 @@ struct RunDetailView: View {
                         Text(RunHistoryView.paceLabel(split))
                             .font(TideTrain.figure(.body))
                             .foregroundStyle(isFastest ? TideTrain.record : Tide.text)
-                        Spacer(minLength: 0)
+                        TideLevelBar(
+                            progress: speedShare,
+                            color: isFastest ? TideTrain.record : nil,
+                            height: Tide.barSlim
+                        )
+                        .frame(minWidth: Tide.s10)
                         if isFastest {
                             Image(systemName: "bolt.fill")
                                 .font(Tide.caption)

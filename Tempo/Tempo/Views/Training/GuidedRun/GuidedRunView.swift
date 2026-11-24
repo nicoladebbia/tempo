@@ -162,8 +162,8 @@ struct GuidedRunView: View {
                     ) {}
 
                     VStack(alignment: .leading, spacing: Tide.s3) {
-                        ForEach(plan.blocks) { block in
-                            preStartBlockRow(block)
+                        ForEach(Array(plan.blocks.enumerated()), id: \.element.id) { index, block in
+                            preStartBlockRow(block, number: index + 1)
                         }
                     }
 
@@ -186,9 +186,20 @@ struct GuidedRunView: View {
         }
     }
 
-    private func preStartBlockRow(_ block: GuidedRunBlock) -> some View {
+    private func preStartBlockRow(_ block: GuidedRunBlock, number: Int? = nil) -> some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(block.name).tideLabel(Color.accentColor)
+            // The block's place in the run, so the list reads as a sequence.
+            HStack(spacing: Tide.s2) {
+                if let number {
+                    Text("\(number)")
+                        .font(TideTrain.figure(.caption2, weight: .bold))
+                        .foregroundStyle(Tide.ink)
+                        .frame(minWidth: Tide.s6, minHeight: Tide.s6)
+                        .background(Color.accentColor, in: .circle)
+                        .accessibilityHidden(true)
+                }
+                Text(block.name).tideLabel(Color.accentColor)
+            }
             Text(block.trainerText)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)

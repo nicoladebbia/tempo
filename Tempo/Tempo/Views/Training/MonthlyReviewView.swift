@@ -16,6 +16,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - MonthlyReviewView
+
 struct MonthlyReviewView: View {
     let monthKey: String
     var viewModel: TrainingViewModel
@@ -85,7 +87,20 @@ struct MonthlyReviewView: View {
 
     private var interviewSection: some View {
         VStack(alignment: .leading, spacing: Tide.s5) {
-            Text("Month's over. debrief.").tideLabel(Tide.text3)
+            // Where you are in it: how many of the five are answered.
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                Text("Month's over. debrief.").tideLabel(Tide.text3)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber("\(answeredCount)/5", size: Tide.numeralM, relativeTo: .title)
+                    Text("answered")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+                TrainSetTicks(done: answeredCount, total: 5, label: "Questions")
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Month's over. debrief.")
+            .accessibilityValue("\(answeredCount) of 5 answered")
 
             MonthlyReviewQuestion(
                 title: "What went well?",
@@ -117,10 +132,14 @@ struct MonthlyReviewView: View {
                 Text("Next month's emphasis")
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                let layout = typeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(spacing: Tide.s2))
-                    : AnyLayout(HStackLayout(spacing: Tide.s2))
-                layout {
+                // Two across (one at the accessibility sizes) so no name has to shrink.
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: Tide.s2),
+                        count: typeSize.isAccessibilitySize ? 1 : 2
+                    ),
+                    spacing: Tide.s2
+                ) {
                     emphasisButton(nil, label: "Keep current")
                     ForEach(BlockEmphasis.allCases, id: \.self) { e in
                         emphasisButton(e, label: e.displayName)
@@ -178,13 +197,32 @@ struct MonthlyReviewView: View {
                 TideIconTile(systemName: "doc.text.fill", tint: TideTrain.violet)
                 Text("The report").tideLabel(Tide.text3)
             }
-            Text(summary)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            // Paragraph by paragraph, so a long report breathes.
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                ForEach(Array(paragraphs(of: summary).enumerated()), id: \.offset) { _, paragraph in
+                    Text(paragraph)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
+    }
+
+    private func paragraphs(of text: String) -> [String] {
+        let parts = text.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? [text] : parts
+    }
+
+    /// How many of the five questions have an answer.
+    private var answeredCount: Int {
+        [wentWell, struggles, niggles, subjectiveProgress, goalsNextMonth]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .count
     }
 
     // MARK: - Actions

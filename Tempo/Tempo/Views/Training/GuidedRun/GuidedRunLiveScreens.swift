@@ -103,6 +103,9 @@ struct GuidedRunWorkScreen: View {
         VStack(spacing: Tide.hair) {
             Text("Block \(step.blockIndex + 1)/\(step.blockCount) · \(step.blockName)")
                 .tideLabel(Color.accentColor)
+            // A tick for every block of the run, filled as each one is done.
+            TrainSetTicks(done: step.blockIndex, total: step.blockCount, label: "Blocks")
+                .padding(.vertical, Tide.s1)
             Text(step.blockTrainerText)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
