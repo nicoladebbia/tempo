@@ -28,6 +28,7 @@ struct WeeklyAccountabilityView: View {
     private var discSize: CGFloat {
         min(dayDisc, Tide.avatar)
     }
+
     @State
     private var weekData: WeeklyAccountabilityData?
     @State
@@ -125,7 +126,10 @@ struct WeeklyAccountabilityView: View {
 
     private func categoryRow(_ category: CategoryGrade) -> some View {
         HStack(spacing: Tide.s3) {
-            TideAreaIconTile(systemName: category.icon, tint: gradeColor(category.grade))
+            // At the largest text sizes the words need the width the icon tile would take.
+            if !typeSize.isAccessibilitySize {
+                TideAreaIconTile(systemName: category.icon, tint: gradeColor(category.grade))
+            }
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(category.name)
@@ -165,7 +169,9 @@ struct WeeklyAccountabilityView: View {
             HStack(spacing: Tide.s1) {
                 ForEach(data.dailyResults, id: \.dayName) { day in
                     VStack(spacing: Tide.s2) {
-                        Text(day.dayName)
+                        // Seven columns cannot hold three letters at the largest text
+                        // sizes: one letter each, and VoiceOver still reads the full day.
+                        Text(typeSize.isAccessibilitySize ? String(day.dayName.prefix(1)) : day.dayName)
                             .tideLabel(Tide.text3)
                             .lineLimit(1)
                             .minimumScaleFactor(Tide.labelShrink)
@@ -343,7 +349,12 @@ struct WeeklyAccountabilityView: View {
     }
 
     private func highlightRow(systemImage: String, text: String, rate: Double, tint: Color) -> some View {
-        HStack(spacing: Tide.s3) {
+        // At the largest text sizes the day name takes the full row and the percentage drops under it.
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
             Image(systemName: systemImage)
                 .font(Tide.headline)
                 .foregroundStyle(tint)
@@ -353,12 +364,15 @@ struct WeeklyAccountabilityView: View {
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
 
-            Spacer(minLength: Tide.s2)
+            if !stacks {
+                Spacer(minLength: Tide.s2)
+            }
 
             TideNumber(
                 "\(Int(rate * 100))", unit: "%", size: Tide.numeralS, relativeTo: .headline, color: tint
             )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideTintedCard(tint, padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityElement(children: .combine)
     }

@@ -153,6 +153,8 @@ private struct OverrideSelectionView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showOverrideConfirmation = false
@@ -224,7 +226,10 @@ private struct OverrideSelectionView: View {
             showOverrideConfirmation = true
         } label: {
             HStack(spacing: Tide.s3) {
-                TideAreaIconTile(systemName: option.icon, tint: isActive ? TideTone.mint : mood.accent)
+                // At the largest text sizes the words need the width the icon tile would take.
+                if !typeSize.isAccessibilitySize {
+                    TideAreaIconTile(systemName: option.icon, tint: isActive ? TideTone.mint : mood.accent)
+                }
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(option.title)

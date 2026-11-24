@@ -80,10 +80,8 @@ struct MindQuadrantDetailView: View {
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s3)
                     .padding(.bottom, Tide.s2)
-                    .background(
-                        // Content fades out under the button instead of showing through.
-                        LinearGradient(colors: [.clear, Tide.ink.opacity(0.85)], startPoint: .top, endPoint: .bottom)
-                    )
+                    // Content fades out under the button instead of showing through.
+                    .pinnedBarScrim()
             }
         }
         .navigationTitle("Mind")

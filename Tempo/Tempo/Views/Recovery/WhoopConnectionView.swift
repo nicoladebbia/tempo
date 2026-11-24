@@ -149,11 +149,16 @@ struct WhoopConnectionView: View {
 
                     Spacer(minLength: Tide.s2)
 
-                    if whoop.isDemoMode, isConnected {
+                    if whoop.isDemoMode, isConnected, !typeSize.isAccessibilitySize {
                         TideStatusPill(text: "Demo", tint: TideTone.amber)
                     }
                 }
                 .accessibilityElement(children: .combine)
+
+                // At the largest text sizes the pill drops under the status instead of squeezing it.
+                if whoop.isDemoMode, isConnected, typeSize.isAccessibilitySize {
+                    TideStatusPill(text: "Demo", tint: TideTone.amber)
+                }
 
                 if isConnected {
                     TideDivider()
