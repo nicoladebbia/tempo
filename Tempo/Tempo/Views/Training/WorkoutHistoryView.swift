@@ -24,7 +24,15 @@ struct WorkoutHistoryView: View {
         sort: \WorkoutPlan.date,
         order: .reverse
     )
-    private var completedWorkouts: [WorkoutPlan]
+    private var storedCompletedWorkouts: [WorkoutPlan]
+
+    /// The history as shown: a workout waiting out its Undo window is hidden.
+    private var completedWorkouts: [WorkoutPlan] {
+        guard let hiddenWorkoutID else {
+            return storedCompletedWorkouts
+        }
+        return storedCompletedWorkouts.filter { $0.id != hiddenWorkoutID }
+    }
 
     @Query
     private var userSettings: [UserSettings]
@@ -78,6 +86,17 @@ struct WorkoutHistoryView: View {
     /// Pending hard-delete awaiting confirmation.
     @State
     private var pendingDelete: WorkoutPlan?
+
+    /// A confirmed delete waits a few seconds before it is final, so Undo can
+    /// bring the workout back. Until then the row is only hidden.
+    @State
+    private var pendingPurge = PendingUndo<UUID>()
+    @State
+    private var hiddenWorkoutID: UUID?
+    @State
+    private var deleteToast: ToastData?
+    @Environment(\.scenePhase)
+    private var scenePhase
 
     /// §20 — CSV import/export.
     @State
@@ -296,6 +315,16 @@ struct WorkoutHistoryView: View {
         } message: { workout in
             Text(Self.deleteConfirmationMessage(workout))
         }
+        .tempoToast($deleteToast)
+        // A workout waiting out its Undo window is removed for good as soon as
+        // this screen is left or the app goes to the background, so a delete
+        // never survives only in memory.
+        .onDisappear { commitPendingDelete() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                commitPendingDelete()
+            }
+        }
     }
 
     // MARK: - Swipe-to-Delete Row
@@ -303,7 +332,8 @@ struct WorkoutHistoryView: View {
     // LazyVStack can't use .swipeActions (List-only), and converting this
     // screen to a List would wreck the custom card design. So this is a
     // contained left-swipe: drag reveals a red Delete; tapping it asks for
-    // confirmation (hard delete is irreversible — see deleteWorkout).
+    // confirmation, then the workout waits a few seconds for Undo (see
+    // deleteWorkout) before it is purged.
 
     private func swipeToDeleteRow(_ workout: WorkoutPlan) -> some View {
         let isSwiped = swipedWorkoutID == workout.id
@@ -382,7 +412,7 @@ struct WorkoutHistoryView: View {
         return """
         \(name): permanently removes this session — its \(setCount) logged set\(setCount == 1 ? "" : "s"), \
         set feedback, pain flags, and the progress-chart history & PRs it created. Weekly volume and charts \
-        will update. Weight adjustments Tempo already learned from it stay. This can't be undone.
+        will update. Weight adjustments Tempo already learned from it stay. You can undo for a few seconds.
         """
     }
 
@@ -398,10 +428,48 @@ struct WorkoutHistoryView: View {
 
     /// Full purge — see `WorkoutPurge.purge` (also notifies Today/Dashboard,
     /// so a deleted TODAY workout doesn't linger on those screens).
+    ///
+    /// The purge is deferred: the workout is hidden now and removed for good
+    /// after `PendingUndo.window`, on leaving the screen, or on backgrounding.
+    /// Undo just shows it again. A second delete makes the first final at once.
     private func deleteWorkout(_ workout: WorkoutPlan) {
-        WorkoutPurge.purge(workout, modelContext: modelContext)
+        let id = workout.id
+        let name = workout.type.displayName
+        let token = pendingPurge.begin(id) { purgeWorkout(id: $0) }
+        hiddenWorkoutID = id
         swipedWorkoutID = nil
         pendingDelete = nil
+        deleteToast = ToastData(message: "Deleted \(name) workout", style: .success, actionTitle: "Undo") {
+            if pendingPurge.undo() != nil {
+                withAnimation(Tide.snap) { hiddenWorkoutID = nil }
+            }
+        }
+        Task {
+            try? await Task.sleep(for: PendingUndo<UUID>.window)
+            pendingPurge.commitIfCurrent(token) { purgeWorkout(id: $0) }
+            if pendingPurge.item == nil {
+                hiddenWorkoutID = nil
+            }
+        }
+    }
+
+    /// Removes the waiting workout for good, if there is one.
+    private func commitPendingDelete() {
+        pendingPurge.commitNow { purgeWorkout(id: $0) }
+        hiddenWorkoutID = nil
+    }
+
+    /// The real purge. Looks the workout up by id, so it works whichever
+    /// result set the row came from.
+    private func purgeWorkout(id: UUID) {
+        let wanted = id
+        guard let workout = try? modelContext.fetch(
+            FetchDescriptor<WorkoutPlan>(predicate: #Predicate { $0.id == wanted })
+        ).first
+        else {
+            return
+        }
+        WorkoutPurge.purge(workout, modelContext: modelContext)
         HapticManager.notification(.success)
     }
 
