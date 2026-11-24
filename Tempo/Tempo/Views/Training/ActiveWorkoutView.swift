@@ -515,6 +515,16 @@ struct ActiveWorkoutView: View {
                     PerSideRepsControl(left: $inputReps, right: $inputRepsRight, splitEnabled: $logRepsSeparately)
                 }
 
+                // Form guide for this lift: one collapsed row under the set
+                // card, so it is never between you and logging. Lifts the
+                // guide does not cover show nothing.
+                if let exercise = viewModel.currentExercise?.exercise,
+                   let technique = ExerciseTechniqueLibrary.technique(for: exercise)
+                {
+                    WorkoutFormRow(technique: technique)
+                        .id(exercise.id)
+                }
+
                 // RPE is collected end-of-set in the inline feedback panel
                 // (under the rest timer), not here — one prompt, not two.
 
