@@ -1087,6 +1087,9 @@ struct FuelDecisionSheet: View {
     var cancelTitle = "Cancel"
     let cancel: () -> Void
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         ScrollView {
             VStack(spacing: Tide.s4) {
@@ -1126,11 +1129,18 @@ struct FuelDecisionSheet: View {
         .scrollBounceBehavior(.basedOnSize)
         .fuelBottomBar {
             VStack(spacing: Tide.s2) {
-                Button(primaryTitle, action: primary)
-                    .buttonStyle(.tidePrimary)
+                Button(action: primary) {
+                    // A long title wraps, centred, instead of hugging the left edge.
+                    Text(primaryTitle)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
                 if let secondaryTitle, let secondary {
                     Button(action: secondary) {
-                        Text(secondaryTitle).frame(maxWidth: .infinity)
+                        Text(secondaryTitle)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.tideGlass)
                 }
@@ -1147,7 +1157,8 @@ struct FuelDecisionSheet: View {
         .tidePage()
         // A sheet is its own page, even when it comes up from inside one.
         .environment(\.tideInsidePage, false)
-        .presentationDetents([.height(Tide.fuelDetentConfirm), .large])
+        // Large text needs the whole page: a short sheet would cut the message.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(Tide.fuelDetentConfirm), .large])
         .presentationDragIndicator(.visible)
     }
 }

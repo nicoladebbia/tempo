@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+// MARK: - WizardStepScaffold
+
 struct WizardStepScaffold<Content: View>: View {
     let title: String
     let subtitle: String?
@@ -25,6 +27,8 @@ struct WizardStepScaffold<Content: View>: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     init(
         title: String,
@@ -102,10 +106,13 @@ struct WizardStepScaffold<Content: View>: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Text("Plan intake")
-                    .tideLabel()
-                Spacer()
-                Color.clear.frame(width: Tide.hit, height: Tide.hair)
+                // At large text the title would crowd Cancel; the eyebrow below says where you are.
+                if !typeSize.isAccessibilitySize {
+                    Text("Plan intake")
+                        .tideLabel()
+                    Spacer()
+                    Color.clear.frame(width: Tide.hit, height: Tide.hair)
+                }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s1)

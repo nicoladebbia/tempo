@@ -14,6 +14,8 @@ struct QuickLogSheet: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Environment(ServiceContainer.self)
     private var services
 
@@ -94,7 +96,8 @@ struct QuickLogSheet: View {
             .mealReview($request) { dismiss() }
             .aiBlockerAlert($aiBlocker) { submit() }
         }
-        .presentationDetents([.medium, .large])
+        // Large text needs the whole page.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 
     private var canSubmit: Bool {
