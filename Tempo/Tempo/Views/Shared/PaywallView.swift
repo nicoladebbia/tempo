@@ -389,6 +389,8 @@ struct PaywallView: View {
 
             footerActions
         }
+        // The pinned footer stays a size the content can still be read behind.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         .padding(.horizontal, Tide.edge)
         .padding(.top, Tide.s6)
         .padding(.bottom, Tide.s1)
@@ -396,7 +398,7 @@ struct PaywallView: View {
             LinearGradient(
                 stops: [
                     .init(color: Tide.ink.opacity(0), location: 0),
-                    .init(color: Tide.ink.opacity(0.94), location: 0.42),
+                    .init(color: Tide.ink.opacity(0.94), location: 0.16),
                     .init(color: Tide.ink.opacity(0.97), location: 1),
                 ],
                 startPoint: .top,
