@@ -42,6 +42,9 @@ struct LockdownMainView: View {
 
     @State
     private var showUnlockCelebration = false
+    /// The pending auto-dismiss of the unlock moment, so Continue (or a second unlock) can cancel it.
+    @State
+    private var unlockDismissTask: Task<Void, Never>?
 
     @State
     private var showNonNegotiableSetup = false
@@ -129,8 +132,12 @@ struct LockdownMainView: View {
                     showUnlockCelebration = true
                 }
                 // Dismiss after 6 seconds: the burst plays for 4.5, then Continue is the way out.
-                Task {
+                unlockDismissTask?.cancel()
+                unlockDismissTask = Task {
                     try? await Task.sleep(for: .seconds(6))
+                    guard !Task.isCancelled else {
+                        return
+                    }
                     withAnimation { showUnlockCelebration = false }
                 }
             }
@@ -620,6 +627,7 @@ struct LockdownMainView: View {
         }
 
         return LockdownUnlockMoment(score: score, streak: viewModel.streakCount) {
+            unlockDismissTask?.cancel()
             withAnimation { showUnlockCelebration = false }
         }
         .transition(.scale(scale: 0.96).combined(with: .opacity))

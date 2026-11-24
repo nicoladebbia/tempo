@@ -34,7 +34,7 @@ struct LockdownTabView: View {
     }
 
     private var focusTimerEnabled: Bool {
-        return settings?.focusTimerEnabled ?? false
+        settings?.focusTimerEnabled ?? false
     }
 
     /// True when pushed on another stack (Today): no stack of its own, or the

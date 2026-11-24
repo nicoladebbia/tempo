@@ -39,9 +39,6 @@ struct ArenaMainView: View {
     @State
     private var showXPDetail = false
 
-    @Environment(\.modelContext)
-    private var modelContext
-
     /// The stack's zoom namespace, so a card zooms open into its page.
     var zoom: Namespace.ID?
 
