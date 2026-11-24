@@ -39,7 +39,8 @@ struct LoggedMealsList: View {
                 trailing: meals.count == 1 ? "1 meal" : "\(meals.count) meals"
             )
             TideNumber("\(Int(kcal.rounded()))", unit: "kcal", size: Tide.numeralM)
-            HStack(spacing: Tide.s2) {
+            // Wraps instead of running off the card at large text sizes.
+            FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                 MacroChip(letter: "P", grams: protein, color: Tide.protein)
                 MacroChip(letter: "C", grams: carbs, color: Tide.carbs)
                 MacroChip(letter: "F", grams: fat, color: Tide.fat)
@@ -131,7 +132,7 @@ struct LoggedMealRow: View {
                         .foregroundStyle(Tide.text2)
                         .lineLimit(2)
                 }
-                HStack(spacing: Tide.s2) {
+                FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s1) {
                     if let at = meal.actualEatenAt {
                         Text(at.formatted(date: .omitted, time: .shortened))
                             .font(Tide.caption)
@@ -142,7 +143,7 @@ struct LoggedMealRow: View {
                         originBadge(origin)
                     }
                 }
-                HStack(spacing: Tide.s1) {
+                FlowLayout(spacing: Tide.s1, lineSpacing: Tide.s1) {
                     MacroChip(letter: "P", grams: meal.totalProtein, color: Tide.protein)
                     MacroChip(letter: "C", grams: meal.totalCarbs, color: Tide.carbs)
                     MacroChip(letter: "F", grams: meal.totalFat, color: Tide.fat)

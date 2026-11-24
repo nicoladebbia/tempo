@@ -29,15 +29,7 @@ struct RequestedMealView: View {
                 if let meal = Self.meal(id: request.id, in: modelContext) {
                     MealDetailView(meal: meal, opensMarkEaten: request.action == .markEaten)
                 } else {
-                    FuelEmptyState(
-                        icon: "fork.knife",
-                        title: "That meal isn't on your plan any more.",
-                        message: "The plan was rebuilt since this reminder was set."
-                    )
-                    .padding(.horizontal, Tide.edge)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .tidePage()
-                    .accessibilityIdentifier("requestedMealMissing")
+                    missing
                 }
             }
             .toolbar {
@@ -47,6 +39,35 @@ struct RequestedMealView: View {
                 }
             }
         }
+        // A sheet is its own page, even when a notification opens it from inside one.
+        .environment(\.tideInsidePage, false)
+    }
+
+    /// The meal is gone: say so, say why, and give one way out.
+    private var missing: some View {
+        VStack(spacing: Tide.s4) {
+            TideStateMark(systemName: "fork.knife", tint: Tide.warn)
+            VStack(spacing: Tide.s2) {
+                Text("That meal isn't on your plan any more.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text("The plan was rebuilt since this reminder was set.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: Tide.stateWidth)
+            Button("Back to Fuel") { dismiss() }
+                .buttonStyle(.tideGlass)
+        }
+        .padding(.horizontal, Tide.edge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tidePage()
+        .accessibilityIdentifier("requestedMealMissing")
     }
 
     static func meal(id: UUID, in modelContext: ModelContext) -> PlannedMeal? {

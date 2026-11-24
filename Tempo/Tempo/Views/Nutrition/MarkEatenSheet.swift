@@ -121,6 +121,8 @@ struct MarkEatenSheet: View {
             .scrollEdgeEffectStyle(.soft, for: .top)
             .fuelBottomBar { saveButton }
             .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
             .navigationTitle(meal.mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

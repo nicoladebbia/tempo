@@ -128,6 +128,8 @@ struct FluidSheet: View {
             .scrollEdgeEffectStyle(.soft, for: .top)
         }
         .tidePage()
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
         .sensoryFeedback(.error, trigger: error) { _, new in new != nil }
         .onAppear {
             bottleText = String(model.bottleMl)

@@ -116,25 +116,21 @@ struct NutritionLogView: View {
         .aiBlockerAlert($aiBlocker) {
             submitNaturalLanguage()
         }
-        .alert(
-            "Already logged",
-            isPresented: Binding(
-                get: { presetDuplicate != nil },
-                set: {
-                    if !$0 {
-                        presetDuplicate = nil
-                    }
-                }
-            ),
-            presenting: presetDuplicate
-        ) { preset in
-            Button("Add another") {
-                logPreset(preset, confirmedDuplicate: true)
-                presetDuplicate = nil
-            }
-            Button("Cancel", role: .cancel) { presetDuplicate = nil }
-        } message: { preset in
-            Text("\(preset.name) is already in this meal. Log another portion?")
+        // Logging a repeat is a question with two answers, so it gets a page of its
+        // own with the answer under the thumb instead of a system alert.
+        .sheet(item: $presetDuplicate) { preset in
+            FuelDecisionSheet(
+                icon: "square.on.square",
+                title: "Already logged",
+                message: "\(preset.name) is already in this meal. Log another portion?",
+                primaryTitle: "Add another",
+                primary: {
+                    logPreset(preset, confirmedDuplicate: true)
+                    presetDuplicate = nil
+                },
+                cancel: { presetDuplicate = nil }
+            )
+            .environment(\.tideInsidePage, false)
         }
     }
 

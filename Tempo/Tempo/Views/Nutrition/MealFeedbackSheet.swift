@@ -36,65 +36,28 @@ struct MealFeedbackSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    HStack {
-                        ForEach(1 ... 5, id: \.self) { star in
-                            Button {
-                                rating = (rating == star) ? 0 : star
-                                HapticManager.lightImpact()
-                            } label: {
-                                Image(systemName: star <= rating ? "star.fill" : "star")
-                                    .font(Tide.title2)
-                                    .foregroundStyle(star <= rating ? Tide.warn : Tide.text3)
-                                    .symbolEffect(.bounce, value: rating == star)
-                                    .frame(maxWidth: .infinity, minHeight: Tide.hit)
-                                    .contentShape(.rect)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(star) \(star == 1 ? "star" : "stars")")
-                        }
-                    }
-                    .fuelRow()
-                } header: {
-                    Text("How was it?").tideLabel()
-                } footer: {
-                    Text("Skip the stars if you only want to leave a note.")
-                        .font(Tide.caption).foregroundStyle(Tide.text3)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    stars
+                    noteField(
+                        "Overall", prompt: "Loved this. Or didn't.", text: $overallNote, lines: 2 ... 4
+                    )
+                    noteField(
+                        "Portion", prompt: "Too big, too small, just right…", text: $portionNote, lines: 1 ... 3,
+                        footnote: "If 100g feels right instead of 300g, say so. Plans will adapt."
+                    )
+                    noteField(
+                        "Next time", prompt: "Add lemon. Swap rice for quinoa. Less salt.", text: $suggestedChange,
+                        lines: 1 ... 3,
+                        footnote: "Specific changes you want applied when this dish comes around again."
+                    )
                 }
-
-                Section {
-                    TextField("Loved this. Or didn't.", text: $overallNote, axis: .vertical)
-                        .lineLimit(2 ... 4)
-                        .fuelRow()
-                } header: {
-                    Text("Overall").tideLabel()
-                }
-
-                Section {
-                    TextField("Too big, too small, just right…", text: $portionNote, axis: .vertical)
-                        .lineLimit(1 ... 3)
-                        .fuelRow()
-                } header: {
-                    Text("Portion").tideLabel()
-                } footer: {
-                    Text("If 100g feels right instead of 300g, say so. Plans will adapt.")
-                        .font(Tide.caption).foregroundStyle(Tide.text3)
-                }
-
-                Section {
-                    TextField("Add lemon. Swap rice for quinoa. Less salt.", text: $suggestedChange, axis: .vertical)
-                        .lineLimit(1 ... 3)
-                        .fuelRow()
-                } header: {
-                    Text("Next time").tideLabel()
-                } footer: {
-                    Text("Specific changes you want applied when this dish comes around again.")
-                        .font(Tide.caption).foregroundStyle(Tide.text3)
-                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
-            .font(Tide.body)
-            .scrollContentBackground(.hidden)
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollDismissesKeyboard(.interactively)
             // The one action sits under the thumb, in the standard button.
             .fuelBottomBar {
                 Button(existing == nil ? "Save" : "Update") {
@@ -103,6 +66,7 @@ struct MealFeedbackSheet: View {
                 }
                 .buttonStyle(.tidePrimary)
                 .disabled(!canSave)
+                .accessibilityIdentifier("mealFeedbackSave")
             }
             .tidePage()
             .navigationTitle(meal.mealName)
@@ -113,6 +77,62 @@ struct MealFeedbackSheet: View {
                 }
             }
             .onAppear(perform: hydrateFromExisting)
+        }
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
+    }
+
+    /// Five big stars in one card: the quickest way to say how it was.
+    private var stars: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "How was it?")
+                .padding(.horizontal, Tide.s1)
+            HStack(spacing: Tide.s1) {
+                ForEach(1 ... 5, id: \.self) { star in
+                    Button {
+                        rating = (rating == star) ? 0 : star
+                        HapticManager.lightImpact()
+                    } label: {
+                        Image(systemName: star <= rating ? "star.fill" : "star")
+                            .font(Tide.title)
+                            .foregroundStyle(star <= rating ? Tide.warn : Tide.text3)
+                            .symbolEffect(.bounce, value: rating == star)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s2)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(star) \(star == 1 ? "star" : "stars")")
+                    .accessibilityAddTraits(star == rating ? .isSelected : [])
+                }
+            }
+            .animation(Tide.snap, value: rating)
+            .tideCard(padding: Tide.s2, radius: Tide.tileRadius)
+            Text("Skip the stars if you only want to leave a note.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .padding(.horizontal, Tide.s1)
+        }
+    }
+
+    private func noteField(
+        _ title: String, prompt: String, text: Binding<String>, lines: ClosedRange<Int>, footnote: String? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: title)
+                .padding(.horizontal, Tide.s1)
+            TextField(prompt, text: text, axis: .vertical)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .lineLimit(lines)
+                .padding(.vertical, Tide.s2)
+                .fuelField(radius: Tide.tileRadius)
+            if let footnote {
+                Text(footnote)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s1)
+            }
         }
     }
 

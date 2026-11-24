@@ -20,7 +20,7 @@ enum FuelSetupText {
 
 // MARK: - OptionalTimeRow
 
-/// A time that may be unset: a toggle to set it, then a time picker.
+/// A time that may be unset: a switch to set it, then the time beside it.
 struct OptionalTimeRow: View {
     let label: String
     @Binding
@@ -29,13 +29,23 @@ struct OptionalTimeRow: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        HStack {
-            Toggle(label, isOn: Binding(
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
+            Toggle(isOn: Binding(
                 get: { minutes != nil },
                 set: { minutes = $0 ? (minutes ?? defaultMinutes) : nil }
-            ))
+            )) {
+                Text(label)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(minutes == nil ? Tide.text2 : Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             .tint(mood.accent)
             if minutes != nil {
                 DatePicker("", selection: Binding(
@@ -43,8 +53,11 @@ struct OptionalTimeRow: View {
                     set: { minutes = Self.minutes($0) }
                 ), displayedComponents: .hourAndMinute)
                     .labelsHidden()
+                    .fixedSize()
             }
         }
+        .frame(minHeight: Tide.hit)
+        .animation(Tide.snap, value: minutes == nil)
     }
 
     static func date(_ minutes: Int) -> Date {
@@ -59,6 +72,8 @@ struct OptionalTimeRow: View {
 
 // MARK: - DayRoutineEditor
 
+/// One day of the week: when it starts and ends, training, and the fixed
+/// events (classes, work, meals out). Three grouped cards instead of a form.
 struct DayRoutineEditor: View {
     @Binding
     var day: DayRoutine
@@ -66,97 +81,156 @@ struct DayRoutineEditor: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        Form {
-            Section {
-                OptionalTimeRow(label: "Wake up", minutes: $day.wakeMinutes, defaultMinutes: 7 * 60)
-                    .fuelRow()
-                OptionalTimeRow(label: "Leave home", minutes: $day.leaveHomeMinutes, defaultMinutes: 8 * 60)
-                    .fuelRow()
-                OptionalTimeRow(label: "Back home", minutes: $day.backHomeMinutes, defaultMinutes: 17 * 60)
-                    .fuelRow()
-                OptionalTimeRow(label: "Bed", minutes: $day.bedMinutes, defaultMinutes: 23 * 60)
-                    .fuelRow()
-            } header: {
-                Text("Day").tideLabel()
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                FuelRowGroup(title: "Day") {
+                    OptionalTimeRow(label: "Wake up", minutes: $day.wakeMinutes, defaultMinutes: 7 * 60)
+                    OptionalTimeRow(label: "Leave home", minutes: $day.leaveHomeMinutes, defaultMinutes: 8 * 60)
+                    OptionalTimeRow(label: "Back home", minutes: $day.backHomeMinutes, defaultMinutes: 17 * 60)
+                    OptionalTimeRow(label: "Bed", minutes: $day.bedMinutes, defaultMinutes: 23 * 60)
+                }
+                training
+                events
             }
-            Section {
-                Toggle("Training this day", isOn: Binding(
-                    get: { day.training != nil },
-                    set: { day.training = $0 ? (day.training ?? TrainingSlot(startMinutes: 17 * 60)) : nil }
-                ))
-                .fuelRow()
-                if day.training != nil {
-                    DatePicker("Starts", selection: Binding(
-                        get: { OptionalTimeRow.date(day.training?.startMinutes ?? 17 * 60) },
-                        set: { day.training?.startMinutes = OptionalTimeRow.minutes($0) }
-                    ), displayedComponents: .hourAndMinute)
-                        .fuelRow()
-                    Stepper("\(day.training?.durationMinutes ?? 60) min", value: Binding(
-                        get: { day.training?.durationMinutes ?? 60 },
-                        set: { day.training?.durationMinutes = $0 }
-                    ), in: 15 ... 240, step: 15)
-                        .fuelRow()
-                    TextField("What (e.g. gym — legs, football)", text: Binding(
-                        get: { day.training?.kind ?? "" },
-                        set: { day.training?.kind = $0 }
-                    ))
-                    .fuelRow()
-                }
-            } header: {
-                Text("Training").tideLabel()
-            }
-            Section {
-                ForEach($day.events) { $event in
-                    RoutineEventRow(event: $event, places: places)
-                        .fuelRow()
-                }
-                .onDelete { day.events.remove(atOffsets: $0) }
-                Button {
-                    day.events.append(RoutineEvent(kind: .classOrWork, title: "Class", startMinutes: 11 * 60, endMinutes: 12 * 60))
-                } label: {
-                    Label("Add class / work", systemImage: "plus")
-                }
-                .fuelRow()
-                Button {
-                    day.events.append(RoutineEvent(kind: .mealOut, title: "Lunch out", startMinutes: 13 * 60, placeID: places.first?.id))
-                } label: {
-                    Label("Add a meal out", systemImage: "fork.knife")
-                }
-                .fuelRow()
-            } header: {
-                Text("Fixed events").tideLabel()
-            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .scrollDismissesKeyboard(.interactively)
         .tint(mood.accent)
-        .scrollContentBackground(.hidden)
         .tidePage()
         .navigationTitle(day.name)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var training: some View {
+        FuelRowGroup(title: "Training") {
+            Toggle(isOn: Binding(
+                get: { day.training != nil },
+                set: { day.training = $0 ? (day.training ?? TrainingSlot(startMinutes: 17 * 60)) : nil }
+            )) {
+                Text("Training this day")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+            }
+            .frame(minHeight: Tide.hit)
+            if day.training != nil {
+                DatePicker("Starts", selection: Binding(
+                    get: { OptionalTimeRow.date(day.training?.startMinutes ?? 17 * 60) },
+                    set: { day.training?.startMinutes = OptionalTimeRow.minutes($0) }
+                ), displayedComponents: .hourAndMinute)
+                    .font(Tide.bodyStrong)
+                    .frame(minHeight: Tide.hit)
+                Stepper(value: Binding(
+                    get: { day.training?.durationMinutes ?? 60 },
+                    set: { day.training?.durationMinutes = $0 }
+                ), in: 15 ... 240, step: 15) {
+                    Text("\(day.training?.durationMinutes ?? 60) min")
+                        .font(Tide.bodyStrong)
+                        .monospacedDigit()
+                }
+                .frame(minHeight: Tide.hit)
+                TextField("What (e.g. gym — legs, football)", text: Binding(
+                    get: { day.training?.kind ?? "" },
+                    set: { day.training?.kind = $0 }
+                ))
+                .font(Tide.body)
+                .fuelField()
+            }
+        }
+    }
+
+    private var events: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Fixed events")
+                .padding(.horizontal, Tide.s1)
+            ForEach($day.events) { $event in
+                RoutineEventRow(event: $event, places: places) {
+                    withAnimation(Tide.snap) { day.events.removeAll { $0.id == event.id } }
+                }
+            }
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                : AnyLayout(HStackLayout(spacing: Tide.s2))
+            GlassEffectContainer(spacing: Tide.s2) {
+                layout {
+                    Button {
+                        withAnimation(Tide.snap) {
+                            day.events.append(RoutineEvent(kind: .classOrWork, title: "Class", startMinutes: 11 * 60, endMinutes: 12 * 60))
+                        }
+                    } label: {
+                        Label("Add class / work", systemImage: "plus")
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
+                    Button {
+                        withAnimation(Tide.snap) {
+                            day.events.append(RoutineEvent(
+                                kind: .mealOut,
+                                title: "Lunch out",
+                                startMinutes: 13 * 60,
+                                placeID: places.first?.id
+                            ))
+                        }
+                    } label: {
+                        Label("Add a meal out", systemImage: "fork.knife")
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
+                }
+            }
+        }
     }
 }
 
 // MARK: - RoutineEventRow
 
+/// One fixed event as its own card: name and kind on top, the time, the
+/// place, and (for a meal out) who with and which restaurants.
 struct RoutineEventRow: View {
     @Binding
     var event: RoutineEvent
     let places: [RoutinePlace]
+    var onDelete: (() -> Void)?
+
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            HStack {
-                TextField("Title", text: $event.title)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
+                Image(systemName: event.kind == .mealOut ? "fork.knife" : "book.fill")
                     .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
+                TextField("Title", text: $event.title)
+                    .font(Tide.headline)
                 Picker("", selection: $event.kind) {
                     ForEach(RoutineEvent.Kind.allCases, id: \.self) { kind in
                         Text(kind.label).tag(kind)
                     }
                 }
                 .labelsHidden()
+                if let onDelete {
+                    Button(role: .destructive, action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.danger)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete event")
+                }
             }
-            HStack {
+            HStack(spacing: Tide.s2) {
                 DatePicker("", selection: Binding(
                     get: { OptionalTimeRow.date(event.startMinutes) },
                     set: { event.startMinutes = OptionalTimeRow.minutes($0) }
@@ -171,6 +245,7 @@ struct RoutineEventRow: View {
                     ), displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
+                Spacer(minLength: 0)
             }
             if !places.isEmpty {
                 Picker("Where", selection: $event.placeID) {
@@ -185,13 +260,16 @@ struct RoutineEventRow: View {
                     get: { event.with ?? "" },
                     set: { event.with = $0.isEmpty ? nil : $0 }
                 ))
+                .fuelField()
                 TextField("Restaurants (usual first)", text: Binding(
                     get: { event.restaurants.joined(separator: ", ") },
                     set: { event.restaurants = FuelSetupText.split($0) }
                 ))
+                .fuelField()
             }
         }
         .font(Tide.body)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 }
 

@@ -55,6 +55,9 @@ struct RecipeSuggestionsView: View {
                         }
                         .buttonStyle(FuelPressStyle())
                     }
+                    // The two ways to add one, at the end of the list as well as in the corner.
+                    addButtons
+                        .padding(.top, Tide.s2)
                 }
             }
             .padding(.horizontal, Tide.edge)
@@ -199,8 +202,42 @@ struct RecipeSuggestionsView: View {
             icon: "fork.knife.circle",
             title: "No recipe matches yet",
             message: "Add items to your pantry — or save a recipe — and we'll rank what you can make."
-        )
+        ) {
+            addButtons
+                .padding(.top, Tide.s2)
+        }
         .padding(.top, Tide.s6)
+    }
+
+    /// Write one yourself, or say it and let the AI fill the form. Stacked, so
+    /// each label has the full width at any text size.
+    private var addButtons: some View {
+        VStack(spacing: Tide.s2) {
+            writeButton
+            tellAIButton
+        }
+    }
+
+    private var writeButton: some View {
+        Button {
+            showWriteRecipe = true
+        } label: {
+            Label("Write a recipe", systemImage: "square.and.pencil")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tidePrimary)
+        .accessibilityIdentifier("recipesWrite")
+    }
+
+    private var tellAIButton: some View {
+        Button {
+            showTellAIRecipe = true
+        } label: {
+            Label("Tell AI", systemImage: "wand.and.stars")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+        .accessibilityIdentifier("recipesTellAI")
     }
 }
 

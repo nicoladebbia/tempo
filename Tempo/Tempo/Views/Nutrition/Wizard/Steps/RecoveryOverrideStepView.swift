@@ -14,11 +14,14 @@ struct RecoveryOverrideStepView: View {
 
     @Environment(\.tideMood)
     private var mood
+    @ScaledMetric(relativeTo: .title)
+    private var ring = Tide.fuelHeroRing
 
     var body: some View {
         WizardStepScaffold(
             title: "Adjust around training?",
             subtitle: subtitleText,
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             onBack: coordinator.goBack,
@@ -56,25 +59,37 @@ struct RecoveryOverrideStepView: View {
         return "Adjust calorie distribution based on training intensity this week?"
     }
 
+    /// Yesterday's Whoop recovery as a lit ring: the number is the hero of this step.
     private func recoveryBadge(score: Double) -> some View {
-        let color: Color = if score >= 67 {
-            Tide.good
+        let color: Color
+        let band: String
+        if score >= 67 {
+            color = Tide.good
+            band = "Green"
         } else if score >= 34 {
-            Tide.warn
+            color = Tide.warn
+            band = "Yellow"
         } else {
-            Tide.danger
+            color = Tide.danger
+            band = "Red"
         }
-        return HStack(spacing: Tide.s3) {
-            Circle()
-                .fill(color)
-                .frame(width: Tide.s2, height: Tide.s2)
-                .accessibilityHidden(true)
-            Text("Whoop recovery yesterday")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Tide.s2)
-            TideNumber("\(Int(score))", size: Tide.numeralS, color: color)
+        return HStack(spacing: Tide.s4) {
+            ZStack {
+                TideRing(progress: min(max(score / 100, 0), 1), color: color, lineWidth: Tide.fuelHeroRingLine)
+                TideNumber("\(Int(score))", size: Tide.numeralS, relativeTo: .headline, color: color)
+            }
+            .frame(width: ring, height: ring)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Whoop recovery yesterday")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(band)
+                    .font(Tide.caption)
+                    .foregroundStyle(color)
+            }
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)

@@ -71,6 +71,8 @@ struct WriteRecipeView: View {
                     .disabled(!canSave)
             }
             .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
             .navigationTitle("Write Recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

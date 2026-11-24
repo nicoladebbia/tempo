@@ -14,6 +14,8 @@ struct QuickLogSheet: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Environment(ServiceContainer.self)
     private var services
 
@@ -81,6 +83,8 @@ struct QuickLogSheet: View {
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s5)
             .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
             .navigationTitle("Quick Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -92,7 +96,8 @@ struct QuickLogSheet: View {
             .mealReview($request) { dismiss() }
             .aiBlockerAlert($aiBlocker) { submit() }
         }
-        .presentationDetents([.medium, .large])
+        // Large text needs the whole page.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
     }
 
     private var canSubmit: Bool {

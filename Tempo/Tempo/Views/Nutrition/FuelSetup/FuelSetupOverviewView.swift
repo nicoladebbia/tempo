@@ -50,6 +50,11 @@ struct FuelSetupOverviewView: View {
         draft.incompleteSections
     }
 
+    /// Sections that have an answer: nothing missing, and an optional one is not left at its defaults.
+    private var doneCount: Int {
+        FuelSetupSection.allCases.filter { draft.missingFields(in: $0).isEmpty && !draft.isUnset($0) }.count
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s5) {
@@ -57,14 +62,17 @@ struct FuelSetupOverviewView: View {
                 if !remaining.isEmpty {
                     finishCard
                 }
-                talkCard
-                GlassEffectContainer(spacing: Tide.s1) {
-                    VStack(spacing: Tide.s3) {
-                        ForEach(FuelSetupSection.allCases) { section in
-                            card(section)
-                        }
+                FuelRowGroup(title: "Needed for your plan", trailing: requiredTrailing) {
+                    ForEach(FuelSetupSection.allCases.filter(\.isRequired)) { section in
+                        row(section)
                     }
                 }
+                FuelRowGroup(title: "Optional") {
+                    ForEach(FuelSetupSection.allCases.filter { !$0.isRequired }) { section in
+                        row(section)
+                    }
+                }
+                talkCard
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
@@ -83,18 +91,21 @@ struct FuelSetupOverviewView: View {
 
     // MARK: - Pieces
 
+    /// The ring counts the sections that have an answer; the title and line stay as they were.
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Text("Your fuel profile")
-                .font(Tide.title)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            Text("Tap a section to change it. Each one saves on its own, or save everything at the bottom.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        FuelProgressHero(
+            done: doneCount,
+            total: FuelSetupSection.allCases.count,
+            title: "Your fuel profile",
+            caption: "Tap a section to change it. Each one saves on its own, or save everything at the bottom.",
+            tint: missing.isEmpty ? Tide.good : nil
+        )
+        .padding(.vertical, Tide.s2)
+    }
+
+    /// "1 left" over the required group while something blocks the plan.
+    private var requiredTrailing: String? {
+        missing.isEmpty ? nil : "\(missing.count) left"
     }
 
     /// "Finish setup · 3 left": chains through what's missing, required first.
@@ -136,14 +147,13 @@ struct FuelSetupOverviewView: View {
         .accessibilityIdentifier("fuelSetupFinish")
     }
 
+    /// A quiet way back to the talk step: a line of glass, not a card of its own.
     private var talkCard: some View {
         Button(action: onTalkAgain) {
             HStack(spacing: Tide.s3) {
                 Image(systemName: "mic.fill")
-                    .font(Tide.headline)
+                    .font(Tide.bodyStrong)
                     .foregroundStyle(mood.accent)
-                    .frame(width: iconBox, height: iconBox)
-                    .background(Tide.fill, in: .circle)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Tell me more")
@@ -156,15 +166,26 @@ struct FuelSetupOverviewView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .frame(minHeight: Tide.hit)
+            .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .rect(cornerRadius: Tide.tileRadius))
             .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
         .buttonStyle(FuelPressStyle())
         .accessibilityIdentifier("fuelSetupTalkAgain")
     }
 
-    private func card(_ section: FuelSetupSection) -> some View {
+    /// One section: its icon, name, what is saved in it, and where it stands
+    /// (needed, unsaved, done). Optional sections that are still at their
+    /// defaults can be skipped from the row.
+    private func row(_ section: FuelSetupSection) -> some View {
         let isMissing = !draft.missingFields(in: section).isEmpty
         let isDirty = draft.isDirty(section, comparedTo: saved)
         let isUnset = draft.isUnset(section)
@@ -178,12 +199,11 @@ struct FuelSetupOverviewView: View {
                 onOpen(section)
             } label: {
                 HStack(alignment: .top, spacing: Tide.s3) {
-                    Image(systemName: section.icon)
-                        .font(Tide.headline)
-                        .foregroundStyle(isMissing ? Tide.warn : mood.accent)
-                        .frame(width: iconBox, height: iconBox)
-                        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-                        .accessibilityHidden(true)
+                    TideIconTile(
+                        systemName: section.icon,
+                        tint: isMissing ? Tide.warn : (isUnset ? Tide.text2 : mood.accent),
+                        size: iconBox
+                    )
                     VStack(alignment: .leading, spacing: Tide.s1) {
                         Text(section.title)
                             .font(Tide.bodyStrong)
@@ -213,9 +233,9 @@ struct FuelSetupOverviewView: View {
                     }
                     Spacer(minLength: 0)
                     if !canSkip {
-                        Image(systemName: "chevron.right")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text3)
+                        Image(systemName: isMissing || isUnset ? "chevron.right" : "checkmark.circle.fill")
+                            .font(isMissing || isUnset ? Tide.caption : Tide.headline)
+                            .foregroundStyle(isMissing || isUnset ? Tide.text3 : Tide.good)
                             .frame(minHeight: iconBox)
                             .accessibilityHidden(true)
                     }
@@ -241,12 +261,6 @@ struct FuelSetupOverviewView: View {
                 .accessibilityLabel("Skip \(section.title)")
                 .accessibilityIdentifier("fuelSkip.\(section.rawValue)")
             }
-        }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        .overlay {
-            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
-                .strokeBorder(Tide.warn.opacity(0.7), lineWidth: 1.5)
-                .opacity(isMissing ? 1 : 0)
         }
         .animation(Tide.snap, value: isMissing)
     }

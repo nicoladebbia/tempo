@@ -46,6 +46,8 @@ struct MealPlanIntakeWizardView: View {
         }
         .animation(Tide.snap, value: coordinator.currentStep)
         .tidePage()
+        // A cover is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
         .interactiveDismissDisabled()
         .onAppear(perform: seedIntakeIfNeeded)
     }

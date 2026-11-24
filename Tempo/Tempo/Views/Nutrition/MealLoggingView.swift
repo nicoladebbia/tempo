@@ -144,6 +144,8 @@ struct MealLoggingView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .fuelBottomBar { stickyBottomBar }
             .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
             .navigationTitle("Log Meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

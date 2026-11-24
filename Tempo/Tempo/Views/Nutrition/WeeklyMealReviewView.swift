@@ -49,67 +49,43 @@ struct WeeklyMealReviewView: View {
         .sheet(item: $selection, onDismiss: load) { meal in
             MealFeedbackSheet(meal: meal, existing: feedbackByMealID[meal.id])
                 .presentationDetents([.medium, .large])
+                .environment(\.tideInsidePage, false)
         }
     }
 
     // MARK: - Sections
 
-    /// How much of the week has a review, as the one number on the page.
+    /// How much of the week has a review: a lit ring with the count, and what the notes do.
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Last 7 days")
-                .tideLabel()
-                .accessibilityAddTraits(.isHeader)
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    TideNumber("\(feedbackCount)", size: Tide.numeralM)
-                    Text("of \(meals.count) reviewed")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .accessibilityElement(children: .combine)
-                TideLevelBar(
-                    progress: meals.isEmpty ? 0 : min(Double(feedbackCount) / Double(meals.count), 1),
-                    height: Tide.bar
-                )
-                .animation(Tide.settle, value: feedbackCount)
-            }
-            Text(
-                "Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals."
-            )
-            .font(Tide.caption)
-            .foregroundStyle(Tide.text2)
-            .fixedSize(horizontal: false, vertical: true)
-        }
+        FuelProgressHero(
+            done: feedbackCount,
+            total: meals.count,
+            title: "Last 7 days",
+            caption: "Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals."
+        )
         .tideCard()
+        .accessibilityValue("\(feedbackCount) of \(meals.count) reviewed")
     }
 
     private var emptyState: some View {
-        FuelEmptyState(icon: "calendar.badge.exclamationmark", title: "No meals in the past 7 days yet.")
+        FuelEmptyState(
+            icon: "calendar.badge.exclamationmark",
+            title: "No meals in the past 7 days yet.",
+            message: "Mark meals eaten or skipped and they show up here to review."
+        )
     }
 
     private func daySection(_ group: DayGroup) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: dayLabelFormatter.string(from: group.dayStart))
-
-            VStack(spacing: 0) {
-                ForEach(Array(group.meals.enumerated()), id: \.element.id) { index, meal in
-                    Button {
-                        HapticManager.lightImpact()
-                        selection = meal
-                    } label: {
-                        mealRow(meal)
-                    }
-                    .buttonStyle(.plain)
-
-                    if index < group.meals.count - 1 {
-                        Divider()
-                            .overlay(Tide.hairline)
-                    }
+        FuelRowGroup(title: dayLabelFormatter.string(from: group.dayStart)) {
+            ForEach(group.meals, id: \.id) { meal in
+                Button {
+                    HapticManager.lightImpact()
+                    selection = meal
+                } label: {
+                    mealRow(meal)
                 }
+                .buttonStyle(.plain)
             }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
 
@@ -147,7 +123,7 @@ struct WeeklyMealReviewView: View {
                     .accessibilityHidden(true)
             }
         }
-        .frame(minHeight: Tide.hit + Tide.s3)
+        .frame(minHeight: Tide.hit)
         .contentShape(.rect)
     }
 

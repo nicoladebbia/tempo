@@ -99,16 +99,24 @@ struct NutritionWeeklyPlanView: View {
             .containerRelativeFrame(.horizontal)
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-        .alert("AI-Generated Meal Plan", isPresented: $showDisclaimerAlert) {
-            Button("I Understand") {
-                disclaimerAccepted = true
-                launchWizard()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan."
+        // The AI disclaimer is a page of its own, not a system alert: the thumb
+        // answers "I understand" and the wording stays readable at any text size.
+        .sheet(isPresented: $showDisclaimerAlert) {
+            FuelDecisionSheet(
+                icon: "sparkles",
+                tint: Tide.warn,
+                title: "AI-generated meal plan",
+                message: "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan.",
+                primaryTitle: "I Understand",
+                primary: {
+                    disclaimerAccepted = true
+                    showDisclaimerAlert = false
+                    // Let this sheet finish leaving before the wizard comes up.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { launchWizard() }
+                },
+                cancel: { showDisclaimerAlert = false }
             )
+            .environment(\.tideInsidePage, false)
         }
         // Pantry-gap alert lives on the outer `NutritionTabView`, not here —
         // attaching it to both would render two competing `.alert` modifiers
@@ -430,7 +438,8 @@ struct NutritionWeeklyPlanView: View {
 
     private var generateButton: some View {
         VStack(spacing: Tide.s2) {
-            if viewModel.isGeneratingPlan, !viewModel.planGenerationStatusLabel.isEmpty {
+            // With no plan yet the same words already show in the wait card above.
+            if viewModel.isGeneratingPlan, viewModel.weeklyPlan != nil, !viewModel.planGenerationStatusLabel.isEmpty {
                 Text(viewModel.planGenerationStatusLabel)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
@@ -470,11 +479,21 @@ struct NutritionWeeklyPlanView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(viewModel.isGeneratingPlan || isPreparingWizard)
-        .alert("Rebuild the rest of the week?", isPresented: $showRebuildConfirm) {
-            Button("Rebuild") { startGenerate() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Meals you've eaten and past days stay. Planned meals from today on are replaced.")
+        // The question is a page of its own, with the answer under the thumb.
+        .sheet(isPresented: $showRebuildConfirm) {
+            FuelDecisionSheet(
+                icon: "arrow.triangle.2.circlepath",
+                title: "Rebuild the rest of the week?",
+                message: "Meals you've eaten and past days stay. Planned meals from today on are replaced.",
+                primaryTitle: "Rebuild",
+                primary: {
+                    showRebuildConfirm = false
+                    // Let this sheet finish leaving before the next one can come up.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startGenerate() }
+                },
+                cancel: { showRebuildConfirm = false }
+            )
+            .environment(\.tideInsidePage, false)
         }
     }
 

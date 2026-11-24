@@ -15,6 +15,8 @@ import SwiftUI
 // MARK: - FuelFlowScaffold
 
 struct FuelFlowScaffold<Content: View>: View {
+    /// The section this question belongs to, small and tinted above the title.
+    var eyebrow: String?
     let title: String
     var subtitle: String?
     let index: Int
@@ -46,6 +48,11 @@ struct FuelFlowScaffold<Content: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s6) {
                     VStack(alignment: .leading, spacing: Tide.s2) {
+                        if let eyebrow, eyebrow.caseInsensitiveCompare(title) != .orderedSame {
+                            Text(eyebrow)
+                                .tideLabel(mood.accent)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Text(title)
                             .font(Tide.title)
                             .foregroundStyle(Tide.text)

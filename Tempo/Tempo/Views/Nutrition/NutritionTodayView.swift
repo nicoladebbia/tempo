@@ -21,6 +21,8 @@ struct NutritionTodayView: View {
     var onQuickLog: () -> Void = {}
     /// Opens the scanner. Owned by the tab root so it can be swapped in one place.
     var onScan: () -> Void = {}
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -128,13 +130,13 @@ struct NutritionTodayView: View {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
             }) { meal in
                 MealFeedbackSheet(meal: meal)
-                    .presentationDetents([.medium, .large])
+                    .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
             }
             .sheet(item: $markEatenMeal) { meal in
                 MarkEatenSheet(meal: meal) { eatTime, feel, satiety, substitute in
                     commitMarkEaten(meal: meal, at: eatTime, feel: feel, satiety: satiety, substitute: substitute)
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
             }
             .tempoToast($toast)
             .aiBlockerAlert($substituteBlocker)

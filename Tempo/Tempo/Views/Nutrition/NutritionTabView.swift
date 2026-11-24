@@ -209,32 +209,29 @@ struct NutritionTabView: View {
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
                 showScan = true
             }
-            // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
+            // Pantry-gap question (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
-            .alert(
-                "Shopping Gap",
-                isPresented: Binding(
-                    get: { viewModel.pantryGapAlert != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            viewModel.pantryGapAlert = nil
-                        }
-                    }
-                ),
-                presenting: viewModel.pantryGapAlert
-            ) { _ in
-                // Missing ingredients are things to BUY → the grocery list,
-                // which lives in Kitchen. (Was incorrectly routing to the
-                // Pantry, where you'd only add things you already have.)
-                Button("Open Grocery List") {
-                    viewModel.pantryGapAlert = nil
-                    viewModel.openKitchen(.groceries)
-                }
-                Button("Dismiss", role: .cancel) {
-                    viewModel.pantryGapAlert = nil
-                }
-            } message: { alert in
-                Text(alert.summary)
+            // A page of its own instead of a system alert: the answer sits under the thumb.
+            .sheet(item: Binding(
+                get: { viewModel.pantryGapAlert },
+                set: { viewModel.pantryGapAlert = $0 }
+            )) { gap in
+                FuelDecisionSheet(
+                    icon: "cart.badge.plus",
+                    title: "Shopping gap",
+                    message: gap.summary,
+                    primaryTitle: "Open Grocery List",
+                    // Missing ingredients are things to BUY → the grocery list,
+                    // which lives in Kitchen. (Was incorrectly routing to the
+                    // Pantry, where you'd only add things you already have.)
+                    primary: {
+                        viewModel.pantryGapAlert = nil
+                        viewModel.openKitchen(.groceries)
+                    },
+                    cancelTitle: "Dismiss",
+                    cancel: { viewModel.pantryGapAlert = nil }
+                )
+                .environment(\.tideInsidePage, false)
             }
         }
     }

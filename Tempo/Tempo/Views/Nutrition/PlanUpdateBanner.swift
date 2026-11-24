@@ -19,22 +19,16 @@ struct PlanUpdateBanner: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
-    @Environment(\.tideMood)
-    private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .top, spacing: Tide.s3) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.warn)
-                    .frame(width: Tide.icon, alignment: .leading)
-                    .accessibilityHidden(true)
+                TideIconTile(systemName: "arrow.triangle.2.circlepath", tint: Tide.warn)
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Your setup changed — update the rest of the week?")
-                        .font(Tide.bodyStrong)
+                        .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text("Meals you've eaten and past days stay. Planned meals from today on are replaced.")
@@ -62,13 +56,16 @@ struct PlanUpdateBanner: View {
                         HapticManager.lightImpact()
                         viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
                     } label: {
-                        Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
-                            .foregroundStyle(mood.accent)
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: Tide.s2) {
+                            if viewModel.isGeneratingPlan {
+                                ProgressView().tint(Tide.ink)
+                            }
+                            Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.tideGlass)
+                    .buttonStyle(.tidePrimary)
                     .disabled(viewModel.isGeneratingPlan)
-                    .opacity(viewModel.isGeneratingPlan ? 0.6 : 1)
                     .accessibilityIdentifier("planUpdateConfirm")
                 }
             }

@@ -16,6 +16,7 @@ struct ReviewStepView: View {
         WizardStepScaffold(
             title: "Lock it in.",
             subtitle: "Final read. Tap Generate when ready.",
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             primaryButtonLabel: "Generate Plan",
@@ -23,32 +24,31 @@ struct ReviewStepView: View {
             onPrimary: coordinator.submit,
             onCancel: coordinator.cancel
         ) {
-            VStack(spacing: 0) {
-                summaryRow(
-                    label: "Cookable days",
-                    value: "\(coordinator.intake.cookableDaysThisWeek)/7"
-                )
-                if coordinator.snapshot.hasWhoop {
-                    divider
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                // What the plan will be built on: the cook count leads.
+                TideNumber("\(coordinator.intake.cookableDaysThisWeek)", unit: "of 7 days", size: Tide.numeralL)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                FuelRowGroup(title: "This week") {
                     summaryRow(
-                        label: "Recovery skew",
-                        value: coordinator.intake.recoveryAdjusted ? "On" : "Off"
+                        label: "Cookable days",
+                        value: "\(coordinator.intake.cookableDaysThisWeek)/7"
                     )
-                }
-                if !coordinator.intake.temporaryExclusions.isEmpty {
-                    divider
-                    summaryRow(
-                        label: "Excluding",
-                        value: coordinator.intake.temporaryExclusions.joined(separator: ", ")
-                    )
+                    if coordinator.snapshot.hasWhoop {
+                        summaryRow(
+                            label: "Recovery skew",
+                            value: coordinator.intake.recoveryAdjusted ? "On" : "Off"
+                        )
+                    }
+                    if !coordinator.intake.temporaryExclusions.isEmpty {
+                        summaryRow(
+                            label: "Excluding",
+                            value: coordinator.intake.temporaryExclusions.joined(separator: ", ")
+                        )
+                    }
                 }
             }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
-    }
-
-    private var divider: some View {
-        Divider().overlay(Tide.hairline)
     }
 
     /// Label left, value right; on huge text sizes the value drops under the label.
@@ -73,7 +73,6 @@ struct ReviewStepView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.vertical, Tide.s3)
         .accessibilityElement(children: .combine)
     }
 }
