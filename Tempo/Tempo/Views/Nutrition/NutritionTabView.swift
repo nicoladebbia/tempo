@@ -148,7 +148,7 @@ struct NutritionTabView: View {
                     style: .error
                 )
             }
-            .tempoToast($planErrorToast)
+            .fuelToast($planErrorToast)
             .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
                 if let blocker {
                     mealIdeasBlocker = blocker

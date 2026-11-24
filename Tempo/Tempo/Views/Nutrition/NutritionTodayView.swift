@@ -138,7 +138,7 @@ struct NutritionTodayView: View {
                 }
                 .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
             }
-            .tempoToast($toast)
+            .fuelToast($toast)
             .aiBlockerAlert($substituteBlocker)
             .alert("Save as favourite", isPresented: Binding(
                 get: { presetSourceMeal != nil },

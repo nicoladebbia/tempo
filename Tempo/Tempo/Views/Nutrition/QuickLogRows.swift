@@ -121,11 +121,12 @@ struct QuickLogRows: View {
     }
 
     private var usual: [Choice] {
-        // A usual meal already pinned as a favourite is not shown twice.
-        let pinned = Set(presets.filter(\.isPinned)
+        // A usual meal the user already saved (a favourite or a saved meal) is shown
+        // once, as that saved meal, not a second time as "your usual".
+        let savedMeals = Set(presets
             .map { UsualMeals.signature(of: $0.foodItems.map(EatenMealRecorder.plannedFood(from:))) })
         return UsualMeals.ranked(entries, type: type)
-            .filter { !pinned.contains($0.id) }
+            .filter { !savedMeals.contains($0.id) }
             .map(derived(_:))
     }
 

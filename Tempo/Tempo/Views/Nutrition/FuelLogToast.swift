@@ -49,26 +49,12 @@ enum FuelLogToast {
 
     /// Hands a toast to whichever host is showing Fuel toasts.
     static func post(_ toast: ToastData) {
-        var info: [String: Any] = ["message": toast.message, "error": toast.style == .error]
-        if let title = toast.actionTitle, let action = toast.action {
-            info["actionTitle"] = title
-            info["action"] = action
-        }
-        NotificationCenter.default.post(name: .tempoMealLogToast, object: nil, userInfo: info)
+        NotificationCenter.default.post(name: .tempoMealLogToast, object: nil, userInfo: ["toast": toast])
     }
 
     /// The toast a `post` carried.
     static func toast(from note: Notification) -> ToastData? {
-        guard let message = note.userInfo?["message"] as? String else {
-            return nil
-        }
-        let isError = note.userInfo?["error"] as? Bool ?? false
-        var toast = ToastData(message: message, style: isError ? .error : .success)
-        if let title = note.userInfo?["actionTitle"] as? String, let action = note.userInfo?["action"] as? () -> Void {
-            toast.actionTitle = title
-            toast.action = action
-        }
-        return toast
+        note.userInfo?["toast"] as? ToastData
     }
 }
 
@@ -117,5 +103,20 @@ extension View {
     /// shell can both use it without double toasts.
     func fuelLogToastHost() -> some View {
         modifier(FuelLogToastHost())
+    }
+}
+
+extension View {
+    /// Sends the toasts a Fuel screen sets on `toast` to the one Fuel toast host,
+    /// so every Fuel toast looks and sits the same and there is never a second one
+    /// on screen. The binding is cleared as soon as the toast is handed over.
+    func fuelToast(_ toast: Binding<ToastData?>) -> some View {
+        onChange(of: toast.wrappedValue?.id) { _, _ in
+            guard let next = toast.wrappedValue else {
+                return
+            }
+            toast.wrappedValue = nil
+            FuelLogToast.post(next)
+        }
     }
 }

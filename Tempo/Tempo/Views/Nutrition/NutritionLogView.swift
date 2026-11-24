@@ -64,7 +64,7 @@ struct NutritionLogView: View {
         .sheet(isPresented: $showFoodCheck) {
             FoodCheckView()
         }
-        .tempoToast($toast)
+        .fuelToast($toast)
     }
 
     // MARK: - Logged today (delete a wrong log)
