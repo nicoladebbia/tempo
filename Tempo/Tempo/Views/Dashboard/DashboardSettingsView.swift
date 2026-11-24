@@ -1313,6 +1313,8 @@ struct ModesSettingsDetailView: View {
 struct SubscriptionDetailView: View {
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @Environment(ServiceContainer.self)
     private var services
@@ -1375,8 +1377,12 @@ struct SubscriptionDetailView: View {
     }
 
     private var planCard: some View {
-        TideSettingsHero {
-            HStack(spacing: Tide.s4) {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s4))
+        return TideSettingsHero {
+            layout {
                 Image(systemName: state.isPro ? "crown.fill" : "crown")
                     .font(Tide.title)
                     .foregroundStyle(state.isPro ? Tide.streak : Tide.text3)
@@ -1416,7 +1422,7 @@ struct SubscriptionDetailView: View {
     /// number counts. The trial bar fills over the 7-day trial the paywall offers.
     private var countdown: (days: Int, unit: String, tint: Color, progress: Double?)? {
         func days(until date: Date) -> Int {
-            max(0, Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0)
+            max(0, Int((date.timeIntervalSinceNow / 86400).rounded(.up)))
         }
         switch state {
         case let .trial(_, endDate):
@@ -1498,6 +1504,8 @@ struct SubscriptionDetailView: View {
 struct AccountDetailView: View {
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
     @Environment(\.dismiss)
     private var dismiss
     @Query
@@ -1516,6 +1524,8 @@ struct AccountDetailView: View {
 
     var body: some View {
         TideSettingsPage {
+            identityHero
+
             if !isSignedIn {
                 SettingsSignInCard()
             }
@@ -1568,6 +1578,32 @@ struct AccountDetailView: View {
             Button("OK", role: .cancel) { deleteError = nil }
         } message: {
             Text(deleteError ?? "")
+        }
+    }
+
+    /// Who this is and whether the data is backed up, before the details.
+    private var identityHero: some View {
+        let name = profile?.displayName.isEmpty == false ? (profile?.displayName ?? "Athlete") : "Athlete"
+        return TideSettingsHero {
+            HStack(spacing: Tide.s4) {
+                TideSettingsAvatar(initial: String(name.prefix(1)).uppercased())
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(name)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: Tide.s2) {
+                        Circle()
+                            .fill(isSignedIn ? mood.accent : Tide.text3)
+                            .frame(width: Tide.s2, height: Tide.s2)
+                            .shadow(color: isSignedIn ? mood.accent : .clear, radius: Tide.s1)
+                        Text(isSignedIn ? "Backed up to your account" : "Only on this phone")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
         }
     }
 
