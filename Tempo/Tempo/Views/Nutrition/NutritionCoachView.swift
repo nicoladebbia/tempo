@@ -236,11 +236,19 @@ struct NutritionCoachView: View {
 
     // MARK: - Daily Coaching Card
 
-    private var dailyCoachingCard: some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(spacing: Tide.s2) {
-                cardTitle("Daily briefing", icon: "brain.head.profile", tint: mood.accent)
+    /// Title on the left, state and refresh on the right; at large text the
+    /// title gets its own line instead of breaking mid-word.
+    private var dailyHeader: some View {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
+            cardTitle("Daily briefing", icon: "brain.head.profile", tint: mood.accent)
+            if !stacked {
                 Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s2) {
                 if !isOnline {
                     FuelPill(text: "Offline", color: Tide.warn)
                 }
@@ -254,6 +262,12 @@ struct NutritionCoachView: View {
                         .padding(.trailing, -Tide.s3)
                 }
             }
+        }
+    }
+
+    private var dailyCoachingCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            dailyHeader
 
             if insights.daily.isLoading {
                 insightLoadingRow("Reading your day…")

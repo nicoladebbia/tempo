@@ -20,6 +20,8 @@ struct WeeklyHabitsSettingsView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var promptEnabled = true
@@ -184,7 +186,11 @@ struct WeeklyHabitsSettingsView: View {
 
     /// The state of the Sunday habit in one sentence, so the page opens with an answer.
     private var hero: some View {
-        HStack(alignment: .center, spacing: Tide.s4) {
+        // At large text the tile sits above the words instead of squeezing them.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
+        return layout {
             TideIconTile(
                 systemName: promptEnabled ? "calendar.badge.clock" : "calendar.badge.minus",
                 tint: promptEnabled ? mood.accent : Tide.text3,
@@ -202,8 +208,8 @@ struct WeeklyHabitsSettingsView: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 
