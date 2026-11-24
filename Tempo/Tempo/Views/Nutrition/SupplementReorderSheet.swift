@@ -134,7 +134,7 @@ struct SupplementReorderSheet: View {
         let tone = isLow ? (daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn) : Tide.text
         return VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: supplement.kind.icon, size: Tide.Kitchen.tile)
+                KitchenIconTile(systemName: supplement.kind.icon, size: Tide.Kitchen.tile)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     if let brand = supplement.brand, !brand.isEmpty {
                         Text(brand).tideLabel(Tide.text3)

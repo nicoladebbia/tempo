@@ -88,9 +88,6 @@ struct ReceiptLineEditSheet: View {
         _included = State(initialValue: edits.included ?? !(line.isNonFood || line.isFee))
     }
 
-    @Environment(\.dynamicTypeSize)
-    private var typeSize
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -219,9 +216,9 @@ struct ReceiptLineEditSheet: View {
     private var amountCard: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Amount").tideLabel()
-            let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
-            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
+            KitchenPair {
                 KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+            } second: {
                 KitchenNumberField(label: "Price", unit: "USD", placeholder: "Price", text: $priceText)
             }
             HStack {

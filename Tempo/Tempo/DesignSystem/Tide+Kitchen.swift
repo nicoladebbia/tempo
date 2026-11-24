@@ -283,10 +283,13 @@ struct KitchenStat: View {
     let label: String
     var color: Color = Tide.text
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.hair) {
             Text(label).tideLabel()
-                .lineLimit(1)
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(Tide.labelShrink)
             TideNumber(value, unit: unit, size: Tide.numeralM, relativeTo: .title, color: color)
         }
@@ -374,11 +377,12 @@ extension View {
     /// A button bar that floats over the bottom of a scroll view: no opaque
     /// strip, the content fades under it.
     func kitchenBottomBar(@ViewBuilder _ bar: () -> some View) -> some View {
-        safeAreaBar(edge: .bottom, spacing: 0) {
-            bar()
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s3)
-        }
+        scrollEdgeEffectStyle(.soft, for: .bottom)
+            .safeAreaBar(edge: .bottom, spacing: 0) {
+                bar()
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.vertical, Tide.s3)
+            }
     }
 
     /// A panel that floats over a live camera: glass with extra ink so text
@@ -672,7 +676,7 @@ struct KitchenSheetHeader: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: Tide.s3) {
-            TideIconTile(systemName: systemImage, tint: tint, size: Tide.Kitchen.tile + Tide.s2)
+            KitchenIconTile(systemName: systemImage, tint: tint, size: Tide.Kitchen.tile + Tide.s2)
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
                     .font(Tide.title2)
@@ -710,7 +714,7 @@ struct KitchenFailure: View {
 
     var body: some View {
         VStack(spacing: Tide.s4) {
-            TideIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
+            KitchenIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
             VStack(spacing: Tide.s2) {
                 Text(title)
                     .font(Tide.title2)
@@ -1027,3 +1031,42 @@ struct KitchenBarButtonStyle: ButtonStyle {
 extension ButtonStyle where Self == KitchenBarButtonStyle {
     static var kitchenBar: KitchenBarButtonStyle { KitchenBarButtonStyle() }
 }
+
+// MARK: - KitchenPair
+
+/// Two fields side by side, equal width. At the accessibility text sizes they
+/// stack, one per line. A plain stack layout (not a lazy grid), so a live
+/// change of text size relays out every field at once.
+struct KitchenPair<First: View, Second: View>: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ViewBuilder var first: First
+    @ViewBuilder var second: Second
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
+            first.frame(maxWidth: .infinity)
+            second.frame(maxWidth: .infinity)
+        }
+    }
+}
+
+// MARK: - KitchenIconTile
+
+/// `TideIconTile` that keeps its size at the accessibility text sizes. The
+/// tile is a fixed square but its glyph scales with the text, so left alone
+/// the glyph outgrows the tile.
+struct KitchenIconTile: View {
+    let systemName: String
+    var tint: Color?
+    var size: CGFloat = Tide.Kitchen.tile
+
+    var body: some View {
+        TideIconTile(systemName: systemName, tint: tint, size: size)
+            .dynamicTypeSize(.large)
+    }
+}
+

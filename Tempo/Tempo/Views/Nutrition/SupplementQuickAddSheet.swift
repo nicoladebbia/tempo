@@ -201,7 +201,7 @@ struct SupplementQuickAddSheet: View {
                 ForEach(chosenItems) { item in
                     VStack(alignment: .leading, spacing: Tide.s3) {
                         HStack(spacing: Tide.s3) {
-                            TideIconTile(systemName: item.icon)
+                            KitchenIconTile(systemName: item.icon)
                             Text(item.name)
                                 .font(Tide.headline)
                                 .foregroundStyle(Tide.text)

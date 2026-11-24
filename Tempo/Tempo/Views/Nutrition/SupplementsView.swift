@@ -31,6 +31,8 @@ struct SupplementsView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Live shelf — non-archived only, sorted by name.
     @Query(
@@ -231,7 +233,10 @@ struct SupplementsView: View {
     private func shelfHeader(lowCount: Int) -> some View {
         let total = supplements.count
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            HStack(alignment: .top, spacing: Tide.s4) {
+            let statLayout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+            statLayout {
                 KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
                 if lowCount > 0 {
                     KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)

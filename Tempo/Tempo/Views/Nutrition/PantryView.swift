@@ -397,12 +397,15 @@ struct PantryView: View {
                 editingItem = item
             } label: {
                 HStack(alignment: .center, spacing: Tide.s3) {
-                    ProductImageView(
-                        url: nil,
-                        fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: item.canonicalName, isNonFood: false),
-                        size: Tide.Kitchen.tile
-                    )
-                    .opacity(item.isDepleted ? 0.5 : 1)
+                    // The photo is decoration: at the accessibility sizes it gives its width to the words.
+                    if !typeSize.isAccessibilitySize {
+                        ProductImageView(
+                            url: nil,
+                            fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: item.canonicalName, isNonFood: false),
+                            size: Tide.Kitchen.tile
+                        )
+                        .opacity(item.isDepleted ? 0.5 : 1)
+                    }
                     let layout = typeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
                         : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
@@ -584,9 +587,6 @@ struct PantryManualAddSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && (Double(quantityText) ?? 0) > 0
     }
 
-    @Environment(\.dynamicTypeSize)
-    private var typeSize
-
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -661,9 +661,9 @@ struct PantryManualAddSheet: View {
                     .textInputAutocapitalization(.words)
                     .kitchenField()
             }
-            let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
-            LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
+            KitchenPair {
                 KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+            } second: {
                 KitchenNumberField(label: "Price paid", unit: "USD", placeholder: "Optional", text: $priceText)
             }
             HStack {

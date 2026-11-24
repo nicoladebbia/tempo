@@ -174,8 +174,11 @@ struct SupplementEditSheet: View {
     private var identity: some View {
         Section {
             VStack(alignment: .leading, spacing: Tide.s4) {
-                HStack(spacing: Tide.s3) {
-                    TideIconTile(systemName: kind.icon, size: Tide.Kitchen.tile + Tide.s4)
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
+                    KitchenIconTile(systemName: kind.icon, size: Tide.Kitchen.tile + Tide.s4)
                         .contentTransition(.symbolEffect(.replace))
                     VStack(alignment: .leading, spacing: Tide.s1) {
                         TextField("Name (e.g. Whey Isolate)", text: $name)
@@ -211,11 +214,14 @@ struct SupplementEditSheet: View {
         Section {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 Text("Macros per serving").tideLabel()
-                let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
-                LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
+                KitchenPair {
                     KitchenNumberField(label: "Calories", unit: "kcal", tint: Tide.streak, text: $caloriesPerServingText)
+                } second: {
                     KitchenNumberField(label: "Protein", unit: "g", tint: Tide.protein, text: $proteinPerServingText)
+                }
+                KitchenPair {
                     KitchenNumberField(label: "Carbs", unit: "g", tint: Tide.carbs, text: $carbsPerServingText)
+                } second: {
                     KitchenNumberField(label: "Fat", unit: "g", tint: Tide.fat, text: $fatPerServingText)
                 }
                 Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
