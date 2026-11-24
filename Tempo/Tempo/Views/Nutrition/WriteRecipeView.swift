@@ -18,6 +18,8 @@ struct WriteRecipeView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State private var name: String = ""
     @State private var servingsText: String = "2"
@@ -87,42 +89,50 @@ struct WriteRecipeView: View {
 
     private var basicsSection: some View {
         Section {
-            TextField("Recipe name", text: $name)
-                .frame(minHeight: Tide.hit)
-            HStack {
-                Text("Servings")
-                Spacer()
-                TextField("2", text: $servingsText)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: numberFieldWidth)
-            }
-            .frame(minHeight: Tide.hit)
-            HStack {
-                Text("Prep time (min)")
-                Spacer()
-                TextField("optional", text: $prepMinutesText)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: numberFieldWidth)
-            }
-            .frame(minHeight: Tide.hit)
-            HStack {
-                Text("Cook time (min)")
-                Spacer()
-                TextField("optional", text: $cookMinutesText)
-                    .keyboardType(.numberPad)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                    .frame(width: numberFieldWidth)
-            }
-            .frame(minHeight: Tide.hit)
+            // The name is the hero of the form: big, first, and it can wrap.
+            TextField("Recipe name", text: $name, axis: .vertical)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .lineLimit(1 ... 3)
+                .frame(minHeight: Tide.hit + Tide.s3)
+            numberRow("Servings", placeholder: "2", text: $servingsText)
+            numberRow("Prep time (min)", placeholder: "optional", text: $prepMinutesText)
+            numberRow("Cook time (min)", placeholder: "optional", text: $cookMinutesText)
         } header: {
             Text("Basics").tideLabel()
         }
         .fuelRow()
+    }
+
+    /// Label on the left and a short number on the right; the number drops
+    /// under the label at accessibility text sizes so neither is cut.
+    private func numberRow(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        numberRowLayout {
+            Text(label)
+                .foregroundStyle(Tide.text)
+            if !typeSize.isAccessibilitySize {
+                Spacer()
+            }
+            TextField(placeholder, text: text)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
+                .monospacedDigit()
+                .foregroundStyle(Tide.text)
+                .frame(width: typeSize.isAccessibilitySize ? nil : numberFieldWidth)
+        }
+        .frame(minHeight: Tide.hit)
+    }
+
+    private var numberRowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout())
+    }
+
+    private var quantityLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout())
     }
 
     /// Single-ingredient row. Extracted from ingredientsSection so the
@@ -133,12 +143,12 @@ struct WriteRecipeView: View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             TextField("Ingredient (e.g. chicken breast)", text: row.name)
                 .textInputAutocapitalization(.never)
-            HStack {
+            quantityLayout {
                 TextField("Quantity (e.g. 200g)", text: row.displayQuantity)
                 TextField("Grams", text: row.quantityGramsText)
                     .keyboardType(.decimalPad)
                     .monospacedDigit()
-                    .frame(width: numberFieldWidth)
+                    .frame(width: typeSize.isAccessibilitySize ? nil : numberFieldWidth)
             }
             .font(Tide.caption)
             // Live macro-coverage badge tells the user up-front whether
