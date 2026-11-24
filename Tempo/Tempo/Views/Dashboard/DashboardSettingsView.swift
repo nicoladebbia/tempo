@@ -155,27 +155,14 @@ struct DashboardSettingsView: View {
             }
             .onAppear { locationStatus = CLLocationManager().authorizationStatus }
 
-            SettingsGroupCard(title: "Notifications") {
+            SettingsGroupCard(title: "Notifications & plan") {
                 NavigationLink {
                     NotificationSettingsView()
                 } label: {
                     SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
-            }
 
-            AIFeaturesSettingsCard()
-
-            SettingsGroupCard(title: "Your data") {
-                NavigationLink {
-                    DataExportView()
-                } label: {
-                    SettingsNavRow(icon: "square.and.arrow.up", title: "Export My Data")
-                }
-                .buttonStyle(.tideSettingsRow)
-            }
-
-            SettingsGroupCard(title: "Subscription") {
                 NavigationLink {
                     SubscriptionDetailView()
                 } label: {
@@ -184,7 +171,9 @@ struct DashboardSettingsView: View {
                 .buttonStyle(.tideSettingsRow)
             }
 
-            SettingsGroupCard(title: "Account & about") {
+            AIFeaturesSettingsCard()
+
+            SettingsGroupCard(title: "Account & data") {
                 NavigationLink {
                     AccountDetailView()
                 } label: {
@@ -199,10 +188,12 @@ struct DashboardSettingsView: View {
                 }
                 .buttonStyle(.tideSettingsRow)
 
-                SettingsActionRow(
-                    icon: "number", title: "Version", tint: Tide.text,
-                    trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-                )
+                NavigationLink {
+                    DataExportView()
+                } label: {
+                    SettingsNavRow(icon: "square.and.arrow.up", title: "Export My Data")
+                }
+                .buttonStyle(.tideSettingsRow)
 
                 if let supportURL = URL(string: "https://tempo.app/support") {
                     Link(destination: supportURL) {
@@ -210,6 +201,11 @@ struct DashboardSettingsView: View {
                     }
                     .buttonStyle(.tideSettingsRow)
                 }
+
+                SettingsActionRow(
+                    icon: "number", title: "Version", tint: Tide.text,
+                    trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                )
             }
 
             #if DEBUG
@@ -286,7 +282,12 @@ struct DashboardSettingsView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
                 : AnyLayout(HStackLayout(spacing: Tide.s4))
             layout {
+                // The ring is the way to the next level.
                 TideSettingsAvatar(initial: profileInitial)
+                    .padding(Tide.s1)
+                    .overlay {
+                        TideRing(progress: levelProgress, color: mood.accent, lineWidth: Tide.barSlim, glow: false)
+                    }
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(profile?.displayName ?? "Athlete")
@@ -409,6 +410,11 @@ struct DashboardSettingsView: View {
         case 4: "Savage Mode"
         default: "Default"
         }
+    }
+
+    /// 0...1 toward the next level, worked out the way the Arena does it.
+    private var levelProgress: Double {
+        settingsLevelProgress(totalXP: profile?.totalXP ?? 0, engine: services.xpEngine)
     }
 
     private var profileStatsLine: String {
@@ -593,6 +599,10 @@ struct DashboardSettingsView: View {
 struct ProfileSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.tideMood)
+    private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
     @Environment(\.displayScale)
@@ -652,7 +662,15 @@ struct ProfileSettingsDetailView: View {
 
     private var heroCard: some View {
         VStack(spacing: Tide.s3) {
+            // The ring is the way to the next level.
             TideSettingsAvatar(initial: profileInitial, diameter: Tide.settingsAvatarLarge)
+                .padding(Tide.s2)
+                .overlay {
+                    TideRing(
+                        progress: settingsLevelProgress(totalXP: profile?.totalXP ?? 0, engine: services.xpEngine),
+                        color: mood.accent, lineWidth: Tide.bar
+                    )
+                }
 
             VStack(spacing: Tide.hair) {
                 Text(displayName.isEmpty ? "Athlete" : displayName)
@@ -1012,6 +1030,10 @@ struct ScheduleSettingsDetailView: View {
             } else {
                 TideNumber("—", size: Tide.numeralL, relativeTo: .largeTitle)
             }
+            if let settings {
+                TideDayBar(start: settings.bedtimeTargetMinutes, end: settings.wakeTimeMinutes)
+                    .padding(.top, Tide.s2)
+            }
         }
     }
 
@@ -1186,6 +1208,8 @@ struct FocusTimerSettingsDetailView: View {
 struct ModesSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
     @Query
     private var allSettings: [UserSettings]
 
@@ -1200,8 +1224,26 @@ struct ModesSettingsDetailView: View {
     @State
     private var examEndDate = Date()
 
+    /// Which modes are bending the plan right now, as the toggles show them.
+    private var modesHero: some View {
+        let active = [weekendMode ? "Weekend" : nil, examMode ? "Exam" : nil].compactMap { $0 }
+        return TideSettingsHero {
+            Text("Active now").tideLabel()
+            Text(active.isEmpty ? "Standard day" : active.joined(separator: " \u{00B7} "))
+                .font(Tide.title2)
+                .foregroundStyle(active.isEmpty ? Tide.text : mood.accent)
+            Text(active.isEmpty ? "No mode is changing your plan." : "Your plan is adjusted while this is on.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+        }
+        .animation(Tide.snap, value: active)
+        .accessibilityElement(children: .combine)
+    }
+
     var body: some View {
         TideSettingsPage {
+            modesHero
+
             SettingsFormCard(
                 title: "Weekend",
                 footnote: "Relaxes your schedule and eases accountability on Saturdays and Sundays."
@@ -1351,6 +1393,44 @@ struct SubscriptionDetailView: View {
                 }
             }
             .accessibilityElement(children: .combine)
+
+            if let clock = countdown {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    TideNumber(
+                        "\(clock.days)", unit: clock.unit,
+                        size: Tide.numeralL, relativeTo: .largeTitle, color: clock.tint
+                    )
+                    if let progress = clock.progress {
+                        TideLevelBar(progress: progress, color: clock.tint, height: Tide.bar)
+                            .background(Tide.fill, in: .capsule)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .padding(.top, Tide.s2)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// Whole days until the date that matters for this state, with what the
+    /// number counts. The trial bar fills over the 7-day trial the paywall offers.
+    private var countdown: (days: Int, unit: String, tint: Color, progress: Double?)? {
+        func days(until date: Date) -> Int {
+            max(0, Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0)
+        }
+        switch state {
+        case let .trial(_, endDate):
+            let left = days(until: endDate)
+            return (left, left == 1 ? "day of trial left" : "days of trial left", mood.accent, 1 - Double(left) / 7)
+        case let .active(_, expirationDate, isAutoRenewing):
+            let left = days(until: expirationDate)
+            return (left, isAutoRenewing ? "days to renewal" : "days until it ends", mood.accent, nil)
+        case let .gracePeriod(_, graceEndDate):
+            return (days(until: graceEndDate), "days of grace left", Tide.danger, nil)
+        case .free,
+             .expired,
+             .churned:
+            return nil
         }
     }
 
@@ -1366,7 +1446,10 @@ struct SubscriptionDetailView: View {
     }
 
     private var planSubtitle: String {
-        state.isPro ? "You have full access to Tempo Pro." : "Upgrade to unlock everything Tempo offers."
+        if case .gracePeriod = state {
+            return "There is a billing problem. Pro stays on until the grace period ends."
+        }
+        return state.isPro ? "You have full access to Tempo Pro." : "Upgrade to unlock everything Tempo offers."
     }
 
     private var renewalLine: (label: String, value: String)? {
@@ -1525,4 +1608,15 @@ struct AccountDetailView: View {
             deleteError = error.localizedDescription
         }
     }
+}
+
+// MARK: - Level progress
+
+/// 0...1 toward the next level, worked out the way the Arena does it, so the
+/// ring on the profile picture and the bar in the Arena always agree.
+private func settingsLevelProgress(totalXP: Int, engine: any XPEngineProtocol) -> Double {
+    let level = engine.currentLevel(totalXP: totalXP)
+    let floor = engine.xpForLevel(level)
+    let ceiling = level + 1 <= LevelSystem.definitions.count ? engine.xpForLevel(level + 1) : floor + 10000
+    return min(max(Double(totalXP - floor) / Double(max(1, ceiling - floor)), 0), 1)
 }

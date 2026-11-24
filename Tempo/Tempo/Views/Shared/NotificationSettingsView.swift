@@ -209,13 +209,47 @@ struct NotificationSettingsView: View {
 
     private var authorizedContent: some View {
         VStack(spacing: Tide.settingsGroupGap) {
+            summaryCard
             intensitySection
             dailyRemindersSection
             accountabilitySection
             socialSection
-            soundSection
             quietHoursSection
         }
+    }
+
+    // MARK: - Summary
+
+    /// How many of the reminders are on, so the page reads at a glance.
+    private var remindersOn: Int {
+        [
+            morningBriefing, recovery, mealReminders, bedtimeReminder, weeklyReport,
+            accountability, streakWarning, trainingReminder, trainerSessionReminder, weeklyUploadReminder,
+            arenaNotifications,
+        ].count(where: { $0 })
+    }
+
+    private let remindersTotal = 11
+
+    private var summaryCard: some View {
+        TideSettingsHero {
+            Text("Reminders on").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    "\(remindersOn)", unit: "of \(remindersTotal)",
+                    size: Tide.numeralL, relativeTo: .largeTitle
+                )
+                Spacer(minLength: Tide.s2)
+                Text(IntensityOption(rawValue: intensity)?.title ?? "")
+                    .tideLabel(mood.accent)
+            }
+            TideLevelBar(progress: Double(remindersOn) / Double(remindersTotal), height: Tide.bar)
+                .background(Tide.fill, in: .capsule)
+                .padding(.top, Tide.s1)
+                .accessibilityHidden(true)
+        }
+        .animation(Tide.snap, value: remindersOn)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Permission Helpers
@@ -497,7 +531,7 @@ struct NotificationSettingsView: View {
     // MARK: - Social Section
 
     private var socialSection: some View {
-        SettingsFormCard(title: "Social") {
+        SettingsFormCard(title: "Social & sound") {
             settingsToggle(
                 "Arena Notifications",
                 isOn: $arenaNotifications,
@@ -509,13 +543,7 @@ struct NotificationSettingsView: View {
                     }
                 }
             )
-        }
-    }
-
-    // MARK: - Sound Section
-
-    private var soundSection: some View {
-        SettingsFormCard(title: "Sound") {
+            SettingsRowDivider()
             settingsToggle(
                 "Notification Sound",
                 isOn: $soundEnabled,
