@@ -122,8 +122,13 @@ struct SupplementLabelCaptureSheet: View {
                 }
                 .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("supplementLabelChoosePhoto")
-                Button("Type it instead") { onTypeIt() }
-                    .buttonStyle(.tideGlass)
+                Button {
+                    onTypeIt()
+                } label: {
+                    Text("Type it instead")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
             }
             .padding(.top, Tide.s3)
         }
