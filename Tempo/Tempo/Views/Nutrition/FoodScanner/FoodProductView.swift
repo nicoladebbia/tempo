@@ -230,7 +230,7 @@ struct FoodProductView: View {
     }
 
     private var heroHeight: CGFloat {
-        Tide.Kitchen.heroPicture
+        Tide.Kitchen.heroPicture * 0.85
     }
 
     /// Every page the full-screen viewer can show, in display order.
@@ -388,11 +388,6 @@ struct FoodProductView: View {
                     scorePart("Additives", score.additivePoints, of: 30)
                     scorePart("Organic", score.organicPoints, of: 10)
                 }
-                if showsGrades {
-                    Rectangle().fill(Tide.hairline).frame(height: 1)
-                        .accessibilityHidden(true)
-                    gradesContent
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
@@ -450,7 +445,7 @@ struct FoodProductView: View {
                 Chart(split.slices) { slice in
                     SectorMark(angle: .value("Calories", slice.kcal), innerRadius: .ratio(0.62), angularInset: 1.5)
                         .foregroundStyle(slice.color)
-                        .cornerRadius(3)
+                        .cornerRadius(Tide.hair)
                 }
                 .frame(width: dial, height: dial)
                 .chartLegend(.hidden)
@@ -562,14 +557,11 @@ struct FoodProductView: View {
 
     // MARK: - Nutri-Score + NOVA
 
-    /// Under the verdict when there is one; a card of its own when the score is withheld.
-    private var showsGrades: Bool {
-        product.implausibilityReason == nil && score != nil
-    }
-
+    /// A card of its own under the verdict, so the verdict card stays short enough
+    /// to clear the action bar at the first scroll position.
     @ViewBuilder
     private var gradesCard: some View {
-        if !showsGrades, score != nil || product.novaGroup != nil {
+        if score != nil || product.novaGroup != nil {
             gradesContent
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard()

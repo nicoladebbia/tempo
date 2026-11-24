@@ -79,7 +79,7 @@ struct SupplementTimingSection: View {
             // The three ways the time is decided, as the glass control the rest
             // of the Kitchen uses. It floats on the field, so no row fill.
             KitchenSegmented(options: Array(SupplementTimingMode.allCases), selection: $mode) { $0.rawValue }
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: Tide.s2, trailing: 0))
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("supplementTimingMode")
                 .onChange(of: mode) { _, _ in

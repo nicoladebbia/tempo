@@ -482,6 +482,8 @@ extension Tide.Kitchen {
     static let heroDisc: CGFloat = 96
     /// The product picture at the top of a product page.
     static let heroPicture: CGFloat = 208
+    /// The height of the small sheet that picks the meal to log a product into.
+    static let logSheet: CGFloat = 300
     /// The verdict ring next to the product picture.
     static let verdictDial: CGFloat = 112
     /// Arm length and stroke of the corner brackets on a camera frame.

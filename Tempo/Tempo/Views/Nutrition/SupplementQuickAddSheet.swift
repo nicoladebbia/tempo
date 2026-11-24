@@ -108,26 +108,17 @@ struct SupplementQuickAddSheet: View {
                     .padding(.bottom, Tide.s6)
                 }
                 .kitchenBottomBar {
-                    // Nothing picked yet: a quiet glass hint instead of a faded button the tiles show through.
-                    if selectedIDs.isEmpty {
-                        Text("Pick what you own")
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text2)
-                            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
-                            .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
-                            .transition(.opacity)
-                    } else {
-                        Button {
-                            step = .details
-                        } label: {
-                            Text("Add \(selectedIDs.count)")
-                                .contentTransition(.numericText())
-                        }
-                        .buttonStyle(.tidePrimary)
-                        .transition(.opacity)
+                    // Nothing picked yet: the button is disabled, and the bar style turns it to quiet glass.
+                    Button {
+                        step = .details
+                    } label: {
+                        Text(selectedIDs.isEmpty ? "Pick what you own" : "Add \(selectedIDs.count)")
+                            .contentTransition(.numericText())
                     }
+                    .buttonStyle(.kitchenBar)
+                    .disabled(selectedIDs.isEmpty)
+                    .animation(Tide.snap, value: selectedIDs.count)
                 }
-                .animation(Tide.snap, value: selectedIDs.isEmpty)
             }
         }
     }

@@ -95,7 +95,7 @@ struct FoodProductActionBar: View {
         .task(id: product.id) { refreshInventory() }
         .sheet(isPresented: $showLogSheet) {
             logSheet
-                .presentationDetents([.height(300)])
+                .presentationDetents([.height(Tide.Kitchen.logSheet)])
                 .presentationDragIndicator(.visible)
         }
     }

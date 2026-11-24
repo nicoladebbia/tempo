@@ -303,7 +303,7 @@ struct ReceiptLineEditSheet: View {
             .padding(Tide.s2)
             .overlay(
                 RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
-                    .strokeBorder(isPicked ? mood.accent : Color.clear, lineWidth: 2)
+                    .strokeBorder(isPicked ? mood.accent : Color.clear, lineWidth: Tide.hair)
             )
         }
         .buttonStyle(.plain)
