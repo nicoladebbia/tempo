@@ -34,7 +34,7 @@ struct GuidedRunCountdownScreen: View {
                     .contentTransition(.numericText(countsDown: true))
                     .animation(Tide.lively, value: secondsRemaining)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(TideTrainSession.clockShrink)
             }
             Text(nextStepTitle)
                 .font(Tide.bodyStrong)

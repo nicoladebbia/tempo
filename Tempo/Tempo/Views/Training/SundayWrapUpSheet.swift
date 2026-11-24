@@ -233,9 +233,11 @@ struct SundayWrapUpSheet: View {
                     step = .uploadNext
                 } label: {
                     Text("Skip")
+                        .lineLimit(1)
                         .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: TideTrain.bigButton - Tide.s2)
                 }
                 .buttonStyle(.tideGlass)
+                .fixedSize(horizontal: !typeSize.isAccessibilitySize, vertical: false)
 
                 Button {
                     markReportSent()
@@ -245,7 +247,6 @@ struct SundayWrapUpSheet: View {
                         .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
                 }
                 .buttonStyle(.tidePrimary)
-                .layoutPriority(1)
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)

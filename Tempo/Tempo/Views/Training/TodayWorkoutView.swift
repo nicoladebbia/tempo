@@ -28,6 +28,8 @@ struct TodayWorkoutView: View {
     var modelContext
     @Query
     private var allSettings: [UserSettings]
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var showMobilityFlows = false
     /// Late-night "Skip for tonight" — persisted (not launch-only): the
@@ -1481,16 +1483,25 @@ struct TodayWorkoutView: View {
         // half the content below the fold; one screen, no dead air.
         VStack(spacing: Tide.s3) {
             // Day header as one compact row: icon + type + date.
-            HStack(spacing: Tide.s2) {
-                Image(systemName: nonGymIcon(for: plan.type))
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text2)
-                Text(plan.type.displayName)
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                Spacer()
+            let header = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                : AnyLayout(HStackLayout(spacing: Tide.s2))
+            header {
+                HStack(spacing: Tide.s2) {
+                    Image(systemName: nonGymIcon(for: plan.type))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
+                        .accessibilityHidden(true)
+                    Text(plan.type.displayName)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !typeSize.isAccessibilitySize {
+                    Spacer()
+                }
                 if let nextType = nextWorkoutType {
-                    VStack(alignment: .trailing, spacing: 0) {
+                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: 0) {
                         Text("Tomorrow").tideLabel()
                         Text(nextType)
                             .font(Tide.bodyStrong)

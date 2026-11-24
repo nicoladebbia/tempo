@@ -226,7 +226,12 @@ struct ActiveWorkoutView: View {
         .padding(.vertical, Tide.s2)
         .background(Tide.fill)
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(TideTrain.record.opacity(0.6), lineWidth: 1))
+        .overlay(
+            Capsule().strokeBorder(
+                TideTrain.record.opacity(TideTrainSession.outlineOpacity),
+                lineWidth: TideTrainSession.rule
+            )
+        )
         .accessibilityElement(children: .combine)
     }
 
@@ -375,7 +380,11 @@ struct ActiveWorkoutView: View {
             "Log this set?",
             isPresented: Binding(
                 get: { setPlausibilityWarning != nil },
-                set: { if !$0 { setPlausibilityWarning = nil } }
+                set: {
+                    if !$0 {
+                        setPlausibilityWarning = nil
+                    }
+                }
             )
         ) {
             Button("Log it") {
@@ -1114,7 +1123,7 @@ struct ActiveWorkoutView: View {
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(Tide.labelShrink)
                 .fixedSize(horizontal: false, vertical: true)
             Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
                 .font(Tide.caption)

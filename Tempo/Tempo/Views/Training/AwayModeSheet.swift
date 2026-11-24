@@ -40,7 +40,10 @@ struct AwayModeSheet: View {
                 VStack(spacing: Tide.s5) {
                     if let activePause {
                         VStack(alignment: .leading, spacing: Tide.s3) {
-                            Text("Currently paused").tideLabel()
+                            Text("Currently paused")
+                                .tideLabel()
+                                .accessibilityLabel("Currently paused")
+                                .accessibilityIdentifier("Currently paused")
                             statusCard(
                                 icon: "leaf.fill", color: TideTrain.positive,
                                 title: activePause.reason.reportLabel,
@@ -69,7 +72,7 @@ struct AwayModeSheet: View {
 
                     if let activeTravel {
                         VStack(alignment: .leading, spacing: Tide.s3) {
-                            Text("Limited equipment").tideLabel()
+                            Text("Limited equipment").tideLabel().accessibilityLabel("Limited equipment")
                             statusCard(
                                 icon: "bag.fill", color: Tide.water,
                                 title: activeTravel.scope.displayName,

@@ -78,7 +78,7 @@ struct RestTimerView: View {
                     .contentTransition(.numericText(countsDown: true))
                     .animation(reduceMotion ? nil : Tide.snap, value: viewModel.formattedRestTimer)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(TideTrainSession.clockShrink)
                 Text("Rest").tideLabel()
             }
             .scaleEffect(!reduceMotion && secondsLeft <= 5 && secondsLeft > 0 && secondsLeft % 2 == 1 ? 1.06 : 1)

@@ -51,6 +51,8 @@ enum TideTrainSession {
     static let fieldWidth: CGFloat = 100
     /// A short label column ("Rep 3", "KM 12") so every field beside it starts at the same edge.
     static let repLabel: CGFloat = 52
+    /// How far a clock numeral may shrink before it truncates.
+    static let clockShrink: CGFloat = 0.5
     /// The training-load chart: plot height, and the empty-state height it keeps.
     static let chartHeight: CGFloat = 140
     static let chartEmptyHeight: CGFloat = 80

@@ -188,7 +188,7 @@ struct MobilityFlowPlayerView: View {
                                 .foregroundStyle(Tide.text)
                                 .contentTransition(.numericText(countsDown: true))
                                 .lineLimit(1)
-                                .minimumScaleFactor(0.5)
+                                .minimumScaleFactor(TideTrainSession.clockShrink)
                         }
                     }
                 }
