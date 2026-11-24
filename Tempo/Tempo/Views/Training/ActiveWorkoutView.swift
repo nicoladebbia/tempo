@@ -190,6 +190,24 @@ struct ActiveWorkoutView: View {
 
     @State
     private var prToast: PersonalRecord?
+
+    /// The few-second Undo after a set is logged or skipped. Sits under the
+    /// timer bar so Pause and Finish stay reachable.
+    @State
+    private var undoToast: ToastData?
+
+    /// What was typed into a set that Undo just reopened, shown again
+    /// instead of the defaults so it can be corrected and logged.
+    @State
+    private var restoredEntry: RestoredEntry?
+
+    struct RestoredEntry {
+        let setID: UUID
+        let weight: Double
+        let reps: Double
+        let addedLoad: Double
+    }
+
     @State
     private var showNotes = false
 
@@ -235,40 +253,48 @@ struct ActiveWorkoutView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The page for the current phase of the session.
+    @ViewBuilder
+    private var phaseContent: some View {
+        switch viewModel.sessionState {
+        case .warmup:
+            warmupContent
+
+        case .exercise(.setActive):
+            setActiveContent
+
+        case .exercise(.resting):
+            RestTimerView(viewModel: viewModel)
+
+        case let .exercise(.betweenExercises(_, toIndex)):
+            exerciseTransition(toIndex: toIndex)
+
+        case .paused:
+            pausedOverlay
+
+        case .interruptedCall:
+            interruptedCallOverlay
+
+        case .crashedRecovery:
+            crashRecoveryContent
+
+        default:
+            // Transient states (cooldown/summary/saved/discarded/idle):
+            // the cover is being dismissed — keep the page, not a blank
+            // "broken"-looking view, during the teardown frame.
+            Color.clear
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Timer bar
             timerBar
 
             // Content based on state
-            switch viewModel.sessionState {
-            case .warmup:
-                warmupContent
-
-            case .exercise(.setActive):
-                setActiveContent
-
-            case .exercise(.resting):
-                RestTimerView(viewModel: viewModel)
-
-            case let .exercise(.betweenExercises(_, toIndex)):
-                exerciseTransition(toIndex: toIndex)
-
-            case .paused:
-                pausedOverlay
-
-            case .interruptedCall:
-                interruptedCallOverlay
-
-            case .crashedRecovery:
-                crashRecoveryContent
-
-            default:
-                // Transient states (cooldown/summary/saved/discarded/idle):
-                // the cover is being dismissed — keep the page, not a blank
-                // "broken"-looking view, during the teardown frame.
-                Color.clear
-            }
+            phaseContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .tempoToast($undoToast)
         }
         // Set → rest → next set cross-fades instead of cutting.
         .animation(reduceMotion ? nil : Tide.snap, value: phaseKey)
@@ -749,6 +775,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func commitCurrentSet() {
+        var undo: TrainingViewModel.LoggedSetUndo?
         // Inputs are in the user's display unit; persist kg. For a
         // bodyweight lift the logged weight is the EFFECTIVE load
         // (bodyweight ± added) and we also record the signed added load.
@@ -757,7 +784,7 @@ struct ActiveWorkoutView: View {
             // logging, so this and every later bodyweight lift this
             // session (and beyond) reads a real weight, not 0.
             persistBodyweightIfNeeded()
-            viewModel.logSet(
+            undo = viewModel.logSetCapturingUndo(
                 weight: bodyweightEffectiveKg,
                 reps: Int(inputReps),
                 addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
@@ -767,7 +794,7 @@ struct ActiveWorkoutView: View {
             )
         } else {
             let weightKg = weightUnit.convert(inputWeight, to: .kg)
-            viewModel.logSet(
+            undo = viewModel.logSetCapturingUndo(
                 weight: weightKg,
                 reps: Int(inputReps),
                 leftReps: splitLeftReps,
@@ -775,7 +802,39 @@ struct ActiveWorkoutView: View {
                 modelContext: modelContext
             )
         }
-        HapticManager.notification(.success)
+        if let undo {
+            // The toast brings its own success haptic.
+            offerUndo(undo)
+        } else {
+            HapticManager.notification(.success)
+        }
+    }
+
+    /// Few-second Undo after a set is logged. Brings the set back open with
+    /// the numbers that were typed, so a slip is a one-tap fix.
+    private func offerUndo(_ undo: TrainingViewModel.LoggedSetUndo) {
+        let message = "Logged \(undo.exerciseName), \(WeightFormat.text(kg: undo.weightKg, unit: weightUnit)) x \(undo.reps)"
+        undoToast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+            let typed = RestoredEntry(
+                setID: undo.setID,
+                weight: WeightUnit.kg.convert(undo.weightKg, to: weightUnit),
+                reps: Double(undo.reps),
+                addedLoad: WeightUnit.kg.convert(undo.addedLoadKg ?? 0, to: weightUnit)
+            )
+            restoredEntry = typed
+            guard viewModel.undoLoggedSet(undo, modelContext: modelContext) else {
+                restoredEntry = nil
+                return
+            }
+            loadCurrentSetInputs()
+        }
+    }
+
+    /// Few-second Undo after a set or a warm-up ramp is skipped.
+    private func offerUndo(_ undo: TrainingViewModel.SkippedSetsUndo) {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+            viewModel.undoSkippedSets(undo, modelContext: modelContext)
+        }
     }
 
     /// All-time best estimated 1RM for this lift.
@@ -848,10 +907,13 @@ struct ActiveWorkoutView: View {
                 // §2.16 — skip without logging. On a warmup set one tap drops the
                 // whole remaining ramp; on a working set it skips just this set.
                 Button {
-                    if currentSetIsWarmup {
-                        viewModel.skipRemainingWarmups(modelContext: modelContext)
+                    let undo = if currentSetIsWarmup {
+                        viewModel.skipRemainingWarmupsCapturingUndo(modelContext: modelContext)
                     } else {
-                        viewModel.skipCurrentSet(modelContext: modelContext)
+                        viewModel.skipCurrentSetCapturingUndo(modelContext: modelContext)
+                    }
+                    if let undo {
+                        offerUndo(undo)
                     }
                 } label: {
                     Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
@@ -1472,6 +1534,17 @@ struct ActiveWorkoutView: View {
 
     private func loadCurrentSetInputs() {
         logRepsSeparately = false // Fix #9 — never sticky across sets
+        // Undo just reopened this set: show the numbers that were logged so
+        // they can be corrected, not the defaults.
+        if let restored = restoredEntry {
+            if restored.setID == viewModel.currentSet?.id {
+                inputWeight = restored.weight
+                inputReps = restored.reps
+                inputAddedLoad = restored.addedLoad
+                return
+            }
+            restoredEntry = nil
+        }
         // §15 — seed the inline bodyweight prompt with a sane default the
         // first time it's needed this session (only matters while
         // bodyweightKg <= 0; otherwise the prompt never renders).
