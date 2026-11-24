@@ -221,15 +221,23 @@ struct NotificationSettingsView: View {
     // MARK: - Summary
 
     /// How many of the reminders are on, so the page reads at a glance.
-    private var remindersOn: Int {
+    /// Every reminder switch on this page, in one place, so the count and the
+    /// total can't drift from the toggles shown below.
+    private var reminderStates: [Bool] {
         [
             morningBriefing, recovery, mealReminders, bedtimeReminder, weeklyReport,
             accountability, streakWarning, trainingReminder, trainerSessionReminder, weeklyUploadReminder,
             arenaNotifications,
-        ].count(where: { $0 })
+        ]
     }
 
-    private let remindersTotal = 11
+    private var remindersOn: Int {
+        reminderStates.count(where: { $0 })
+    }
+
+    private var remindersTotal: Int {
+        reminderStates.count
+    }
 
     private var summaryCard: some View {
         TideSettingsHero {

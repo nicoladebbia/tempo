@@ -65,6 +65,9 @@ struct OnboardingCompleteView: View {
                 Text("YOU'RE IN.")
                     .font(Tide.numeral(titleSize, .heavy))
                     .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(Tide.labelShrink)
                     .accessibilityAddTraits(.isHeader)
 
                 Text("Welcome to Tempo.\nYour operating system starts now.")

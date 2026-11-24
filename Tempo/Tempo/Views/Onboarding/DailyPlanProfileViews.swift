@@ -471,6 +471,9 @@ private struct RhythmSummary: View {
     let wakeMinutes: Int
     let sleepHours: Double
 
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
     /// Minutes after midnight to be in bed by, wrapping past midnight.
     private var bedMinutes: Int {
         let day = 24 * 60
@@ -484,8 +487,8 @@ private struct RhythmSummary: View {
             column("In bed by", clock(bedMinutes))
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        .animation(Tide.snap, value: wakeMinutes)
-        .animation(Tide.snap, value: sleepHours)
+        .animation(reduceMotion ? nil : Tide.snap, value: wakeMinutes)
+        .animation(reduceMotion ? nil : Tide.snap, value: sleepHours)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Wake \(clock(wakeMinutes)), sleep \(formatHours(sleepHours)), in bed by \(clock(bedMinutes))")
     }

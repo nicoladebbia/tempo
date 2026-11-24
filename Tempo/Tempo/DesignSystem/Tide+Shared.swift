@@ -223,6 +223,8 @@ struct TideDayBar: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     private let day = 24.0 * 60
 
@@ -243,8 +245,8 @@ struct TideDayBar: View {
             }
         }
         .frame(height: height)
-        .animation(Tide.snap, value: start)
-        .animation(Tide.snap, value: end)
+        .animation(reduceMotion ? nil : Tide.snap, value: start)
+        .animation(reduceMotion ? nil : Tide.snap, value: end)
         .accessibilityHidden(true)
     }
 

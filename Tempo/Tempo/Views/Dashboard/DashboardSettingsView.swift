@@ -1226,7 +1226,7 @@ struct ModesSettingsDetailView: View {
 
     /// Which modes are bending the plan right now, as the toggles show them.
     private var modesHero: some View {
-        let active = [weekendMode ? "Weekend" : nil, examMode ? "Exam" : nil].compactMap { $0 }
+        let active = [weekendMode ? "Weekend" : nil, examMode ? "Exam" : nil].compactMap(\.self)
         return TideSettingsHero {
             Text("Active now").tideLabel()
             Text(active.isEmpty ? "Standard day" : active.joined(separator: " \u{00B7} "))
@@ -1419,20 +1419,26 @@ struct SubscriptionDetailView: View {
     }
 
     /// Whole days until the date that matters for this state, with what the
-    /// number counts. The trial bar fills over the 7-day trial the paywall offers.
+    /// number counts. The trial bar fills from the trial's start to its end.
     private var countdown: (days: Int, unit: String, tint: Color, progress: Double?)? {
         func days(until date: Date) -> Int {
             max(0, Int((date.timeIntervalSinceNow / 86400).rounded(.up)))
         }
         switch state {
-        case let .trial(_, endDate):
+        case let .trial(startDate, endDate):
             let left = days(until: endDate)
-            return (left, left == 1 ? "day of trial left" : "days of trial left", mood.accent, 1 - Double(left) / 7)
+            let span = max(endDate.timeIntervalSince(startDate), 1)
+            let elapsed = min(max(Date().timeIntervalSince(startDate), 0), span)
+            return (left, left == 1 ? "day of trial left" : "days of trial left", mood.accent, elapsed / span)
         case let .active(_, expirationDate, isAutoRenewing):
             let left = days(until: expirationDate)
-            return (left, isAutoRenewing ? "days to renewal" : "days until it ends", mood.accent, nil)
+            let unit = isAutoRenewing
+                ? (left == 1 ? "day to renewal" : "days to renewal")
+                : (left == 1 ? "day until it ends" : "days until it ends")
+            return (left, unit, mood.accent, nil)
         case let .gracePeriod(_, graceEndDate):
-            return (days(until: graceEndDate), "days of grace left", Tide.danger, nil)
+            let left = days(until: graceEndDate)
+            return (left, left == 1 ? "day of grace left" : "days of grace left", Tide.danger, nil)
         case .free,
              .expired,
              .churned:
