@@ -111,13 +111,25 @@ struct OnboardingScaffold<Content: View>: View {
                     .disabled(!skipEnabled)
                 }
             }
+            .modifier(OnboardingFooterBar())
+        }
+    }
+}
+
+// MARK: - OnboardingFooterBar
+
+/// The bar under a scrolling step: padded to the page edge, its text capped at
+/// the first accessibility size, and a fade so scrolling content dips out under
+/// the buttons instead of running into them. Used by the scaffold and by any
+/// step that pins its own bottom controls (the sign-in step).
+struct OnboardingFooterBar: ViewModifier {
+    func body(content: Content) -> some View {
+        content
             .padding(.horizontal, Tide.edge)
             .dynamicTypeSize(...DynamicTypeSize.accessibility1)
             .padding(.top, Tide.s6)
             .padding(.bottom, Tide.s2)
             .background {
-                // Lets scrolling content fade out under the button instead of
-                // running into it.
                 LinearGradient(
                     stops: [
                         .init(color: Tide.ink.opacity(0), location: 0),
@@ -130,7 +142,6 @@ struct OnboardingScaffold<Content: View>: View {
                 .ignoresSafeArea(edges: .bottom)
                 .allowsHitTesting(false)
             }
-        }
     }
 }
 
