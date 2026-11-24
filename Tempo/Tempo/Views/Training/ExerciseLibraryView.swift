@@ -23,6 +23,8 @@ struct ExerciseLibraryView: View {
     @Query
     private var userSettings: [UserSettings]
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var searchText = ""
     @State
@@ -83,7 +85,8 @@ struct ExerciseLibraryView: View {
                     exerciseList
                 }
             }
-            .padding(.bottom, (Tide.s10 + Tide.s2) + (Tide.s10 + Tide.s2))
+            .padding(.top, Tide.s2)
+            .padding(.bottom, TideTrain.pageBottom)
         }
         .tidePage()
         .navigationTitle("Exercises")
@@ -107,32 +110,8 @@ struct ExerciseLibraryView: View {
     // Per MODULE_TRAINING.md Section 10.2 — 44pt search bar
 
     private var searchBar: some View {
-        HStack(spacing: Tide.s2) {
-            Image(systemName: "magnifyingglass")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text3)
-
-            TextField("Search exercises...", text: $searchText)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text3)
-                }
-            }
-        }
-        .padding(.horizontal, Tide.s3)
-        .frame(height: 44)
-        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s2)
+        TrainPlanSearchField(text: $searchText, prompt: "Search exercises...")
+            .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Muscle Group Chips
@@ -161,7 +140,7 @@ struct ExerciseLibraryView: View {
 
     private var equipmentChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Tide.s1) {
+            HStack(spacing: Tide.s2) {
                 filterChip(label: "All", isSelected: selectedEquipment == nil) {
                     selectedEquipment = nil
                 }
@@ -190,7 +169,7 @@ struct ExerciseLibraryView: View {
             .prefix(6)
         if !top.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text("Most trained").tideLabel(Tide.text3)
+                TideSectionLabel(title: "Most trained")
                     .padding(.horizontal, Tide.edge)
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -202,25 +181,26 @@ struct ExerciseLibraryView: View {
                                 VStack(alignment: .leading, spacing: Tide.hair) {
                                     Text(exercise.name)
                                         .accessibilityLabel(exercise.name.uppercased())
-                                        .font(Tide.caption)
-                                        .fontWeight(.semibold)
+                                        .font(Tide.caption.weight(.semibold))
                                         .foregroundStyle(Tide.text)
-                                        .lineLimit(1)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
                                     HStack(spacing: Tide.hair) {
                                         if let best = bestE1RM(exercise) {
                                             Text(best)
-                                                .font(Tide.caption)
+                                                .font(TideTrain.figure(.footnote, weight: .semibold))
                                                 .foregroundStyle(Color.accentColor)
-                                                .monospacedDigit()
                                         }
                                         Text("· \(exercise.history?.count ?? 0)×")
                                             .font(Tide.caption)
                                             .foregroundStyle(Tide.text3)
                                     }
                                 }
-                                .padding(.horizontal, Tide.s3)
-                                .padding(.vertical, Tide.s2).tideCard(padding: 0, radius: Tide.tileRadius)
+                                .frame(minWidth: TideTrain.statColumn, alignment: .leading)
+                                .frame(minHeight: Tide.hit, alignment: .leading)
+                                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                             }
+                            .buttonStyle(.trainCard)
                         }
                     }
                     .padding(.horizontal, Tide.edge)
@@ -235,7 +215,7 @@ struct ExerciseLibraryView: View {
 
     private var exerciseList: some View {
         let grouped = groupedExercises
-        return LazyVStack(spacing: Tide.s1, pinnedViews: [.sectionHeaders]) {
+        return LazyVStack(spacing: Tide.s2, pinnedViews: [.sectionHeaders]) {
             ForEach(grouped.keys.sorted(by: { $0.displayName < $1.displayName }), id: \.self) { group in
                 Section {
                     ForEach(grouped[group] ?? [], id: \.id) { exercise in
@@ -244,6 +224,7 @@ struct ExerciseLibraryView: View {
                         } label: {
                             exerciseRow(exercise)
                         }
+                        .buttonStyle(.trainCard)
                     }
                 } header: {
                     sectionHeader(group: group, count: grouped[group]?.count ?? 0)
@@ -269,45 +250,70 @@ struct ExerciseLibraryView: View {
     /// §11.9 — row: demo thumb, name, equipment/type line, and YOUR numbers
     /// (best e1RM + times trained) when the lift has history.
     private func exerciseRow(_ exercise: Exercise) -> some View {
-        HStack(spacing: Tide.s3) {
-            ExerciseImageView(exercise: exercise, style: .thumbnail)
-
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                HStack(spacing: Tide.s1) {
-                    Text(exercise.name)
-                        .font(Tide.body)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Tide.text)
-                        .lineLimit(1)
-                    if exercise.isCustom {
-                        Text("Custom").tideLabel(Color.accentColor)
-                            .padding(.horizontal, Tide.s1)
-                            .padding(.vertical, Tide.hair)
-                            .background(Color.accentColor.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? "Compound" : "Isolation")")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+        let large = typeSize.isAccessibilitySize
+        let details = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(exercise.name)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            if exercise.isCustom {
+                Text("Custom").tideLabel(Color.accentColor)
+                    .padding(.horizontal, Tide.s1)
+                    .padding(.vertical, Tide.hair)
+                    .background(Color.accentColor.opacity(0.12))
+                    .clipShape(Capsule())
             }
 
-            Spacer(minLength: Tide.s1)
+            Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? "Compound" : "Isolation")")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        let best = bestE1RM(exercise)
+        let trained = Text("\(exercise.history?.count ?? 0)× trained")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
+            .multilineTextAlignment(.trailing)
+        return Group {
+            if large {
+                // Large text: the picture and name on top, the best lift under them.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
+                        ExerciseImageView(exercise: exercise, style: .thumbnail)
+                        details
+                        Spacer(minLength: 0)
+                    }
+                    if let best {
+                        HStack(spacing: Tide.s2) {
+                            Text(best)
+                                .font(TideTrain.figure(.footnote, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                            trained
+                        }
+                    }
+                }
+            } else {
+                HStack(spacing: Tide.s3) {
+                    ExerciseImageView(exercise: exercise, style: .thumbnail)
 
-            if let best = bestE1RM(exercise) {
-                VStack(alignment: .trailing, spacing: Tide.hair) {
-                    Text(best)
-                        .font(Tide.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.accentColor)
-                        .monospacedDigit()
-                    Text("\(exercise.history?.count ?? 0)× trained")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                    details
+
+                    Spacer(minLength: Tide.s1)
+
+                    if let best {
+                        VStack(alignment: .trailing, spacing: Tide.hair) {
+                            Text(best)
+                                .font(TideTrain.figure(.footnote, weight: .semibold))
+                                .foregroundStyle(Color.accentColor)
+                            trained
+                        }
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
@@ -316,26 +322,13 @@ struct ExerciseLibraryView: View {
     // Per WIREFRAMES.md Screen 71 State B — No results
 
     private var emptyState: some View {
-        VStack(spacing: Tide.s3) {
-            Spacer().frame(height: 80)
-
-            Image(systemName: "magnifyingglass")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-
-            Text("No exercises found.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-
-            if !searchText.isEmpty {
-                Text("Try a different search term.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-            }
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
+        TrainEmptyCard(
+            systemImage: "magnifyingglass",
+            title: "No exercises found.",
+            message: searchText.isEmpty ? nil : "Try a different search term."
+        )
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s4)
     }
 
     // MARK: - Filtered Data
@@ -436,49 +429,57 @@ struct CustomExerciseFormView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Name") {
+            TrainPlanPage {
+                TrainPlanField(label: "Name") {
                     TextField("e.g. Landmine Press", text: $name)
-                    if isDuplicate {
-                        Text("An exercise with this name already exists.")
-                            .font(Tide.caption)
-                            .foregroundStyle(TideTrain.caution)
-                    }
                 }
-                .listRowBackground(Tide.fill)
+                if isDuplicate {
+                    Text("An exercise with this name already exists.")
+                        .font(Tide.caption)
+                        .foregroundStyle(TideTrain.caution)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
-                Section("Classification") {
-                    Picker("Muscle group", selection: $muscleGroup) {
+                TrainPlanCard(label: "Classification") {
+                    TrainPlanPickerRow(title: "Muscle group", selection: $muscleGroup) {
                         ForEach(MuscleGroup.allCases, id: \.self) { group in
                             Text(group.displayName).tag(group)
                         }
                     }
-                    Picker("Equipment", selection: $equipment) {
+                    TrainPlanDivider()
+                    TrainPlanPickerRow(title: "Equipment", selection: $equipment) {
                         ForEach(Equipment.allCases, id: \.self) { eq in
                             Text(Self.equipmentLabel(eq)).tag(eq)
                         }
                     }
-                    Picker("Movement pattern", selection: $movementPattern) {
+                    TrainPlanDivider()
+                    TrainPlanPickerRow(title: "Movement pattern", selection: $movementPattern) {
                         ForEach(MovementPattern.allCases, id: \.self) { pattern in
                             Text(Self.patternLabel(pattern)).tag(pattern)
                         }
                     }
-                    Toggle("Compound (multi-joint)", isOn: $isCompound)
+                    TrainPlanDivider()
+                    TrainPlanToggleRow(title: "Compound (multi-joint)", isOn: $isCompound)
                 }
-                .listRowBackground(Tide.fill)
 
-                Section {
+                TrainPlanCard(label: "Guidance (optional)") {
                     TextField("How to perform it", text: $instructions, axis: .vertical)
                         .lineLimit(3 ... 6)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .tideFieldSurface()
                     TextField("One-line coaching cue", text: $cue)
-                } header: {
-                    Text("Guidance (optional)")
-                } footer: {
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .tideFieldSurface()
                     Text("Compound exercises get a warm-up ramp and 8-rep prescriptions; isolations get 12 reps.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .listRowBackground(Tide.fill)
             }
-            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .trainSheetRoot()
             .navigationTitle("New Exercise")
             .navigationBarTitleDisplayMode(.inline)

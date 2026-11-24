@@ -726,6 +726,15 @@ extension TideTrain {
     static let rowThumb: CGFloat = 44
     /// The demo picture on an exercise page.
     static let demo: CGFloat = 200
+    /// A round gauge (recovery ring) and the line it is drawn with.
+    static let ring: CGFloat = 120
+    static let ringInner: CGFloat = 96
+    static let ringStroke: CGFloat = 10
+    /// The half-circle gauge (strain) box.
+    static let gaugeWidth: CGFloat = 160
+    static let gaugeHeight: CGFloat = 80
+    /// A single stacked bar (sleep stages).
+    static let stackBar: CGFloat = 24
 }
 
 // MARK: - TrainPlanPage
@@ -911,7 +920,7 @@ struct TrainPlanPickerRow<Selection: Hashable, Options: View>: View {
                 .pickerStyle(.menu)
                 .labelsHidden()
                 .tint(Color.accentColor)
-                .fixedSize(horizontal: !stack, vertical: true)
+                .fixedSize()
             }
             .frame(minHeight: Tide.hit)
             if let detail {
@@ -1479,4 +1488,44 @@ struct TrainPlanDivider: View {
             .frame(height: 1)
             .accessibilityHidden(true)
     }
+}
+
+// MARK: - TrainPlanListRow
+
+extension View {
+    /// A transparent list row that carries its own glass card, edge to edge.
+    /// For lists that must stay a `List` (swipe actions, delete, reorder).
+    func trainPlanListRow() -> some View {
+        listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: Tide.s1, leading: Tide.edge, bottom: Tide.s1, trailing: Tide.edge))
+    }
+}
+
+// MARK: - TrainPlanSecondaryButtonStyle
+
+/// The quiet glass button, like `.tempoSecondary`, but the label may wrap onto
+/// a second line instead of shrinking and cutting off at large text sizes.
+struct TrainPlanSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled)
+    private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Tide.headline)
+            .foregroundStyle(isEnabled ? Tide.text : Tide.text3)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s2)
+            .frame(maxWidth: .infinity, minHeight: Tide.fieldHeight)
+            .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+            .contentShape(.capsule)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
+    }
+}
+
+extension ButtonStyle where Self == TrainPlanSecondaryButtonStyle {
+    static var trainPlanSecondary: TrainPlanSecondaryButtonStyle { TrainPlanSecondaryButtonStyle() }
 }

@@ -45,35 +45,30 @@ struct MatchScheduleView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Text(
-                        "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
-                    )
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                }
-                .listRowBackground(Color.clear)
+                Text(
+                    "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .trainPlanListRow()
 
                 if upcoming.isEmpty {
-                    Section {
-                        Text("No matches scheduled.")
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text3)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, Tide.s3)
-                    }
-                    .listRowBackground(Tide.fill)
+                    TrainEmptyCard(systemImage: "soccerball", title: "No matches scheduled.")
+                        .trainPlanListRow()
                 } else {
-                    Section("Upcoming") {
-                        ForEach(upcoming) { match in
-                            matchRow(match)
-                        }
-                        .onDelete(perform: deleteUpcoming)
+                    TideSectionLabel(title: "Upcoming")
+                        .trainPlanListRow()
+                    ForEach(upcoming) { match in
+                        matchRow(match)
+                            .trainPlanListRow()
                     }
-                    .listRowBackground(Tide.fill)
+                    .onDelete(perform: deleteUpcoming)
                 }
             }
+            .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .contentMargins(.bottom, Tide.s6, for: .scrollContent)
             .trainSheetRoot()
             .navigationTitle("Matches")
             .navigationBarTitleDisplayMode(.inline)
@@ -101,22 +96,42 @@ struct MatchScheduleView: View {
 
     private func matchRow(_ match: Match) -> some View {
         VStack(alignment: .leading, spacing: Tide.hair) {
-            HStack {
-                Text(match.opponent.map { "vs \($0)" } ?? "Match")
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                Spacer()
-                if !match.isCompetitive {
-                    Text("Friendly")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    matchTitle(match)
+                    Spacer(minLength: Tide.s2)
+                    if !match.isCompetitive {
+                        friendlyTag
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    matchTitle(match)
+                    if !match.isCompetitive {
+                        friendlyTag
+                    }
                 }
             }
             Text(match.kickoff.formatted(date: .abbreviated, time: .shortened))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, Tide.hair)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: Tide.hit)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private func matchTitle(_ match: Match) -> some View {
+        Text(match.opponent.map { "vs \($0)" } ?? "Match")
+            .font(Tide.title2)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var friendlyTag: some View {
+        Text("Friendly")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
     }
 
     // MARK: - Mutations (each re-periodizes the week deterministically)
@@ -167,32 +182,32 @@ private struct MatchEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("When") {
+            TrainPlanPage {
+                TrainPlanCard(label: "When") {
                     DatePicker(
                         "Kickoff",
                         selection: $kickoff,
                         in: Calendar.current.startOfDay(for: Date())...,
                         displayedComponents: [.date, .hourAndMinute]
                     )
+                    .font(Tide.bodyStrong)
+                    .frame(minHeight: Tide.hit)
                 }
-                .listRowBackground(Tide.fill)
 
-                Section("Opponent (optional)") {
+                TrainPlanField(label: "Opponent (optional)") {
                     TextField("e.g. Inter Miami", text: $opponent)
                         .textInputAutocapitalization(.words)
                 }
-                .listRowBackground(Tide.fill)
 
-                Section {
-                    Toggle("Competitive fixture", isOn: $competitive)
-                } footer: {
-                    Text("Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.")
-                        .font(Tide.caption)
+                TrainPlanCard {
+                    TrainPlanToggleRow(
+                        title: "Competitive fixture",
+                        detail: "Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.",
+                        isOn: $competitive
+                    )
                 }
-                .listRowBackground(Tide.fill)
             }
-            .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .trainSheetRoot()
             .navigationTitle("Add Match")
             .navigationBarTitleDisplayMode(.inline)

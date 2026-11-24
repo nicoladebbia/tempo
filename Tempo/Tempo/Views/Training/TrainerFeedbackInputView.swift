@@ -128,7 +128,7 @@ struct TrainerFeedbackInputView: View {
                 Label("Add a Screenshot Instead", systemImage: "photo.on.rectangle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             if let screenshot {
                 HStack(spacing: Tide.s3) {

@@ -240,7 +240,7 @@ struct TrainerReportSheet: View {
                 Label("Share as Text", systemImage: "message")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             if let pdfShareURL {
                 Button {
@@ -249,7 +249,7 @@ struct TrainerReportSheet: View {
                     Label("Share as PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.trainPlanSecondary)
             } else {
                 Button {
                     preparePDF(document)
@@ -257,7 +257,7 @@ struct TrainerReportSheet: View {
                     Label("Prepare PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.trainPlanSecondary)
             }
         }
         .sheet(item: $shareItem) { item in

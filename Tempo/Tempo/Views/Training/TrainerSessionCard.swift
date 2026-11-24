@@ -53,7 +53,10 @@ struct TrainerSessionCard: View {
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .padding(.bottom, Tide.s1)
-            ForEach(day.exercises) { block in
+            ForEach(Array(day.exercises.enumerated()), id: \.element.id) { index, block in
+                if index > 0 {
+                    TrainPlanDivider()
+                }
                 blockRow(block)
             }
             if let notes = day.notes {
@@ -104,7 +107,7 @@ struct TrainerSessionCard: View {
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text)
         }
-        .frame(maxWidth: .infinity, minHeight: 52)
+        .frame(maxWidth: .infinity, minHeight: Tide.fieldHeight)
         .padding(.top, Tide.s1)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("guidedRunLoggedRow")
@@ -154,6 +157,7 @@ struct TrainerSessionCard: View {
                 Text(notes)
                     .font(Tide.caption)
                     .foregroundStyle(Color.accentColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if canLog, let viewModel, let programSessionKey {
                 let results = viewModel.conditioningResults(forSessionKey: programSessionKey, modelContext: modelContext)
@@ -169,13 +173,15 @@ struct TrainerSessionCard: View {
     /// The compact "4/4 under 65\" · best 58\"" / "35' · 5.2 km · RPE 8" line
     /// under a logged block.
     private func resultLine(_ result: ConditioningBlockResult, block: ProgramExercise) -> some View {
-        HStack(spacing: Tide.s1) {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
             Image(systemName: resultIcon(result))
-                .foregroundStyle(resultColor(result))
-            Text(resultText(result, block: block))
                 .font(Tide.caption)
-                .fontWeight(.semibold)
+                .foregroundStyle(resultColor(result))
+                .accessibilityHidden(true)
+            Text(resultText(result, block: block))
+                .font(Tide.caption.weight(.semibold))
                 .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, Tide.hair)
     }

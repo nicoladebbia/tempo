@@ -207,7 +207,7 @@ struct TrainerProgramImportView: View {
                         Button("Upgrade to Tempo Pro") {
                             showPaywall = true
                         }
-                        .buttonStyle(.tempoSecondary)
+                        .buttonStyle(.trainPlanSecondary)
                     }
                     .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                     .padding(.horizontal, Tide.edge)
@@ -322,7 +322,7 @@ struct TrainerProgramImportView: View {
                 Label("Choose Photos", systemImage: "photo.on.rectangle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             Button {
                 showFileImporter = true
@@ -330,7 +330,7 @@ struct TrainerProgramImportView: View {
                 Label("Choose Files", systemImage: "doc.badge.plus")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             Button {
                 showPasteSheet = true
@@ -338,7 +338,7 @@ struct TrainerProgramImportView: View {
                 Label("Paste Text", systemImage: "text.alignleft")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
         }
         .padding(.horizontal, Tide.edge)
     }

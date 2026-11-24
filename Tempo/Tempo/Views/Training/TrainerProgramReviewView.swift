@@ -261,7 +261,12 @@ struct TrainerProgramReviewView: View {
 
             if weeklyAutoTiming == nil {
                 TrainPlanDivider()
-                DatePicker(
+                let startLabel = Text("Start date (Monday)")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(true)
+                let startPicker = DatePicker(
                     "Start date (Monday)",
                     selection: Binding(
                         get: { startDate },
@@ -269,9 +274,21 @@ struct TrainerProgramReviewView: View {
                     ),
                     displayedComponents: .date
                 )
-                .font(Tide.bodyStrong)
+                .labelsHidden()
                 .tint(Color.accentColor)
-                .frame(minHeight: Tide.hit)
+                // The label sits beside the date, or above it when it won't fit.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        startLabel
+                        Spacer(minLength: Tide.s2)
+                        startPicker
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        startLabel
+                        startPicker
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                 .disabled(startTiming == .afterCurrent)
             }
 
@@ -609,6 +626,7 @@ private struct DayEditorView: View {
                     Text("\(TrainerProgramView.shortWeekdayName(day.weekday)) — \(day.title ?? (day.workoutType.displayName))")
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                     if day.weekdayGuessed == true {
                         Image(systemName: "wand.and.stars")
@@ -626,7 +644,7 @@ private struct DayEditorView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
-            .frame(minHeight: Tide.hit, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
         }
         .tint(Tide.text3)
     }

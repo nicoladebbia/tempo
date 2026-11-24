@@ -36,27 +36,23 @@ struct RoutinesView: View {
             if let blocker = viewModel.routineBlocker(for: viewModel.todayPlan) {
                 Text(blocker)
                     .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-                    .listRowBackground(Color.clear)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .trainPlanListRow()
             }
 
             if routines.isEmpty {
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("No routines yet.")
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                    Text(
-                        "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
-                    )
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                }
-                .listRowBackground(Tide.fill)
+                TrainEmptyCard(
+                    systemImage: "list.bullet.rectangle",
+                    title: "No routines yet.",
+                    message: "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
+                )
+                .trainPlanListRow()
             }
 
             ForEach(routines) { routine in
                 routineRow(routine)
-                    .listRowBackground(Tide.fill)
+                    .trainPlanListRow()
                     .swipeActions {
                         Button(role: .destructive) {
                             modelContext.delete(routine)
@@ -73,8 +69,9 @@ struct RoutinesView: View {
                     }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .contentMargins(.bottom, TideTrain.pageBottom, for: .scrollContent)
         .tidePage()
         .navigationTitle("My Routines")
         .toolbar {
@@ -125,29 +122,48 @@ struct RoutinesView: View {
     }
 
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
-        HStack(spacing: Tide.s2) {
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(routine.name)
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                Text(routine.items.map(\.exerciseName).joined(separator: " · "))
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .lineLimit(2)
-                Text("\(routine.items.count) exercises · \(routine.items.reduce(0) { $0 + $1.workingSets }) sets")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-            }
-            Spacer()
-            Button("Use today") {
-                pendingApply = routine
-            }
-            .font(Tide.caption.weight(.semibold))
-            .buttonStyle(.borderedProminent)
-            .tint(Color.accentColor)
-            .disabled(viewModel.routineBlocker(for: viewModel.todayPlan) != nil)
+        let blocked = viewModel.routineBlocker(for: viewModel.todayPlan) != nil
+        let useButton = Button {
+            pendingApply = routine
+        } label: {
+            Text("Use today")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.ink)
+                .lineLimit(1)
+                .padding(.horizontal, Tide.s4)
+                .frame(minHeight: Tide.hit)
+                .background(Color.accentColor, in: .capsule)
+                .contentShape(.capsule)
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .disabled(blocked)
+        .opacity(blocked ? 0.4 : 1)
+        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(routine.name)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(routine.items.map(\.exerciseName).joined(separator: " · "))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .lineLimit(2)
+            Text("\(routine.items.count) exercises · \(routine.items.reduce(0) { $0 + $1.workingSets }) sets")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                info
+                Spacer(minLength: Tide.s2)
+                useButton
+            }
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                info
+                useButton
+            }
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .contentShape(.rect)
         .onTapGesture { editing = routine }
     }
 }
@@ -186,12 +202,18 @@ struct RoutineEditorView: View {
                 Section {
                     TextField("Routine name (e.g. Upper A)", text: $name)
                         .font(Tide.body)
+                        .tideFieldSurface()
+                        // The grouped list already insets its rows, so the
+                        // field lines up with the exercise group below it.
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
                 }
-                .listRowBackground(Tide.fill)
 
-                Section("Exercises") {
+                Section {
                     ForEach($items) { $item in
                         itemRow($item)
+                            .listRowBackground(Tide.fill)
                     }
                     .onMove { items.move(fromOffsets: $0, toOffset: $1) }
                     .onDelete { items.remove(atOffsets: $0) }
@@ -200,10 +222,15 @@ struct RoutineEditorView: View {
                         showPicker = true
                     } label: {
                         Label("Add Exercise", systemImage: "plus")
+                            .font(Tide.bodyStrong)
                             .foregroundStyle(Color.accentColor)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .listRowBackground(Tide.fill)
+                } header: {
+                    TideSectionLabel(title: "Exercises")
                 }
-                .listRowBackground(Tide.fill)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -245,19 +272,28 @@ struct RoutineEditorView: View {
         let groupedWithNext = index + 1 < items.count
             && item.wrappedValue.group != nil
             && items[index + 1].group == item.wrappedValue.group
+        let title = Text(item.wrappedValue.exerciseName)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+        let stepper = Stepper(
+            "\(item.wrappedValue.workingSets) sets",
+            value: item.workingSets,
+            in: 1 ... 10
+        )
+        .font(Tide.caption)
+        .fixedSize()
         return VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack {
-                Text(item.wrappedValue.exerciseName)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text)
-                Spacer()
-                Stepper(
-                    "\(item.wrappedValue.workingSets) sets",
-                    value: item.workingSets,
-                    in: 1 ... 10
-                )
-                .font(Tide.caption)
-                .fixedSize()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    title
+                        .lineLimit(2)
+                    Spacer(minLength: Tide.s2)
+                    stepper
+                }
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    title
+                    stepper
+                }
             }
             if index + 1 < items.count {
                 Toggle(isOn: Binding(
@@ -269,6 +305,7 @@ struct RoutineEditorView: View {
                         .foregroundStyle(Tide.text2)
                 }
                 .tint(Color.accentColor)
+                .frame(minHeight: Tide.hit)
             }
         }
     }

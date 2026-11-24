@@ -366,7 +366,7 @@ struct TrainerProgramView: View {
                 Label("Send Report to Trainer", systemImage: "paperplane")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             // trainer-feedback-tests — paste/screenshot the trainer's reply,
             // review the resulting diff, apply what's accepted.
@@ -376,7 +376,7 @@ struct TrainerProgramView: View {
                 Label("Trainer Sent Changes", systemImage: "text.bubble")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             if !program.changeLog.isEmpty {
                 NavigationLink {
@@ -435,7 +435,7 @@ struct TrainerProgramView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.tempoSecondary)
+        .buttonStyle(.trainPlanSecondary)
     }
 
     private func pauseButton(_ program: TrainerProgram) -> some View {
@@ -446,7 +446,7 @@ struct TrainerProgramView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.tempoSecondary)
+        .buttonStyle(.trainPlanSecondary)
         .accessibilityHint("Stops using this program. You can run it again later.")
     }
 
