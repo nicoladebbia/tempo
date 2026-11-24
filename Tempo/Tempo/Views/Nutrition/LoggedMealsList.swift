@@ -29,19 +29,17 @@ struct LoggedMealsList: View {
     // MARK: - Day header
 
     private var header: some View {
-        let kcal = meals.reduce(0) { $0 + $1.totalCalories }
-        let protein = meals.reduce(0) { $0 + $1.totalProtein }
-        let carbs = meals.reduce(0) { $0 + $1.totalCarbs }
-        let fat = meals.reduce(0) { $0 + $1.totalFat }
+        // The same rounded-once totals as the Fuel hero and the product page.
+        let totals = CanonicalMeals.roundedTotals(of: meals)
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
                 title: "Logged today",
-                trailing: meals.count == 1 ? "1 meal" : "\(meals.count) meals"
+                trailing: FuelWords.count(meals.count, "meal")
             )
-            TideNumber("\(Int(kcal.rounded()))", unit: "kcal", size: Tide.numeralL)
+            TideNumber("\(totals.calories)", unit: "kcal", size: Tide.numeralL)
             // How the day's calories divide, then the grams (stacked at large text sizes).
-            FuelMacroSplitBar(protein: Int(protein.rounded()), carbs: Int(carbs.rounded()), fat: Int(fat.rounded()))
-            FuelMacroInline(protein: Int(protein.rounded()), carbs: Int(carbs.rounded()), fat: Int(fat.rounded()))
+            FuelMacroSplitBar(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
+            FuelMacroInline(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
@@ -72,7 +70,7 @@ struct LoggedMealsList: View {
                     Button {
                         onSavePreset(meal)
                     } label: {
-                        Label("Save as preset", systemImage: "bookmark")
+                        Label("Save as favourite", systemImage: "star")
                     }
                 }
                 Button(role: .destructive) {

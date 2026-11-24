@@ -13,12 +13,14 @@ import Foundation
 import Observation
 import OSLog
 
-// MARK: - API seam
+// MARK: - RecoveryCoachAPI
 
 protocol RecoveryCoachAPI: Sendable {
     func recentSessions() async throws -> [CoachSession]
     func recovery(_ request: CoachRecoveryRequest) async throws -> CoachRecoveryResponse
 }
+
+// MARK: - LiveRecoveryCoachAPI
 
 struct LiveRecoveryCoachAPI: RecoveryCoachAPI {
     let apiClient: APIClient
@@ -32,13 +34,15 @@ struct LiveRecoveryCoachAPI: RecoveryCoachAPI {
     }
 }
 
-// MARK: - Model
+// MARK: - RecoveryCoachModel
 
 @MainActor
 @Observable
 final class RecoveryCoachModel {
     enum Step: Int, CaseIterable {
-        case sessions, health, coach
+        case sessions
+        case health
+        case coach
 
         var title: String {
             switch self {
@@ -70,7 +74,9 @@ final class RecoveryCoachModel {
     private(set) var fluids = CoachFluidBreakdown(loggedMl: 0, quickAnswerLiters: nil, editedLiters: nil)
     private(set) var loadStartedAt: Date?
 
-    var bottleMl: Int { store.read().bottleMl }
+    var bottleMl: Int {
+        store.read().bottleMl
+    }
 
     private let api: any RecoveryCoachAPI
     private let healthKit: (any HealthKitServiceProtocol)?
@@ -99,7 +105,9 @@ final class RecoveryCoachModel {
     }
 
     /// A session needs attention or has a result worth showing.
-    var hasSession: Bool { session != nil }
+    var hasSession: Bool {
+        session != nil
+    }
 
     /// The last fetch got "the server has no WHOOP access yet". Cleared by a successful fetch;
     /// the app refreshes again as soon as the phone shares its WHOOP access.
@@ -111,12 +119,16 @@ final class RecoveryCoachModel {
     /// The phone just shared WHOOP access with the server.
     func whoopAccessShared() async {
         whoopShares += 1
-        guard awaitingWhoopAccess else { return }
+        guard awaitingWhoopAccess else {
+            return
+        }
         await refresh()
     }
 
     var isLoading: Bool {
-        if case .loading = phase { return true }
+        if case .loading = phase {
+            return true
+        }
         return false
     }
 
@@ -136,14 +148,18 @@ final class RecoveryCoachModel {
         phase = .loading(.sessions)
         do {
             let fetched = try await api.recentSessions()
-            guard mine == generation else { return }
+            guard mine == generation else {
+                return
+            }
             awaitingWhoopAccess = false
             store.update { $0.sessions = fetched; $0.sessionsFetchedAt = Date() }
             adoptStoredState(requestedID: requestedID)
         } catch APIError.notFound {
             // The server has no WHOOP access yet (the phone shares it after its WHOOP check) or it ran out.
             // Not an error for the user: there is simply nothing new to weigh until the next share.
-            guard mine == generation else { return }
+            guard mine == generation else {
+                return
+            }
             if retryAfterShare, whoopShares != sharesAtStart {
                 // A share landed while this fetch was out: the 404 may predate it.
                 await refresh(requestedID: requestedID, retryAfterShare: false)
@@ -156,7 +172,9 @@ final class RecoveryCoachModel {
                 return
             }
         } catch {
-            guard mine == generation else { return }
+            guard mine == generation else {
+                return
+            }
             if Task.isCancelled {
                 phase = .idle
                 return
@@ -205,7 +223,9 @@ final class RecoveryCoachModel {
     }
 
     private func compute(generationToken mine: Int) async {
-        guard let session else { return }
+        guard let session else {
+            return
+        }
         let state = store.read()
 
         phase = .loading(.health)
@@ -220,7 +240,9 @@ final class RecoveryCoachModel {
                 healthNote = "Couldn't read Apple Health. You can enter your weight by hand."
             }
         }
-        guard mine == generation else { return }
+        guard mine == generation else {
+            return
+        }
 
         let sent = RecoveryWeighIns.select(health: health, manual: state.manualWeighIns, start: session.start, end: session.end)
         weighIns = sent
@@ -238,18 +260,23 @@ final class RecoveryCoachModel {
             lat = RecoveryCoachFormat.coarse(fix.coordinate.latitude)
             lon = RecoveryCoachFormat.coarse(fix.coordinate.longitude)
         }
-        guard mine == generation else { return }
+        guard mine == generation else {
+            return
+        }
 
         // Body mass sizes the food targets when there is no weigh-in yet: the newest weight in Health.
         var bodyMass = sent.last?.kg
         if bodyMass == nil, let healthKit {
             do {
-                bodyMass = try await healthKit.fetchBodyComposition().weightKg.flatMap { RecoveryWeighIns.plausibleKg.contains($0) ? $0 : nil }
+                bodyMass = try await healthKit.fetchBodyComposition().weightKg
+                    .flatMap { RecoveryWeighIns.plausibleKg.contains($0) ? $0 : nil }
             } catch {
                 logger.error("body composition read failed: \(error.localizedDescription, privacy: .public)")
             }
         }
-        guard mine == generation else { return }
+        guard mine == generation else {
+            return
+        }
 
         phase = .loading(.coach)
         let request = CoachRecoveryRequest(
@@ -258,7 +285,9 @@ final class RecoveryCoachModel {
         )
         do {
             let response = try await api.recovery(request)
-            guard mine == generation else { return }
+            guard mine == generation else {
+                return
+            }
             let stored = now()
             store.update { $0.results[session.id] = CoachCachedResult(response: response, storedAt: stored) }
             result = response
@@ -267,7 +296,9 @@ final class RecoveryCoachModel {
             phase = .idle
         } catch {
             // A cancelled request is not "offline": the next refresh will redo it.
-            guard mine == generation else { return }
+            guard mine == generation else {
+                return
+            }
             if Task.isCancelled {
                 phase = .idle
                 return
@@ -283,7 +314,9 @@ final class RecoveryCoachModel {
     }
 
     static func message(for error: Error) -> String {
-        if let api = error as? APIError, let text = api.errorDescription, !text.isEmpty { return text }
+        if let api = error as? APIError, let text = api.errorDescription, !text.isEmpty {
+            return text
+        }
         return "Couldn't reach Tempo. Check your connection and try again."
     }
 
@@ -299,8 +332,26 @@ final class RecoveryCoachModel {
         await recompute()
     }
 
+    /// The hand-entered weight stored at `time` (to the second), if any. Read before
+    /// adding one, so an Undo can put back what a new weight replaced.
+    func manualWeighIn(at time: Date) -> CoachWeighIn? {
+        store.read().manualWeighIns.first { Int($0.time.timeIntervalSince1970) == Int(time.timeIntervalSince1970) }
+    }
+
+    /// Takes back `addManualWeighIn(kg:at:)`: removes it and restores the weight
+    /// it replaced at the same second, if there was one.
+    func undoManualWeighIn(at time: Date, restoring previous: CoachWeighIn?) async {
+        store.removeManualWeighIn(at: time)
+        if let previous {
+            store.addManualWeighIn(previous, now: now())
+        }
+        await recompute()
+    }
+
     func answerFluid(_ action: CoachQuickAnswerAction) async {
-        guard let session else { return }
+        guard let session else {
+            return
+        }
         store.recordQuickAnswer(sessionID: session.id, bottles: action.bottles, now: now())
         store.update { $0.fluidEdits[session.id] = nil }
         await recompute()
@@ -308,7 +359,9 @@ final class RecoveryCoachModel {
 
     /// Forgets the typed amount AND the quick answer for this session.
     func clearFluid() async {
-        guard let session else { return }
+        guard let session else {
+            return
+        }
         store.update { state in
             state.fluidEdits[session.id] = nil
             state.quickAnswers[session.id] = nil
@@ -318,7 +371,9 @@ final class RecoveryCoachModel {
 
     /// Sets the typed amount.
     func editFluid(liters: Double?) async {
-        guard let session else { return }
+        guard let session else {
+            return
+        }
         store.update { $0.fluidEdits[session.id] = liters }
         await recompute()
     }
@@ -331,7 +386,9 @@ final class RecoveryCoachModel {
 
     /// The single thing to do next, with its reason. nil when the plan is ready.
     var startHere: (title: String, reason: String)? {
-        guard let result, let session else { return nil }
+        guard let result, let session else {
+            return nil
+        }
         switch result.status {
         case .ready:
             return nil
@@ -353,8 +410,12 @@ final class RecoveryCoachModel {
 
     static func ago(_ date: Date, now: Date) -> String {
         let minutes = max(0, Int(now.timeIntervalSince(date) / 60))
-        if minutes < 2 { return "just now" }
-        if minutes < 90 { return "\(minutes) min ago" }
+        if minutes < 2 {
+            return "just now"
+        }
+        if minutes < 90 {
+            return "\(minutes) min ago"
+        }
         return "\(minutes / 60) h ago"
     }
 }

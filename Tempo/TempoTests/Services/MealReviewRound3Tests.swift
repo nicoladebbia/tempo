@@ -64,7 +64,7 @@ final class MealReviewRound3Tests: XCTestCase {
     }
 
     func testDinnerAtEightResolvesToEvening() throws {
-        let late = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 22))!
+        let late = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 22)))
         let hints = MealTimeHints.parse("dinner at 8", now: late, calendar: calendar)
         XCTAssertEqual(clock(hints.date)?.hour, 20)
     }
@@ -85,7 +85,7 @@ final class MealReviewRound3Tests: XCTestCase {
         XCTAssertNil(MealTimeHints.parse("ate around 3 eggs", now: now, calendar: calendar).date)
         XCTAssertEqual(clock(MealTimeHints.parse("lunch at 12", now: now, calendar: calendar).date)?.hour, 12)
         // Future time today means just now, never a future-dated meal.
-        let early = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 9))!
+        let early = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 9)))
         XCTAssertEqual(MealTimeHints.parse("pasta at 1pm", now: early, calendar: calendar).date, early)
     }
 
@@ -118,16 +118,23 @@ final class MealReviewRound3Tests: XCTestCase {
         XCTAssertEqual(draft.totalCalories, 100)
     }
 
+    /// The total is the rounded sum, not the sum of cut-off pieces, so the sheet agrees
+    /// with the number the Fuel hero shows once the meal is logged.
+    func testDraftTotalRoundsOnceInsteadOfCuttingOff() {
+        let draft = MealReviewDraft(items: [food("a", kcal: 100.4), food("b", kcal: 100.4)], now: now)
+        XCTAssertEqual(draft.totalCalories, 201)
+    }
+
     // MARK: - Time drives meal type
 
     func testMealTypeFollowsTheChosenTime() throws {
         var draft = MealReviewDraft(items: [food("a")], now: now) // 15:00 -> lunch
         XCTAssertEqual(draft.mealType, .lunch)
-        draft.setEatenAt(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 20, minute: 30))!)
+        try draft.setEatenAt(XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 20, minute: 30))))
         XCTAssertEqual(draft.mealType, .dinner)
         draft.setMealType(.snack)
         XCTAssertEqual(draft.mealType, .snack, "a manual pick sticks")
-        draft.setEatenAt(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 8))!)
+        try draft.setEatenAt(XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 8))))
         XCTAssertEqual(draft.mealType, .snack, "and the time no longer overrides it")
     }
 
@@ -218,7 +225,14 @@ final class MealReviewRound3Tests: XCTestCase {
     // MARK: - Scanner mode memory
 
     private func product() -> FoodProduct {
-        FoodProduct(id: "123", barcode: "123", name: "Skyr", brand: nil, source: .openFoodFacts, per100g: .init(kcal: 60, protein: 11, carbs: 4, fat: 0.2))
+        FoodProduct(
+            id: "123",
+            barcode: "123",
+            name: "Skyr",
+            brand: nil,
+            source: .openFoodFacts,
+            per100g: .init(kcal: 60, protein: 11, carbs: 4, fat: 0.2)
+        )
     }
 
     func testScannedProductSurvivesModeSwitchesUntilScanAnother() {

@@ -178,6 +178,19 @@ struct DailyNutritionTargets: Equatable {
         )
     }
 
+    /// Today's water target in ml: the ONE value the Today tile, the Fuel water
+    /// card and the coach all show. Hydration depends on weight, recovery zone,
+    /// training and logged activity, never on the TDEE, so no Whoop average is
+    /// needed and every caller lands on the same number.
+    @MainActor
+    static func todayWaterTargetMl(in context: ModelContext, now: Date = Date()) -> Int {
+        today(
+            in: context,
+            whoopAvgTDEE: nil,
+            recoveryScore: storedRecoveryScore(in: context, now: now)
+        ).hydrationMl
+    }
+
     /// Today's stored recovery score (0-100) when no live Whoop reading is at
     /// hand (Watch, Coach): the same row the Dashboard persists, so every
     /// surface adjusts the day's target by the same number. nil when none.

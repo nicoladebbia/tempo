@@ -1,122 +1,66 @@
 //
-// RecoveryCoachView.swift
+// RecoveryCoachSection.swift
 // Tempo
 //
-// The Recovery Coach screen: after a big session, what you sweated out and what
-// to drink and eat. One START HERE when something is missing; otherwise the
+// The "after your session" part of the one Fuel coach: what you sweated out and
+// what to drink and eat. One START HERE when something is missing; otherwise the
 // result. Numbers are ranges with a +/- percent and are labelled as estimates.
-// Opened from the weigh-in push and from the card on Nutrition Today.
+// Shown on top of the Coach page whenever a recent session needs a weigh-in or
+// has a result; opened from the weigh-in push and from the card on Fuel Today.
 //
 
 import SwiftUI
 
-// MARK: - RecoveryCoachView
+// MARK: - RecoveryCoachSection
 
-struct RecoveryCoachView: View {
+struct RecoveryCoachSection: View {
     let model: RecoveryCoachModel
-    let onClose: () -> Void
+    @Binding
+    var showWeighIn: Bool
+    @Binding
+    var showFluids: Bool
+    /// A hand-entered weight was removed: the page offers Undo.
+    var onRemoveWeighIn: (CoachWeighIn) -> Void = { _ in }
 
-    @Environment(\.tideMood) private var mood
-    @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var showWeighIn = false
-    @State private var showFluids = false
-    @State private var showWhy = false
-    @State private var preMatchOn = RecoveryCoachStore.shared.read().preMatchReminderOn
-
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Tide.s4) {
-                    if typeSize.isAccessibilitySize, let session = model.session {
-                        Text(Self.sessionLine(session, now: Date()))
-                            .font(Tide.body)
-                            .foregroundStyle(Tide.text2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    if model.isOfflineResult {
-                        offlineBanner
-                    }
-                    content
-                    reminderRow
-                }
-                .padding(.horizontal, Tide.edge)
-                .padding(.bottom, Tide.s8)
-                .padding(.top, Tide.s3)
-            }
-            .scrollEdgeEffectStyle(.soft, for: .top)
-            // Own task: SwiftUI cancels a refreshable body when the view updates mid-load.
-            .refreshable { await Task { await model.refresh(requestedID: model.session?.id) }.value }
-        }
-        .tidePage()
-        .fuelBottomBar(isShown: needsWeighIn && !showWeighIn && !showFluids) {
-            enterWeightBar
-        }
-        .tideCovered(showWeighIn || showFluids)
-        .sheet(isPresented: $showWeighIn) {
-            if let session = model.session {
-                ManualWeighInSheet(session: session, startsWithAfter: model.result?.missingPost ?? true) { kg, time in
-                    Task { await model.addManualWeighIn(kg: kg, at: time) }
-                }
-                .presentationDetents([.large])
-            }
-        }
-        .sheet(isPresented: $showFluids) {
-            FluidSheet(model: model)
-                .presentationDetents([.large])
-        }
-        .accessibilityIdentifier("coach.screen")
-    }
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @State
+    private var showWhy = false
 
     /// Something is missing (a weigh-in): the one thing to do is the bar at the bottom.
-    private var needsWeighIn: Bool {
+    static func needsWeighIn(_ model: RecoveryCoachModel) -> Bool {
         model.session != nil && model.result != nil && model.startHere != nil
     }
 
-    /// The one action while a weigh-in is missing, in the thumb zone.
-    private var enterWeightBar: some View {
-        Button(model.result?.status == .implausible ? "Enter my new weight" : "Enter my weight") {
-            showWeighIn = true
+    var body: some View {
+        // Always-present container; the section inside is conditional.
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            if let session = model.session {
+                sessionHeader(session)
+                if model.isOfflineResult {
+                    offlineBanner
+                }
+                content
+            }
         }
-        .buttonStyle(.tidePrimary)
-        .accessibilityIdentifier("coach.enterWeight")
+        .animation(Tide.snap, value: model.session?.id)
     }
 
-    // MARK: Header (never scrolls)
+    // MARK: Header
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: Tide.s3) {
-            TideIconTile(systemName: "drop.fill", tint: Tide.water)
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text("Recovery")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .accessibilityAddTraits(.isHeader)
-                // At accessibility sizes the session line moves into the scrolling
-                // page, so the pinned header stays one line and leaves room.
-                if let session = model.session, !typeSize.isAccessibilitySize {
-                    Text(Self.sessionLine(session, now: Date()))
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(.top, Tide.s1)
-            Spacer(minLength: Tide.s2)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                    .frame(width: Tide.hit, height: Tide.hit)
-                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
-            .accessibilityIdentifier("coach.close")
+    private func sessionHeader(_ session: CoachSession) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            TideSectionLabel(title: "After your session")
+            Text(Self.sessionLine(session, now: Date()))
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s4)
-        .padding(.bottom, Tide.s2)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("coach.sessionHeader")
     }
 
     static func sessionLine(_ s: CoachSession, now: Date) -> String {
@@ -133,9 +77,7 @@ struct RecoveryCoachView: View {
         case let .failed(message):
             errorCard(message)
         default:
-            if model.session == nil {
-                emptyCard
-            } else if let result = model.result {
+            if let result = model.result {
                 if case let .loading(step) = model.phase {
                     // Old numbers stay visible but dimmed, with the real steps and a clock above them.
                     LoadingSteps(current: step, startedAt: model.loadStartedAt ?? Date(), title: "Updating your numbers")
@@ -149,15 +91,6 @@ struct RecoveryCoachView: View {
                 LoadingSteps(current: .coach, startedAt: model.loadStartedAt ?? Date())
             }
         }
-    }
-
-    private var emptyCard: some View {
-        FuelEmptyState(
-            icon: "scalemass",
-            title: "No session to weigh",
-            message: "After a WHOOP workout of 20 minutes or more, I'll ask you to weigh in. Nothing from the last 2 days needs it."
-        )
-        .accessibilityIdentifier("coach.empty")
     }
 
     private func errorCard(_ message: String) -> some View {
@@ -255,7 +188,7 @@ struct RecoveryCoachView: View {
                         }
                         Spacer(minLength: Tide.s2)
                         if w.source == CoachWeighIn.sourceManual {
-                            Button("Remove") { Task { await model.removeManualWeighIn(at: w.time) } }
+                            Button("Remove") { onRemoveWeighIn(w) }
                                 .buttonStyle(.plain)
                                 .font(Tide.bodyStrong)
                                 .foregroundStyle(mood.accent)
@@ -530,9 +463,38 @@ struct RecoveryCoachView: View {
         }
     }
 
-    // Reminder toggle (quiet)
+    // MARK: Shared card
 
-    private var reminderRow: some View {
+    private func card(@ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s3, content: content)
+            .tideCard()
+    }
+}
+
+// MARK: - CoachEnterWeightBar
+
+/// The one action while a weigh-in is missing, in the thumb zone.
+struct CoachEnterWeightBar: View {
+    let model: RecoveryCoachModel
+    let action: () -> Void
+
+    var body: some View {
+        Button(model.result?.status == .implausible ? "Enter my new weight" : "Enter my weight", action: action)
+            .buttonStyle(.tidePrimary)
+            .accessibilityIdentifier("coach.enterWeight")
+    }
+}
+
+// MARK: - CoachReminderRow
+
+/// "Remind me before football": the pre-match weigh-in nudge (quiet toggle).
+struct CoachReminderRow: View {
+    @Environment(\.tideMood)
+    private var mood
+    @State
+    private var preMatchOn = RecoveryCoachStore.shared.read().preMatchReminderOn
+
+    var body: some View {
         Toggle(isOn: $preMatchOn) {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text("Remind me before football")
@@ -553,13 +515,6 @@ struct RecoveryCoachView: View {
         }
         .sensoryFeedback(.selection, trigger: preMatchOn)
         .accessibilityIdentifier("coach.preMatchToggle")
-    }
-
-    // MARK: Shared card
-
-    private func card(@ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3, content: content)
-            .tideCard()
     }
 }
 

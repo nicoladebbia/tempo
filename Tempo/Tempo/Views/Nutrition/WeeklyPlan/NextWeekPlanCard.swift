@@ -192,7 +192,7 @@ struct WeeklyPlanPreviewView: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: Tide.s2)
-                Text("\(Int(meal.calories)) kcal")
+                Text("\(Int(meal.calories.rounded())) kcal")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .monospacedDigit()

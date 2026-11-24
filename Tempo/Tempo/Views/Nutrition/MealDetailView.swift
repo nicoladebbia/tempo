@@ -230,12 +230,12 @@ struct MealDetailView: View {
             .presentationDetents([.height(Tide.fuelDetentConfirm), .large])
             .presentationDragIndicator(.visible)
         }
-        .alert("Save as preset", isPresented: $presentPresetAlert) {
-            TextField("Preset name", text: $presetNameDraft)
+        .alert("Save as favourite", isPresented: $presentPresetAlert) {
+            TextField("Name", text: $presetNameDraft)
             Button("Save") { savePreset() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Log this meal again in one tap from the Log tab.")
+            Text("It sits at the top of Log a meal, one tap to log again.")
         }
         .alert(
             "Something went wrong",
@@ -409,19 +409,24 @@ struct MealDetailView: View {
         let foods = meal.foods
         if shouldRenderActualFoods || (meal.recipe == nil && !foods.isEmpty) {
             return (
-                Int(foods.reduce(0.0) { $0 + $1.calories }),
-                Int(foods.reduce(0.0) { $0 + $1.proteinG }),
-                Int(foods.reduce(0.0) { $0 + $1.carbsG }),
-                Int(foods.reduce(0.0) { $0 + $1.fatG })
+                Int(foods.reduce(0.0) { $0 + $1.calories }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.proteinG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.carbsG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.fatG }.rounded())
             )
         }
         if let recipe = meal.recipe {
             return (
-                Int(recipe.totalCalories), Int(recipe.totalProteinGrams),
-                Int(recipe.totalCarbsGrams), Int(recipe.totalFatGrams)
+                Int(recipe.totalCalories.rounded()), Int(recipe.totalProteinGrams.rounded()),
+                Int(recipe.totalCarbsGrams.rounded()), Int(recipe.totalFatGrams.rounded())
             )
         }
-        return (Int(meal.totalCalories), Int(meal.totalProtein), Int(meal.totalCarbs), Int(meal.totalFat))
+        return (
+            Int(meal.totalCalories.rounded()),
+            Int(meal.totalProtein.rounded()),
+            Int(meal.totalCarbs.rounded()),
+            Int(meal.totalFat.rounded())
+        )
     }
 
     /// A meal that is not eaten or skipped yet, on a day that has begun: the
@@ -563,12 +568,12 @@ struct MealDetailView: View {
                 }
                 .accessibilityLabel("Change what I ate")
                 if !meal.foods.isEmpty {
-                    FuelActionRow(icon: "bookmark", title: "Save as preset") {
+                    FuelActionRow(icon: "star", title: "Save as favourite") {
                         presetNameDraft = meal.foods.count == 1 ? meal.foods[0].name : meal.mealName
                         presentPresetAlert = true
                         HapticManager.lightImpact()
                     }
-                    .accessibilityLabel("Save this meal as a preset")
+                    .accessibilityLabel("Save this meal as a favourite")
                 }
                 // Undo — take the meal back to planned so a wrong log (e.g.
                 // logged to the wrong slot) can be fixed. Confirmed because it
@@ -715,11 +720,13 @@ struct MealDetailView: View {
                 name: name,
                 foods: meal.foods,
                 mealType: MealType.inferred(fromName: meal.mealName) ?? .snack,
+                isPinned: true,
                 modelContext: modelContext
             )
         }
         if saved {
             HapticManager.notification(.success)
+            FuelLogToast.post(ToastData(message: "Saved as a favourite.", style: .success))
         }
     }
 
@@ -1127,7 +1134,7 @@ struct MealDetailView: View {
                                     .font(Tide.caption).monospacedDigit()
                                     .foregroundStyle(Tide.text3)
                             }
-                            Text("\(Int(food.calories)) kcal")
+                            Text("\(Int(food.calories.rounded())) kcal")
                                 .font(Tide.bodyStrong).monospacedDigit()
                                 .foregroundStyle(Tide.text)
                         }

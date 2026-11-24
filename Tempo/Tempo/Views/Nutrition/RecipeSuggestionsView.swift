@@ -315,21 +315,21 @@ struct RecipeDetailView: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            TideNumber("\(Int(recipe.totalCalories))", unit: "kcal", size: Tide.numeralM)
+            TideNumber("\(Int(recipe.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralM)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Tide.s4) {
                     metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
-                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                    metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
-                    metaTag(systemImage: "person.2", text: "\(recipe.servings) servings")
+                    metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
             }
             FuelMacroInline(
-                protein: Int(recipe.totalProteinGrams),
-                carbs: Int(recipe.totalCarbsGrams),
-                fat: Int(recipe.totalFatGrams)
+                protein: Int(recipe.totalProteinGrams.rounded()),
+                carbs: Int(recipe.totalCarbsGrams.rounded()),
+                fat: Int(recipe.totalFatGrams.rounded())
             )
         }
         .tideCard()

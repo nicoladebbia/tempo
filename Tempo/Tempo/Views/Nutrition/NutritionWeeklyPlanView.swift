@@ -202,7 +202,7 @@ struct NutritionWeeklyPlanView: View {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber("\(eatenMeals)", size: Tide.numeralM)
-                    Text("of \(totalMeals) meals completed")
+                    Text("of \(FuelWords.count(totalMeals, "meal")) completed")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -247,7 +247,7 @@ struct NutritionWeeklyPlanView: View {
                             date: date,
                             dayType: dayType,
                             mealCount: dayMeals.count,
-                            totalCalories: dayMeals.reduce(0) { $0 + Int($1.totalCalories) },
+                            totalCalories: Int(dayMeals.reduce(0.0) { $0 + $1.totalCalories }.rounded()),
                             isToday: isToday,
                             isExpanded: isExpanded
                         )
@@ -328,7 +328,7 @@ struct NutritionWeeklyPlanView: View {
             VStack(alignment: alignment, spacing: Tide.hair) {
                 TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
 
-                Text("\(mealCount) meals")
+                Text(FuelWords.count(mealCount, "meal"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
@@ -395,7 +395,7 @@ struct NutritionWeeklyPlanView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .layoutPriority(1)
 
-            Text("\(Int(meal.totalCalories)) kcal")
+            Text("\(Int(meal.totalCalories.rounded())) kcal")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .monospacedDigit()

@@ -550,7 +550,7 @@ struct FuelSetupSectionFlow: View {
                         .font(Tide.caption)
                         .foregroundStyle(Tide.danger)
                 } else if let spacing = working.mealSpacingText, let meals = working.mealsPerDay {
-                    Text("\(meals) meals · \(spacing.lowercased())")
+                    Text("\(FuelWords.count(meals, "meal")) · \(spacing.lowercased())")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }

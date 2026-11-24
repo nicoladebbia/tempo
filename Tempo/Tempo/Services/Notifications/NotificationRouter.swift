@@ -11,6 +11,8 @@
 import Foundation
 import UserNotifications
 
+// MARK: - NotificationDestination
+
 /// Where a notification wants the app to land.
 struct NotificationDestination: Equatable {
     var tab: AppTab
@@ -21,7 +23,7 @@ struct NotificationDestination: Equatable {
     /// Kitchen sub-section (implies the Kitchen section).
     var kitchenSection: KitchenSection?
     var meal: MealRequest?
-    /// Open the Recovery Coach for this WHOOP session (id is a UUID string).
+    /// Open Fuel > Coach for this WHOOP session (id is a UUID string).
     var coachSessionID: String?
     /// Open the weekly check-in sheet.
     var weeklyCheckIn = false
@@ -43,6 +45,8 @@ struct NotificationDestination: Equatable {
         NotificationDestination(tab: .fuel, nutritionSection: section, kitchenSection: kitchen, meal: meal)
     }
 }
+
+// MARK: - NotificationRouter
 
 enum NotificationRouter {
     static let defaultActionID = UNNotificationDefaultActionIdentifier
@@ -70,7 +74,10 @@ enum NotificationRouter {
             var destination = NotificationDestination.nutrition(.plan)
             destination.weeklyCheckIn = action == WeeklyPlanReminder.checkInActionID || action == defaultActionID
             return destination
-        case "MEAL_REMINDER", "OVERDUE_MEAL_REMINDER", "DEFROST_REMINDER", "PREP_START_REMINDER":
+        case "MEAL_REMINDER",
+             "OVERDUE_MEAL_REMINDER",
+             "DEFROST_REMINDER",
+             "PREP_START_REMINDER":
             let request = TempoNotificationDelegate.mealRequest(category: category, action: action, mealID: mealID)
             return request.map { .nutrition(.today, meal: $0) } ?? .nutrition(.today)
         case CoachNotifications.postCategoryID:
@@ -89,21 +96,27 @@ enum NotificationRouter {
             return action == "VIEW_WORKOUT" ? .tab(.train) : .today(.recovery)
         case "BEDTIME_REMINDER":
             return .today(.recovery)
-        case "MORNING_BRIEFING", "WEEKLY_SUMMARY":
+        case "MORNING_BRIEFING",
+             "WEEKLY_SUMMARY":
             return .tab(.today)
         case "ARENA_SOCIAL":
             return .tab(.arena)
-        case "STREAK_WARNING", "ACCOUNTABILITY", "ACCOUNTABILITY_GENTLE", "ACCOUNTABILITY_FIRM",
-             "ACCOUNTABILITY_URGENT", "ACCOUNTABILITY_FINAL", "ACCOUNTABILITY_CLEAR":
+        case "STREAK_WARNING",
+             "ACCOUNTABILITY",
+             "ACCOUNTABILITY_GENTLE",
+             "ACCOUNTABILITY_FIRM",
+             "ACCOUNTABILITY_URGENT",
+             "ACCOUNTABILITY_FINAL",
+             "ACCOUNTABILITY_CLEAR":
             return .today(.lockdown)
         default:
             return destination(forPushType: type, mealID: mealID, userInfo: userInfo)
         }
     }
 
-    /// "Session done. Weigh in now.": the Nutrition tab, with the coach screen for that session.
+    /// "Session done. Weigh in now.": Fuel > Coach, where that session sits at the top of the page.
     static func coach(userInfo: [AnyHashable: Any]) -> NotificationDestination {
-        var destination = NotificationDestination.nutrition(.today)
+        var destination = NotificationDestination.nutrition(.coach)
         destination.coachSessionID = CoachNotifications.sessionID(from: userInfo)
         return destination
     }
@@ -131,11 +144,18 @@ enum NotificationRouter {
             return .today(.recovery)
         case "bedtime_reminder":
             return .today(.recovery)
-        case "streak_warning", "accountability_tier1", "accountability_tier2", "accountability_tier3", "accountability_tier4":
+        case "streak_warning",
+             "accountability_tier1",
+             "accountability_tier2",
+             "accountability_tier3",
+             "accountability_tier4":
             return .today(.lockdown)
         case "weekly_summary":
             return .tab(.today)
-        case "leaderboard_change", "challenge_invite", "challenge_update", "achievement_unlock":
+        case "leaderboard_change",
+             "challenge_invite",
+             "challenge_update",
+             "achievement_unlock":
             return .tab(.arena)
         default:
             return nil

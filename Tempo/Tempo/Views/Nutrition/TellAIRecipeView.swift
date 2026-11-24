@@ -262,7 +262,7 @@ private struct RecipePreviewSheet: View {
 
     @ViewBuilder
     private var metaLabels: some View {
-        Label("\(recipe.servings) servings", systemImage: "fork.knife")
+        Label(FuelWords.count(recipe.servings, "serving"), systemImage: "fork.knife")
         if let prep = recipe.prepMinutes, prep > 0 {
             Label("\(prep) min prep", systemImage: "timer")
         }

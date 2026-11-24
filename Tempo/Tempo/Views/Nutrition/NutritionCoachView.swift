@@ -31,14 +31,33 @@ struct NutritionCoachView: View {
     /// the fixed-text templates below remain the offline / AI-off fallback.
     @State
     private var insights = NutritionCoachInsightsModel()
+    /// The after-session coach (sweat loss, fluids, weigh-ins), shared app-wide by
+    /// `recoveryCoachHooks`. nil only while the app is still starting.
+    @Environment(RecoveryCoachModel.self)
+    private var recovery: RecoveryCoachModel?
+    @State
+    private var showWeighIn = false
+    @State
+    private var showFluids = false
+    /// Today's water target, the one the Water card shows (`todayWaterTargetMl`).
+    @State
+    private var waterTargetMl: Int?
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: Tide.s4) {
+                // A session from the last two days comes first: it is the most urgent thing.
+                if let recovery {
+                    RecoveryCoachSection(
+                        model: recovery, showWeighIn: $showWeighIn, showFluids: $showFluids,
+                        onRemoveWeighIn: { removeWeighIn($0, from: recovery) }
+                    )
+                }
                 dailyCoachingCard
                 mealSuggestionSection
                 recoveryGuidanceCard
                 recentMealFeedback
+                CoachReminderRow()
 
                 // AI disclaimer
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
@@ -59,11 +78,87 @@ struct NutritionCoachView: View {
         }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .scrollEdgeEffectStyle(.soft, for: .top)
+        // Pull down re-reads the session and its weights. Own task: SwiftUI cancels a
+        // refreshable body when the view updates mid-load.
+        .refreshable {
+            guard let recovery else {
+                return
+            }
+            await Task { await recovery.refresh(requestedID: recovery.session?.id) }.value
+        }
+        // The one action while a weigh-in is missing, in the thumb zone.
+        .fuelBottomBar(isShown: needsWeighIn && !showWeighIn && !showFluids) {
+            if let recovery {
+                CoachEnterWeightBar(model: recovery) { showWeighIn = true }
+            }
+        }
+        .tideCovered(showWeighIn || showFluids)
+        .sheet(isPresented: $showWeighIn) {
+            if let recovery, let session = recovery.session {
+                ManualWeighInSheet(session: session, startsWithAfter: recovery.result?.missingPost ?? true) { kg, time in
+                    addWeighIn(kg: kg, at: time, to: recovery)
+                }
+                .presentationDetents([.large])
+            }
+        }
+        .sheet(isPresented: $showFluids) {
+            if let recovery {
+                FluidSheet(model: recovery)
+                    .presentationDetents([.large])
+            }
+        }
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
+            waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
+        }
+        // The tips quote the Water card's target, so they follow it when it moves.
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWaterLogged)) { _ in
+            waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoNutritionLogged)) { _ in
+            waterTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
         }
         .task(id: insightTrigger) {
             await loadInsights()
+        }
+        .accessibilityIdentifier("coach.screen")
+    }
+
+    // MARK: - After-session weigh-in
+
+    private var needsWeighIn: Bool {
+        recovery.map(RecoveryCoachSection.needsWeighIn) ?? false
+    }
+
+    /// Saves a weight typed by hand and offers to take it back. The Undo toast is the
+    /// Fuel one (`FuelLogToast`), so there is one toast on the page, not two.
+    private func addWeighIn(kg: Double, at time: Date, to model: RecoveryCoachModel) {
+        let replaced = model.manualWeighIn(at: time)
+        Task {
+            await model.addManualWeighIn(kg: kg, at: time)
+            FuelLogToast.post(ToastData(
+                message: "Weight saved. \(String(format: "%.1f", kg)) kg.", style: .success, actionTitle: "Undo"
+            ) {
+                Task {
+                    await model.undoManualWeighIn(at: time, restoring: replaced)
+                    FuelLogToast.post(ToastData(message: "Weight taken back.", style: .info))
+                }
+            })
+        }
+    }
+
+    /// Removes a hand-typed weight and offers to put it back.
+    private func removeWeighIn(_ weighIn: CoachWeighIn, from model: RecoveryCoachModel) {
+        Task {
+            await model.removeManualWeighIn(at: weighIn.time)
+            FuelLogToast.post(ToastData(
+                message: "Weight removed. \(String(format: "%.1f", weighIn.kg)) kg.", style: .info, actionTitle: "Undo"
+            ) {
+                Task {
+                    await model.addManualWeighIn(kg: weighIn.kg, at: weighIn.time)
+                    FuelLogToast.post(ToastData(message: "Weight put back.", style: .info))
+                }
+            })
         }
     }
 
@@ -511,7 +606,7 @@ struct NutritionCoachView: View {
 
             Spacer(minLength: Tide.s2)
 
-            TideNumber("\(Int(meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
+            TideNumber("\(Int(meal.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
         }
         .accessibilityElement(children: .combine)
     }
@@ -607,27 +702,38 @@ struct NutritionCoachView: View {
         return recoveryTips
     }
 
+    /// The hydration tip for a recovery zone. It quotes the same water target the Water
+    /// card shows ("3,100 ml"), never a number of its own.
+    static func hydrationTip(zone: String, waterTargetMl: Int?) -> String {
+        let target = waterTargetMl.map { " Your target today is \($0.formatted()) ml." } ?? ""
+        switch zone {
+        case "red": return "Hydration is critical." + target + " Add electrolytes."
+        case "yellow": return "Prioritize hydration." + target
+        default: return "Stay hydrated, and more if training hard." + target
+        }
+    }
+
     private var recoveryTips: [RecoveryTipData] {
         let zone = viewModel.recoveryZone ?? "none"
 
         switch zone {
         case "red":
             return [
-                RecoveryTipData(icon: "drop.fill", text: "Hydration is critical — aim for 4L+ today. Add electrolytes."),
+                RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
                 RecoveryTipData(icon: "leaf.fill", text: "Anti-inflammatory priority: berries, salmon, turmeric, ginger."),
                 RecoveryTipData(icon: "bed.double.fill", text: "Consider lighter training. Your body needs repair, not more stress."),
                 RecoveryTipData(icon: "xmark.circle.fill", text: "Avoid alcohol, processed sugar, and fried foods today."),
             ]
         case "yellow":
             return [
-                RecoveryTipData(icon: "drop.fill", text: "Prioritize hydration — aim for 3L+ today."),
+                RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
                 RecoveryTipData(icon: "leaf.fill", text: "Anti-inflammatory foods: berries, fish, turmeric."),
                 RecoveryTipData(icon: "clock.fill", text: "Eat within 30 min post-workout for optimal recovery."),
             ]
         default:
             return [
                 RecoveryTipData(icon: "bolt.fill", text: "Green zone — fuel for performance. High carbs pre-workout."),
-                RecoveryTipData(icon: "drop.fill", text: "Stay hydrated — 3L minimum, more if training hard."),
+                RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
                 RecoveryTipData(icon: "clock.fill", text: "Eat within 30 min post-workout for optimal recovery."),
             ]
         }

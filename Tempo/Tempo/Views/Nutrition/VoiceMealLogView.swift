@@ -262,11 +262,11 @@ struct VoiceMealLogView: View {
     private var confirmationSection: some View {
         // What will be logged: the confident items only, so the number matches
         // the Confirm Meal sheet the user lands on next.
-        let kcal = resolved.filter { !$0.isLowConfidence }.reduce(0) { $0 + Int($1.calories) }
+        let kcal = Int(resolved.filter { !$0.isLowConfidence }.reduce(0.0) { $0 + $1.calories }.rounded())
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
                 title: "Confirm your meal",
-                trailing: resolved.count == 1 ? "1 item" : "\(resolved.count) items"
+                trailing: FuelWords.count(resolved.count, "item")
             )
             TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralL)
 
@@ -294,8 +294,8 @@ struct VoiceMealLogView: View {
                 }
             }
 
-            Text("\(Int(item.quantityG)) g · \(Int(item.calories)) kcal · "
-                + "P \(Int(item.proteinG)) / C \(Int(item.carbsG)) / F \(Int(item.fatG))")
+            Text("\(Int(item.quantityG)) g · \(Int(item.calories.rounded())) kcal · "
+                + "P \(Int(item.proteinG.rounded())) / C \(Int(item.carbsG.rounded())) / F \(Int(item.fatG.rounded()))")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .monospacedDigit()

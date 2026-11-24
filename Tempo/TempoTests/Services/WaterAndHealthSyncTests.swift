@@ -46,6 +46,17 @@ final class WaterAndHealthSyncTests: XCTestCase {
         XCTAssertEqual(WaterStore.total(in: context), 500)
     }
 
+    func testWaterTotalForAWindowCountsOnlyDrinksInsideIt() {
+        let store = WaterStore(context: context, healthKit: nil)
+        let now = Date()
+        store.add(ml: 300, at: now.addingTimeInterval(-3 * 3600))
+        store.add(ml: 250, at: now.addingTimeInterval(-1800))
+        store.add(ml: 500, at: now.addingTimeInterval(-60))
+        let window = WaterStore.total(from: now.addingTimeInterval(-3600), to: now, in: context)
+        XCTAssertEqual(window, 750)
+        XCTAssertEqual(WaterStore.total(from: now.addingTimeInterval(-4 * 3600), to: now, in: context), 1050)
+    }
+
     func testWaterRejectsOutOfRange() {
         let store = WaterStore(context: context, healthKit: nil)
         XCTAssertNil(store.add(ml: 0))
@@ -110,7 +121,7 @@ final class WaterAndHealthSyncTests: XCTestCase {
         XCTAssertTrue(healthKit.writtenNutrition.isEmpty)
     }
 
-    func testEditBumpsVersion() async throws {
+    func testEditBumpsVersion() async {
         let meal = eatenMeal()
         let sync = makeSync()
         await sync.reconcile()

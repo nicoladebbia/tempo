@@ -86,7 +86,7 @@ struct PlannedMealCardView: View {
                     Button {
                         onSavePreset?()
                     } label: {
-                        Label("Save as preset", systemImage: "bookmark")
+                        Label("Save as favourite", systemImage: "star")
                     }
                 }
                 if onUndo != nil {
@@ -244,14 +244,14 @@ struct PlannedMealCardView: View {
     }
 
     private var kcalFigure: some View {
-        TideNumber("\(Int(meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+        TideNumber("\(Int(meal.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
     }
 
     private var macros: some View {
         FuelMacroInline(
-            protein: Int(meal.totalProtein),
-            carbs: Int(meal.totalCarbs),
-            fat: Int(meal.totalFat)
+            protein: Int(meal.totalProtein.rounded()),
+            carbs: Int(meal.totalCarbs.rounded()),
+            fat: Int(meal.totalFat.rounded())
         )
     }
 

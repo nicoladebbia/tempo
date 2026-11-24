@@ -3,13 +3,16 @@
 // Tempo
 //
 // One modifier for ContentView: owns the Recovery Coach model, refreshes it when
-// the app comes to the foreground, presents the coach screen when a push (or the
-// Today card) asks for it, and keeps the pre-match reminder in step with the
-// schedule. Kept out of ContentView so that file only gains one line.
+// the app comes to the foreground or a push asks for a session, and keeps the
+// pre-match reminder in step with the schedule. The model is shared through the
+// environment: the one Fuel coach page (NutritionCoachView) shows it at the top.
+// Kept out of ContentView so that file only gains one line.
 //
 
 import SwiftData
 import SwiftUI
+
+// MARK: - RecoveryCoachHooks
 
 private struct RecoveryCoachHooks: ViewModifier {
     @Bindable var appState: AppState
@@ -27,28 +30,43 @@ private struct RecoveryCoachHooks: ViewModifier {
             .task {
                 let made = makeModel()
                 model = made
-                await made.refresh(requestedID: appState.requestedCoach?.id)
+                let requested = takeRequestedSessionID()
+                await made.refresh(requestedID: requested)
                 rescheduleReminder()
             }
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
+                guard phase == .active else {
+                    return
+                }
                 let isColdLaunch = coldLaunch.isColdLaunch()
-                guard let model, !isColdLaunch else { return }
-                Task { await model.refresh(requestedID: appState.requestedCoach?.id) }
+                guard let model, !isColdLaunch else {
+                    return
+                }
+                let requested = takeRequestedSessionID()
+                Task { await model.refresh(requestedID: requested) }
                 rescheduleReminder()
             }
-            // A push tap: pull the session list now (it may be a brand-new session).
+            // A push tap: pull the session list now (it may be a brand-new session). The
+            // push itself opens Fuel > Coach (see NotificationRouter.coach), where the
+            // session shows at the top of the one coach page.
             .onChange(of: appState.requestedCoach) { _, request in
-                guard let request, let model else { return }
-                Task { await model.refresh(requestedID: request.id) }
+                guard request != nil, let model else {
+                    return
+                }
+                let requested = takeRequestedSessionID()
+                Task { await model.refresh(requestedID: requested) }
             }
             // The phone just shared WHOOP access: a fetch that found none can now succeed.
             .onReceive(NotificationCenter.default.publisher(for: .tempoWhoopAccessShared).receive(on: DispatchQueue.main)) { _ in
-                guard let model else { return }
+                guard let model else {
+                    return
+                }
                 Task { await model.whoopAccessShared() }
             }
             .onReceive(NotificationCenter.default.publisher(for: .tempoCoachAnswerStored)) { _ in
-                guard let model, model.hasSession else { return }
+                guard let model, model.hasSession else {
+                    return
+                }
                 Task { await model.recompute() }
             }
             .onReceive(
@@ -59,11 +77,16 @@ private struct RecoveryCoachHooks: ViewModifier {
             ) { _ in
                 rescheduleReminder()
             }
-            .sheet(item: $appState.requestedCoach) { _ in
-                if let model {
-                    RecoveryCoachView(model: model) { appState.requestedCoach = nil }
-                }
-            }
+    }
+
+    /// The session a push asked for, read once and cleared: the request is spent as soon as
+    /// the model has been told, so the next tap on the same push asks again.
+    private func takeRequestedSessionID() -> String? {
+        let id = appState.requestedCoach?.id
+        if id != nil {
+            appState.requestedCoach = nil
+        }
+        return id
     }
 
     private func makeModel() -> RecoveryCoachModel {
@@ -71,12 +94,7 @@ private struct RecoveryCoachHooks: ViewModifier {
         return RecoveryCoachModel(
             api: LiveRecoveryCoachAPI(apiClient: services.apiClient),
             healthKit: services.healthKit,
-            waterMl: { from, to in
-                let descriptor = FetchDescriptor<WaterIntakeLog>(
-                    predicate: #Predicate<WaterIntakeLog> { $0.loggedAt >= from && $0.loggedAt <= to }
-                )
-                return ((try? context.fetch(descriptor)) ?? []).reduce(0) { $0 + $1.ml }
-            },
+            waterMl: { from, to in WaterStore.total(from: from, to: to, in: context) },
             location: CoreLocationFixProvider()
         )
     }
