@@ -25,6 +25,8 @@ struct PaywallView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
 
     @State
     private var selectedProduct: SubscriptionProduct = .annual
@@ -43,8 +45,8 @@ struct PaywallView: View {
                 // Header
                 header
 
-                // Consolidation pitch
-                consolidationPitch
+                // What it costs, first: the price of the plan picked below.
+                priceHero
 
                 // Feature list
                 featureList
@@ -55,7 +57,7 @@ struct PaywallView: View {
                 // Student discount
                 studentToggle
 
-                // Savings callout
+                // What it replaces
                 savingsCallout
 
                 // Legal disclosure
@@ -95,34 +97,62 @@ struct PaywallView: View {
 
     private var header: some View {
         VStack(spacing: Tide.s3) {
-            TideIconTile(systemName: "crown.fill", tint: Tide.carbs, size: Tide.tileLarge)
+            TideStateMark(systemName: "crown.fill", tint: Tide.carbs)
 
             Text("UNLOCK TEMPO PRO")
-                .font(Tide.largeTitle)
+                .font(Tide.title)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+        }
+    }
 
+    // MARK: - Price hero
+
+    /// The price and period of a plan: the store's own string when it loaded.
+    private func price(for product: SubscriptionProduct) -> String {
+        if let storeProduct = products.first(where: { $0.id == product.rawValue }) {
+            return storeProduct.displayPrice
+        }
+        return switch product {
+        case .monthly: "$4.99"
+        case .annual: "$39.99"
+        case .studentMonthly: "$2.99"
+        case .studentAnnual: "$23.99"
+        }
+    }
+
+    private func period(for product: SubscriptionProduct) -> String {
+        product == .monthly || product == .studentMonthly ? "month" : "year"
+    }
+
+    /// The trial and the price that follows it, in one line: the line the
+    /// button below is agreeing to.
+    private var trialTerms: String {
+        "7-day free trial, then \(price(for: effectiveProduct)) per \(period(for: effectiveProduct))"
+    }
+
+    private var priceHero: some View {
+        VStack(spacing: Tide.s2) {
+            Text("7 DAYS FREE, THEN")
+                .tideLabel(mood.accent)
+            TideNumber(
+                price(for: effectiveProduct),
+                unit: "/\(period(for: effectiveProduct))",
+                size: Tide.numeralL,
+                relativeTo: .largeTitle
+            )
             Text("Your AI-powered life operating system.")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-        }
-    }
-
-    // MARK: - Consolidation Pitch
-
-    private var consolidationPitch: some View {
-        VStack(spacing: Tide.s1) {
-            Text("STOP PAYING FOR 5 APPS")
-                .tideLabel(Tide.carbs)
-            Text("Sleep tracking + Workouts + Recovery + Nutrition + Accountability")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity)
+        .animation(Tide.snap, value: effectiveProduct)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(trialTerms)
     }
 
     // MARK: - Features
@@ -192,20 +222,17 @@ struct PaywallView: View {
         isSelected: Bool,
         badge: String?
     ) -> some View {
-        let storeProduct = products.first { $0.id == product.rawValue }
         let isAnnual = product == .annual || product == .studentAnnual
         let isMonthly = product == .monthly || product == .studentMonthly
-        let fallbackPrice = switch product {
-        case .monthly: "$4.99"
-        case .annual: "$39.99"
-        case .studentMonthly: "$2.99"
-        case .studentAnnual: "$23.99"
-        }
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
 
         return Button {
             selectedProduct = product
         } label: {
-            HStack(spacing: Tide.s3) {
+            layout {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Tide.headline)
                     .foregroundStyle(isSelected ? mood.accent : Tide.text3)
@@ -233,11 +260,13 @@ struct PaywallView: View {
                     }
                 }
 
-                Spacer(minLength: Tide.s2)
+                if !stacked {
+                    Spacer(minLength: Tide.s2)
+                }
 
                 // Per APP_STORE_COMPLIANCE.md Section 5.6 — Use Product.displayPrice
-                VStack(alignment: .trailing, spacing: Tide.hair) {
-                    Text(storeProduct?.displayPrice ?? fallbackPrice)
+                VStack(alignment: stacked ? .leading : .trailing, spacing: Tide.hair) {
+                    Text(price(for: product))
                         .font(Tide.numeral(Tide.numeralS + Tide.s1))
                         .foregroundStyle(Tide.text)
                         .contentTransition(.numericText())
@@ -319,25 +348,43 @@ struct PaywallView: View {
 
     @ViewBuilder
     private var savingsCallout: some View {
-        if !isStudentMode {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(Tide.caption)
-                    .foregroundStyle(Color.tempoSuccess)
-                    .accessibilityHidden(true)
-                Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: Tide.s2) {
+            Text("STOP PAYING FOR 5 APPS")
+                .tideLabel(Tide.carbs)
+            Text("Sleep tracking + Workouts + Recovery + Nutrition + Accountability")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if !isStudentMode {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Color.tempoSuccess)
+                        .accessibilityHidden(true)
+                    Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
         }
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - Footer (pinned)
 
     private var footer: some View {
         VStack(spacing: Tide.s1) {
+            Text(trialTerms)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, Tide.s1)
+
             purchaseButton
 
             footerActions
