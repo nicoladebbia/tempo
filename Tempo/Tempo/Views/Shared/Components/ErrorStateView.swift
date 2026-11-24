@@ -39,7 +39,7 @@ struct ErrorStateView: View {
             Spacer()
 
             VStack(spacing: Tide.s4) {
-                TideIconTile(systemName: "exclamationmark.triangle.fill", tint: Tide.danger, size: Tide.tileLarge)
+                TideStateMark(systemName: "exclamationmark.triangle.fill", tint: Tide.danger)
 
                 VStack(spacing: Tide.s2) {
                     Text(title)
@@ -65,7 +65,7 @@ struct ErrorStateView: View {
 
                     if let backAction {
                         Button("Go Back", action: backAction)
-                            .buttonStyle(.tempoSecondary)
+                            .buttonStyle(.tideGlass)
                     }
                 }
                 .padding(.top, Tide.s2)

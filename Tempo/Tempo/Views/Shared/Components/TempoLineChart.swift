@@ -24,6 +24,8 @@ struct TempoLineChart<ID: Hashable>: View {
 
     @State
     private var selectedPoint: (series: ID, date: Date, value: Double)?
+    @ScaledMetric(relativeTo: .headline)
+    private var tipSize: CGFloat = 17
 
     init(data: [TempoLineChartData<ID>], height: CGFloat = 200, showGrid: Bool = true, axisDesiredCount: Int? = nil) {
         self.data = data
@@ -169,7 +171,7 @@ struct TempoLineChart<ID: Hashable>: View {
     private func tooltipView(value: Double, date: Date) -> some View {
         VStack(spacing: Tide.hair) {
             Text(String(format: "%.1f", value))
-                .font(Tide.numeral(17))
+                .font(Tide.numeral(tipSize))
                 .foregroundStyle(Tide.text)
             Text(date, format: .dateTime.month(.abbreviated).day())
                 .font(Tide.label)

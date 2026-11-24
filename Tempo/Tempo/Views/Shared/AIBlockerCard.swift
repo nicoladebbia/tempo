@@ -31,11 +31,11 @@ struct AIBlockerCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Image(systemName: "lock.fill")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.streak)
-                    .accessibilityHidden(true)
+            HStack(alignment: .center, spacing: Tide.s3) {
+                TideIconTile(
+                    systemName: blocker == .proRequired ? "lock.fill" : "sparkles",
+                    tint: Tide.streak
+                )
                 Text(message ?? blocker.message)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)

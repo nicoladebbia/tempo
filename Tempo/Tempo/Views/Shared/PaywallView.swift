@@ -25,6 +25,8 @@ struct PaywallView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
 
     @State
     private var selectedProduct: SubscriptionProduct = .annual
@@ -36,6 +38,11 @@ struct PaywallView: View {
     private var errorMessage: String?
     @State
     private var products: [Product] = []
+    /// Length in days of the free trial this Apple ID can still get, read
+    /// from the store. nil until the store confirms one: a lapsed subscriber
+    /// usually can't have it again, and the paywall must not promise it then.
+    @State
+    private var trialDays: Int?
 
     var body: some View {
         ScrollView(.vertical) {
@@ -43,8 +50,8 @@ struct PaywallView: View {
                 // Header
                 header
 
-                // Consolidation pitch
-                consolidationPitch
+                // What it costs, first: the price of the plan picked below.
+                priceHero
 
                 // Feature list
                 featureList
@@ -55,12 +62,17 @@ struct PaywallView: View {
                 // Student discount
                 studentToggle
 
-                // Savings callout
+                // What it replaces
                 savingsCallout
 
                 // Legal disclosure
                 // Per APP_STORE_COMPLIANCE.md Section 5.2
                 legalText
+
+                // Too big to pin: the actions follow the page instead.
+                if dynamicTypeSize.isAccessibilitySize {
+                    footer(pinned: false)
+                }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s8)
@@ -68,7 +80,9 @@ struct PaywallView: View {
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            footer
+            if !dynamicTypeSize.isAccessibilitySize {
+                footer(pinned: true)
+            }
         }
         .tidePage(energy: 1)
         .overlay(alignment: .topTrailing) {
@@ -95,34 +109,66 @@ struct PaywallView: View {
 
     private var header: some View {
         VStack(spacing: Tide.s3) {
-            TideIconTile(systemName: "crown.fill", tint: Tide.carbs, size: Tide.tileLarge)
+            TideStateMark(systemName: "crown.fill", tint: Tide.carbs)
 
             Text("UNLOCK TEMPO PRO")
-                .font(Tide.largeTitle)
+                .font(Tide.title)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
+        }
+    }
 
+    // MARK: - Price hero
+
+    /// The price and period of a plan: the store's own string when it loaded.
+    private func price(for product: SubscriptionProduct) -> String {
+        if let storeProduct = products.first(where: { $0.id == product.rawValue }) {
+            return storeProduct.displayPrice
+        }
+        return switch product {
+        case .monthly: "$4.99"
+        case .annual: "$39.99"
+        case .studentMonthly: "$2.99"
+        case .studentAnnual: "$23.99"
+        }
+    }
+
+    private func period(for product: SubscriptionProduct) -> String {
+        product == .monthly || product == .studentMonthly ? "month" : "year"
+    }
+
+    /// The trial and the price that follows it, in one line: the line the
+    /// button below is agreeing to.
+    private var trialTerms: String {
+        let plan = "\(price(for: effectiveProduct)) per \(period(for: effectiveProduct))"
+        guard let trialDays else {
+            return "Billed \(plan). Cancel anytime."
+        }
+        return "\(trialDays)-day free trial, then \(plan)"
+    }
+
+    private var priceHero: some View {
+        VStack(spacing: Tide.s2) {
+            Text(trialDays.map { "\($0) DAYS FREE, THEN" } ?? "PRO FOR")
+                .tideLabel(mood.accent)
+            TideNumber(
+                price(for: effectiveProduct),
+                unit: "/\(period(for: effectiveProduct))",
+                size: Tide.numeralL,
+                relativeTo: .largeTitle
+            )
             Text("Your AI-powered life operating system.")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
-        }
-    }
-
-    // MARK: - Consolidation Pitch
-
-    private var consolidationPitch: some View {
-        VStack(spacing: Tide.s1) {
-            Text("STOP PAYING FOR 5 APPS")
-                .tideLabel(Tide.carbs)
-            Text("Sleep tracking + Workouts + Recovery + Nutrition + Accountability")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity)
+        .animation(Tide.snap, value: effectiveProduct)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(trialTerms)
     }
 
     // MARK: - Features
@@ -192,20 +238,17 @@ struct PaywallView: View {
         isSelected: Bool,
         badge: String?
     ) -> some View {
-        let storeProduct = products.first { $0.id == product.rawValue }
         let isAnnual = product == .annual || product == .studentAnnual
         let isMonthly = product == .monthly || product == .studentMonthly
-        let fallbackPrice = switch product {
-        case .monthly: "$4.99"
-        case .annual: "$39.99"
-        case .studentMonthly: "$2.99"
-        case .studentAnnual: "$23.99"
-        }
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
 
         return Button {
             selectedProduct = product
         } label: {
-            HStack(spacing: Tide.s3) {
+            layout {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(Tide.headline)
                     .foregroundStyle(isSelected ? mood.accent : Tide.text3)
@@ -233,11 +276,13 @@ struct PaywallView: View {
                     }
                 }
 
-                Spacer(minLength: Tide.s2)
+                if !stacked {
+                    Spacer(minLength: Tide.s2)
+                }
 
                 // Per APP_STORE_COMPLIANCE.md Section 5.6 — Use Product.displayPrice
-                VStack(alignment: .trailing, spacing: Tide.hair) {
-                    Text(storeProduct?.displayPrice ?? fallbackPrice)
+                VStack(alignment: stacked ? .leading : .trailing, spacing: Tide.hair) {
+                    Text(price(for: product))
                         .font(Tide.numeral(Tide.numeralS + Tide.s1))
                         .foregroundStyle(Tide.text)
                         .contentTransition(.numericText())
@@ -319,45 +364,72 @@ struct PaywallView: View {
 
     @ViewBuilder
     private var savingsCallout: some View {
-        if !isStudentMode {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(Tide.caption)
-                    .foregroundStyle(Color.tempoSuccess)
-                    .accessibilityHidden(true)
-                Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: Tide.s2) {
+            Text("STOP PAYING FOR 5 APPS")
+                .tideLabel(Tide.carbs)
+            Text("Sleep tracking + Workouts + Recovery + Nutrition + Accountability")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            if !isStudentMode {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Color.tempoSuccess)
+                        .accessibilityHidden(true)
+                    Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
             }
-            .accessibilityElement(children: .combine)
         }
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - Footer (pinned)
 
-    private var footer: some View {
+    private func footer(pinned: Bool) -> some View {
         VStack(spacing: Tide.s1) {
+            Text(trialTerms)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, Tide.s1)
+
             purchaseButton
 
             footerActions
         }
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s6)
+        .padding(.horizontal, pinned ? Tide.edge : 0)
+        .padding(.top, pinned ? Tide.s6 : Tide.s2)
         .padding(.bottom, Tide.s1)
         .background {
-            LinearGradient(
-                stops: [
-                    .init(color: Tide.ink.opacity(0), location: 0),
-                    .init(color: Tide.ink.opacity(0.94), location: 0.42),
-                    .init(color: Tide.ink.opacity(0.97), location: 1),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            if pinned {
+                pinnedFade
+            }
+        }
+    }
+
+    /// Solid under the actions, with a short fade above so the page scrolls
+    /// away softly instead of running through the price line.
+    private var pinnedFade: some View {
+        Tide.ink.opacity(0.97)
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [Tide.ink.opacity(0), Tide.ink.opacity(0.97)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: Tide.s6)
+                .offset(y: -Tide.s6)
+            }
             .ignoresSafeArea(edges: .bottom)
             .allowsHitTesting(false)
-        }
     }
 
     private var purchaseButton: some View {
@@ -366,7 +438,7 @@ struct PaywallView: View {
         } label: {
             ZStack {
                 // Per MONETIZATION_STRATEGY.md — "Start Free Trial" CTA
-                Text("Start Free Trial")
+                Text(trialDays == nil ? "Subscribe" : "Start Free Trial")
                     .opacity(isPurchasing ? 0 : 1)
                 if isPurchasing {
                     ProgressView()
@@ -376,11 +448,14 @@ struct PaywallView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(isPurchasing)
-        .accessibilityLabel("Start free trial")
+        .accessibilityLabel(trialDays == nil ? "Subscribe" : "Start free trial")
     }
 
     private var footerActions: some View {
-        HStack(spacing: Tide.s2) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             // Per APP_STORE_COMPLIANCE.md Section 5.4 — Restore Purchases button
             Button {
                 Task { await restorePurchases() }
@@ -410,7 +485,7 @@ struct PaywallView: View {
     /// Per APP_STORE_COMPLIANCE.md Section 5.2, 5.5 — Required subscription disclosure.
     private var legalText: some View {
         Text(
-            "7-day free trial, then auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
+            "\(trialDays.map { "\($0)-day free trial, then auto-renews." } ?? "Auto-renews.") Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
         )
         .font(Tide.label.weight(.regular))
         .foregroundStyle(Tide.text3)
@@ -439,6 +514,24 @@ struct PaywallView: View {
         // Retries the StoreKit catalogue if launch couldn't reach the store.
         await services.subscriptions.startObserving()
         products = services.subscriptions.availableProducts()
+        trialDays = await eligibleTrialDays()
+    }
+
+    /// The free trial's length in days, only when the store offers one and this
+    /// Apple ID is still eligible. One subscription group, so one answer.
+    private func eligibleTrialDays() async -> Int? {
+        guard let info = products.first?.subscription,
+              let offer = info.introductoryOffer,
+              offer.paymentMode == .freeTrial,
+              await info.isEligibleForIntroOffer
+        else {
+            return nil
+        }
+        switch offer.period.unit {
+        case .day: return offer.period.value
+        case .week: return offer.period.value * 7
+        default: return nil
+        }
     }
 
     private func performPurchase() async {

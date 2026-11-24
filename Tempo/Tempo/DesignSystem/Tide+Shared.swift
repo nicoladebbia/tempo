@@ -24,6 +24,8 @@ extension Tide {
     static let tile: CGFloat = 36
     /// Widest an empty or error state grows on a big screen.
     static let stateWidth: CGFloat = 420
+    /// How far the halo reaches past the symbol tile of an empty or error state.
+    static let stateHalo: CGFloat = 72
 }
 
 // MARK: - TideFieldSurface
@@ -155,5 +157,108 @@ struct TideRing: View {
             withAnimation(reduceMotion ? nil : Tide.settle) { shown = new }
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - TideStateMark
+
+/// The hero of an empty or error state: a symbol tile inside two faint rings
+/// and a soft glow that breathe slowly, so a screen with nothing on it still
+/// feels alive. Reduce Motion holds it still.
+struct TideStateMark: View {
+    let systemName: String
+    var tint: Color?
+    var tileSize: CGFloat = Tide.tileLarge
+    /// How far the halo reaches past the tile.
+    var reach: CGFloat = Tide.stateHalo
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var breathe = false
+
+    var body: some View {
+        let color = tint ?? mood.accent
+        let halo = tileSize + reach
+        ZStack {
+            Circle()
+                .fill(RadialGradient(
+                    colors: [color.opacity(0.24), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: halo / 2
+                ))
+                .opacity(breathe ? 1 : 0.55)
+            Circle()
+                .strokeBorder(color.opacity(0.10), lineWidth: 1)
+                .scaleEffect(breathe ? 1 : 0.94)
+                .opacity(breathe ? 0.4 : 1)
+            Circle()
+                .strokeBorder(color.opacity(0.22), lineWidth: 1)
+                .frame(width: halo * 0.72, height: halo * 0.72)
+                .scaleEffect(breathe ? 1.05 : 1)
+            TideIconTile(systemName: systemName, tint: color, size: tileSize)
+        }
+        .frame(width: halo, height: halo)
+        // The glow is drawn past the layout box, so it never pushes content away.
+        .frame(width: tileSize + reach / 2, height: tileSize + reach / 2)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true), value: breathe)
+        .onAppear { breathe = true }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - TideDayBar
+
+/// The 24 hours as one bar with a stretch of it lit: an eating window, a
+/// night's sleep. Times are minutes after midnight; an `end` before the
+/// `start` wraps past midnight.
+struct TideDayBar: View {
+    let start: Int
+    let end: Int
+    var color: Color?
+    var height: CGFloat = Tide.s3
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    private let day = 24.0 * 60
+
+    var body: some View {
+        let accent = color ?? mood.accent
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let from = position(start, in: width)
+            let to = position(end, in: width)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Tide.fill)
+                if end > start {
+                    lit(from: from, to: to, accent)
+                } else if end < start {
+                    lit(from: from, to: width, accent)
+                    lit(from: 0, to: to, accent)
+                }
+            }
+        }
+        .frame(height: height)
+        .animation(reduceMotion ? nil : Tide.snap, value: start)
+        .animation(reduceMotion ? nil : Tide.snap, value: end)
+        .accessibilityHidden(true)
+    }
+
+    private func position(_ minutes: Int, in width: CGFloat) -> CGFloat {
+        width * CGFloat(min(max(Double(minutes), 0), day) / day)
+    }
+
+    private func lit(from: CGFloat, to: CGFloat, _ accent: Color) -> some View {
+        Capsule()
+            .fill(accent)
+            .frame(width: max(to - from, 0))
+            .offset(x: from)
+            .shadow(color: accent.opacity(0.5), radius: Tide.s2)
     }
 }

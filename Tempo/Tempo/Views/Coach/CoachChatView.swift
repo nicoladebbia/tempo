@@ -51,6 +51,12 @@ struct CoachChatView: View {
     /// having the field overwritten on every partial tick.
     @State
     private var lastVoicePartial: String = ""
+    /// What you just sent, shown until the transcript catches up (it only
+    /// updates when Coach has answered), or kept if the answer never came.
+    @State
+    private var pendingText: String?
+    @State
+    private var pendingBaseCount = 0
 
     init(
         viewModel: CoachViewModel,
@@ -87,6 +93,12 @@ struct CoachChatView: View {
                     bottomBar
                 }
         }
+        .animation(reduceMotion ? nil : Tide.snap, value: viewModel.pendingError)
+        .onChange(of: viewModel.pendingError) { _, message in
+            if let message {
+                AccessibilityNotification.Announcement(message).post()
+            }
+        }
         .tidePage()
         .alert("End this chat?", isPresented: $endChatConfirm) {
             Button("Cancel", role: .cancel) {}
@@ -99,21 +111,6 @@ struct CoachChatView: View {
         }
         .onAppear {
             viewModel.loadOrStartConversation(context: modelContext)
-        }
-        .alert(
-            "Couldn't reach Coach",
-            isPresented: .init(
-                get: { viewModel.pendingError != nil },
-                set: {
-                    if !$0 {
-                        viewModel.pendingError = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK") { viewModel.pendingError = nil }
-        } message: {
-            Text(viewModel.pendingError ?? "")
         }
     }
 
@@ -188,7 +185,7 @@ struct CoachChatView: View {
 
     @ViewBuilder
     private var transcript: some View {
-        if viewModel.messages.isEmpty, !viewModel.isThinking {
+        if viewModel.messages.isEmpty, !viewModel.isThinking, pendingBubbleText == nil {
             CoachEmptyState(seeds: emptyStateSeeds) { seed in
                 inputText = seed
                 send()
@@ -200,6 +197,11 @@ struct CoachChatView: View {
                         ForEach(visibleMessages, id: \.id) { wrapper in
                             messageRow(wrapper.message)
                                 .id(wrapper.id)
+                                .transition(rowTransition)
+                        }
+                        if let pendingBubbleText {
+                            CoachUserBubble(text: pendingBubbleText)
+                                .id("pending")
                                 .transition(rowTransition)
                         }
                         if viewModel.isThinking {
@@ -228,6 +230,14 @@ struct CoachChatView: View {
         }
     }
 
+    /// The message to show right now, if the transcript hasn't picked it up yet.
+    private var pendingBubbleText: String? {
+        guard let pendingText, viewModel.messages.count <= pendingBaseCount else {
+            return nil
+        }
+        return pendingText
+    }
+
     private var rowTransition: AnyTransition {
         reduceMotion ? .opacity : .opacity.combined(with: .offset(y: Tide.s2))
     }
@@ -237,6 +247,10 @@ struct CoachChatView: View {
     /// The input bar and the disclaimer under it. Messages scroll beneath.
     private var bottomBar: some View {
         VStack(spacing: Tide.s2) {
+            if let message = viewModel.pendingError {
+                errorBanner(message)
+                    .transition(rowTransition)
+            }
             CoachInputBar(
                 text: $inputText,
                 isThinking: viewModel.isThinking,
@@ -258,6 +272,41 @@ struct CoachChatView: View {
         }
         .padding(.top, Tide.s2)
         .padding(.bottom, Tide.s1)
+    }
+
+    // MARK: - Error banner
+
+    /// Why the last message didn't get an answer, in place of a pop-up. Your
+    /// message stays in the transcript; the banner just says what happened.
+    private func errorBanner(_ message: String) -> some View {
+        HStack(spacing: Tide.s3) {
+            Image(systemName: "exclamationmark.bubble.fill")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.danger)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
+            Button {
+                viewModel.pendingError = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(.leading, Tide.s4)
+        .padding(.vertical, Tide.s1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(Tide.danger.opacity(0.22)), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Visible messages (filters system_summary)
@@ -402,12 +451,18 @@ struct CoachChatView: View {
         }
         inputText = ""
         lastVoicePartial = ""
+        pendingText = text
+        pendingBaseCount = viewModel.messages.count
         Task {
             await viewModel.sendMessage(
                 text,
                 systemPrompt: systemPromptBuilder(),
                 context: modelContext
             )
+            // Sent and answered: the real message is in the transcript now.
+            if viewModel.pendingError == nil {
+                pendingText = nil
+            }
         }
     }
 }
@@ -580,8 +635,6 @@ struct CoachEmptyState: View {
     let seeds: [String]
     let onSeedTap: (String) -> Void
 
-    @Environment(\.tideMood)
-    private var mood
     @State
     private var taps = 0
 
@@ -589,10 +642,7 @@ struct CoachEmptyState: View {
         ScrollView {
             VStack(spacing: Tide.s6) {
                 VStack(spacing: Tide.s3) {
-                    Image(systemName: "bubble.left.and.text.bubble.right.fill")
-                        .font(Tide.largeTitle)
-                        .foregroundStyle(mood.accent)
-                        .accessibilityHidden(true)
+                    TideStateMark(systemName: "bubble.left.and.text.bubble.right.fill")
                     Text("Ask Coach anything")
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)

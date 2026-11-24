@@ -8,121 +8,157 @@
 
 import SwiftUI
 
-// MARK: - Value Demo View
+// MARK: - ValueDemoView
 
-// "Show then ask" — Interactive demo showing sample dashboard data
-// before collecting any personal information. Per market research (8/8 agents):
-// demonstrate value within 90 seconds.
+// The hook: a sample day score that lights up, and the four things Tempo
+// tracks as live tiles. Everything on this page is sample data and says so.
 
 struct ValueDemoView: View {
     let onContinue: () -> Void
 
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @State
+    private var filled = false
+
+    private struct Sample: Identifiable {
+        let id: String
+        let icon: String
+        let title: String
+        let value: String
+        var unit: String?
+        let color: Color
+        let progress: Double
+        let detail: String
+    }
+
+    private let samples: [Sample] = [
+        Sample(
+            id: "recovery", icon: "heart.fill", title: "RECOVERY", value: "72", unit: "%",
+            color: Tide.protein, progress: 0.72, detail: "HRV 58 ms \u{00B7} Sleep 7.2 h"
+        ),
+        Sample(
+            id: "training", icon: "dumbbell.fill", title: "TRAINING", value: "Push Day",
+            color: Tide.fat, progress: 0.4, detail: "2 of 5 lifts done"
+        ),
+        Sample(
+            id: "nutrition", icon: "leaf.fill", title: "NUTRITION", value: "1,840", unit: "kcal",
+            color: Color.tempoSuccess, progress: 0.75, detail: "of 2,450 kcal today"
+        ),
+        Sample(
+            id: "accountability", icon: "lock.fill", title: "NON-NEGOTIABLES", value: "3/5", unit: "done",
+            color: Tide.carbs, progress: 0.6, detail: "Train \u{00B7} Study \u{00B7} Meals"
+        ),
+    ]
+
     var body: some View {
         OnboardingScaffold(
             title: "THIS IS TEMPO",
-            subtitle: "Your entire life — training, nutrition, recovery, accountability — in one app.",
+            subtitle: "Your entire life \u{2014} training, nutrition, recovery, accountability \u{2014} in one app.",
             primaryTitle: "SET UP MY TEMPO",
             primaryAction: onContinue,
             skipTitle: "Skip tour",
-            skipAction: onContinue
+            skipAction: onContinue,
+            centered: true
         ) {
-            GlassEffectContainer(spacing: Tide.s3) {
-                VStack(spacing: Tide.s3) {
-                    sampleCard(
-                        icon: "heart.fill",
-                        title: "RECOVERY",
-                        subtitle: "Whoop-powered daily insights",
-                        value: "72%",
-                        valueColor: Tide.protein,
-                        detail: "HRV 58ms \u{00B7} RHR 62 \u{00B7} Sleep 7.2h"
-                    )
+            hero
 
-                    sampleCard(
-                        icon: "dumbbell.fill",
-                        title: "TRAINING",
-                        subtitle: "AI-adjusted to your recovery",
-                        value: "Push Day",
-                        valueColor: Tide.fat,
-                        detail: "5 exercises \u{00B7} Est. 52 min"
-                    )
+            VStack(spacing: Tide.s3) {
+                GlassEffectContainer(spacing: Tide.s3) {
+                    tiles
+                }
+                OnboardingNote("Sample data. Yours fills in as you use Tempo.", systemImage: "info.circle")
+            }
+        }
+        .onAppear {
+            if reduceMotion {
+                filled = true
+            } else {
+                withAnimation(Tide.settle.delay(0.35)) { filled = true }
+            }
+        }
+    }
 
-                    sampleCard(
-                        icon: "leaf.fill",
-                        title: "NUTRITION",
-                        subtitle: "AI meal plans & macro tracking",
-                        value: "2,450 kcal",
-                        valueColor: Color.tempoSuccess,
-                        detail: "P: 185g \u{00B7} C: 280g \u{00B7} F: 72g"
-                    )
+    // MARK: - Tiles
 
-                    sampleCard(
-                        icon: "lock.fill",
-                        title: "ACCOUNTABILITY",
-                        subtitle: "Non-negotiables & daily targets",
-                        value: "3/5 done",
-                        valueColor: Tide.carbs,
-                        detail: "Train \u{00B7} Study 2h \u{00B7} Log meals"
-                    )
+    /// Two by two, or one column when the text is too big for half a screen.
+    @ViewBuilder
+    private var tiles: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(spacing: Tide.s3) {
+                ForEach(samples) { sampleTile($0) }
+            }
+        } else {
+            Grid(horizontalSpacing: Tide.s3, verticalSpacing: Tide.s3) {
+                GridRow {
+                    sampleTile(samples[0])
+                    sampleTile(samples[1])
+                }
+                GridRow {
+                    sampleTile(samples[2])
+                    sampleTile(samples[3])
                 }
             }
+        }
+    }
 
-            // Consolidation pitch
-            VStack(spacing: Tide.s1) {
+    // MARK: - Hero
+
+    /// A sample day score beside the pitch: what you get, and why it is one app.
+    private var hero: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: Tide.s5))
+        return layout {
+            // The dial keeps its size and its text stays inside the ring.
+            TideDial(score: 72, caption: "Sample", diameter: Tide.dialSheet + Tide.s6)
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            VStack(alignment: typeSize.isAccessibilitySize ? .center : .leading, spacing: Tide.s1) {
                 Text("One app. Not five.")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                 Text("Replaces your workout tracker, meal planner, sleep app, habit tracker, and study timer.")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(typeSize.isAccessibilitySize ? .center : .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Sample Card
+    // MARK: - Sample Tile
 
-    private func sampleCard(
-        icon: String,
-        title: String,
-        subtitle: String,
-        value: String,
-        valueColor: Color,
-        detail: String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(spacing: Tide.s3) {
-                TideIconTile(systemName: icon, tint: valueColor, size: Tide.tile)
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(title).tideLabel()
-                    Text(subtitle)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                }
-                Spacer(minLength: Tide.s2)
-                Text("SAMPLE")
-                    .font(Tide.label)
-                    .foregroundStyle(Tide.text2)
-                    .padding(.horizontal, Tide.s2)
-                    .padding(.vertical, Tide.hair)
-                    .background(Tide.fill, in: .capsule)
-            }
-
-            HStack(alignment: .firstTextBaseline) {
-                Text(value)
-                    .font(Tide.numeral(Tide.numeralS + Tide.s2))
-                    .foregroundStyle(valueColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
-                Spacer(minLength: Tide.s2)
-                Text(detail)
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
+    private func sampleTile(_ sample: Sample) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                Image(systemName: sample.icon)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(sample.color)
+                    .accessibilityHidden(true)
+                Text(sample.title)
+                    .tideLabel()
                     .lineLimit(1)
                     .minimumScaleFactor(Tide.labelShrink)
             }
+
+            TideNumber(
+                sample.value, unit: sample.unit, size: Tide.numeralS + Tide.s2,
+                relativeTo: .title2, color: sample.color
+            )
+
+            TideLevelBar(progress: filled ? sample.progress : 0, color: sample.color, height: Tide.barSlim)
+                .background(Tide.fill, in: .capsule)
+                .accessibilityHidden(true)
+
+            Text(sample.detail)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityElement(children: .combine)
     }

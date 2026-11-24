@@ -136,10 +136,7 @@ struct CoachHistoryView: View {
 
     private var emptyState: some View {
         VStack(spacing: Tide.s3) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(Tide.largeTitle)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+            TideStateMark(systemName: "bubble.left.and.bubble.right")
             VStack(spacing: Tide.s1) {
                 Text("No past conversations yet.")
                     .font(Tide.headline)

@@ -65,7 +65,7 @@ struct TermsAcceptanceView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .toggleStyle(.tempo)
-
+            .onboardingCard()
         }
     }
 

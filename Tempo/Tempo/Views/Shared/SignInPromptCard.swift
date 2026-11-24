@@ -53,11 +53,7 @@ struct SignInPromptCard: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(alignment: .top, spacing: Tide.s3) {
-                Image(systemName: "sparkles")
-                    .font(Tide.headline)
-                    .foregroundStyle(mood.accent)
-                    .frame(width: Tide.icon, height: Tide.icon)
-                    .accessibilityHidden(true)
+                TideIconTile(systemName: "sparkles", tint: mood.accent)
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(Self.title)
                         .font(Tide.headline)

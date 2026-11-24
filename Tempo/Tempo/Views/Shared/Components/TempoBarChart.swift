@@ -21,6 +21,8 @@ struct TempoBarChart<ID: Hashable>: View {
 
     @State
     private var selectedBar: String?
+    @ScaledMetric(relativeTo: .subheadline)
+    private var tipSize: CGFloat = 15
 
     init(series: [TempoBarChartSeries<ID>], height: CGFloat = 200, showGrid: Bool = true) {
         self.series = series
@@ -58,7 +60,7 @@ struct TempoBarChart<ID: Hashable>: View {
                     .lineStyle(StrokeStyle(lineWidth: 1))
                     .annotation(position: .top) {
                         Text(String(format: "%.0f", bar.value))
-                            .font(Tide.numeral(15))
+                            .font(Tide.numeral(tipSize))
                             .foregroundStyle(Tide.text)
                             .padding(.horizontal, Tide.s2)
                             .padding(.vertical, Tide.s1)
