@@ -98,7 +98,7 @@ struct SupplementReorderSheet: View {
                         )
                         .contentTransition(.symbolEffect(.replace))
                     }
-                    .buttonStyle(.tidePrimary)
+                    .buttonStyle(.kitchenBar)
                     .disabled(addedToList)
                     .accessibilityIdentifier("supplementReorderAddToList")
                     Button {

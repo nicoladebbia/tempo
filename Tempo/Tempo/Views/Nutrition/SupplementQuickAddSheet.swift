@@ -108,16 +108,26 @@ struct SupplementQuickAddSheet: View {
                     .padding(.bottom, Tide.s6)
                 }
                 .kitchenBottomBar {
-                    Button {
-                        step = .details
-                    } label: {
-                        Text(selectedIDs.isEmpty ? "Pick what you own" : "Add \(selectedIDs.count)")
-                            .contentTransition(.numericText())
+                    // Nothing picked yet: a quiet glass hint instead of a faded button the tiles show through.
+                    if selectedIDs.isEmpty {
+                        Text("Pick what you own")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text2)
+                            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
+                            .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+                            .transition(.opacity)
+                    } else {
+                        Button {
+                            step = .details
+                        } label: {
+                            Text("Add \(selectedIDs.count)")
+                                .contentTransition(.numericText())
+                        }
+                        .buttonStyle(.tidePrimary)
+                        .transition(.opacity)
                     }
-                    .buttonStyle(.tidePrimary)
-                    .disabled(selectedIDs.isEmpty)
-                    .animation(Tide.snap, value: selectedIDs.count)
                 }
+                .animation(Tide.snap, value: selectedIDs.isEmpty)
             }
         }
     }
@@ -154,7 +164,7 @@ struct SupplementQuickAddSheet: View {
                     .font(Tide.bodyStrong)
                     .foregroundStyle(isSelected ? Tide.ink : Tide.text)
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .lineLimit(item.name.contains(" ") ? 2 : 1)
                     .minimumScaleFactor(Tide.labelShrink)
                 if let macros = item.macroSummary {
                     Text(macros)
@@ -165,7 +175,8 @@ struct SupplementQuickAddSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.suggestion)
-            .padding(Tide.s2)
+            .padding(.horizontal, Tide.s1)
+            .padding(.vertical, Tide.s2)
             .background(isSelected ? mood.accent : Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)

@@ -345,7 +345,7 @@ struct SupplementsView: View {
     }
 
     private func shelfRow(_ row: SupplementShelfRow) -> some View {
-        HStack(spacing: Tide.s2) {
+        VStack(alignment: .leading, spacing: 0) {
             Button {
                 detailTarget = row.supplement
             } label: {
@@ -382,12 +382,14 @@ struct SupplementsView: View {
                             .foregroundStyle(Tide.text3)
                     }
                 }
+                .padding(.top, Tide.s1)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
             .accessibilityIdentifier("supplementRow.\(row.supplement.name)")
 
+            // Running low gets its own line under the text, so the name keeps the full width.
             if row.needsReorder {
                 Button {
                     reorderTarget = row.supplement
@@ -403,6 +405,7 @@ struct SupplementsView: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .padding(.leading, Tide.Kitchen.tile + Tide.s3)
                 .accessibilityLabel("\(row.supplement.name) running low, reorder")
                 .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }

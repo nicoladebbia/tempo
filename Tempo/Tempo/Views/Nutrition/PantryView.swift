@@ -609,7 +609,7 @@ struct PantryManualAddSheet: View {
                 Button(saveButtonTitle) {
                     commitAndClose()
                 }
-                .buttonStyle(.tidePrimary)
+                .buttonStyle(.kitchenBar)
                 .disabled(staged.isEmpty && !canAddCurrent)
                 .accessibilityIdentifier("pantryAddSave")
             }
@@ -664,7 +664,7 @@ struct PantryManualAddSheet: View {
             let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
             LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
                 KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
-                KitchenNumberField(label: "Price paid", unit: "$", placeholder: "Optional", text: $priceText)
+                KitchenNumberField(label: "Price paid", unit: "USD", placeholder: "Optional", text: $priceText)
             }
             HStack {
                 Text("Unit")

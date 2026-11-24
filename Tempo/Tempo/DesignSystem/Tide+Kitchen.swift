@@ -988,3 +988,42 @@ struct KitchenNumberField: View {
         .animation(Tide.snap, value: focused)
     }
 }
+
+// MARK: - KitchenBarButtonStyle
+
+/// The main button of a bottom bar. Enabled, it is the Tide primary. Disabled,
+/// it turns to glass with quiet text, so the rows scrolling under the bar never
+/// show through a faded yellow and collide with its label.
+struct KitchenBarButtonStyle: ButtonStyle {
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.isEnabled)
+    private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let label = configuration.label
+            .font(Tide.headline)
+            .padding(.horizontal, Tide.s5)
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
+            .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
+            .opacity(configuration.isPressed ? 0.88 : 1)
+            .animation(Tide.snap, value: configuration.isPressed)
+            .contentShape(.capsule)
+        return Group {
+            if isEnabled {
+                label
+                    .foregroundStyle(Tide.ink)
+                    .background(mood.accent, in: .capsule)
+            } else {
+                label
+                    .foregroundStyle(Tide.text2)
+                    .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+            }
+        }
+        .animation(Tide.snap, value: isEnabled)
+    }
+}
+
+extension ButtonStyle where Self == KitchenBarButtonStyle {
+    static var kitchenBar: KitchenBarButtonStyle { KitchenBarButtonStyle() }
+}

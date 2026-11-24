@@ -42,15 +42,20 @@ struct FoodProductActionBar: View {
     var body: some View {
         VStack(spacing: Tide.s2) {
             if let inventory {
-                Text(inventory.line)
-                    .font(Tide.caption)
-                    .foregroundStyle(inventory.atHome != nil || inventory.onList ? Tide.text : Tide.text2)
-                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
-                    .minimumScaleFactor(Tide.labelShrink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Tide.s2)
-                    .accessibilityIdentifier("foodInventoryLine")
-                    .transition(.opacity)
+                // On glass, so the page text scrolling under the bar never shows through it.
+                HStack(spacing: 0) {
+                    Text(inventory.line)
+                        .font(Tide.caption)
+                        .foregroundStyle(inventory.atHome != nil || inventory.onList ? Tide.text : Tide.text2)
+                        .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .padding(.horizontal, Tide.s3)
+                        .padding(.vertical, Tide.s1)
+                        .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+                        .accessibilityIdentifier("foodInventoryLine")
+                    Spacer(minLength: 0)
+                }
+                .transition(.opacity)
             }
             // One slim row: the primary action takes the width, the two
             // secondary ones sit beside it as round glass buttons. At the

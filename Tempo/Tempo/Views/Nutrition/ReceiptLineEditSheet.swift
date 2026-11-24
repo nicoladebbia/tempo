@@ -110,7 +110,7 @@ struct ReceiptLineEditSheet: View {
             // The one action under the thumb.
             .kitchenBottomBar {
                 Button("Save") { save() }
-                    .buttonStyle(.tidePrimary)
+                    .buttonStyle(.kitchenBar)
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                     .accessibilityIdentifier("receiptLineSave")
             }
@@ -222,7 +222,7 @@ struct ReceiptLineEditSheet: View {
             let columns = [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
             LazyVGrid(columns: typeSize.isAccessibilitySize ? [GridItem(.flexible())] : columns, spacing: Tide.s3) {
                 KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
-                KitchenNumberField(label: "Price", unit: "$", placeholder: "Price", text: $priceText)
+                KitchenNumberField(label: "Price", unit: "USD", placeholder: "Price", text: $priceText)
             }
             HStack {
                 Text("Unit")

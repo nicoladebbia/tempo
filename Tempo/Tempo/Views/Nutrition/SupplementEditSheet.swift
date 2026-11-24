@@ -152,7 +152,7 @@ struct SupplementEditSheet: View {
             // The one action sits under the thumb, not in the corner of the bar.
             .kitchenBottomBar {
                 Button(existing == nil ? "Add to shelf" : "Save") { save() }
-                    .buttonStyle(.tidePrimary)
+                    .buttonStyle(.kitchenBar)
                     .disabled(!canSave)
                     .accessibilityIdentifier("supplementSave")
             }

@@ -22,36 +22,41 @@ struct ReceiptsHistoryView: View {
     var body: some View {
         KitchenList {
             if !viewModel.receiptState.receipts.isEmpty {
-                summary
-                ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
-                    // A scanned receipt opens its review screen — "Needs review"
-                    // used to be a label with nowhere to go.
-                    if let receiptService = viewModel.receiptService,
-                       let pantryService = viewModel.pantryService,
-                       Self.canOpen(receipt)
-                    {
-                        NavigationLink {
-                            ReceiptReviewView(
-                                receipt: receipt,
-                                receiptService: receiptService,
-                                pantryService: pantryService,
-                                onIngested: {
-                                    viewModel.reloadReceipts()
-                                    viewModel.reloadPantry()
-                                    // Same as from Pantry: new stock shrinks the list.
-                                    viewModel.reapplyPantryToGrocery()
-                                }
-                            )
-                        } label: {
+                // The summary is its own block, so the glass card is not glued to the first row.
+                Section { summary }
+                Section {
+                    ForEach(viewModel.receiptState.receipts, id: \.id) { receipt in
+                        // A scanned receipt opens its review screen — "Needs review"
+                        // used to be a label with nowhere to go.
+                        if let receiptService = viewModel.receiptService,
+                           let pantryService = viewModel.pantryService,
+                           Self.canOpen(receipt)
+                        {
+                            NavigationLink {
+                                ReceiptReviewView(
+                                    receipt: receipt,
+                                    receiptService: receiptService,
+                                    pantryService: pantryService,
+                                    onIngested: {
+                                        viewModel.reloadReceipts()
+                                        viewModel.reloadPantry()
+                                        // Same as from Pantry: new stock shrinks the list.
+                                        viewModel.reapplyPantryToGrocery()
+                                    }
+                                )
+                            } label: {
+                                receiptRow(receipt)
+                            }
+                        } else {
                             receiptRow(receipt)
                         }
-                    } else {
-                        receiptRow(receipt)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .listSectionSpacing(Tide.s3)
+        .listSectionMargins(.horizontal, Tide.edge)
         .scrollIndicators(.hidden)
         .tidePage()
         .overlay {
@@ -105,7 +110,7 @@ struct ReceiptsHistoryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
         .accessibilityElement(children: .combine)
-        .listRowInsets(EdgeInsets())
+        .listRowInsets(EdgeInsets(top: Tide.s1, leading: 0, bottom: Tide.s1, trailing: 0))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }
