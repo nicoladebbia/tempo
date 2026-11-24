@@ -110,6 +110,7 @@ struct FoodProductActionBar: View {
                 Button(action: action) {
                     Label(title, systemImage: systemImage)
                         .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
                         .frame(maxWidth: .infinity, minHeight: Tide.hit)
                 }
                 .buttonStyle(.tideGlass)

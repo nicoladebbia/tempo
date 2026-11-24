@@ -38,6 +38,11 @@ struct FoodProductView: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    /// The donut and the grams field follow the text size, so the figure inside the ring and the grams never clip.
+    @ScaledMetric(relativeTo: .title3)
+    private var dial: CGFloat = Tide.Kitchen.verdictDial
+    @ScaledMetric(relativeTo: .body)
+    private var gramsFieldWidth: CGFloat = Tide.Kitchen.row
 
     @State
     private var grams: Double
@@ -447,7 +452,7 @@ struct FoodProductView: View {
                         .foregroundStyle(slice.color)
                         .cornerRadius(3)
                 }
-                .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
+                .frame(width: dial, height: dial)
                 .chartLegend(.hidden)
                 .overlay {
                     VStack(spacing: 0) {
@@ -465,6 +470,10 @@ struct FoodProductView: View {
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                     }
+                    // Whatever the text size, the figure stays inside the hole of the ring.
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .lineLimit(1)
+                    .frame(maxWidth: dial * 0.56)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(macroAccessibilityLabel(split, labelKcal: portion.kcal))
@@ -708,7 +717,7 @@ struct FoodProductView: View {
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .font(Tide.bodyStrong)
-                    .frame(width: Tide.Kitchen.row)
+                    .frame(width: gramsFieldWidth)
                     .accessibilityIdentifier("foodPortionGrams")
                     .onChange(of: gramsText) { _, text in
                         if let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0, value <= 5000 {
