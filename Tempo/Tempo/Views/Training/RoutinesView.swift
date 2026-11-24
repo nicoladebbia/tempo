@@ -171,19 +171,19 @@ struct RoutinesView: View {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s4) {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     TideNumber("\(routine.items.count)", size: Tide.numeralS, relativeTo: .title3)
-                    Text("exercises")
+                    Text(TrainCount.noun(routine.items.count, "exercise"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                     TideNumber("\(setCount)", size: Tide.numeralS, relativeTo: .title3)
-                    Text("sets")
+                    Text(TrainCount.noun(setCount, "set"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(routine.items.count) exercises · \(setCount) sets")
+            .accessibilityLabel("\(TrainCount.text(routine.items.count, "exercise")) · \(TrainCount.text(setCount, "set"))")
             Text(routine.items.map(\.exerciseName).joined(separator: " · "))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -333,7 +333,7 @@ struct RoutineEditorView: View {
             .font(Tide.bodyStrong)
             .foregroundStyle(Tide.text)
         let stepper = Stepper(
-            "\(item.wrappedValue.workingSets) sets",
+            TrainCount.text(item.wrappedValue.workingSets, "set"),
             value: item.workingSets,
             in: 1 ... 10
         )

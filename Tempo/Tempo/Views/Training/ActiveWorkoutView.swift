@@ -718,7 +718,7 @@ struct ActiveWorkoutView: View {
         // No external load: 0 is "just bodyweight" on a bodyweight lift, and
         // "no weight prescribed yet" on a loaded one — never "0 × 10".
         if w <= 0 {
-            return isBodyweightLift ? "BW × \(reps)" : "\(reps) reps"
+            return isBodyweightLift ? "BW × \(reps)" : "\(reps) \(TrainCount.noun(set.targetReps, "rep"))"
         }
         return "\(displayWeight(w)) × \(reps)"
     }

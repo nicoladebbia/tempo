@@ -70,7 +70,7 @@ struct MobilityFlowPickerView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("\(flow.estimatedDuration) · \(flow.moves.count) moves")
+                Text("\(flow.estimatedDuration) · \(TrainCount.text(flow.moves.count, "move"))")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }

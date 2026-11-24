@@ -268,7 +268,7 @@ struct TrainerSessionCard: View {
                 let under = times.filter { $0 <= capSeconds }.count
                 parts.append("\(under)/\(times.count) under \(formatSeconds(capSeconds))")
             } else {
-                parts.append("\(times.count) reps")
+                parts.append(TrainCount.text(times.count, "rep"))
             }
             if let best {
                 parts.append("best \(formatSeconds(best))")
@@ -281,7 +281,7 @@ struct TrainerSessionCard: View {
             parts.append(String(format: "%.1f km", distance / 1000))
         }
         if let rounds = result.roundsCompleted {
-            parts.append("\(rounds) rounds")
+            parts.append(TrainCount.text(rounds, "round"))
         }
         if let rpe = result.rpe {
             parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")

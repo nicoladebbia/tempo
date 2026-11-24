@@ -507,7 +507,7 @@ struct WorkoutHistoryView: View {
         do {
             let removed = try WorkoutCSVService.undoImport(batchID: batch, modelContext: modelContext)
             lastImportBatchID = ""
-            csvResultMessage = "Import undone — \(removed) workouts removed."
+            csvResultMessage = "Import undone — \(TrainCount.text(removed, "workout")) removed."
             HapticManager.notification(.success)
         } catch {
             csvResultMessage = "Couldn't undo the import: \(error.localizedDescription)"
@@ -853,7 +853,7 @@ struct WorkoutHistoryView: View {
             parts.append(String(format: "%.1f km", distance / 1000))
         }
         if let rounds = result.roundsCompleted {
-            parts.append("\(rounds) rounds")
+            parts.append(TrainCount.text(rounds, "round"))
         }
         if let rpe = result.rpe {
             parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")

@@ -264,7 +264,7 @@ struct ProgressChartsView: View {
             color: weekStreak > 0 ? TideTrain.caution : Tide.text3
         )
         TrainTag(
-            text: "\(prCount30d) PRs this month",
+            text: "\(TrainCount.text(prCount30d, "PR")) this month",
             systemImage: "star.fill",
             color: prCount30d > 0 ? Color.accentColor : Tide.text3
         )

@@ -79,12 +79,18 @@ struct TrainerReportSheet: View {
         _language = State(initialValue: TrainerReportBuilder.detectLanguage(program: program))
     }
 
+    /// "This Week", or "Last Week" on a Monday, when the report covers the
+    /// week that just finished (see `TrainerReportBuilder.weekScopeLooksBack`).
+    private var weekScopeLabel: String {
+        TrainerReportBuilder.weekScopeLooksBack(program: program, today: referenceDate) ? "Last Week" : "This Week"
+    }
+
     var body: some View {
         NavigationStack {
             TrainPlanPage {
                 TrainPlanTabs(
                     items: [
-                        (tag: TrainerReportScope.week, label: "This Week"),
+                        (tag: TrainerReportScope.week, label: weekScopeLabel),
                         (tag: TrainerReportScope.wholeProgram, label: "Whole Program"),
                     ],
                     selection: $scope

@@ -99,6 +99,17 @@ struct TodayWorkoutView: View {
         viewModel.todayPlan?.status == .inProgress || viewModel.todayPlan?.status == .completed
     }
 
+    /// The Paused card replaces the whole day (and the Start bar with it).
+    private var showsPausedCard: Bool {
+        activePause != nil && !isTodaySessionSacred
+    }
+
+    /// The suggested window with the part already behind us cut off (nil once
+    /// too little of it is left). Follows the once-a-minute `now` tick.
+    private var upcomingWindow: DateInterval? {
+        suggestedWindow.flatMap { TrainWindowMath.upcoming($0, now: now) }
+    }
+
     /// Reminder is scheduled at most once per saved-event start.
     private static let workoutReminderID = "tempo.workout.reminder"
 
@@ -139,7 +150,7 @@ struct TodayWorkoutView: View {
 
     /// "Upper day", "Rest day": what today is, in one phrase.
     private var screenTitle: String {
-        if activePause != nil, !isTodaySessionSacred {
+        if showsPausedCard {
             return "Paused"
         }
         switch viewModel.todayDisplayState {
@@ -168,7 +179,7 @@ struct TodayWorkoutView: View {
                 // empty state below permanently unreachable.
                 if viewModel.isLoading {
                     loadingState
-                } else if let activePause, !isTodaySessionSacred {
+                } else if showsPausedCard, let activePause {
                     // Pause/travel-pain feature — the calm "Paused —
                     // recover" card replaces ALL of Today's normal
                     // content while paused (never a sacred started/
@@ -242,9 +253,12 @@ struct TodayWorkoutView: View {
         // Non-gym days (rest, mobility, football, run, sprint, conditioning)
         // have nothing to log, so no button is shown.
         .safeAreaBar(edge: .bottom) {
-            if viewModel.canStartWorkout, !viewModel.isLoading,
-               !showsBedtimeCard(showSessionAnyway: showSessionTonight)
-            {
+            if TrainStartBar.isVisible(
+                canStartWorkout: viewModel.canStartWorkout,
+                isLoading: viewModel.isLoading,
+                showsBedtimeCard: showsBedtimeCard(showSessionAnyway: showSessionTonight),
+                showsPausedCard: showsPausedCard
+            ) {
                 startWorkoutButton
             }
         }
@@ -350,7 +364,7 @@ struct TodayWorkoutView: View {
             // event flips the banner into countdown mode.
             Task { await refreshWorkoutSchedule() }
         }) {
-            if let window = suggestedWindow {
+            if let window = upcomingWindow {
                 WorkoutEventEditView(
                     window: window,
                     workoutTitle: viewModel.workoutTypeDisplayName,
@@ -474,7 +488,7 @@ struct TodayWorkoutView: View {
             // both are non-blocking (Phase 4 + follow-up).
             if let saved = savedWorkoutEvent {
                 workoutCountdownBanner(saved)
-            } else if let window = suggestedWindow {
+            } else if let window = upcomingWindow {
                 workoutWindowBanner(window)
             }
 
@@ -589,7 +603,7 @@ struct TodayWorkoutView: View {
                     .foregroundStyle(TideTrain.caution)
                     .accessibilityHidden(true)
                 Text(
-                    "Coach called \(session.modality). You kept \(viewModel.todayPlan?.type.displayName ?? "the plan"). Your call."
+                    "Coach called \(TrainModalityName.displayName(session.modality)). You kept \(viewModel.todayPlan?.type.displayName ?? "the plan"). Your call."
                 )
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
@@ -611,7 +625,7 @@ struct TodayWorkoutView: View {
                     Spacer(minLength: Tide.s2)
                     TrainTag(text: session.intensity.rawValue.capitalized, color: intensityColor(session.intensity))
                 }
-                Text(session.modality.capitalized)
+                Text(TrainModalityName.displayName(session.modality))
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -850,7 +864,7 @@ struct TodayWorkoutView: View {
             label: isDone ? "Time" : "Estimated time",
             figure: "\(minutes)",
             unit: "min",
-            stats: [.init(value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)", label: "exercises")],
+            stats: [.init(value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)", label: TrainCount.noun(total, "exercise"))],
             chips: Array(muscles.prefix(4))
         ) {
             TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)

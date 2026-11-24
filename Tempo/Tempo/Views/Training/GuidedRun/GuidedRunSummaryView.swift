@@ -166,7 +166,7 @@ struct GuidedRunSummaryView: View {
         if !record.repTimesSeconds.isEmpty {
             repTimesGrid(block, record: record)
         } else if record.roundsCompleted > 0 {
-            Text("\(record.roundsCompleted) rounds completed")
+            Text("\(TrainCount.text(record.roundsCompleted, "round")) completed")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
         } else if record.durationSeconds != nil || record.distanceMeters != nil {

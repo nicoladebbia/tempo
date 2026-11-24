@@ -592,7 +592,7 @@ struct WeekPlanView: View {
                         // Meta line
                         if plan.type.isGymWorkout {
                             Text(
-                                "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(plan.orderedExercises.count) exercises"
+                                "~\(plan.durationMinutes ?? estimatedDuration(plan: plan)) min · \(TrainCount.text(plan.orderedExercises.count, "exercise"))"
                             )
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
@@ -724,7 +724,7 @@ struct WeekPlanView: View {
                         Spacer()
 
                         if let sets = plannedEx.sets {
-                            Text("\(sets.count) sets")
+                            Text(TrainCount.text(sets.count, "set"))
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
                         }

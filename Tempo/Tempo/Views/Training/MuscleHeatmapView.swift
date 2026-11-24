@@ -521,7 +521,7 @@ struct MuscleHeatmapView: View {
             TrainStatGrid {
                 TrainStat(value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS)
                 TrainStat(value: "\(sets)", label: "working sets", size: Tide.numeralS)
-                TrainStat(value: "\(exercises.count)", label: "sessions", size: Tide.numeralS)
+                TrainStat(value: "\(exercises.count)", label: TrainCount.noun(exercises.count, "session"), size: Tide.numeralS)
             }
 
             if exercises.isEmpty {
