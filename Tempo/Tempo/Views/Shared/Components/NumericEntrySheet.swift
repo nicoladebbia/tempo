@@ -67,6 +67,8 @@ struct NumericEntrySheet: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var mode: Mode = .type
     @State
@@ -187,7 +189,8 @@ struct NumericEntrySheet: View {
                 }
             }
         }
-        .presentationDetents([.height(Tide.keypadSheetHeight), .large])
+        // At accessibility sizes the keypad needs the whole sheet to show its last row.
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(Tide.keypadSheetHeight), .large])
         .presentationCornerRadius(Tide.cardRadius)
     }
 
@@ -403,7 +406,8 @@ struct NumericEntrySheet: View {
         Picker(title, selection: $wheelSelection) {
             ForEach(wheelValues, id: \.self) { value in
                 Text("\(String(format: displayFormat, value)) \(unit)")
-                    .font(Tide.numeral(keySize, .semibold))
+                    // A wheel row has a fixed height: past this the digits overlap.
+                    .font(Tide.numeral(min(keySize, Tide.numeralKey * 1.3), .semibold))
                     .tag(value)
             }
         }
