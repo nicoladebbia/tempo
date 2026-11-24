@@ -22,16 +22,22 @@ struct NonNegotiableSetupView: View {
     @Environment(\.tideMood)
     private var mood
     @Query(sort: \NonNegotiable.order)
-    private var nonNegotiables: [NonNegotiable]
+    private var allNonNegotiables: [NonNegotiable]
+
+    /// What the page shows. The one just swiped away stays in the store, hidden,
+    /// until its Undo toast is over: deleting it takes its history with it.
+    private var nonNegotiables: [NonNegotiable] {
+        allNonNegotiables.filter { $0.id != pendingDeleteID }
+    }
 
     @State
     private var showAddSheet = false
     @State
     private var editingItem: NonNegotiable?
     @State
-    private var showDeleteConfirmation = false
+    private var pendingDeleteID: UUID?
     @State
-    private var pendingDeleteItem: NonNegotiable?
+    private var toast: ToastData?
 
     private let maxNonNegotiables = 7
 
@@ -49,7 +55,10 @@ struct NonNegotiableSetupView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        commitPendingDeletion()
+                        dismiss()
+                    }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
@@ -71,26 +80,15 @@ struct NonNegotiableSetupView: View {
                     onSave: { _ in try? modelContext.save() }
                 )
             }
-            .confirmationDialog(
-                "Delete Non-Negotiable?",
-                isPresented: $showDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Delete", role: .destructive) {
-                    if let item = pendingDeleteItem {
-                        modelContext.delete(item)
-                        try? modelContext.save()
-                    }
-                    pendingDeleteItem = nil
+            .tempoToast($toast)
+            // A toast that ran out (or was swiped away) without Undo makes the delete final.
+            .onChange(of: toast) { _, newValue in
+                if newValue == nil {
+                    commitPendingDeletion()
                 }
-                Button("Cancel", role: .cancel) {
-                    pendingDeleteItem = nil
-                }
-            } message: {
-                Text(
-                    "This will permanently delete \"\(pendingDeleteItem?.name ?? "this item")\" and all its historical progress data. This cannot be undone."
-                )
             }
+            // Leaving the page makes it final too: there is no toast left to undo from.
+            .onDisappear { commitPendingDeletion() }
         }
     }
 
@@ -108,8 +106,7 @@ struct NonNegotiableSetupView: View {
                 .onDelete { offsets in
                     let active = nonNegotiables.filter(\.isActive)
                     if let index = offsets.first {
-                        pendingDeleteItem = active[index]
-                        showDeleteConfirmation = true
+                        removeWithUndo(active[index])
                     }
                 }
                 .onMove { from, to in
@@ -142,8 +139,7 @@ struct NonNegotiableSetupView: View {
                     }
                     .onDelete { offsets in
                         if let index = offsets.first {
-                            pendingDeleteItem = inactive[index]
-                            showDeleteConfirmation = true
+                            removeWithUndo(inactive[index])
                         }
                     }
                 } header: {
@@ -313,11 +309,38 @@ struct NonNegotiableSetupView: View {
         try? modelContext.save()
     }
 
-    private func deleteItems(at offsets: IndexSet, from items: [NonNegotiable]) {
-        for index in offsets {
-            modelContext.delete(items[index])
+    /// Hides the item and offers Undo. It is only deleted when the toast is over.
+    private func removeWithUndo(_ item: NonNegotiable) {
+        // A second swipe while the first toast is up makes the first final.
+        commitPendingDeletion()
+        let id = item.id
+        withAnimation(Tide.snap) {
+            pendingDeleteID = id
         }
-        try? modelContext.save()
+        toast = ToastData(
+            message: "\(item.name) removed.",
+            style: .info,
+            actionTitle: "Undo"
+        ) {
+            withAnimation(Tide.snap) {
+                if pendingDeleteID == id {
+                    pendingDeleteID = nil
+                }
+            }
+        }
+    }
+
+    private func commitPendingDeletion() {
+        guard let id = pendingDeleteID else {
+            return
+        }
+        pendingDeleteID = nil
+        if let item = allNonNegotiables.first(where: { $0.id == id }) {
+            modelContext.delete(item)
+            try? modelContext.save()
+            // Today and Lockdown reload their lists when a non-negotiable changes.
+            NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        }
     }
 
     private func moveItems(from source: IndexSet, to destination: Int) {

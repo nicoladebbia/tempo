@@ -128,7 +128,7 @@ struct WeeklyAccountabilityView: View {
         HStack(spacing: Tide.s3) {
             // At the largest text sizes the words need the width the icon tile would take.
             if !typeSize.isAccessibilitySize {
-                TideAreaIconTile(systemName: category.icon, tint: gradeColor(category.grade))
+                TideAreaIconTile(systemName: category.icon, tint: category.grade.map(gradeColor) ?? Tide.text3)
             }
 
             VStack(alignment: .leading, spacing: Tide.s1) {
@@ -136,13 +136,13 @@ struct WeeklyAccountabilityView: View {
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
 
-                Text("\(category.daysCompleted)/7 days completed")
+                Text(WeeklyDays.phrase(category.days))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
 
                 TideLevelBar(
-                    progress: Double(category.daysCompleted) / 7.0,
-                    color: gradeColor(category.grade),
+                    progress: category.days.progress,
+                    color: category.grade.map(gradeColor) ?? Tide.text3,
                     height: Tide.barSlim
                 )
                 .padding(.top, Tide.s1)
@@ -150,9 +150,9 @@ struct WeeklyAccountabilityView: View {
 
             Spacer(minLength: Tide.s2)
 
-            Text(category.grade.letter)
+            Text(category.grade?.letter ?? "--")
                 .font(Tide.numeral(Tide.numeralM, .bold))
-                .foregroundStyle(gradeColor(category.grade))
+                .foregroundStyle(category.grade.map(gradeColor) ?? Tide.text3)
         }
         .padding(.horizontal, Tide.s4)
         .padding(.vertical, Tide.s3)
@@ -462,38 +462,26 @@ struct WeeklyAccountabilityView: View {
             ))
         }
 
-        // Category grades
-        var categoryData: [String: (completed: Int, total: Int, icon: String)] = [:]
+        // Category grades: days are counted one by one, never scaled from a rate.
         let categoryDefs: [(NonNegotiableType, String, String)] = [
             (.study, "Study", "book.fill"),
             (.train, "Training", "dumbbell.fill"),
             (.meals, "Meals", "fork.knife"),
         ]
 
-        for (type, name, icon) in categoryDefs {
-            var completed = 0
-            var total = 0
-
-            for accountability in accountabilities {
+        let categoryGrades: [CategoryGrade] = categoryDefs.map { type, name, icon in
+            let perDay = accountabilities.map { accountability -> (completed: Int, total: Int) in
                 let progress = (accountability.nonNegotiableProgress ?? [])
                     .filter { $0.nonNegotiable?.type == type }
-                total += progress.count
-                completed += progress.filter(\.isCompleted).count
+                return (progress.filter(\.isCompleted).count, progress.count)
             }
-
-            categoryData[name] = (completed, total, icon)
-        }
-
-        let categoryGrades: [CategoryGrade] = categoryDefs.map { _, name, icon in
-            let data = categoryData[name] ?? (0, 0, icon)
-            let daysCompleted = data.total > 0
-                ? Int(round(Double(data.completed) / max(1, Double(data.total)) * 7))
-                : 0
+            let tasks = perDay.reduce(0) { $0 + $1.total }
+            let done = perDay.reduce(0) { $0 + $1.completed }
             return CategoryGrade(
                 name: name,
                 icon: icon,
-                daysCompleted: min(7, daysCompleted),
-                grade: letterGrade(from: data.total > 0 ? Double(data.completed) / Double(data.total) : 0)
+                days: WeeklyDays.tally(perDay),
+                grade: tasks > 0 ? letterGrade(from: Double(done) / Double(tasks)) : nil
             )
         }
 
@@ -504,6 +492,13 @@ struct WeeklyAccountabilityView: View {
         let totalStudy = accountabilities.reduce(0) { $0 + $1.totalStudyMinutes }
         let activeDays = max(1, accountabilities.count)
         let perfectDays = dailyResults.filter(\.allComplete).count
+
+        // A week with nothing tracked has no grade to show: that is the empty state, not an F.
+        guard totalTasks > 0 else {
+            weekData = nil
+            isLoading = false
+            return
+        }
 
         // Best/worst (only among days with data)
         let daysWithData = dailyResults.filter { $0.completionRate > 0 || $0.allComplete }
@@ -604,8 +599,9 @@ struct WeeklyAccountabilityData {
 struct CategoryGrade {
     let name: String
     let icon: String
-    let daysCompleted: Int
-    let grade: LetterGrade
+    let days: WeeklyDays.Tally
+    /// Nil when the category had no task this week: there is nothing to grade.
+    let grade: LetterGrade?
 }
 
 // MARK: - DailyResult

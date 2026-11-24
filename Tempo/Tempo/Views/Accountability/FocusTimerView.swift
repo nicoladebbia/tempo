@@ -348,7 +348,7 @@ struct FocusTimerView: View {
             // Time pressure context
             if timeToPS5 < 2 * 3600, remaining > 30 {
                 return FocusRecommendation(
-                    title: "\(remaining)m needed. Only \(Int(timeToPS5 / 60))m until PS5 time.",
+                    title: "\(remaining)m needed. \(PS5Countdown.only(timeToPS5))",
                     subtitle: "Start NOW. Every minute counts.",
                     icon: "exclamationmark.triangle.fill",
                     color: Tide.danger,
@@ -378,7 +378,7 @@ struct FocusTimerView: View {
         if timeToPS5 < 1.5 * 3600, remaining > 20 {
             return FocusRecommendation(
                 title: "\(remaining)m remaining. Clock's ticking.",
-                subtitle: "Less than \(Int(timeToPS5 / 60))m until PS5 time. Buckle down.",
+                subtitle: "\(PS5Countdown.lessThan(timeToPS5)) Buckle down.",
                 icon: "exclamationmark.triangle.fill",
                 color: TideTone.amber,
                 suggestedDuration: min(remaining, 50)
