@@ -26,6 +26,9 @@ struct MorningCheckInCard: View {
     @State private var checkIn: MorningCheckIn?
     @State private var dismissed = false
     @State private var expandedSoreness = false
+    /// A check-in that was already logged when the page opened folds to one
+    /// line; Edit opens it again. While answering, the card stays open.
+    @State private var editing = true
 
     var body: some View {
         // The task MUST host on an always-present concrete view. A `Group` whose
@@ -34,10 +37,54 @@ struct MorningCheckInCard: View {
         // sibling RecoveryAIInsightView, which roots its body in a real VStack.)
         VStack(spacing: 0) {
             if !dismissed, let checkIn {
-                card(for: checkIn)
+                if checkIn.mood != nil, checkIn.stress != nil, !editing {
+                    loggedRow(for: checkIn)
+                } else {
+                    card(for: checkIn)
+                }
             }
         }
         .task { loadOrCreate() }
+    }
+
+    // MARK: - Logged
+
+    /// Both answers are in: the card folds to what was logged, so the day's
+    /// numbers come back above the fold. Edit opens it again.
+    private func loggedRow(for checkIn: MorningCheckIn) -> some View {
+        Button {
+            withAnimation(Tide.snap) { editing = true }
+        } label: {
+            HStack(spacing: Tide.s3) {
+                TideAreaIconTile(systemName: "checkmark", tint: TideTone.mint)
+
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Morning check-in").tideLabel(Tide.text3)
+                    Text(loggedSummary(checkIn))
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Tide.s2)
+
+                Text("Edit")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(TideCardPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Morning check-in logged. \(loggedSummary(checkIn))")
+        .accessibilityHint("Opens it to change your answers")
+    }
+
+    private func loggedSummary(_ checkIn: MorningCheckIn) -> String {
+        let energy = checkIn.mood.map { "Energy \($0)/5" } ?? ""
+        let stress = checkIn.stress.map { "Stress \($0)/10" } ?? ""
+        return [energy, stress].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     // MARK: - Card
@@ -232,6 +279,7 @@ struct MorningCheckInCard: View {
         )
         if let existing = (try? modelContext.fetch(descriptor))?.first {
             checkIn = existing
+            editing = existing.mood == nil || existing.stress == nil
         } else {
             let fresh = MorningCheckIn(date: today)
             modelContext.insert(fresh)

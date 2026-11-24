@@ -96,13 +96,18 @@ struct RecoveryAIInsightView: View {
                             .lineSpacing(Tide.hair)
                             .fixedSize(horizontal: false, vertical: true)
                     } else if let errorText {
-                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(Tide.bodyStrong)
-                                .foregroundStyle(TideTone.amber)
-                                .accessibilityHidden(true)
+                        // A short headline first, the reason underneath it quieter.
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Label {
+                                Text("Today's read didn't load")
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.text)
+                            } icon: {
+                                Image(systemName: "exclamationmark.circle")
+                                    .foregroundStyle(TideTone.amber)
+                            }
                             Text(errorText)
-                                .font(Tide.body)
+                                .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

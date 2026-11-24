@@ -18,34 +18,50 @@ struct ActivityFeedView: View {
     @Query(sort: \ActivityEvent.timestamp, order: .reverse)
     private var activityEvents: [ActivityEvent]
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        TideScrollPage {
+        Group {
             if activityEvents.isEmpty {
-                TideEmptyPanel(
-                    systemImage: "bubble.left.and.bubble.right",
+                // Nothing yet: say where it comes from, in a page that is not a bare card.
+                ArenaEmptyPage(
                     title: "No activity yet",
-                    message: "Finish workouts, study sessions and daily tasks to see them here."
+                    message: "Finish workouts, study sessions and daily tasks to see them here.",
+                    art: { ArenaEmptyArt(systemImage: "bubble.left.and.bubble.right.fill") }
                 )
-                .tideCard()
             } else {
-                ForEach(dayGroups, id: \.day) { group in
-                    VStack(alignment: .leading, spacing: Tide.s3) {
-                        TideSectionLabel(title: dayTitle(group.day))
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
-                                if index > 0 {
-                                    TideDivider()
-                                }
-                                activityRow(event)
-                            }
-                        }
-                        .tideCard(padding: Tide.s2)
-                    }
-                }
+                feed
             }
         }
         .navigationTitle("Activity")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var feed: some View {
+        TideScrollPage {
+            ForEach(Array(dayGroups.enumerated()), id: \.element.day) { groupIndex, group in
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    TideSectionLabel(title: dayTitle(group.day), trailing: dayXP(group.events))
+                    VStack(spacing: 0) {
+                        ForEach(Array(group.events.enumerated()), id: \.element.id) { index, event in
+                            if index > 0 {
+                                TideDivider()
+                            }
+                            activityRow(event)
+                        }
+                    }
+                    .tideCard(padding: Tide.s2)
+                }
+                .arenaReveal(groupIndex)
+            }
+        }
+    }
+
+    /// The XP the day's events earned, shown at the right of the day heading.
+    private func dayXP(_ events: [ActivityEvent]) -> String? {
+        let total = events.reduce(0) { $0 + $1.xpAwarded }
+        return total > 0 ? "+\(total) XP" : nil
     }
 
     // MARK: - Days
@@ -79,18 +95,31 @@ struct ActivityFeedView: View {
     // MARK: - Activity Row
 
     private func activityRow(_ event: ActivityEvent) -> some View {
-        HStack(alignment: .top, spacing: Tide.s3) {
+        let stacked = typeSize.isAccessibilitySize
+        let xp = TideNumber(
+            "+\(event.xpAwarded)", unit: "XP", size: Tide.numeralS, relativeTo: .headline,
+            weight: .semibold
+        )
+
+        return HStack(alignment: .top, spacing: Tide.s3) {
             TideAreaIconTile(systemName: event.iconName, tint: iconColor(for: event.eventType))
 
-            VStack(alignment: .leading, spacing: Tide.hair) {
+            VStack(alignment: .leading, spacing: stacked ? Tide.s1 : Tide.hair) {
                 Text(event.title)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle = event.subtitle {
                     Text(subtitle)
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // At large text the XP sits with the time, not squeezed beside the title.
+                if stacked, event.xpAwarded > 0 {
+                    xp
                 }
 
                 Text(event.timeAgo)
@@ -98,13 +127,12 @@ struct ActivityFeedView: View {
                     .foregroundStyle(Tide.text3)
             }
 
-            Spacer(minLength: Tide.s2)
+            if !stacked {
+                Spacer(minLength: Tide.s2)
 
-            if event.xpAwarded > 0 {
-                TideNumber(
-                    "+\(event.xpAwarded)", unit: "XP", size: Tide.numeralS, relativeTo: .headline,
-                    weight: .semibold
-                )
+                if event.xpAwarded > 0 {
+                    xp
+                }
             }
         }
         .padding(.horizontal, Tide.s3)

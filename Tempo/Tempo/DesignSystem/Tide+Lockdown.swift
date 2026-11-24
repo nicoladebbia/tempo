@@ -405,6 +405,161 @@ struct LockdownSessionDots: View {
     }
 }
 
+// MARK: - LockdownSeal
+
+/// A ring that draws itself closed around a symbol: the stamp that ends a moment.
+/// Reduce Motion shows it already closed.
+struct LockdownSeal: View {
+    let systemImage: String
+    var tint: Color = TideTone.mint
+    var diameter: CGFloat = Tide.dialDetail
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var sealed = false
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Tide.track, lineWidth: Tide.bar)
+            Circle()
+                .trim(from: 0, to: sealed ? 1 : 0)
+                .stroke(tint, style: StrokeStyle(lineWidth: Tide.bar, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .shadow(color: tint.opacity(0.6), radius: Tide.s4)
+            Image(systemName: systemImage)
+                .font(Tide.numeral(Tide.numeralL, .semibold))
+                .foregroundStyle(tint)
+                .scaleEffect(sealed ? 1 : 0.4)
+                .opacity(sealed ? 1 : 0)
+                .symbolEffect(.bounce, value: sealed)
+        }
+        .frame(width: diameter, height: diameter)
+        .accessibilityHidden(true)
+        .onAppear {
+            if reduceMotion {
+                sealed = true
+            } else {
+                withAnimation(Tide.lively.delay(0.2)) { sealed = true }
+            }
+        }
+    }
+}
+
+// MARK: - LockdownUnlockMoment
+
+/// The full-screen moment when the day's non-negotiables are done and leisure
+/// unlocks: a burst, the lock opening, the day's score rising into place, and
+/// one button under the thumb. It scrolls only when the text is too large.
+struct LockdownUnlockMoment: View {
+    /// The day's score, when there is one to show.
+    let score: Int?
+    /// The current streak in days (0 hides the pill).
+    let streak: Int
+    let onContinue: () -> Void
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @State
+    private var opened = false
+    @State
+    private var risen = false
+
+    var body: some View {
+        ZStack {
+            // The page stays faintly visible behind the moment.
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Tide.ink.opacity(0.55))
+                .ignoresSafeArea()
+                .onTapGesture(perform: onContinue)
+
+            ArenaBurst(accent: TideTone.mint)
+                .ignoresSafeArea()
+
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: Tide.s4) {
+                        Spacer(minLength: Tide.s6)
+
+                        hero
+                            .scaleEffect(risen ? 1 : 0.6)
+                            .opacity(risen ? 1 : 0)
+
+                        HStack(spacing: Tide.s2) {
+                            Image(systemName: opened ? "lock.open.fill" : "lock.fill")
+                                .contentTransition(.symbolEffect(.replace))
+                                .accessibilityHidden(true)
+                            Text("PS5 unlocked")
+                        }
+                        .font(Tide.title)
+                        .foregroundStyle(TideTone.mint)
+                        .multilineTextAlignment(.center)
+                        // Each line follows the one before, after the score has landed.
+                        .arenaReveal(5)
+
+                        Text("You earned it. Enjoy your evening.")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .arenaReveal(7)
+
+                        if streak > 0 {
+                            TideStatusPill(text: "Day \(streak)", tint: TideTone.amber, systemImage: "flame.fill")
+                                .arenaReveal(9)
+                        }
+
+                        Spacer(minLength: Tide.s6)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                    .padding(.horizontal, Tide.edge)
+                }
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button("Continue", action: onContinue)
+                    .buttonStyle(.tidePrimary)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
+            }
+        }
+        // The unlock itself already buzzes (triple success), so the lock opens silently.
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, onContinue)
+        .task {
+            if reduceMotion {
+                risen = true
+                opened = true
+                return
+            }
+            withAnimation(Tide.lively) { risen = true }
+            try? await Task.sleep(for: .milliseconds(450))
+            withAnimation(Tide.lively) { opened = true }
+        }
+    }
+
+    /// The day's score when there is one; otherwise the open lock itself.
+    @ViewBuilder
+    private var hero: some View {
+        if let score {
+            // The dial's caption has no room to wrap, so it is shorter at large text.
+            TideDial(
+                score: score,
+                caption: typeSize.isAccessibilitySize ? "Score" : "Today's score",
+                diameter: Tide.dialHero
+            )
+            .accessibilityElement(children: .combine)
+        } else {
+            LockdownSeal(systemImage: "lock.open.fill", diameter: Tide.dialHero)
+        }
+    }
+}
+
 // MARK: - LockdownShareMetric
 
 /// Sizes of the streak picture people post. It is drawn offscreen at a fixed

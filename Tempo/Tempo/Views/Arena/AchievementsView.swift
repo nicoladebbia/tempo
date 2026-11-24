@@ -226,6 +226,14 @@ struct AchievementsView: View {
                     .foregroundStyle(achievement.isEarned ? tint : Tide.text3)
                     .frame(width: Tide.dialSheet, height: Tide.dialSheet)
                     .glassEffect(.regular.tint(tint.opacity(achievement.isEarned ? 0.25 : 0.12)), in: .circle)
+                    .shadow(color: achievement.isEarned ? tint.opacity(0.45) : .clear, radius: Tide.s5)
+                    // An earned badge opens with one burst of its rarity colour.
+                    .background {
+                        if achievement.isEarned {
+                            ArenaBurst(accent: tint, seconds: 3.5)
+                                .frame(width: Tide.dialSheet * 3, height: Tide.dialSheet * 3)
+                        }
+                    }
                     .overlay(alignment: .bottomTrailing) {
                         if !achievement.isEarned {
                             Image(systemName: "lock.fill")
@@ -285,5 +293,10 @@ struct AchievementsView: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onAppear {
+            if achievement.isEarned {
+                HapticManager.success()
+            }
+        }
     }
 }

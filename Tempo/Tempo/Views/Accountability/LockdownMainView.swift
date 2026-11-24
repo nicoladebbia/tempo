@@ -42,6 +42,10 @@ struct LockdownMainView: View {
 
     @State
     private var showUnlockCelebration = false
+    /// The pending auto-dismiss of the unlock moment, so Continue (or a second unlock) can cancel it.
+    @State
+    private var unlockDismissTask: Task<Void, Never>?
+
     @State
     private var showNonNegotiableSetup = false
     @State
@@ -112,6 +116,8 @@ struct LockdownMainView: View {
             }
         }
         .tidePage(energy: 1)
+        // The unlock is a moment of its own: the bar steps aside while it plays.
+        .toolbar(showUnlockCelebration ? .hidden : .automatic, for: .navigationBar)
         // The field rests while a sheet is over this page.
         .tideCovered(showNonNegotiableSetup || showMealLogging || editingNonNegotiable != nil)
         .sheet(isPresented: $showNonNegotiableSetup) {
@@ -125,9 +131,13 @@ struct LockdownMainView: View {
                 withAnimation(Tide.lively) {
                     showUnlockCelebration = true
                 }
-                // Dismiss after 3 seconds
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
+                // Dismiss after 6 seconds: the burst plays for 4.5, then Continue is the way out.
+                unlockDismissTask?.cancel()
+                unlockDismissTask = Task {
+                    try? await Task.sleep(for: .seconds(6))
+                    guard !Task.isCancelled else {
+                        return
+                    }
                     withAnimation { showUnlockCelebration = false }
                 }
             }
@@ -377,11 +387,11 @@ struct LockdownMainView: View {
 
     // MARK: - Non-Negotiable Cards
 
+    @ViewBuilder
     private var nonNegotiableCards: some View {
-        Group {
-            TideSectionLabel(title: "Non-negotiables")
-                .padding(.top, Tide.s2)
-            ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
+        TideSectionLabel(title: "Non-negotiables")
+            .padding(.top, Tide.s2)
+        ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
             NonNegotiableCardView(
                 progress: progress,
                 isExpanded: expandedCardID == progress.persistentModelID,
@@ -417,7 +427,6 @@ struct LockdownMainView: View {
                 },
                 secondaryActions: showsQuickAction
             )
-            }
         }
     }
 
@@ -608,204 +617,20 @@ struct LockdownMainView: View {
 
     // MARK: - Unlock Celebration
 
-    // Per MODULE_ACCOUNTABILITY.md — confetti + glow on leisure unlock.
-    // Per SOUND_AND_HAPTICS.md — triple success haptic.
-    // Enhanced with confetti particle animation, score display, and streak update.
+    // Per MODULE_ACCOUNTABILITY.md - burst + glow on leisure unlock.
+    // Per SOUND_AND_HAPTICS.md - success haptic as the lock opens.
+    // The moment itself lives in the Lockdown kit; this only feeds it the day's numbers.
 
     private var unlockCelebrationOverlay: some View {
-        ZStack {
-            // The page stays faintly visible behind the celebration.
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Tide.ink.opacity(0.55))
-                .ignoresSafeArea()
-
-            // Confetti particle system
-            ConfettiCanvasView()
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
-            // Content
-            VStack(spacing: Tide.s4) {
-                Spacer()
-
-                // The day's score is the hero: lit like the Today dial.
-                if let accountability = viewModel.accountability {
-                    let score = services.accountabilityEngine.calculateDailyScore(accountability: accountability)
-                    TideDial(score: score, caption: "Today's score", diameter: Tide.dialHero)
-                        .scaleEffect(showUnlockCelebration ? 1.0 : 0.6)
-                        .animation(Tide.lively, value: showUnlockCelebration)
-                        .accessibilityElement(children: .combine)
-                } else {
-                    Image(systemName: "lock.open.fill")
-                        .font(Tide.numeral(Tide.numeralL + Tide.s2))
-                        .foregroundStyle(TideTone.mint)
-                        .shadow(color: TideTone.mint.opacity(0.6), radius: Tide.s6)
-                        .scaleEffect(showUnlockCelebration ? 1.0 : 0.3)
-                        .animation(Tide.lively, value: showUnlockCelebration)
-                        .accessibilityHidden(true)
-                }
-
-                Text("PS5 unlocked")
-                    .font(Tide.title)
-                    .foregroundStyle(TideTone.mint)
-
-                Text("You earned it. Enjoy your evening.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-
-                // Streak badge
-                if viewModel.streakCount > 0 {
-                    TideStatusPill(
-                        text: "Day \(viewModel.streakCount)",
-                        tint: TideTone.amber,
-                        systemImage: "flame.fill"
-                    )
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, Tide.edge)
-            .transition(.scale.combined(with: .opacity))
+        let score = viewModel.accountability.map {
+            services.accountabilityEngine.calculateDailyScore(accountability: $0)
         }
-        .onTapGesture {
+
+        return LockdownUnlockMoment(score: score, streak: viewModel.streakCount) {
+            unlockDismissTask?.cancel()
             withAnimation { showUnlockCelebration = false }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .accessibilityAction(.escape) {
-            withAnimation { showUnlockCelebration = false }
-        }
-    }
-}
-
-// MARK: - ConfettiCanvasView
-
-// Particle-based confetti animation using Canvas for the unlock celebration.
-
-struct ConfettiCanvasView: View {
-    @State
-    private var particles: [ConfettiParticle] = []
-    @State
-    private var animationTimer: Timer?
-    @Environment(\.accessibilityReduceMotion)
-    private var reduceMotion
-
-    struct ConfettiParticle: Identifiable {
-        let id = UUID()
-        var x: CGFloat
-        var y: CGFloat
-        var velocityX: CGFloat
-        var velocityY: CGFloat
-        var rotation: Double
-        var rotationSpeed: Double
-        var scale: CGFloat
-        var color: Color
-        var shape: ConfettiShape
-        var opacity: Double = 1.0
-
-        enum ConfettiShape: CaseIterable {
-            case circle
-            case rectangle
-            case triangle
-        }
-    }
-
-    var body: some View {
-        TimelineView(.animation) { _ in
-            Canvas { context, _ in
-                for particle in particles {
-                    let rect = CGRect(
-                        x: particle.x - particle.scale * 4,
-                        y: particle.y - particle.scale * 4,
-                        width: particle.scale * 8,
-                        height: particle.scale * 8
-                    )
-
-                    context.opacity = particle.opacity
-
-                    switch particle.shape {
-                    case .circle:
-                        context.fill(
-                            Path(ellipseIn: rect),
-                            with: .color(particle.color)
-                        )
-                    case .rectangle:
-                        var transform = CGAffineTransform.identity
-                        transform = transform.translatedBy(x: particle.x, y: particle.y)
-                        transform = transform.rotated(by: particle.rotation)
-                        transform = transform.translatedBy(x: -particle.x, y: -particle.y)
-
-                        var path = Path()
-                        path.addRect(rect)
-                        path = path.applying(transform)
-
-                        context.fill(path, with: .color(particle.color))
-                    case .triangle:
-                        var path = Path()
-                        path.move(to: CGPoint(x: particle.x, y: particle.y - particle.scale * 5))
-                        path.addLine(to: CGPoint(x: particle.x - particle.scale * 4, y: particle.y + particle.scale * 3))
-                        path.addLine(to: CGPoint(x: particle.x + particle.scale * 4, y: particle.y + particle.scale * 3))
-                        path.closeSubpath()
-
-                        context.fill(path, with: .color(particle.color))
-                    }
-                }
-            }
-        }
-        .onAppear { spawnParticles() }
-        .onDisappear {
-            animationTimer?.invalidate()
-            animationTimer = nil
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func spawnParticles() {
-        // Falling confetti is decoration: leave it out when motion is reduced.
-        guard !reduceMotion else {
-            return
-        }
-        let screenWidth = UIScreen.main.bounds.width
-        let colors: [Color] = [TideTone.mint, TideTone.sky, TideTone.amber, Tide.danger, TideTone.violet, Tide.text]
-
-        // Spawn initial burst
-        for _ in 0 ..< 80 {
-            particles.append(ConfettiParticle(
-                x: CGFloat.random(in: 0 ... screenWidth),
-                y: CGFloat.random(in: -200 ... -20),
-                velocityX: CGFloat.random(in: -3 ... 3),
-                velocityY: CGFloat.random(in: 2 ... 8),
-                rotation: Double.random(in: 0 ... (.pi * 2)),
-                rotationSpeed: Double.random(in: -0.1 ... 0.1),
-                scale: CGFloat.random(in: 0.5 ... 1.5),
-                color: colors.randomElement()!,
-                shape: ConfettiParticle.ConfettiShape.allCases.randomElement()!
-            ))
-        }
-
-        // Animate
-        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { _ in
-            Task { @MainActor in
-                for i in particles.indices {
-                    particles[i].x += particles[i].velocityX
-                    particles[i].y += particles[i].velocityY
-                    particles[i].velocityY += 0.15 // gravity
-                    particles[i].velocityX *= 0.99 // air resistance
-                    particles[i].rotation += particles[i].rotationSpeed
-
-                    // Fade out near bottom
-                    let screenHeight = UIScreen.main.bounds.height
-                    if particles[i].y > screenHeight * 0.7 {
-                        particles[i].opacity = max(0, particles[i].opacity - 0.02)
-                    }
-                }
-
-                // Remove dead particles
-                particles.removeAll { $0.opacity <= 0 || $0.y > UIScreen.main.bounds.height + 50 }
-            }
-        }
+        .transition(.scale(scale: 0.96).combined(with: .opacity))
     }
 }
 

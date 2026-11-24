@@ -20,6 +20,8 @@ struct LeaderboardView: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     @State
     private var selectedPeriod: LeaderboardPeriod = .weekly
@@ -29,6 +31,9 @@ struct LeaderboardView: View {
     private var myRank: Int = 0
     @State
     private var isLoading = true
+    /// The podium blocks rise once, right after the board loads.
+    @State
+    private var risen = false
 
     /// Podium blocks, tallest in the middle.
     private static let pillarHeights: [Int: CGFloat] = [1: Tide.s10 * 3, 2: Tide.s10 * 2.5, 3: Tide.s10 * 2]
@@ -63,7 +68,15 @@ struct LeaderboardView: View {
         }
         .navigationTitle("Leaderboard")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { loadMockData() }
+        .task {
+            loadMockData()
+            if reduceMotion {
+                risen = true
+            } else {
+                try? await Task.sleep(for: .milliseconds(150))
+                risen = true
+            }
+        }
     }
 
     /// Three columns of avatars and names do not fit at accessibility sizes; the
@@ -75,14 +88,26 @@ struct LeaderboardView: View {
     // MARK: - Your rank
 
     private var rankSummary: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
+
+        return layout {
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text("Your rank").tideLabel()
                 TideNumber("#\(myRank)", size: Tide.numeralL, color: mood.accent)
+                if let gap = gapLine {
+                    Text(gap)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
             if let me = rankings.first(where: \.isMe) {
-                VStack(alignment: .trailing, spacing: Tide.s1) {
+                VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s1) {
                     Text(selectedPeriod.label).tideLabel()
                     TideNumber(me.xp.formatted(), unit: "XP", size: Tide.numeralS, relativeTo: .headline)
                 }
@@ -90,6 +115,20 @@ struct LeaderboardView: View {
         }
         .padding(.vertical, Tide.s2)
         .accessibilityElement(children: .combine)
+    }
+
+    /// How far to the next place, or that you lead.
+    private var gapLine: String? {
+        guard myRank > 0, let me = rankings.first(where: \.isMe) else {
+            return nil
+        }
+        if myRank == 1 {
+            return "You lead the board"
+        }
+        guard let ahead = rankings.first(where: { $0.rank == myRank - 1 }) else {
+            return nil
+        }
+        return "\((ahead.xp - me.xp).formatted()) XP to pass \(ahead.displayName)"
     }
 
     // MARK: - Podium (Top 3)
@@ -138,9 +177,15 @@ struct LeaderboardView: View {
                 color: Tide.text2
             )
             TideNumber("\(entry.rank)", size: Tide.numeralM, relativeTo: .title2, color: tint)
-                .frame(maxWidth: .infinity, minHeight: Self.pillarHeights[entry.rank] ?? Tide.s10, alignment: .top)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: (Self.pillarHeights[entry.rank] ?? Tide.s10) * (risen ? 1 : 0.25),
+                    alignment: .top
+                )
                 .padding(.top, Tide.s3)
                 .glassEffect(.regular.tint(tint.opacity(0.28)), in: .rect(cornerRadius: Tide.controlRadius))
+                // First place rises last.
+                .animation(Tide.settle.delay(Double(4 - min(entry.rank, 3)) * 0.1), value: risen)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
@@ -163,18 +208,27 @@ struct LeaderboardView: View {
     }
 
     private func row(_ entry: LeaderboardEntry) -> some View {
-        HStack(spacing: Tide.s3) {
-            TideNumber("\(entry.rank)", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
-                .frame(minWidth: Tide.s6)
-            TideInitialAvatar(name: entry.displayName, size: Tide.avatar - Tide.s1)
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(entry.isMe ? "You" : entry.displayName)
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(entry.isMe ? mood.accent : Tide.text)
-                    .lineLimit(1)
-                Text("Level \(entry.level)").font(Tide.caption).foregroundStyle(Tide.text2)
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+
+        return layout {
+            HStack(spacing: Tide.s3) {
+                TideNumber("\(entry.rank)", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
+                    .frame(minWidth: Tide.s6)
+                TideInitialAvatar(name: entry.displayName, size: Tide.avatar - Tide.s1)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(entry.isMe ? "You" : entry.displayName)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(entry.isMe ? mood.accent : Tide.text)
+                        .lineLimit(stacked ? 2 : 1)
+                    Text("Level \(entry.level)").font(Tide.caption).foregroundStyle(Tide.text2)
+                }
             }
-            Spacer(minLength: Tide.s2)
+            if !stacked {
+                Spacer(minLength: Tide.s2)
+            }
             TideNumber(
                 entry.xp.formatted(),
                 unit: "XP",

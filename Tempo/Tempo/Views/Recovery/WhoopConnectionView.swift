@@ -18,6 +18,8 @@ struct WhoopConnectionView: View {
     private var services
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var isConnecting = false
     @State
@@ -53,9 +55,6 @@ struct WhoopConnectionView: View {
             if isConnected {
                 // Data preview
                 dataPreviewSection
-
-                // Sync button
-                syncButton
 
                 // Disconnect button
                 disconnectButton
@@ -93,6 +92,10 @@ struct WhoopConnectionView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, Tide.s2)
             }
+        }
+        // The step that moves things on stays under the thumb.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            pinnedAction
         }
         .navigationTitle("Whoop Connection")
         .navigationBarTitleDisplayMode(.inline)
@@ -151,11 +154,16 @@ struct WhoopConnectionView: View {
 
                 if isConnected {
                     TideDivider()
-                    HStack(spacing: Tide.s2) {
+                    let row = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                        : AnyLayout(HStackLayout(spacing: Tide.s2))
+                    row {
                         Text("Last sync")
                             .font(Tide.body)
                             .foregroundStyle(Tide.text2)
-                        Spacer(minLength: Tide.s2)
+                        if !typeSize.isAccessibilitySize {
+                            Spacer(minLength: Tide.s2)
+                        }
                         Text(lastSyncText)
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
@@ -192,29 +200,42 @@ struct WhoopConnectionView: View {
     }
 
     private func dataRow(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: icon)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text2)
-                .frame(width: Tide.icon)
-                .accessibilityHidden(true)
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: icon)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.icon)
+                    .accessibilityHidden(true)
 
-            Text(label)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
+                Text(label)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Spacer(minLength: Tide.s2)
+            if !stacks {
+                Spacer(minLength: Tide.s2)
+            }
 
-            Image(systemName: "checkmark")
-                .font(Tide.label)
-                .foregroundStyle(TideTone.mint)
-                .accessibilityHidden(true)
+            HStack(spacing: Tide.s2) {
+                Image(systemName: "checkmark")
+                    .font(Tide.label)
+                    .foregroundStyle(TideTone.mint)
+                    .accessibilityHidden(true)
 
-            Text(value)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
+                Text(value)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+            }
+            .padding(.leading, stacks ? Tide.icon + Tide.s3 : 0)
         }
-        .frame(minHeight: Tide.hit)
+        .frame(minHeight: Tide.hit, alignment: .leading)
+        .padding(.vertical, stacks ? Tide.s2 : 0)
         .accessibilityElement(children: .combine)
     }
 
@@ -265,13 +286,6 @@ struct WhoopConnectionView: View {
                         .tideField()
                 }
             }
-
-            // Save credentials button
-            Button("Save & continue") {
-                saveCredentials()
-            }
-            .buttonStyle(.tidePrimary)
-            .disabled(!canSave)
 
             // Demo mode fallback — DEBUG only: demo numbers are mock data and
             // must never reach App Store users (display-only; see
@@ -346,20 +360,6 @@ struct WhoopConnectionView: View {
             }
             .padding(.top, Tide.s6)
 
-            Button {
-                Task { await performConnect() }
-            } label: {
-                HStack(spacing: Tide.s2) {
-                    if isConnecting {
-                        ProgressView()
-                            .tint(Tide.ink)
-                    }
-                    Text(isConnecting ? "Connecting..." : "Connect Whoop")
-                }
-            }
-            .buttonStyle(.tidePrimary)
-            .disabled(isConnecting)
-
             // Change credentials
             Button("Change API credentials") {
                 showCredentialSetup = true
@@ -379,6 +379,40 @@ struct WhoopConnectionView: View {
                 .buttonStyle(.tideGlass)
             #endif
         }
+    }
+
+    // MARK: - Pinned action
+
+    /// The one step that fits where the page is: save the keys, connect, or sync.
+    @ViewBuilder
+    private var pinnedAction: some View {
+        VStack(spacing: Tide.s2) {
+            if isConnected {
+                syncButton
+            } else if showCredentialSetup || !whoop.hasCredentials {
+                Button("Save & continue") {
+                    saveCredentials()
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(!canSave)
+            } else {
+                Button {
+                    Task { await performConnect() }
+                } label: {
+                    HStack(spacing: Tide.s2) {
+                        if isConnecting {
+                            ProgressView()
+                                .tint(Tide.ink)
+                        }
+                        Text(isConnecting ? "Connecting..." : "Connect Whoop")
+                    }
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(isConnecting)
+            }
+        }
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Sync Button

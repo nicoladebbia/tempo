@@ -92,17 +92,17 @@ struct StreakCalendarView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Current streak, \(count) \(dayWord)")
         } side: {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Text("Current streak").tideLabel()
-                if viewModel.isStreakAtRisk {
-                    TideStatusPill(text: "At risk", tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
-                }
-            }
+            Text("Current streak").tideLabel()
 
             Text("\(count) \(dayWord)")
                 .font(Tide.title2)
                 .foregroundStyle(count > 0 ? Tide.streak : Tide.text2)
                 .accessibilityHidden(true)
+
+            // Its own line: beside the label there was no room and it was cut to "AT R…".
+            if viewModel.isStreakAtRisk {
+                TideStatusPill(text: "At risk", tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
+            }
 
             if let next = nextMilestone {
                 HStack(alignment: .firstTextBaseline) {

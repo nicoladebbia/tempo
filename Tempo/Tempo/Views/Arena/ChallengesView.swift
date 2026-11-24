@@ -79,6 +79,8 @@ struct ChallengesView: View {
     private var modelContext
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query(filter: #Predicate<ChallengeLocal> { $0.isActive })
     private var activeChallenges: [ChallengeLocal]
 
@@ -121,6 +123,19 @@ struct ChallengesView: View {
             }
         }
         .sensoryFeedback(.success, trigger: startedCount)
+        // Starting one is the page's action: it stays under the thumb on the Active tab.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if selectedTab == .active {
+                Button {
+                    showCreateChallenge = true
+                } label: {
+                    Label("Start a challenge", systemImage: "flag.2.crossed.fill")
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
+        }
         .tideCovered(showCreateChallenge)
         .sheet(isPresented: $showCreateChallenge) {
             ChallengeCreationSheet(isPresented: $showCreateChallenge)
@@ -133,19 +148,28 @@ struct ChallengesView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Quick start")
 
-            ScrollView(.horizontal) {
-                GlassEffectContainer(spacing: Tide.s3) {
-                    HStack(alignment: .top, spacing: Tide.s3) {
-                        ForEach(ChallengeTemplate.templates) { template in
-                            quickStartCard(template)
-                        }
+            if typeSize.isAccessibilitySize {
+                // Wide cards would run off a large-text screen: they stack instead.
+                VStack(spacing: Tide.s3) {
+                    ForEach(ChallengeTemplate.templates) { template in
+                        quickStartCard(template)
                     }
                 }
-                .padding(.horizontal, Tide.edge)
+            } else {
+                ScrollView(.horizontal) {
+                    GlassEffectContainer(spacing: Tide.s3) {
+                        HStack(alignment: .top, spacing: Tide.s3) {
+                            ForEach(ChallengeTemplate.templates) { template in
+                                quickStartCard(template)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Tide.edge)
+                }
+                .scrollIndicators(.hidden)
+                // Cards run to the screen edge; the page's own padding is undone.
+                .padding(.horizontal, -Tide.edge)
             }
-            .scrollIndicators(.hidden)
-            // Cards run to the screen edge; the page's own padding is undone.
-            .padding(.horizontal, -Tide.edge)
         }
     }
 
@@ -164,14 +188,16 @@ struct ChallengesView: View {
                     Text(template.name)
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
-                        .lineLimit(1)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
                         .minimumScaleFactor(Tide.labelShrink)
+                        .fixedSize(horizontal: false, vertical: typeSize.isAccessibilitySize)
 
                     Text(template.templateDescription)
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
-                        .lineLimit(3)
+                        .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: typeSize.isAccessibilitySize)
                 }
 
                 Spacer(minLength: 0)
@@ -182,7 +208,7 @@ struct ChallengesView: View {
                     .frame(minHeight: Tide.hit - Tide.s3, alignment: .leading)
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            .frame(width: Tide.s10 * 4.5)
+            .frame(width: typeSize.isAccessibilitySize ? nil : Tide.s10 * 4.5)
             .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
         .buttonStyle(TideCardPressStyle())
@@ -214,11 +240,8 @@ struct ChallengesView: View {
             TideEmptyPanel(
                 systemImage: "trophy",
                 title: "No active challenges",
-                message: "Pick a quick start above, or set up your own.",
-                actionTitle: "Start a challenge"
-            ) {
-                showCreateChallenge = true
-            }
+                message: "Pick a quick start above, or set up your own."
+            )
             .tideCard()
         } else {
             ForEach(activeChallenges, id: \.id) { challenge in
@@ -252,20 +275,32 @@ struct ChallengesView: View {
     // MARK: - Challenge Card
 
     private func challengeCard(_ challenge: ChallengeLocal) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
-            // Header
-            HStack(spacing: Tide.s3) {
-                TideAreaIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(challenge.name)
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                        .lineLimit(2)
-                    Text("\(challenge.daysRemaining) days left")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+        let large = typeSize.isAccessibilitySize
+        let header = large
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        let scores = large
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            // Header: at large text the status drops under the name.
+            header {
+                HStack(spacing: Tide.s3) {
+                    TideAreaIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(challenge.name)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(2)
+                        Text("\(challenge.daysRemaining) days left")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
                 }
-                Spacer(minLength: Tide.s2)
+                if !large {
+                    Spacer(minLength: Tide.s2)
+                }
                 TideStatusPill(
                     text: challenge.hasStarted ? "Active" : "Upcoming",
                     tint: challenge.hasStarted ? TideTone.mint : TideTone.amber
@@ -273,7 +308,7 @@ struct ChallengesView: View {
             }
 
             // Score
-            HStack(alignment: .firstTextBaseline) {
+            scores {
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Your score").tideLabel()
                     TideNumber(
@@ -281,9 +316,11 @@ struct ChallengesView: View {
                         size: Tide.numeralL, color: mood.accent
                     )
                 }
-                Spacer(minLength: Tide.s2)
+                if !large {
+                    Spacer(minLength: Tide.s2)
+                }
                 if let rank = challenge.myRank {
-                    VStack(alignment: .trailing, spacing: Tide.s1) {
+                    VStack(alignment: large ? .leading : .trailing, spacing: Tide.s1) {
                         Text("Rank").tideLabel()
                         TideNumber("#\(rank)", size: Tide.numeralL, color: rank == 1 ? TideTone.gold : Tide.text)
                     }

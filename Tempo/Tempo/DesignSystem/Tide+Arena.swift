@@ -618,3 +618,252 @@ struct ArenaListSkeleton: View {
         .accessibilityLabel(label)
     }
 }
+
+// MARK: - ArenaLinkRow
+
+/// One line that opens a page: a tinted symbol, a title, what is inside, a
+/// chevron. Several rows in one card read as a list, not as a stack of cards.
+struct ArenaLinkRow: View {
+    let systemImage: String
+    let title: String
+    let detail: String
+    var tint: Color = Tide.text2
+
+    var body: some View {
+        HStack(spacing: Tide.s3) {
+            TideAreaIconTile(systemName: systemImage, tint: tint)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: Tide.hit)
+        .padding(.vertical, Tide.s1)
+        .contentShape(.rect)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - ArenaReveal
+
+/// A section settles into place once, in order down the page. Reduce Motion
+/// shows it finished.
+private struct ArenaReveal: ViewModifier {
+    let index: Int
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var shown = false
+
+    func body(content: Content) -> some View {
+        let visible = shown || reduceMotion
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : Tide.s4)
+            .onAppear {
+                guard !shown else {
+                    return
+                }
+                withAnimation(Tide.settle.delay(Double(index) * 0.06)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    /// Fades and lifts this section in, `index` places down the page.
+    func arenaReveal(_ index: Int) -> some View {
+        modifier(ArenaReveal(index: index))
+    }
+}
+
+// MARK: - ArenaGhostAvatars
+
+/// Three empty places on a leaderboard: dashed discs, a plus on the first.
+struct ArenaGhostAvatars: View {
+    @ScaledMetric(relativeTo: .headline)
+    private var scale: CGFloat = 1
+
+    var body: some View {
+        HStack(spacing: -Tide.s2) {
+            ForEach(0 ..< 3, id: \.self) { index in
+                ZStack {
+                    Circle().fill(Tide.fill)
+                    Circle().strokeBorder(Tide.text3, style: StrokeStyle(lineWidth: Tide.rule, dash: [Tide.s1, Tide.s1]))
+                    if index == 0 {
+                        Image(systemName: "plus")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
+                .frame(width: Tide.avatar * scale, height: Tide.avatar * scale)
+                .zIndex(Double(3 - index))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - ArenaBurst
+
+/// The burst of rings and sparks (the `tideBurst` shader) that opens a moment:
+/// an unlock, a finished run, an earned badge. It plays once, then holds its
+/// last, nearly empty frame and stops redrawing. Reduce Motion shows that
+/// frame at once.
+struct ArenaBurst: View {
+    var accent: Color
+    /// Seconds the burst plays.
+    var seconds = 4.5
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var start = Date()
+    @State
+    private var done = false
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || done)) { context in
+            let t = reduceMotion || done ? seconds : min(context.date.timeIntervalSince(start), seconds)
+            Rectangle()
+                .fill(Tide.text)
+                .visualEffect { content, proxy in
+                    content.colorEffect(ShaderLibrary.tideBurst(
+                        .float2(proxy.size), .float(t), .color(accent), .color(Tide.carbs)
+                    ))
+                }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear { start = Date() }
+        .task {
+            try? await Task.sleep(for: .seconds(seconds))
+            done = true
+        }
+    }
+}
+
+// MARK: - ArenaEmptyArt
+
+/// The picture on an empty page: a symbol on a round glass disc.
+struct ArenaEmptyArt: View {
+    let systemImage: String
+    var tint: Color?
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        let color = tint ?? mood.accent
+        Image(systemName: systemImage)
+            .font(Tide.numeral(Tide.numeralM))
+            .foregroundStyle(color)
+            .frame(width: Tide.dialSheet, height: Tide.dialSheet)
+            .glassEffect(.regular.tint(color.opacity(0.14)), in: .circle)
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - ArenaEmptyPage
+
+/// A whole page with nothing on it yet: one picture, one line and one next
+/// step, centred, with the step under the thumb. It scrolls only when the
+/// text is too big to fit.
+struct ArenaEmptyPage<Art: View>: View {
+    let title: String
+    let message: String
+    var actionTitle: String?
+    var actionSystemImage = "plus"
+    var action: () -> Void = {}
+    /// A quieter second way on, under the main step.
+    var secondaryTitle: String?
+    var secondaryAction: () -> Void = {}
+    @ViewBuilder var art: Art
+
+    var body: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: Tide.s5) {
+                    Spacer(minLength: Tide.s6)
+                    art
+                    VStack(spacing: Tide.s2) {
+                        Text(title)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.center)
+                        Text(message)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: Tide.s6)
+                }
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                .padding(.horizontal, Tide.edge)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let actionTitle {
+                VStack(spacing: Tide.s2) {
+                    Button(action: action) {
+                        Label(actionTitle, systemImage: actionSystemImage)
+                    }
+                    .buttonStyle(.tidePrimary)
+
+                    if let secondaryTitle {
+                        Button(secondaryTitle, action: secondaryAction)
+                            .buttonStyle(.tideGlass)
+                    }
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
+        }
+        .tidePage()
+    }
+}
+
+// MARK: - ArenaEarnChip
+
+/// A way to earn XP: a symbol and a short word in a soft tile.
+struct ArenaEarnChip: View {
+    let systemImage: String
+    let title: String
+    var tint: Color = Tide.text
+    /// Symbol beside the word instead of above it (the large text sizes).
+    var sideBySide = false
+
+    var body: some View {
+        let layout = sideBySide
+            ? AnyLayout(HStackLayout(spacing: Tide.s3))
+            : AnyLayout(VStackLayout(spacing: Tide.s2))
+        layout {
+            Image(systemName: systemImage)
+                .font(Tide.headline)
+                .foregroundStyle(tint)
+            Text(title)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+        }
+        .frame(maxWidth: .infinity, alignment: sideBySide ? .leading : .center)
+        .padding(.vertical, Tide.s3)
+        .padding(.horizontal, Tide.s3)
+        .background(tint.opacity(0.12), in: .rect(cornerRadius: Tide.controlRadius))
+        .accessibilityElement(children: .combine)
+    }
+}

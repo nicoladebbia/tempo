@@ -19,6 +19,8 @@ struct FriendSystemView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var searchText = ""
@@ -28,58 +30,29 @@ struct FriendSystemView: View {
     /// Mock data — will be replaced with API calls
     @State
     private var friends: [FriendDisplayItem] = []
+
     @State
     private var pendingRequests: [FriendRequestItem] = []
+
     @State
     private var showComingSoonAlert = false
     @State
     private var showShareSheet = false
 
     var body: some View {
-        TideScrollPage {
-            // Nobody to search yet: the empty panel below has the one action.
-            if !friends.isEmpty || !pendingRequests.isEmpty {
-                TextField("Search friends", text: $searchText)
-                    .tideField(systemImage: "magnifyingglass")
-            }
-
-            // Pending requests
-            if !pendingRequests.isEmpty {
-                pendingSection
-            }
-
-            // Online friends
-            let online = friends.filter(\.isOnline)
-            if !online.isEmpty {
-                friendSection(title: "Online", friends: online, isOnline: true)
-            }
-
-            // Offline friends
-            let offline = friends.filter { !$0.isOnline }
-            if !offline.isEmpty {
-                friendSection(title: "Offline", friends: offline, isOnline: false)
-            }
-
-            // Empty state
+        Group {
             if friends.isEmpty, pendingRequests.isEmpty {
-                TideEmptyPanel(
-                    systemImage: "person.2",
+                // Nobody here yet: one picture, one line, the one action under the thumb.
+                ArenaEmptyPage(
                     title: "No friends yet",
                     message: "Add friends to see their activity and compete on the leaderboard.",
-                    actionTitle: "Invite friends"
-                ) {
-                    showAddFriend = true
-                }
-                .tideCard()
+                    actionTitle: "Invite friends",
+                    actionSystemImage: "person.badge.plus",
+                    action: { showAddFriend = true },
+                    art: { ArenaEmptyArt(systemImage: "person.2.fill") }
+                )
             } else {
-                // Invite button
-                Button {
-                    showAddFriend = true
-                } label: {
-                    Label("Invite friends", systemImage: "person.badge.plus")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tideGlass)
+                friendsPage
             }
         }
         .navigationTitle("Friends")
@@ -97,6 +70,43 @@ struct FriendSystemView: View {
         .tideCovered(showAddFriend)
         .sheet(isPresented: $showAddFriend) {
             addFriendSheet
+        }
+    }
+
+    // MARK: - Friends
+
+    private var friendsPage: some View {
+        TideScrollPage {
+            TextField("Search friends", text: $searchText)
+                .tideField(systemImage: "magnifyingglass")
+
+            // Pending requests
+            if !pendingRequests.isEmpty {
+                pendingSection
+            }
+
+            // Online friends
+            let online = friends.filter(\.isOnline)
+            if !online.isEmpty {
+                friendSection(title: "Online", friends: online, isOnline: true)
+            }
+
+            // Offline friends
+            let offline = friends.filter { !$0.isOnline }
+            if !offline.isEmpty {
+                friendSection(title: "Offline", friends: offline, isOnline: false)
+            }
+        }
+        // Inviting is the page's action: it stays under the thumb.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                showAddFriend = true
+            } label: {
+                Label("Invite friends", systemImage: "person.badge.plus")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 
@@ -123,12 +133,20 @@ struct FriendSystemView: View {
                     }
                     .accessibilityElement(children: .combine)
 
-                    HStack(spacing: Tide.s3) {
+                    // Side by side, or one under the other when the text is large.
+                    let actions = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(spacing: Tide.s3))
+                        : AnyLayout(HStackLayout(spacing: Tide.s3))
+                    actions {
                         Button("Accept") { acceptRequest(request) }
                             .buttonStyle(.tidePrimary)
-                        Button("Decline") { declineRequest(request) }
-                            .buttonStyle(.tideGlass)
                             .frame(maxWidth: .infinity)
+                        Button {
+                            declineRequest(request)
+                        } label: {
+                            Text("Decline").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.tideGlass)
                     }
                 }
             }
@@ -147,26 +165,34 @@ struct FriendSystemView: View {
                 if index > 0 {
                     TideDivider()
                 }
-                HStack(spacing: Tide.s3) {
-                    TideInitialAvatar(name: friend.displayName)
-                        .overlay(alignment: .bottomTrailing) {
-                            Circle()
-                                .fill(isOnline ? TideTone.mint : Tide.text3)
-                                .frame(width: Tide.s3, height: Tide.s3)
-                                .overlay(Circle().strokeBorder(Tide.ink, lineWidth: Tide.hair))
-                        }
+                // At large text the week's XP drops under the name instead of squeezing it.
+                let row = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                row {
+                    HStack(spacing: Tide.s3) {
+                        TideInitialAvatar(name: friend.displayName)
+                            .overlay(alignment: .bottomTrailing) {
+                                Circle()
+                                    .fill(isOnline ? TideTone.mint : Tide.text3)
+                                    .frame(width: Tide.s3, height: Tide.s3)
+                                    .overlay(Circle().strokeBorder(Tide.ink, lineWidth: Tide.hair))
+                            }
 
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(friend.displayName)
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
-                            .lineLimit(1)
-                        Text("Level \(friend.level)")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(friend.displayName)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                            Text("Level \(friend.level)")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
                     }
 
-                    Spacer(minLength: Tide.s2)
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
+                    }
 
                     TideNumber(
                         friend.weeklyXP.formatted(), unit: "XP", size: Tide.numeralS, relativeTo: .headline,

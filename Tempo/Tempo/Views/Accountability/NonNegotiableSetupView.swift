@@ -158,6 +158,19 @@ struct NonNegotiableSetupView: View {
             }
         }
         .environment(\.editMode, .constant(.active))
+        // Adding is this page's action: it stays under the thumb while there is room for more.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if nonNegotiables.filter(\.isActive).count < maxNonNegotiables {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Label("New non-negotiable", systemImage: "plus")
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
+        }
     }
 
     // MARK: - Row
@@ -233,26 +246,17 @@ struct NonNegotiableSetupView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        TideScrollPage(spacing: Tide.s4, spacer: Tide.s8) {
-            VStack(spacing: Tide.s4) {
-                TideEmptyPanel(
-                    systemImage: "checklist",
-                    title: "Set your non-negotiables",
-                    message: "These are the things you MUST do every day. No excuses. No exceptions."
-                )
-
-                Button("Use default templates") {
-                    addDefaultTemplates()
-                }
-                .buttonStyle(.tidePrimary)
-
-                Button("Create from scratch") {
-                    showAddSheet = true
-                }
-                .buttonStyle(.tideGlass)
-            }
-            .tideCard()
-        }
+        // One picture, one line, the fast way on under the thumb and the slow way beneath it.
+        ArenaEmptyPage(
+            title: "Set your non-negotiables",
+            message: "These are the things you MUST do every day. No excuses. No exceptions.",
+            actionTitle: "Use default templates",
+            actionSystemImage: "wand.and.stars",
+            action: { addDefaultTemplates() },
+            secondaryTitle: "Create from scratch",
+            secondaryAction: { showAddSheet = true },
+            art: { ArenaEmptyArt(systemImage: "checklist", tint: mood.accent) }
+        )
     }
 
     // MARK: - Templates Section
@@ -361,6 +365,8 @@ struct NonNegotiableEditSheet: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     let editing: NonNegotiable?
     let existingCount: Int
@@ -571,7 +577,12 @@ struct NonNegotiableEditSheet: View {
         let dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         let dayValues: [ActiveDays] = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
 
-        return HStack(spacing: Tide.s1) {
+        // Seven in a row, or four to a row once the text is large enough to need the room.
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s1),
+            count: typeSize.isAccessibilitySize ? 4 : 7
+        )
+        return LazyVGrid(columns: columns, spacing: Tide.s1) {
             ForEach(0 ..< 7, id: \.self) { index in
                 let day = dayValues[index]
                 let isOn = (activeDays.rawValue & day.rawValue) != 0

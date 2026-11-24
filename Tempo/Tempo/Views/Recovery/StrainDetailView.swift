@@ -18,6 +18,8 @@ struct StrainDetailView: View {
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         TideScrollPage(energy: 1) {
@@ -73,7 +75,11 @@ struct StrainDetailView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Heart rate")
 
-            HStack(spacing: Tide.s3) {
+            // Side by side, or one over the other when the text is large.
+            let tiles = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Tide.s3))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
+            tiles {
                 TideMetricTile(
                     label: "Average HR",
                     value: viewModel.todayRecovery?.avgHR.map { "\(Int($0))" } ?? "--",
@@ -97,6 +103,7 @@ struct StrainDetailView: View {
                 Text("Resting: \(Int(rhr)) bpm · Elevated by \(Int(avgHR - rhr)) bpm during activity")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -154,11 +161,18 @@ struct StrainDetailView: View {
     }
 
     private func caloriesRow(label: String, value: String, detail: String? = nil, bold: Bool = false) -> some View {
-        HStack(spacing: Tide.s3) {
+        // At large text the name, share and amount stack instead of fighting for one line.
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
             Text(label)
                 .font(bold ? Tide.headline : Tide.body)
                 .foregroundStyle(bold ? Tide.text : Tide.text2)
-            Spacer(minLength: Tide.s2)
+            if !stacks {
+                Spacer(minLength: Tide.s2)
+            }
             if let detail {
                 Text(detail)
                     .font(Tide.caption)
@@ -168,7 +182,8 @@ struct StrainDetailView: View {
                 .font(Tide.numeral(bold ? Tide.numeralS : Tide.numeralS - Tide.s1, .semibold))
                 .foregroundStyle(Tide.text)
         }
-        .frame(minHeight: Tide.hit)
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+        .padding(.vertical, stacks ? Tide.s2 : 0)
         .accessibilityElement(children: .combine)
     }
 
