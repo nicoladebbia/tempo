@@ -7,7 +7,8 @@
 // global "Skip rest" closes the interview with whatever priors the user
 // has already given.
 //
-// One question at a time, answers as glass rows, one filled button.
+// A conversation, not a form: Coach asks one question at a time, your
+// answers stack up above it as replies, and the answer rows carry a symbol.
 //
 // Per .plans/coach-v2.1/05-ui-surfaces.md §1.
 //
@@ -39,21 +40,30 @@ struct CoachInterviewView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s6) {
-                    progressBar
-                    questionBlock
-                        .id(currentQuestion)
-                        .transition(questionTransition)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Tide.s5) {
+                        progressBar
+                        // The conversation so far: what Coach asked, what you said.
+                        ForEach(1 ..< currentQuestion, id: \.self) { question in
+                            answeredExchange(question)
+                        }
+                        questionBlock
+                            .id(currentQuestion)
+                            .transition(questionTransition)
+                    }
+                    .animation(reduceMotion ? nil : Tide.snap, value: currentQuestion)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s2)
+                    .padding(.bottom, Tide.s6)
                 }
-                .animation(reduceMotion ? nil : Tide.snap, value: currentQuestion)
-                .padding(.horizontal, Tide.edge)
-                .padding(.top, Tide.s2)
-                .padding(.bottom, Tide.s6)
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
+                .scrollEdgeEffectStyle(.soft, for: .all)
+                .onChange(of: currentQuestion) { _, question in
+                    withAnimation(Tide.snap) { proxy.scrollTo(question, anchor: .top) }
+                }
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollDismissesKeyboard(.interactively)
-            .scrollEdgeEffectStyle(.soft, for: .all)
             .safeAreaBar(edge: .top, spacing: 0) {
                 header
             }
@@ -114,6 +124,59 @@ struct CoachInterviewView: View {
         .accessibilityElement(children: .combine)
     }
 
+    // MARK: - The words of each question
+
+    private static func prompt(_ question: Int) -> String {
+        switch question {
+        case 1: "When you're tired, do you want me to…"
+        case 2: "Pick your tone"
+        case 3: "What should I track silently?"
+        case 4: "What's a habit you've tried and failed at?"
+        case 5: "On a hard day, what should I never suggest?"
+        case 6: "Anything weird about your schedule?"
+        default: ""
+        }
+    }
+
+    /// What you answered, in words, or nil when you skipped it.
+    private func answerSummary(_ question: Int) -> String? {
+        func trimmed(_ text: String?) -> String? {
+            guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+                return nil
+            }
+            return text
+        }
+        switch question {
+        case 1: return answers.tiredMode?.displayName
+        case 2: return answers.tonePreference?.displayName
+        case 3:
+            let chosen = SilentTrackOption.allCases.filter { answers.silentTrack.contains($0) }
+            return chosen.isEmpty ? nil : chosen.map(\.displayName).joined(separator: ", ")
+        case 4: return trimmed(answers.failedHabit)
+        case 5: return trimmed(answers.hardDayNeverSuggest)
+        case 6: return trimmed(answers.scheduleException)
+        default: return nil
+        }
+    }
+
+    // MARK: - Answered questions
+
+    /// A finished question: Coach's words, then your reply (or that you skipped).
+    private func answeredExchange(_ question: Int) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            CoachAssistantBubble(text: Self.prompt(question), showsAvatar: true)
+            if let summary = answerSummary(question) {
+                CoachUserBubble(text: summary)
+            } else {
+                Text("Skipped")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: - Question dispatch
 
     @ViewBuilder
@@ -133,10 +196,11 @@ struct CoachInterviewView: View {
 
     private var tiredModeQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("When you're tired, do you want me to…")
+            questionTitle(Self.prompt(1))
             ForEach(TiredMode.allCases, id: \.self) { mode in
                 radioRow(
                     label: mode.displayName,
+                    systemImage: Self.symbol(for: mode),
                     isSelected: answers.tiredMode == mode
                 ) {
                     answers.tiredMode = mode
@@ -149,10 +213,11 @@ struct CoachInterviewView: View {
 
     private var toneQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("Pick your tone")
+            questionTitle(Self.prompt(2))
             ForEach(TonePreference.allCases, id: \.self) { tone in
                 radioRow(
                     label: tone.displayName,
+                    systemImage: Self.symbol(for: tone),
                     isSelected: answers.tonePreference == tone
                 ) {
                     answers.tonePreference = tone
@@ -165,11 +230,12 @@ struct CoachInterviewView: View {
 
     private var silentTrackQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("What should I track silently?")
+            questionTitle(Self.prompt(3))
             hint("Choose any that apply.")
             ForEach(SilentTrackOption.allCases, id: \.self) { option in
                 multiSelectRow(
                     label: option.displayName,
+                    systemImage: Self.symbol(for: option),
                     isSelected: answers.silentTrack.contains(option)
                 ) {
                     if answers.silentTrack.contains(option) {
@@ -186,7 +252,7 @@ struct CoachInterviewView: View {
 
     private var failedHabitQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("What's a habit you've tried and failed at?")
+            questionTitle(Self.prompt(4))
             hint("Optional. I'll never suggest it.")
             TextField(
                 text: Binding(
@@ -206,7 +272,7 @@ struct CoachInterviewView: View {
 
     private var hardDayQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("On a hard day, what should I never suggest?")
+            questionTitle(Self.prompt(5))
             hint("Optional.")
             TextField(
                 text: Binding(
@@ -226,7 +292,7 @@ struct CoachInterviewView: View {
 
     private var scheduleQuestion: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            questionTitle("Anything weird about your schedule?")
+            questionTitle(Self.prompt(6))
             hint("e.g. shift work, fasting on Fridays, dual time zones, religious schedule…")
             TextField(
                 text: Binding(
@@ -263,13 +329,21 @@ struct CoachInterviewView: View {
 
     // MARK: - Helpers
 
+    /// Coach asking: its mark, then the question as the page's big line.
     private func questionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(Tide.title)
-            .foregroundStyle(Tide.text)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityAddTraits(.isHeader)
-            .padding(.bottom, Tide.s1)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
+                TideCoachAvatar()
+                Text("Coach").tideLabel()
+                    .accessibilityHidden(true)
+            }
+            Text(text)
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+        .padding(.bottom, Tide.s1)
     }
 
     private func hint(_ text: String) -> some View {
@@ -281,10 +355,11 @@ struct CoachInterviewView: View {
 
     private func radioRow(
         label: String,
+        systemImage: String,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .radio) {
+        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .radio, systemImage: systemImage) {
             picks += 1
             action()
         }
@@ -292,12 +367,39 @@ struct CoachInterviewView: View {
 
     private func multiSelectRow(
         label: String,
+        systemImage: String,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .check) {
+        TideCoachOptionRow(label: label, isSelected: isSelected, mark: .check, systemImage: systemImage) {
             picks += 1
             action()
+        }
+    }
+
+    private static func symbol(for mode: TiredMode) -> String {
+        switch mode {
+        case .push: "bolt.fill"
+        case .ease: "leaf.fill"
+        case .askFirst: "questionmark.bubble.fill"
+        }
+    }
+
+    private static func symbol(for tone: TonePreference) -> String {
+        switch tone {
+        case .drillSergeant: "megaphone.fill"
+        case .dataAnalyst: "chart.xyaxis.line"
+        case .supportive: "heart.fill"
+        case .noPreference: "minus.circle"
+        }
+    }
+
+    private static func symbol(for option: SilentTrackOption) -> String {
+        switch option {
+        case .meals: "fork.knife"
+        case .sleep: "bed.double.fill"
+        case .trainingIntensity: "dumbbell.fill"
+        case .mood: "face.smiling.fill"
         }
     }
 
