@@ -174,6 +174,9 @@ struct TideDial: View {
                     .minimumScaleFactor(Tide.labelShrink)
                     // The caption sits where the ring is narrowest: it does not grow past the default.
                     .dynamicTypeSize(...Tide.dialCaptionCap)
+                    // Lower in the circle the chord is shorter than at the figure:
+                    // a long word ("Recovery") would touch the ring without this.
+                    .padding(.horizontal, diameter * 0.07)
             }
             .padding(.horizontal, diameter * 0.2)
             // The ring is a fixed size: its figure and caption stop growing at
