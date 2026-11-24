@@ -30,6 +30,8 @@ extension Tide {
     static let numeralReadout: CGFloat = 72
     /// A digit on the entry keypad, and how tall a key is.
     static let numeralKey: CGFloat = 30
+    /// The largest a wheel row's digits grow: the row's height is fixed.
+    static let numeralWheelMax: CGFloat = 39
     static let keyHeight: CGFloat = 60
     /// The entry sheet at rest, tall enough for the readout, the keys and the Set button.
     static let keypadSheetHeight: CGFloat = 660

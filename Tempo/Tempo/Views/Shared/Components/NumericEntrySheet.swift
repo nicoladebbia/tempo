@@ -407,7 +407,7 @@ struct NumericEntrySheet: View {
             ForEach(wheelValues, id: \.self) { value in
                 Text("\(String(format: displayFormat, value)) \(unit)")
                     // A wheel row has a fixed height: past this the digits overlap.
-                    .font(Tide.numeral(min(keySize, Tide.numeralKey * 1.3), .semibold))
+                    .font(Tide.numeral(min(keySize, Tide.numeralWheelMax), .semibold))
                     .tag(value)
             }
         }
