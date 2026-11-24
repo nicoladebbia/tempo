@@ -104,11 +104,17 @@ struct PrivacyInfoView: View {
 
     private func dataSection(title: String, icon: String, color: Color, items: [DataItem]) -> some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            Label(title, systemImage: icon)
-                .font(Tide.headline)
-                .foregroundStyle(color)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: icon, tint: color)
+                Text(title)
+                    .font(Tide.headline)
+                    .foregroundStyle(color)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Tide.s2)
+                TideNumber("\(items.count)", size: Tide.numeralS, relativeTo: .title3, color: Tide.text2)
+                    .accessibilityLabel("\(items.count) items")
+            }
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 ForEach(items) { item in

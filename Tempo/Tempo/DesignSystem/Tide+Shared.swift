@@ -202,6 +202,8 @@ struct TideStateMark: View {
             TideIconTile(systemName: systemName, tint: color, size: tileSize)
         }
         .frame(width: halo, height: halo)
+        // The glow is drawn past the layout box, so it never pushes content away.
+        .frame(width: tileSize + reach / 2, height: tileSize + reach / 2)
         .animation(reduceMotion ? nil : .easeInOut(duration: 2.6).repeatForever(autoreverses: true), value: breathe)
         .onAppear { breathe = true }
         .accessibilityHidden(true)
