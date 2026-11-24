@@ -63,12 +63,6 @@ struct VoicePantryView: View {
 
     @State private var phase: Phase = .idle
     @State private var editable: [EditableItem] = []
-    // REWORK3-DEBUG
-    @State private var debugListening = false
-    @State private var debugTranscript = ""
-
-    private var isListeningShown: Bool { transcriber.isListening || debugListening }
-    private var transcriptShown: String { debugTranscript.isEmpty ? transcriber.transcribedText : debugTranscript }
 
     var body: some View {
         NavigationStack {
@@ -110,26 +104,6 @@ struct VoicePantryView: View {
             // finalizations; the user ends it by tapping Stop, not by pausing.
             transcriber.silenceTimeout = 0
             transcriber.continuousMode = true
-            // REWORK3-DEBUG
-            if let arg = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--rework3-voice=") }) {
-                switch arg.dropFirst("--rework3-voice=".count) {
-                case "listening":
-                    debugListening = true
-                    debugTranscript = "I have two cartons of eggs, a kilo of rice and some olive oil"
-                    phase = .recording
-                case "thinking": phase = .thinking
-                case "failed": phase = .failed("I didn't catch anything. Tap the mic and try again, speaking clearly.")
-                case "blocked": phase = .blocked(.proRequired)
-                case "confirm":
-                    editable = [
-                        EditableItem(name: "Eggs", brand: "", quantityText: "12", unit: .pieces, storage: .fridge, isSet: false, components: [], isLowConfidence: false),
-                        EditableItem(name: "Rice", brand: "Basmati", quantityText: "1000", unit: .grams, storage: .pantry, isSet: true, components: ["2 bags"], isLowConfidence: false),
-                        EditableItem(name: "Olive oil", brand: "", quantityText: "1", unit: .pieces, storage: .cupboard, isSet: false, components: [], isLowConfidence: true),
-                    ]
-                    phase = .confirming
-                default: break
-                }
-            }
         }
         .onChange(of: transcriber.isListening) { wasListening, nowListening in
             // Manual Stop (the user tapped it) ends recording → resolve straight
@@ -152,13 +126,13 @@ struct VoicePantryView: View {
             ScrollView {
                 VStack(spacing: Tide.s5) {
                     KitchenStateText(
-                        title: isListeningShown ? "Listening…" : "List what's in your pantry",
-                        message: isListeningShown
+                        title: transcriber.isListening ? "Listening…" : "List what's in your pantry",
+                        message: transcriber.isListening
                             ? "Name everything, then tap stop."
                             : "Tap the mic and go one after another, the way you'd say it out loud."
                     )
                     .padding(.top, Tide.s6)
-                    if isListeningShown || !transcriptShown.isEmpty {
+                    if transcriber.isListening || !transcriber.transcribedText.isEmpty {
                         heardCard
                     } else {
                         examplesCard
@@ -174,19 +148,19 @@ struct VoicePantryView: View {
             .scrollBounceBehavior(.basedOnSize)
             micControl
         }
-        .animation(Tide.snap, value: transcriptShown.isEmpty)
+        .animation(Tide.snap, value: transcriber.transcribedText.isEmpty)
     }
 
     /// What has been heard so far, growing as the person talks.
     private var heardCard: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             Text("You said").tideLabel(Tide.text3)
-            if transcriptShown.isEmpty {
+            if transcriber.transcribedText.isEmpty {
                 Text("Go ahead, I'm listening…")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text3)
             } else {
-                Text(transcriptShown)
+                Text(transcriber.transcribedText)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -228,23 +202,23 @@ struct VoicePantryView: View {
             Button {
                 Task { await toggleRecording() }
             } label: {
-                Image(systemName: isListeningShown ? "stop.fill" : "mic.fill")
+                Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
                     .font(Tide.largeTitle)
                     .foregroundStyle(Tide.ink)
                     .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
                     .glassEffect(
-                        .regular.tint(isListeningShown ? Tide.danger : mood.accent).interactive(),
+                        .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
                         in: .circle
                     )
                     .contentTransition(.symbolEffect(.replace))
                     .background {
-                        KitchenListeningRing(active: isListeningShown, tint: Tide.danger)
+                        KitchenListeningRing(active: transcriber.isListening, tint: Tide.danger)
                     }
             }
             .buttonStyle(.plain)
-            .sensoryFeedback(.impact, trigger: isListeningShown)
-            .accessibilityLabel(isListeningShown ? "Stop listening" : "Start listening")
-            Text(isListeningShown ? "Tap to stop" : "Tap to start")
+            .sensoryFeedback(.impact, trigger: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
+            Text(transcriber.isListening ? "Tap to stop" : "Tap to start")
                 .tideLabel(Tide.text3)
         }
         .padding(.top, Tide.s5)
@@ -284,8 +258,8 @@ struct VoicePantryView: View {
                     working: true
                 )
                 .padding(.top, Tide.s6)
-                if !transcriptShown.isEmpty {
-                    Text(transcriptShown)
+                if !transcriber.transcribedText.isEmpty {
+                    Text(transcriber.transcribedText)
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
                         .lineLimit(3)

@@ -47,12 +47,9 @@ struct ScanBarcodeSurface: View {
     @Environment(\.tideMood)
     private var mood
 
-    // REWORK3-DEBUG
-    private static let fakeCamera = ProcessInfo.processInfo.arguments.contains("--rework3-fakecam")
-
     var body: some View {
         Group {
-            switch Self.fakeCamera ? CameraPermission.authorized : permission {
+            switch permission {
             case .authorized:
                 scanner
             case .notDetermined:
@@ -113,7 +110,7 @@ struct ScanBarcodeSurface: View {
 
     private var scanner: some View {
         ZStack {
-            camera
+            ScanBarcodeCamera(onBarcode: onBarcode)
                 .ignoresSafeArea()
                 .kitchenScrim()
             // Same container as the scrim's window, so the brackets sit exactly on it.
@@ -150,16 +147,6 @@ struct ScanBarcodeSurface: View {
                 .padding(.bottom, Tide.s10)
                 .accessibilityIdentifier("scanTypeBarcode")
             }
-        }
-    }
-
-    @ViewBuilder
-    private var camera: some View {
-        // REWORK3-DEBUG
-        if Self.fakeCamera {
-            LinearGradient(colors: [Color(white: 0.30), Color(white: 0.12)], startPoint: .top, endPoint: .bottom)
-        } else {
-            ScanBarcodeCamera(onBarcode: onBarcode)
         }
     }
 
