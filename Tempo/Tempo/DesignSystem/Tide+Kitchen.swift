@@ -947,6 +947,8 @@ struct KitchenNumberField: View {
     @Binding
     var text: String
     var keyboard: UIKeyboardType = .decimalPad
+    /// Set on the text field itself, for the tests that type into it.
+    var identifier: String?
 
     @ScaledMetric
     private var size: CGFloat = Tide.numeralS
@@ -974,6 +976,7 @@ struct KitchenNumberField: View {
                     .foregroundStyle(Tide.text)
                     .minimumScaleFactor(Tide.labelShrink)
                     .accessibilityLabel(unit.map { "\(label) (\($0))" } ?? label)
+                    .identified(identifier)
                 if let unit {
                     Text(unit)
                         .font(Tide.caption)
@@ -1072,3 +1075,338 @@ struct KitchenIconTile: View {
     }
 }
 
+
+// MARK: - KitchenModeBar
+
+/// The mode switch on top of the scanner: every mode is one tile with its
+/// icon over its name, all in one glass bar, and a pill of accent slides to the
+/// chosen one. All of them fit the screen, so none hides off to the side. At
+/// the accessibility text sizes the tiles go two by two, icon beside name.
+struct KitchenModeBar<Value: Hashable>: View {
+    let options: [Value]
+    @Binding
+    var selection: Value
+    let title: (Value) -> String
+    let icon: (Value) -> String
+    let identifier: (Value) -> String
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Namespace
+    private var pill
+
+    var body: some View {
+        Group {
+            if typeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: Tide.s1), GridItem(.flexible())], spacing: Tide.s1) {
+                    ForEach(options, id: \.self, content: tile)
+                }
+            } else {
+                HStack(spacing: Tide.s1) {
+                    ForEach(options, id: \.self, content: tile)
+                }
+            }
+        }
+        .padding(Tide.s1)
+        .glassEffect(
+            .regular.tint(Tide.Kitchen.cameraTint),
+            in: .rect(cornerRadius: typeSize.isAccessibilitySize ? Tide.tileRadius : Tide.cardRadius)
+        )
+        .sensoryFeedback(.selection, trigger: selection)
+    }
+
+    private func tile(_ option: Value) -> some View {
+        let selected = option == selection
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(HStackLayout(spacing: Tide.s2))
+            : AnyLayout(VStackLayout(spacing: Tide.hair))
+        return Button {
+            withAnimation(Tide.snap) { selection = option }
+        } label: {
+            layout {
+                Image(systemName: icon(option))
+                    .font(Tide.bodyStrong)
+                    .accessibilityHidden(true)
+                Text(title(option))
+                    .font(Tide.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+            .foregroundStyle(selected ? Tide.ink : Tide.text)
+            .padding(.horizontal, Tide.s1)
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                        .fill(mood.accent)
+                        .matchedGeometryEffect(id: "pill", in: pill)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier(identifier(option))
+    }
+}
+
+// MARK: - KitchenStateAction
+
+/// One way out of a `KitchenStatePage`: the main one, a second one, or a quiet
+/// text link.
+struct KitchenStateAction: Identifiable {
+    enum Role {
+        case primary, secondary, quiet
+        /// A quiet link in the danger colour: stop, remove, delete.
+        case destructive
+    }
+
+    let title: String
+    var systemImage: String?
+    var role: Role = .secondary
+    var identifier: String?
+    /// False while the action is running or has nothing to act on.
+    var isEnabled = true
+    let action: () -> Void
+
+    var id: String {
+        title
+    }
+}
+
+// MARK: - KitchenStateHero
+
+/// What a state of a scan flow is about: one big glass disc, a title and a line
+/// of help, set straight on the field. While `working` a ring breathes behind
+/// the disc.
+struct KitchenStateHero: View {
+    let systemImage: String
+    var tint: Color?
+    let title: String
+    var message = ""
+    var working = false
+
+    var body: some View {
+        VStack(spacing: Tide.s4) {
+            KitchenHeroDisc(systemImage: systemImage, tint: tint)
+                .background { KitchenListeningRing(active: working, tint: tint) }
+                .padding(.vertical, working ? Tide.s5 : 0)
+            KitchenStateText(title: title, message: message)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - KitchenStateText
+
+/// The words of a state: a bold title and a line of help, centred.
+struct KitchenStateText: View {
+    let title: String
+    var message = ""
+
+    var body: some View {
+        VStack(spacing: Tide.s2) {
+            Text(title)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            if !message.isEmpty {
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+// MARK: - KitchenReceiptSketch
+
+/// A drawn receipt inside the lit corners of the camera: the picture of the
+/// receipt screens. It is the size of the receipt picture that comes up while
+/// a scan is read, so capture and reading feel like one object.
+struct KitchenReceiptSketch: View {
+    /// Widths of the item lines, as multiples of the 40 pt step.
+    private let lines: [CGFloat] = [2.1, 1.5, 2.3, 1.2, 1.9, 1.4, 2.0, 1.1]
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+        ZStack {
+            shape
+                .fill(Tide.text.opacity(0.92))
+                .frame(width: Tide.Kitchen.receiptThumbWidth, height: Tide.Kitchen.receiptThumbHeight)
+                .overlay(alignment: .top) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        Capsule()
+                            .fill(Tide.ink.opacity(0.4))
+                            .frame(width: Tide.s10 * 2, height: Tide.s2)
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, Tide.s1)
+                        ForEach(lines.indices, id: \.self) { index in
+                            HStack(spacing: Tide.s2) {
+                                Capsule()
+                                    .fill(Tide.ink.opacity(0.22))
+                                    .frame(width: Tide.s10 * lines[index], height: Tide.s1 + Tide.hair)
+                                Spacer(minLength: 0)
+                                Capsule()
+                                    .fill(Tide.ink.opacity(0.22))
+                                    .frame(width: Tide.s5, height: Tide.s1 + Tide.hair)
+                            }
+                        }
+                    }
+                    .padding(Tide.s4)
+                }
+            KitchenFrame(
+                width: Tide.Kitchen.receiptThumbWidth,
+                height: Tide.Kitchen.receiptThumbHeight,
+                looking: true
+            )
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - KitchenStatePage
+
+/// A whole screen for one state of a scan flow (nothing found, a lookup that
+/// failed, a camera that is off): the hero sits in the upper middle, and every
+/// way out is a full-width button in the bar at the bottom, where the thumb is.
+/// The main action is the bar button, a pair of second choices share a row, and
+/// a quiet link goes last. The hero scrolls when the text sizes grow.
+struct KitchenStatePage<Hero: View>: View {
+    var actions: [KitchenStateAction] = []
+    @ViewBuilder var hero: Hero
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        if actions.isEmpty {
+            page
+        } else {
+            page.kitchenBottomBar { bar }
+        }
+    }
+
+    private var page: some View {
+        GeometryReader { proxy in
+            ScrollView {
+                hero
+                    .frame(maxWidth: Tide.stateWidth)
+                    .padding(.horizontal, Tide.edge)
+                    .frame(maxWidth: .infinity, minHeight: proxy.size.height * 0.85)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private var bar: some View {
+        let rows = secondaryRows
+        return VStack(spacing: Tide.s3) {
+            ForEach(actions.filter { $0.role == .primary }) { item in
+                Button(action: item.action) {
+                    label(item)
+                }
+                .buttonStyle(.kitchenBar)
+                .disabled(!item.isEnabled)
+                .identified(item.identifier)
+            }
+            ForEach(rows.indices, id: \.self) { index in
+                HStack(spacing: Tide.s3) {
+                    ForEach(rows[index]) { item in
+                        Button(action: item.action) {
+                            label(item).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.tideGlass)
+                        .disabled(!item.isEnabled)
+                        .identified(item.identifier)
+                    }
+                }
+            }
+            ForEach(actions.filter { $0.role == .quiet || $0.role == .destructive }) { item in
+                Button(action: item.action) {
+                    label(item)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(item.role == .destructive ? Tide.danger : mood.accent)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .disabled(!item.isEnabled)
+                .identified(item.identifier)
+            }
+        }
+    }
+
+    /// Second choices go two to a row; an odd one out takes the first row alone.
+    /// At the accessibility text sizes each gets its own row.
+    private var secondaryRows: [[KitchenStateAction]] {
+        var rest = actions.filter { $0.role == .secondary }
+        if typeSize.isAccessibilitySize {
+            return rest.map { [$0] }
+        }
+        var rows: [[KitchenStateAction]] = []
+        if rest.count % 2 == 1 {
+            rows.append([rest.removeFirst()])
+        }
+        while !rest.isEmpty {
+            rows.append(Array(rest.prefix(2)))
+            rest.removeFirst(min(2, rest.count))
+        }
+        return rows
+    }
+
+    @ViewBuilder
+    private func label(_ item: KitchenStateAction) -> some View {
+        if let systemImage = item.systemImage {
+            Label(item.title, systemImage: systemImage)
+        } else {
+            Text(item.title)
+        }
+    }
+}
+
+private extension View {
+    /// Puts an accessibility identifier on a view only when there is one.
+    @ViewBuilder
+    func identified(_ identifier: String?) -> some View {
+        if let identifier {
+            accessibilityIdentifier(identifier)
+        } else {
+            self
+        }
+    }
+}
+
+// MARK: - KitchenGlassIcon
+
+/// A round glass button face with one icon, for a Menu's label (a Button that
+/// wants the same look uses `KitchenIconButton`). Shows a spinner while it works.
+struct KitchenGlassIcon: View {
+    let systemImage: String
+    var isWorking = false
+    var size: CGFloat = Tide.hit
+
+    var body: some View {
+        Group {
+            if isWorking {
+                ProgressView()
+            } else {
+                Image(systemName: systemImage)
+                    .font(Tide.bodyStrong)
+            }
+        }
+        .foregroundStyle(Tide.text)
+        .frame(width: size, height: size)
+        .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+        .contentShape(.circle)
+    }
+}

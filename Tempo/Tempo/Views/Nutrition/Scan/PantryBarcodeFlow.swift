@@ -73,46 +73,23 @@ struct PantryBarcodeFlow: View {
     }
 
     private func loadingContent(_ code: String) -> some View {
-        VStack(spacing: Tide.s4) {
-            KitchenHeroDisc(systemImage: "barcode.viewfinder")
-            ProgressView().controlSize(.large).tint(mood.accent)
-            Text("Looking up \(code)…")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .monospacedDigit()
+        KitchenStatePage {
+            KitchenStateHero(
+                systemImage: "barcode.viewfinder",
+                title: "Looking up \(code)…",
+                working: true
+            )
         }
-        .accessibilityElement(children: .combine)
     }
 
     private func messageContent(icon: String, title: String, message: String) -> some View {
-        VStack {
-            Spacer()
-            VStack(spacing: Tide.s4) {
-                KitchenHeroDisc(systemImage: icon, tint: Tide.Kitchen.warn)
-                VStack(spacing: Tide.s2) {
-                    Text(title)
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(message)
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Button("Scan again") {
-                    scanState = .scanning
-                }
-                .buttonStyle(.tidePrimary)
-                .padding(.top, Tide.s2)
-            }
-            .frame(maxWidth: .infinity)
-            .tideCard(padding: Tide.s6)
-            .frame(maxWidth: Tide.stateWidth)
-            Spacer()
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .primary) {
+                scanState = .scanning
+            },
+        ]) {
+            KitchenStateHero(systemImage: icon, tint: Tide.Kitchen.warn, title: title, message: message)
         }
-        .padding(.horizontal, Tide.edge)
     }
 
     private func lookUp(_ barcode: String) {

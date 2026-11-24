@@ -71,15 +71,21 @@ struct UniversalScanView: View {
                     .id(mode)
             }
             .kitchenPage()
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
+            // A bar, not an inset: whatever scrolls under it (a product page)
+            // fades out behind the modes instead of showing through them.
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .safeAreaBar(edge: .top, spacing: 0) {
+                VStack(spacing: Tide.s2) {
                     if allowedModes.count > 1 {
-                        modeChips
+                        modeBar
                     }
                     if mode != .barcode, permission.isBlockedByUser {
                         permissionBanner
                     }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+                .background { barBacking }
             }
             .environment(\.scanResumeInfo, ScanResumeInfo(kind: context.kind, mode: mode, section: resumeSection))
             .navigationTitle("Scan")
@@ -117,39 +123,33 @@ struct UniversalScanView: View {
         .environment(\.tideInsidePage, false)
     }
 
-    // MARK: - Mode chips
+    // MARK: - Mode bar
 
-    private var modeChips: some View {
-        ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: Tide.s2) {
-                HStack(spacing: Tide.s2) {
-                    ForEach(allowedModes) { candidate in
-                        let selected = candidate == mode
-                        Button {
-                            mode = candidate
-                        } label: {
-                            Label(candidate.title, systemImage: candidate.icon)
-                                .font(Tide.bodyStrong)
-                                .foregroundStyle(selected ? Tide.ink : Tide.text)
-                                .padding(.horizontal, Tide.s4)
-                                .frame(minHeight: Tide.hit)
-                                .glassEffect(
-                                    .regular.tint(selected ? mood.accent : Tide.Kitchen.cameraTint).interactive(),
-                                    in: .capsule
-                                )
-                                .contentShape(.capsule)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
-                        .accessibilityIdentifier("scanMode-\(candidate.rawValue)")
-                    }
-                }
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s2)
-            }
-        }
-        .scrollIndicators(.hidden)
-        .sensoryFeedback(.selection, trigger: mode)
+    /// Ink under the bar that fades out just below it, so a product page
+    /// scrolling up never shows through the modes.
+    private var barBacking: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Tide.ink.opacity(0.94), location: 0),
+                .init(color: Tide.ink.opacity(0.94), location: 0.7),
+                .init(color: Tide.ink.opacity(0), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .padding(.bottom, -Tide.s6)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+    }
+
+    private var modeBar: some View {
+        KitchenModeBar(
+            options: allowedModes,
+            selection: $mode,
+            title: \.title,
+            icon: \.icon,
+            identifier: { "scanMode-\($0.rawValue)" }
+        )
     }
 
     /// Photo modes still work from the library; only the camera is blocked.
@@ -175,8 +175,7 @@ struct UniversalScanView: View {
         }
         .padding(.horizontal, Tide.s4)
         .padding(.vertical, Tide.s2)
-        .kitchenCameraPanel()
-        .padding(.horizontal, Tide.edge)
+        .kitchenCameraPanel(radius: Tide.tileRadius)
         .accessibilityIdentifier("scanPermissionBanner")
     }
 
@@ -295,7 +294,17 @@ struct UniversalScanView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        KitchenEmpty(systemImage: "camera.fill", title: "Scan unavailable", message: message)
-            .padding(.horizontal, Tide.edge)
+        KitchenStatePage(actions: allowedModes.contains(.barcode) && mode != .barcode ? [
+            KitchenStateAction(title: "Back to barcode", systemImage: "barcode.viewfinder", role: .primary) {
+                mode = .barcode
+            },
+        ] : []) {
+            KitchenStateHero(
+                systemImage: "camera.fill",
+                tint: Tide.Kitchen.warn,
+                title: "Scan unavailable",
+                message: message
+            )
+        }
     }
 }
