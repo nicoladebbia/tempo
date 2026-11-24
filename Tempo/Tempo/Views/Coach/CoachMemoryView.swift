@@ -184,13 +184,16 @@ struct CoachMemoryView: View {
     }
 
     private var emptyState: some View {
-        Text(emptyStateMessage)
-            .font(Tide.body)
-            .foregroundStyle(Tide.text2)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
-            .tideCard(padding: Tide.s6, radius: Tide.tileRadius)
+        VStack(spacing: Tide.s3) {
+            TideStateMark(systemName: "brain.head.profile", tileSize: Tide.tileLarge - Tide.s2)
+            Text(emptyStateMessage)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s6, radius: Tide.tileRadius)
     }
 
     private var emptyStateMessage: String {
