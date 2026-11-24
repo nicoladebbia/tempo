@@ -38,6 +38,9 @@ struct FuelQuadrantDetailView: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    /// Ties a meal row to the meal page that opens from it.
+    @Namespace
+    private var mealZoom
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -274,10 +277,12 @@ struct FuelQuadrantDetailView: View {
                     ForEach(Array(mealRows.enumerated()), id: \.element.id) { index, row in
                         NavigationLink {
                             MealDetailView(meal: row.meal)
+                                .navigationTransition(.zoom(sourceID: row.meal.id, in: mealZoom))
                         } label: {
                             plannedMealRow(row)
                         }
                         .buttonStyle(.plain)
+                        .matchedTransitionSource(id: row.meal.id, in: mealZoom)
 
                         if index < mealRows.count - 1 {
                             Divider()
@@ -467,7 +472,8 @@ struct FuelQuadrantDetailView: View {
                     .foregroundStyle(Tide.text3)
             }
         }
-        .frame(height: 160)
+        .frame(height: Tide.fuelChart)
+        .accessibilityLabel("Calories eaten per day over the last 7 days")
     }
 
     /// Full 7-day window so empty days keep their slot on the axis.

@@ -58,16 +58,17 @@ struct QuickLogSheet: View {
                         .frame(width: Tide.hit, height: Tide.hit)
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FuelPressStyle())
                     .disabled(!canSubmit)
                     .accessibilityLabel("Parse")
                     .accessibilityIdentifier("quickLogGo")
                 }
-                if let message {
-                    Text(message)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
+                if isParsing {
+                    FuelAIState(kind: .working("Reading what you ate…"))
+                        .transition(.opacity)
+                } else if let message {
+                    FuelBanner(icon: "exclamationmark.circle.fill", tint: Tide.warn, title: message)
+                        .transition(.opacity)
                 }
                 Text("Add a time or meal if you like: \"pasta at 1pm\", \"yesterday dinner\".")
                     .font(Tide.caption)
@@ -75,6 +76,8 @@ struct QuickLogSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer()
             }
+            .animation(Tide.settle, value: isParsing)
+            .animation(Tide.settle, value: message)
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s5)
             .tidePage()

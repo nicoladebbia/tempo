@@ -59,6 +59,12 @@ struct NutritionWeeklyPlanView: View {
                     }
                     planHeaderCard(plan)
                     weekDaysList(plan)
+                } else if viewModel.isGeneratingPlan {
+                    // First plan being built: say so, in the same look as every AI wait.
+                    FuelAIState(kind: .working(
+                        viewModel.planGenerationStatusLabel.isEmpty
+                            ? "Building your week…" : viewModel.planGenerationStatusLabel
+                    ))
                 } else {
                     emptyPlanState
                 }
@@ -119,9 +125,12 @@ struct NutritionWeeklyPlanView: View {
                     }
                 }
             })
+            // A sheet draws its own field; it must not inherit "already on a page".
+            .environment(\.tideInsidePage, false)
         }
         .sheet(isPresented: $showEditSetup) {
             FuelSetupView(startInReview: true)
+                .environment(\.tideInsidePage, false)
         }
         .sheet(item: $wizardSnapshot) { snapshot in
             MealPlanIntakeWizardView(
@@ -151,6 +160,7 @@ struct NutritionWeeklyPlanView: View {
                     wizardSnapshot = nil
                 }
             )
+            .environment(\.tideInsidePage, false)
         }
     }
 
@@ -279,41 +289,60 @@ struct NutritionWeeklyPlanView: View {
         isToday: Bool,
         isExpanded: Bool
     ) -> some View {
-        HStack(spacing: Tide.s3) {
-            // Day label
-            VStack(alignment: .leading, spacing: Tide.s1) {
+        let name = Text(dayLabel(for: date))
+            .font(Tide.bodyStrong)
+            .foregroundStyle(isToday ? mood.accent : Tide.text)
+        let chevron = Image(systemName: "chevron.down")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+            .accessibilityHidden(true)
+        let label = VStack(alignment: .leading, spacing: Tide.s1) {
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: Tide.s2) {
-                    Text(dayLabel(for: date))
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(isToday ? mood.accent : Tide.text)
-                        .fixedSize(horizontal: false, vertical: true)
-
+                    name
                     if isToday {
                         FuelPill(text: "Today", color: mood.accent)
                     }
                 }
-
-                if let dayType {
-                    dayTypeBadge(dayType)
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    name
+                    if isToday {
+                        FuelPill(text: "Today", color: mood.accent)
+                    }
                 }
             }
-
-            Spacer(minLength: Tide.s2)
-
-            // Stats
-            VStack(alignment: .trailing, spacing: Tide.hair) {
+            if let dayType {
+                dayTypeBadge(dayType)
+            }
+        }
+        let stats = { (alignment: HorizontalAlignment) in
+            VStack(alignment: alignment, spacing: Tide.hair) {
                 TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
 
                 Text("\(mealCount) meals")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
+        }
 
-            Image(systemName: "chevron.down")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                .accessibilityHidden(true)
+        // One line when it fits; at large text sizes the numbers drop under
+        // the day instead of squeezing it letter by letter.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                label
+                Spacer(minLength: Tide.s2)
+                stats(.trailing)
+                chevron
+            }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                label
+                HStack(spacing: Tide.s3) {
+                    stats(.leading)
+                    Spacer(minLength: Tide.s2)
+                    chevron
+                }
+            }
         }
         .frame(minHeight: Tide.hit)
     }

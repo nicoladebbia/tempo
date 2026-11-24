@@ -63,16 +63,19 @@ struct WriteRecipeView: View {
             .font(Tide.body)
             .tint(mood.accent)
             .scrollDismissesKeyboard(.interactively)
+            .scrollContentBackground(.hidden)
+            // The one action sits under the thumb.
+            .fuelBottomBar {
+                Button("Save") { save() }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(!canSave)
+            }
             .tidePage()
             .navigationTitle("Write Recipe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .disabled(!canSave)
                 }
             }
         }

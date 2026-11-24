@@ -56,6 +56,8 @@ struct WeeklyCheckInView: View {
                 .padding(.bottom, Tide.s8)
             }
             .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar(isShown: !sent) { buildButton }
+            .animation(Tide.snap, value: sent)
             .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
@@ -95,23 +97,27 @@ struct WeeklyCheckInView: View {
                     .foregroundStyle(Tide.danger)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button {
-                send()
-            } label: {
-                Group {
-                    if isSending {
-                        ProgressView()
-                            .tint(Tide.ink)
-                    } else {
-                        Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
-                            .multilineTextAlignment(.center)
-                    }
+        }
+    }
+
+    /// The one action, pinned in the thumb zone.
+    private var buildButton: some View {
+        Button {
+            send()
+        } label: {
+            Group {
+                if isSending {
+                    ProgressView()
+                        .tint(Tide.ink)
+                } else {
+                    Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
+                        .multilineTextAlignment(.center)
                 }
             }
-            .buttonStyle(.tidePrimary)
-            .disabled(isSending)
-            .accessibilityIdentifier("weeklyCheckInBuild")
         }
+        .buttonStyle(.tidePrimary)
+        .disabled(isSending)
+        .accessibilityIdentifier("weeklyCheckInBuild")
     }
 
     /// Tap a line to add it to what you say. The lines are long, so each one

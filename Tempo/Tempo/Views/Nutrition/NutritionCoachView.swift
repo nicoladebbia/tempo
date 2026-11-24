@@ -54,7 +54,10 @@ struct NutritionCoachView: View {
             }
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s8)
+            // Pin the content to the screen width so it only scrolls up and down.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .scrollEdgeEffectStyle(.soft, for: .top)
         .task {
             viewModel.loadRecoveryData(whoop: services.whoop)
@@ -149,17 +152,8 @@ struct NutritionCoachView: View {
 
     /// Spinner row shared by the AI sections (same pattern as the meal-suggestion card).
     private func insightLoadingRow(_ text: String) -> some View {
-        HStack(spacing: Tide.s2) {
-            ProgressView()
-                .tint(Tide.text2)
-                .scaleEffect(0.8)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityElement(children: .combine)
+        FuelAIState(kind: .working(text), isCard: false)
+            .accessibilityElement(children: .combine)
     }
 
     /// Error line + retry under the fallback template.
@@ -247,6 +241,9 @@ struct NutritionCoachView: View {
             HStack(spacing: Tide.s2) {
                 cardTitle("Daily briefing", icon: "brain.head.profile", tint: mood.accent)
                 Spacer(minLength: Tide.s2)
+                if !isOnline {
+                    FuelPill(text: "Offline", color: Tide.warn)
+                }
                 Text(todayTimeString)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
@@ -261,8 +258,9 @@ struct NutritionCoachView: View {
             if insights.daily.isLoading {
                 insightLoadingRow("Reading your day…")
             } else {
+                // The briefing is the hero of this page.
                 Text(insights.daily.value ?? dailyMessage)
-                    .font(Tide.body)
+                    .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -303,16 +301,10 @@ struct NutritionCoachView: View {
                     }
                 }
             } else if let error = viewModel.mealSuggestionError {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
-                        .accessibilityHidden(true)
-                    Text(error)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.danger)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                FuelAIState(
+                    kind: .failed(title: "No suggestion this time", message: error),
+                    isCard: false
+                )
             } else {
                 Text("Tap below to get a personalized meal suggestion based on your remaining macros and preferences.")
                     .font(Tide.body)

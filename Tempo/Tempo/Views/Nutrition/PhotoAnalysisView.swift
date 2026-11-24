@@ -146,7 +146,7 @@ struct PhotoAnalysisView: View {
                 withAnimation(.easeOut(duration: 0.2)) { identifiedItems.append(item) }
                 HapticManager.notification(.success)
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -188,127 +188,116 @@ struct PhotoAnalysisView: View {
     private func analysisContent(image: UIImage) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: Tide.s4) {
-                // Captured photo
+                // Captured photo: the hero. Once analysed, the meal's total
+                // sits on it as the figure.
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 260)
+                    .frame(height: Tide.fuelPhoto)
                     .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
+                    .overlay(alignment: .bottomLeading) {
+                        if case .complete = analysisState, !identifiedItems.isEmpty {
+                            photoTotals
+                                .padding(Tide.s3)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        }
+                    }
+                    .animation(Tide.snap, value: identifiedItems.isEmpty)
                     .padding(.horizontal, Tide.edge)
+                    .accessibilityLabel("Your meal photo")
 
                 // Analysis results
-                switch analysisState {
-                case .idle:
-                    EmptyView()
+                Group {
+                    switch analysisState {
+                    case .idle:
+                        EmptyView()
 
-                case .analyzing:
-                    analyzingState
+                    case .analyzing:
+                        FuelAIState(kind: .working("Identifying food items…"))
 
-                case .complete:
-                    identifiedItemsList
+                    case .complete:
+                        identifiedItemsList
 
-                case let .error(message):
-                    analysisErrorState(message: message)
+                    case let .error(message):
+                        FuelAIState(
+                            kind: .failed(title: "Analysis failed", message: message),
+                            actionTitle: "Retry",
+                            action: { analyzePhoto() }
+                        )
 
-                case let .blocked(blocker):
-                    AIBlockerCard(blocker: blocker) {
-                        analyzePhoto()
+                    case let .blocked(blocker):
+                        AIBlockerCard(blocker: blocker) {
+                            analyzePhoto()
+                        }
                     }
-                    .padding(.horizontal, Tide.edge)
                 }
+                .padding(.horizontal, Tide.edge)
             }
             .padding(.top, Tide.s3)
-            .padding(.bottom, 120) // Room for bottom button
+            .padding(.bottom, Tide.s6)
         }
-
-        // Bottom action bar
-        .overlay(alignment: .bottom) {
-            if case .complete = analysisState, !identifiedItems.isEmpty {
-                addAllButton
-            }
-        }
+        // The one action sits under the thumb once there is something to add.
+        .fuelBottomBar(isShown: isReadyToAdd) { addAllButton }
+        .animation(Tide.snap, value: isReadyToAdd)
     }
 
-    // MARK: - Analyzing State (Shimmer)
-
-    private var analyzingState: some View {
-        VStack(spacing: Tide.s3) {
-            Text("ANALYZING")
-                .tideLabel()
-
-            Text("Identifying food items...")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-
-            // Shimmer skeleton items
-            VStack(spacing: Tide.s3) {
-                ForEach(0 ..< 3, id: \.self) { _ in
-                    HStack(spacing: Tide.s3) {
-                        RoundedRectangle(cornerRadius: Tide.s2)
-                            .fill(Tide.text3.opacity(0.3))
-                            .frame(width: 160, height: 16)
-                        Spacer()
-                        RoundedRectangle(cornerRadius: Tide.s2)
-                            .fill(Tide.text3.opacity(0.3))
-                            .frame(width: 60, height: 16)
-                    }
-                    .padding(.horizontal, Tide.s4)
-                    .padding(.vertical, Tide.s3)
-                }
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.cardRadius)
-            .shimmer()
-            .padding(.horizontal, Tide.edge)
+    private var isReadyToAdd: Bool {
+        if case .complete = analysisState {
+            return !identifiedItems.isEmpty
         }
-        .padding(.top, Tide.s4)
+        return false
+    }
+
+    /// Calories and macros of everything found, portions included.
+    private var photoTotals: some View {
+        let kcal = identifiedItems.reduce(0) { $0 + $1.scaledCalories }
+        let protein = Int(identifiedItems.reduce(0.0) { $0 + $1.protein * $1.servingMultiplier })
+        let carbs = Int(identifiedItems.reduce(0.0) { $0 + $1.carbs * $1.servingMultiplier })
+        let fat = Int(identifiedItems.reduce(0.0) { $0 + $1.fat * $1.servingMultiplier })
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralM, relativeTo: .title)
+            FuelMacroInline(protein: protein, carbs: carbs, fat: fat)
+        }
+        .padding(Tide.s3)
+        .glassEffect(.regular, in: .rect(cornerRadius: Tide.tileRadius))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Identified Items List
 
     private var identifiedItemsList: some View {
         VStack(spacing: Tide.s3) {
-            HStack {
-                Text("IDENTIFIED ITEMS")
-                    .tideLabel()
+            if identifiedItems.isEmpty {
+                // The model found nothing, or every guess was removed.
+                FuelAIState(
+                    kind: .empty(
+                        title: "No food found",
+                        message: "Nothing here looked like food. Add what is on the plate, or retake the photo closer and in better light."
+                    )
+                )
+            } else {
+                FuelSection(title: "Identified items", trailing: "\(identifiedItems.count) found") {
+                    VStack(spacing: Tide.s3) {
+                        ForEach($identifiedItems) { $item in
+                            analyzedFoodRow(item: $item)
 
-                Spacer()
-
-                Text("\(identifiedItems.count) found")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-            }
-            .padding(.horizontal, Tide.edge)
-
-            VStack(spacing: 0) {
-                ForEach($identifiedItems) { $item in
-                    analyzedFoodRow(item: $item)
-
-                    if item.id != identifiedItems.last?.id {
-                        Divider()
-                            .background(Tide.hairline)
-                            .padding(.horizontal, Tide.s4)
+                            if item.id != identifiedItems.last?.id {
+                                Divider().overlay(Tide.hairline)
+                            }
+                        }
                     }
                 }
             }
-            .tideCard(padding: 0, radius: Tide.cardRadius)
-            .padding(.horizontal, Tide.edge)
 
             Button {
                 showAddItem = true
             } label: {
                 Label("Add a missing item", systemImage: "plus.circle")
-                    .font(Tide.body)
-                    .foregroundStyle(mood.accent)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tideGlass)
             .accessibilityIdentifier("photoAddItem")
-
-            if identifiedItems.isEmpty {
-                Text("Nothing left. Add an item or retake the photo.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-            }
         }
     }
 
@@ -344,15 +333,14 @@ struct PhotoAnalysisView: View {
                             alternativesItemID = value.id
                             HapticManager.lightImpact()
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "questionmark.circle")
-                                    .font(Tide.caption)
-                                Text(
-                                    "Not right? See \(value.alternatives.count) other \(value.alternatives.count == 1 ? "guess" : "guesses")"
-                                )
-                                .font(Tide.caption)
-                            }
+                            Label(
+                                "Not right? See \(value.alternatives.count) other \(value.alternatives.count == 1 ? "guess" : "guesses")",
+                                systemImage: "questionmark.circle"
+                            )
+                            .font(Tide.caption)
                             .foregroundStyle(mood.accent)
+                            .frame(minHeight: Tide.hit, alignment: .leading)
+                            .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("photoOtherGuesses")
@@ -368,6 +356,8 @@ struct PhotoAnalysisView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(Tide.text3)
+                            .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .trailing)
+                            .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(value.name)")
@@ -378,12 +368,14 @@ struct PhotoAnalysisView: View {
                 clarifyingCard(value)
             }
 
-            // Macros row
-            HStack(spacing: Tide.s4) {
-                macroLabel("\(value.scaledCalories) kcal", color: Tide.plan)
-                macroLabel("P: \(Int(value.protein * value.servingMultiplier))g", color: Tide.protein)
-                macroLabel("C: \(Int(value.carbs * value.servingMultiplier))g", color: Tide.carbs)
-                macroLabel("F: \(Int(value.fat * value.servingMultiplier))g", color: Tide.fat)
+            // Calories as the figure, the macros under it.
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                TideNumber("\(value.scaledCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                FuelMacroInline(
+                    protein: Int(value.protein * value.servingMultiplier),
+                    carbs: Int(value.carbs * value.servingMultiplier),
+                    fat: Int(value.fat * value.servingMultiplier)
+                )
             }
 
             // Portion chips
@@ -399,20 +391,16 @@ struct PhotoAnalysisView: View {
                     } label: {
                         Text(ParsedFoodReviewSheet.chipLabel(choice))
                             .font(Tide.caption)
-                            .foregroundStyle(selected ? Tide.ink : Tide.text)
-                            .frame(minWidth: 28)
-                            .padding(.horizontal, Tide.s2)
-                            .padding(.vertical, Tide.s1)
-                            .background(selected ? mood.accent : Tide.fill)
-                            .clipShape(Capsule())
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                            .frame(maxWidth: .infinity)
+                            .fuelChip(selected: selected)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
-        .padding(.horizontal, Tide.s4)
-        .padding(.vertical, Tide.s3)
     }
 
     /// Low confidence: ask instead of guessing. One tap answers.
@@ -434,8 +422,7 @@ struct PhotoAnalysisView: View {
         }
         .padding(Tide.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tide.warn.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+        .background(Tide.warn.opacity(0.10), in: .rect(cornerRadius: Tide.controlRadius))
         .accessibilityIdentifier("photoQuestion")
     }
 
@@ -444,63 +431,25 @@ struct PhotoAnalysisView: View {
             Text(title)
                 .font(Tide.caption)
                 .lineLimit(1)
-                .foregroundStyle(Tide.text)
-                .padding(.horizontal, Tide.s2)
-                .padding(.vertical, Tide.s1)
-                .background(Tide.fill)
-                .clipShape(Capsule())
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity)
+                .fuelChip(selected: false)
         }
         .buttonStyle(.plain)
     }
 
     private func confidenceBadge(_ item: AnalyzedFoodItem) -> some View {
         let confidence = item.confidence
-        return HStack(spacing: Tide.s1) {
-            Image(systemName: item.isVerified ? "checkmark.seal.fill" : confidence.icon)
-                .font(Tide.caption)
-            Text("\(item.confidencePercent)%")
-                .font(Tide.caption.monospacedDigit())
-        }
+        return Label(
+            "\(item.confidencePercent)%",
+            systemImage: item.isVerified ? "checkmark.seal.fill" : confidence.icon
+        )
+        .font(Tide.caption.monospacedDigit())
         .foregroundStyle(confidence.color)
         .padding(.horizontal, Tide.s2)
         .padding(.vertical, Tide.s1)
-        .background(confidence.color.opacity(0.12))
-        .clipShape(Capsule())
+        .background(confidence.color.opacity(0.12), in: Capsule())
         .accessibilityLabel("\(item.confidencePercent) percent sure\(item.isVerified ? ", macros checked against the food database" : "")")
-    }
-
-    private func macroLabel(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(Tide.caption)
-            .foregroundStyle(color)
-    }
-
-    // MARK: - Error State
-
-    private func analysisErrorState(message: String) -> some View {
-        VStack(spacing: Tide.s4) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(Tide.title)
-                .foregroundStyle(Tide.text2)
-
-            Text("Analysis failed")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-
-            Button("Retry") {
-                analyzePhoto()
-            }
-            .buttonStyle(.tidePrimary)
-            .padding(.horizontal, Tide.s10)
-        }
-        .padding(.top, Tide.s6)
-        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Add All Button
@@ -512,9 +461,6 @@ struct PhotoAnalysisView: View {
             Text("Add All to Meal")
         }
         .buttonStyle(.tidePrimary)
-        .tideCard(padding: Tide.s4)
-        .padding(.horizontal, Tide.s4)
-        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Actions
@@ -618,15 +564,17 @@ private struct AddMissingItemSheet: View {
                 Section {
                     TextField("Food (e.g. olive oil)", text: $name)
                         .accessibilityIdentifier("photoAddName")
+                        .fuelRow()
                     HStack {
                         Text("Amount")
                         Spacer()
                         TextField("g", text: $gramsText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
+                            .frame(width: Tide.fuelAmountField)
                         Text("g").foregroundStyle(Tide.text2)
                     }
+                    .fuelRow()
                     if !name.trimmingCharacters(in: .whitespaces).isEmpty, !known {
                         HStack {
                             Text("Calories")
@@ -634,31 +582,38 @@ private struct AddMissingItemSheet: View {
                             TextField("kcal", text: $kcalText)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
-                                .frame(width: 80)
+                                .frame(width: Tide.fuelAmountField)
                             Text("kcal").foregroundStyle(Tide.text2)
                         }
+                        .fuelRow()
                     }
                 } footer: {
                     Text(known || name.isEmpty
                         ? "Calories and macros come from Tempo's food table."
                         : "Not in Tempo's food table. Type the calories for that amount.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
+            .font(Tide.body)
+            .scrollContentBackground(.hidden)
+            .fuelBottomBar {
+                Button("Add") {
+                    if let item {
+                        onAdd(item)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(item == nil)
+                .accessibilityIdentifier("photoAddConfirm")
+            }
+            .tidePage()
             .navigationTitle("Add item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        if let item {
-                            onAdd(item)
-                            dismiss()
-                        }
-                    }
-                    .disabled(item == nil)
-                    .accessibilityIdentifier("photoAddConfirm")
                 }
             }
         }
@@ -782,12 +737,8 @@ struct PhotoAlternativesSheet: View {
     }
 
     private var currentRow: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack {
-                Text("CURRENT")
-                    .tideLabel()
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Current")
             candidateCard(
                 name: primary.name,
                 portion: primary.estimatedPortion,
@@ -803,13 +754,9 @@ struct PhotoAlternativesSheet: View {
     }
 
     private var candidatesList: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack {
-                Text("ALTERNATIVES")
-                    .tideLabel()
-                Spacer()
-            }
-            VStack(spacing: Tide.s1) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Alternatives")
+            VStack(spacing: Tide.s2) {
                 ForEach(primary.alternatives) { alt in
                     candidateCard(
                         name: alt.name,
@@ -843,53 +790,36 @@ struct PhotoAlternativesSheet: View {
         action: (() -> Void)?
     ) -> some View {
         let content = VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(name)
-                        .font(Tide.body)
+                        .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                     Text(portion)
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
                 }
-                Spacer()
-                Text(confidenceBadgeLabel(confidence))
-                    .font(Tide.label).monospacedDigit()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(confidenceBadgeColor(confidence).opacity(0.15))
-                    .foregroundStyle(confidenceBadgeColor(confidence))
-                    .clipShape(Capsule())
+                Spacer(minLength: Tide.s2)
+                FuelPill(text: confidenceBadgeLabel(confidence), color: confidenceBadgeColor(confidence))
             }
-            HStack(spacing: Tide.s4) {
-                Text("\(calories) kcal")
-                    .font(Tide.caption.monospacedDigit())
-                    .foregroundStyle(Tide.text2)
-                Text("P \(Int(protein))g")
-                    .font(Tide.caption.monospacedDigit())
-                    .foregroundStyle(Tide.protein)
-                Text("C \(Int(carbs))g")
-                    .font(Tide.caption.monospacedDigit())
-                    .foregroundStyle(Tide.carbs)
-                Text("F \(Int(fat))g")
-                    .font(Tide.caption.monospacedDigit())
-                    .foregroundStyle(Tide.fat)
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                FuelMacroInline(protein: Int(protein), carbs: Int(carbs), fat: Int(fat))
             }
         }
-        .padding(.horizontal, Tide.s3)
-        .padding(.vertical, 10)
+        .padding(Tide.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Tide.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+        .frame(minHeight: Tide.hit)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
         .overlay {
             if isCurrent {
-                RoundedRectangle(cornerRadius: Tide.s2, style: .continuous)
-                    .stroke(mood.accent, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .strokeBorder(mood.accent, lineWidth: Tide.focusLine)
             }
         }
 
         if let action {
-            Button(action: action) { content }
+            Button(action: action) { content.contentShape(.rect) }
                 .buttonStyle(.plain)
         } else {
             content

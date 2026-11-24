@@ -80,6 +80,8 @@ struct ParsedFoodReviewSheet: View {
                 .padding(.bottom, Tide.s4)
             }
             .scrollDismissesKeyboard(.interactively)
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar { logBar }
             .tidePage()
             .navigationTitle("Confirm meal")
             .navigationBarTitleDisplayMode(.inline)
@@ -92,7 +94,6 @@ struct ParsedFoodReviewSheet: View {
                     .accessibilityIdentifier("reviewCancel")
                 }
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) { logBar }
             .task { await refreshOrigin() }
             .sheet(isPresented: $showHomeSetting, onDismiss: { Task { await refreshOrigin() } }) {
                 HomeLocationSettingView()
@@ -105,21 +106,12 @@ struct ParsedFoodReviewSheet: View {
     private var logBar: some View {
         Button(action: confirm) {
             Text(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kcal")
-                .font(Tide.headline)
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .foregroundStyle(Tide.ink)
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .background(draft.items.isEmpty || didConfirm ? Tide.text3 : mood.accent)
-                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tidePrimary)
         .disabled(didConfirm || draft.items.isEmpty)
-        .padding(.horizontal, Tide.edge)
-        .padding(.top, Tide.s3)
-        .padding(.bottom, Tide.s2)
-        .background(.bar)
-        .animation(.snappy, value: draft.totalCalories)
+        .animation(Tide.snap, value: draft.totalCalories)
         .accessibilityIdentifier("reviewLog")
         .accessibilityLabel(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kilocalories")
     }
@@ -138,43 +130,17 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Summary (the answer first)
 
     private var summaryCard: some View {
-        VStack(spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                Text("\(draft.totalCalories)")
-                    .font(Tide.title)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .foregroundStyle(Tide.text)
-                Text("kcal")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text2)
-            }
-            .minimumScaleFactor(0.6)
-            HStack(spacing: Tide.s5) {
-                macro("P", Int(draft.totalProtein), Tide.protein)
-                macro("C", Int(draft.totalCarbs), Tide.carbs)
-                macro("F", Int(draft.totalFat), Tide.fat)
-            }
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideNumber("\(draft.totalCalories)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
+            FuelMacroRings(protein: Int(draft.totalProtein), carbs: Int(draft.totalCarbs), fat: Int(draft.totalFat))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Tide.s4)
-        .background(Tide.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-        .animation(.snappy, value: draft.totalCalories)
+        .tideCard()
+        .animation(Tide.snap, value: draft.totalCalories)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Total \(draft.totalCalories) kilocalories. Protein \(Int(draft.totalProtein)) grams, carbs \(Int(draft.totalCarbs)) grams, fat \(Int(draft.totalFat)) grams."
         )
         .accessibilityIdentifier("reviewTotal")
-    }
-
-    private func macro(_ letter: String, _ grams: Int, _ color: Color) -> some View {
-        HStack(spacing: Tide.s1) {
-            Text(letter).foregroundStyle(color).fontWeight(.semibold)
-            Text("\(grams)g").foregroundStyle(Tide.text)
-                .contentTransition(.numericText())
-        }
-        .font(Tide.body.monospacedDigit())
     }
 
     // MARK: - When
@@ -195,13 +161,25 @@ struct ParsedFoodReviewSheet: View {
                 .labelsHidden()
                 .accessibilityIdentifier("reviewTime")
             }
-            .frame(minHeight: 44)
+            .frame(minHeight: Tide.hit)
+            mealChipRow
+                .accessibilityIdentifier("reviewMealType")
+        }
+    }
+
+    /// The meal types side by side, in two rows at accessibility text sizes.
+    private var mealChipRow: some View {
+        ViewThatFits(in: .horizontal) {
             HStack(spacing: Tide.s2) {
                 ForEach(MealType.allCases, id: \.self) { type in
                     mealChip(type)
                 }
             }
-            .accessibilityIdentifier("reviewMealType")
+            VStack(spacing: Tide.s2) {
+                ForEach(MealType.allCases, id: \.self) { type in
+                    mealChip(type)
+                }
+            }
         }
     }
 
@@ -217,12 +195,10 @@ struct ParsedFoodReviewSheet: View {
                 Text(type.displayName)
                     .font(Tide.caption)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(Tide.labelShrink)
             }
-            .foregroundStyle(selected ? Tide.ink : Tide.text)
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(selected ? mood.accent : Tide.fill)
-            .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .fuelChoice(selected: selected, minHeight: Tide.hit + Tide.s3)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(type.displayName)
@@ -273,11 +249,9 @@ struct ParsedFoodReviewSheet: View {
             withAnimation(.snappy) { draft.setOrigin(choice) }
         } label: {
             Label(title, systemImage: icon)
-                .font(Tide.body.weight(.semibold))
-                .foregroundStyle(selected ? Tide.ink : Tide.text)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(selected ? mood.accent : Tide.fill)
-                .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+                .font(Tide.bodyStrong)
+                .frame(maxWidth: .infinity)
+                .fuelChoice(selected: selected, minHeight: Tide.hit + Tide.s1)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -310,9 +284,8 @@ struct ParsedFoodReviewSheet: View {
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text)
                             .padding(.horizontal, Tide.s3)
-                            .padding(.vertical, Tide.s1 + 2)
-                            .background(Tide.fill)
-                            .clipShape(Capsule())
+                            .padding(.vertical, Tide.s2)
+                            .background(Tide.fill, in: Capsule())
                     }
                 }
             }
@@ -327,12 +300,8 @@ struct ParsedFoodReviewSheet: View {
             showHomeSetting = true
         } label: {
             Label(home == nil ? "Set home" : "Home: set", systemImage: home == nil ? "house" : "house.fill")
-                .font(Tide.caption.weight(.semibold))
-                .foregroundStyle(home == nil ? mood.accent : Tide.text2)
-                .padding(.horizontal, Tide.s3)
-                .frame(minHeight: 44)
-                .background(Tide.fill)
-                .clipShape(Capsule())
+                .font(Tide.caption)
+                .fuelChip(selected: home == nil)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(home == nil ? "Set home location" : "Home is set. Change home location")
@@ -476,11 +445,11 @@ struct ParsedFoodReviewSheet: View {
             gramsText[original.id] = nil
         } label: {
             Text(Self.chipLabel(choice))
-                .font(Tide.body.weight(.semibold))
-                .foregroundStyle(selected ? Tide.ink : Tide.text)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(selected ? mood.accent : Tide.fill)
-                .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+                .font(Tide.bodyStrong)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity)
+                .fuelChoice(selected: selected)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(Self.chipLabel(choice)) portion of \(original.name)")
@@ -493,12 +462,8 @@ struct ParsedFoodReviewSheet: View {
             withAnimation(.snappy) { draft.setOrigin(fromKitchen ? .out : .kitchen, for: original.id) }
         } label: {
             Label("From my kitchen", systemImage: fromKitchen ? "house.fill" : "house")
-                .font(Tide.caption.weight(.semibold))
-                .foregroundStyle(fromKitchen ? mood.accent : Tide.text2)
-                .padding(.horizontal, Tide.s3)
-                .frame(minHeight: 44)
-                .background(fromKitchen ? mood.accent.opacity(0.16) : Tide.fill)
-                .clipShape(Capsule())
+                .font(Tide.caption)
+                .fuelChip(selected: fromKitchen)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(original.name) from my kitchen")
@@ -521,7 +486,8 @@ struct ParsedFoodReviewSheet: View {
                 .font(Tide.caption)
                 .foregroundStyle(open ? mood.accent : Tide.text2)
                 .padding(.horizontal, Tide.s2)
-                .frame(minHeight: 44)
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(open ? "Hide exact weight" : "Set exact weight for \(original.name)")
@@ -535,14 +501,15 @@ struct ParsedFoodReviewSheet: View {
             Image(systemName: "xmark.circle.fill")
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text3)
-                .frame(width: 44, height: 44)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Remove \(original.name)")
     }
 
     private func gramsField(_ original: ParsedFoodItem, current: ParsedFoodItem) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: Tide.hair) {
             TextField(
                 "g",
                 text: Binding(
@@ -561,15 +528,12 @@ struct ParsedFoodReviewSheet: View {
             .keyboardType(.numberPad)
             .multilineTextAlignment(.trailing)
             .font(Tide.body.monospacedDigit())
-            .frame(width: 56)
+            .frame(width: Tide.fuelAmountField)
             Text("g")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
         }
-        .padding(.horizontal, Tide.s3)
-        .frame(minHeight: 44)
-        .background(Tide.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Tide.s2, style: .continuous))
+        .fuelField()
     }
 
     static func chipLabel(_ factor: Double) -> String {
@@ -583,15 +547,9 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Card chrome
 
     private func card(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text(title)
-                .tideLabel()
+        FuelSection(title: title) {
             content()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Tide.s4)
-        .background(Tide.fill)
-        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
     }
 }
 

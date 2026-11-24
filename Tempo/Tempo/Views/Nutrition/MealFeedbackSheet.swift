@@ -47,6 +47,7 @@ struct MealFeedbackSheet: View {
                                 Image(systemName: star <= rating ? "star.fill" : "star")
                                     .font(Tide.title2)
                                     .foregroundStyle(star <= rating ? Tide.warn : Tide.text3)
+                                    .symbolEffect(.bounce, value: rating == star)
                                     .frame(maxWidth: .infinity, minHeight: Tide.hit)
                                     .contentShape(.rect)
                             }
@@ -94,19 +95,21 @@ struct MealFeedbackSheet: View {
             }
             .font(Tide.body)
             .scrollContentBackground(.hidden)
+            // The one action sits under the thumb, in the standard button.
+            .fuelBottomBar {
+                Button(existing == nil ? "Save" : "Update") {
+                    save()
+                    dismiss()
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(!canSave)
+            }
             .tidePage()
             .navigationTitle(meal.mealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Skip") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(existing == nil ? "Save" : "Update") {
-                        save()
-                        dismiss()
-                    }
-                    .disabled(!canSave)
                 }
             }
             .onAppear(perform: hydrateFromExisting)

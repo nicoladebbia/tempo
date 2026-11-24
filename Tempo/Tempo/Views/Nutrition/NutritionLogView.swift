@@ -80,7 +80,10 @@ struct NutritionLogView: View {
             }
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s8)
+            // Pin the content to the screen width so it only scrolls up and down.
+            .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .onAppear {
             // Today's "Quick Log" button lands here with the field focused.
             if viewModel.focusQuickLogRequested {
@@ -251,18 +254,27 @@ struct NutritionLogView: View {
     // MARK: - Quick Actions
 
     private var quickActionsRow: some View {
-        GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                quickActionButton(icon: "camera.fill", label: "Photo", identifier: "nutritionLogPhoto") {
-                    showPhotoAnalysis = true
+        let photo = quickActionButton(icon: "camera.fill", label: "Photo", identifier: "nutritionLogPhoto") {
+            showPhotoAnalysis = true
+        }
+        let scan = quickActionButton(icon: "barcode.viewfinder", label: "Scan", identifier: "nutritionLogScan") {
+            showBarcodeScanner = true
+        }
+        let check = quickActionButton(icon: "checkmark.seal", label: "Check", identifier: "nutritionCheckFood") {
+            showFoodCheck = true
+        }
+        // Three across while they fit; stacked at large text sizes.
+        return GlassEffectContainer(spacing: Tide.s2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    photo
+                    scan
+                    check
                 }
-
-                quickActionButton(icon: "barcode.viewfinder", label: "Scan", identifier: "nutritionLogScan") {
-                    showBarcodeScanner = true
-                }
-
-                quickActionButton(icon: "checkmark.seal", label: "Check", identifier: "nutritionCheckFood") {
-                    showFoodCheck = true
+                VStack(spacing: Tide.s2) {
+                    photo
+                    scan
+                    check
                 }
             }
         }

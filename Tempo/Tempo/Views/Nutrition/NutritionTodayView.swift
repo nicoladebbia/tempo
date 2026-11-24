@@ -60,6 +60,9 @@ struct NutritionTodayView: View {
     /// taken set (a fetch in a computed view doesn't auto-refresh on insert).
     @State
     private var supplementTakenRefresh = 0
+    /// Ties a meal card to the meal page that opens from it.
+    @Namespace
+    private var mealZoom
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -96,7 +99,11 @@ struct NutritionTodayView: View {
                 }
                 .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s8)
+                // Pin the content to the screen width: nothing inside can make
+                // the page wider, so it only ever scrolls up and down.
+                .containerRelativeFrame(.horizontal)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .scrollEdgeEffectStyle(.soft, for: .top)
             // Meal logging now lives solely on the Log tab — the Today page's
             // floating "Log a Meal" FAB was removed (redundant entry point).
@@ -113,7 +120,9 @@ struct NutritionTodayView: View {
                 supplementTakenRefresh += 1
             }
             .navigationDestination(item: $detailMeal) { meal in
+                // The meal page grows out of its card and shrinks back into it.
                 MealDetailView(meal: meal)
+                    .navigationTransition(.zoom(sourceID: meal.id, in: mealZoom))
             }
             .sheet(item: $feedbackMeal, onDismiss: {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
@@ -162,22 +171,39 @@ struct NutritionTodayView: View {
 
     /// Four thumb-sized shortcuts at the top of Today.
     private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
-        GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
-                    onQuickLog()
+        let quickLog = actionButton(icon: "text.bubble.fill", label: "Quick Log", id: "today.action.quicklog") {
+            onQuickLog()
+        }
+        let scan = actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
+            onScan()
+        }
+        // One tap logs a glass; the water card (scrolled into view) shows
+        // the new total and its Undo.
+        let water = actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water", tint: Tide.water) {
+            WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
+            scrollTo(Self.waterID)
+        }
+        let supplements = actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
+            viewModel.openKitchen(.supplements)
+        }
+        // Four across while they fit; two by two at large text sizes.
+        return GlassEffectContainer(spacing: Tide.s2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    quickLog
+                    scan
+                    water
+                    supplements
                 }
-                actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
-                    onScan()
-                }
-                // One tap logs a glass; the water card (scrolled into view) shows
-                // the new total and its Undo.
-                actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water", tint: Tide.water) {
-                    WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: 250)
-                    scrollTo(Self.waterID)
-                }
-                actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
-                    viewModel.openKitchen(.supplements)
+                VStack(spacing: Tide.s2) {
+                    HStack(spacing: Tide.s2) {
+                        quickLog
+                        scan
+                    }
+                    HStack(spacing: Tide.s2) {
+                        water
+                        supplements
+                    }
                 }
             }
         }
@@ -353,6 +379,9 @@ struct NutritionTodayView: View {
                             && !EatenMealRecorder.isSupplementDose(meal)
                             && !(viewModel.feedbackPresence[meal.id] ?? false)
                     )
+                    .matchedTransitionSource(id: meal.id, in: mealZoom)
+                    // The row is as tall as the card needs at any text size.
+                    .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }

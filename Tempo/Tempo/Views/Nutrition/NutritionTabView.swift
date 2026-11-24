@@ -70,10 +70,14 @@ struct NutritionTabView: View {
             VStack(spacing: 0) {
                 switch viewModel.loadState {
                 case .loading:
-                    Spacer()
-                    ProgressView()
-                        .tint(Tide.text2)
-                    Spacer()
+                    // The shape of the page that is coming, not a lone spinner.
+                    VStack(spacing: Tide.s4) {
+                        FuelSkeletonRows(count: 3).tideCard()
+                        FuelSkeletonRows(count: 2).tideCard()
+                    }
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 case let .error(message):
                     errorState(message)
@@ -303,22 +307,34 @@ struct NutritionTabView: View {
     /// recipe suggestions and the weekly review. These are short workflows
     /// that don't need their own segmented-control slots.
     private var planQuickLinks: some View {
-        GlassEffectContainer(spacing: Tide.s2) {
-            HStack(spacing: Tide.s2) {
-                NavigationLink {
-                    RecipeSuggestionsView(viewModel: viewModel)
-                } label: {
-                    Label("Recipes", systemImage: "fork.knife.circle.fill")
-                        .frame(maxWidth: .infinity)
+        let recipes = NavigationLink {
+            RecipeSuggestionsView(viewModel: viewModel)
+        } label: {
+            Label("Recipes", systemImage: "fork.knife.circle.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+        let review = NavigationLink {
+            WeeklyMealReviewView()
+        } label: {
+            Label("Review", systemImage: "text.bubble.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+
+        // Side by side while they fit, stacked at large text sizes.
+        return GlassEffectContainer(spacing: Tide.s2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    recipes
+                    review
                 }
-                .buttonStyle(.tideGlass)
-                NavigationLink {
-                    WeeklyMealReviewView()
-                } label: {
-                    Label("Review", systemImage: "text.bubble.fill")
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: Tide.s2) {
+                    recipes
+                    review
                 }
-                .buttonStyle(.tideGlass)
             }
         }
         .padding(.horizontal, Tide.edge)

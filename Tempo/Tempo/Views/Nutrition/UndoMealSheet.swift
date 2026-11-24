@@ -22,10 +22,12 @@ struct UndoMealSheet: View {
         ScrollView {
             VStack(spacing: Tide.s5) {
                 VStack(spacing: Tide.s2) {
-                    Image(systemName: isLog ? "trash.circle.fill" : "arrow.uturn.backward.circle.fill")
-                        .font(Tide.title)
-                        .foregroundStyle(Tide.danger)
-                        .accessibilityHidden(true)
+                    TideIconTile(
+                        systemName: isLog ? "trash.fill" : "arrow.uturn.backward",
+                        tint: Tide.danger,
+                        size: Tide.tileLarge
+                    )
+                    .accessibilityHidden(true)
                     Text(isLog ? "Delete this log?" : "Mark as not eaten?")
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)

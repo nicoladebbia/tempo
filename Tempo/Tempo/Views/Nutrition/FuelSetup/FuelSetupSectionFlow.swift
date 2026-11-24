@@ -570,7 +570,7 @@ struct FuelSetupSectionFlow: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
-                .frame(height: 100)
+                .frame(height: Tide.fuelWheel)
                 .clipped()
         }
         .padding(.horizontal, Tide.s3)

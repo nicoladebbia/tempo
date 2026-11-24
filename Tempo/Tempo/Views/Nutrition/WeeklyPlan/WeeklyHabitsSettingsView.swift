@@ -80,9 +80,7 @@ struct WeeklyHabitsSettingsView: View {
                 }
                 .fuelRow()
                 ForEach(routineSummary, id: \.self) { line in
-                    Text(line)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                    routineRow(line)
                         .fuelRow()
                 }
             } header: {
@@ -173,6 +171,29 @@ struct WeeklyHabitsSettingsView: View {
 
     private var settings: UserSettings? {
         NutritionTabViewModel.loadUserSettings(modelContext: modelContext)
+    }
+
+    /// "Mon: up 07:00 · train 17:30" shown as a day name and its detail,
+    /// so a week reads as a column instead of seven small sentences.
+    @ViewBuilder
+    private func routineRow(_ line: String) -> some View {
+        if let split = line.range(of: ": ") {
+            LabeledContent {
+                Text(line[split.upperBound...])
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.trailing)
+            } label: {
+                Text(line[..<split.lowerBound])
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(line)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+        }
     }
 
     private func load() {

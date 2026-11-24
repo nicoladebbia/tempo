@@ -156,9 +156,12 @@ struct FoodSearchView: View {
                 savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: "Recent")
             }
         } else if results.isEmpty, isLoading {
-            ProgressView()
-                .tint(Tide.text2)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The shape of the rows that are coming, not a lone spinner.
+            FuelSkeletonRows(count: 5)
+                .tideCard()
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else if results.isEmpty, hasSearched {
             noResultsState
         } else {

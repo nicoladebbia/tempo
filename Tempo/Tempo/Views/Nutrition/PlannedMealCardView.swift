@@ -115,30 +115,44 @@ struct PlannedMealCardView: View {
     // MARK: - Header Row
 
     private var headerRow: some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: mealIcon)
-                .font(Tide.headline)
-                .foregroundStyle(mealIconColor)
-                .frame(width: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+        let icon = Image(systemName: mealIcon)
+            .font(Tide.headline)
+            .foregroundStyle(mealIconColor)
+            .frame(width: Tide.icon, alignment: .leading)
+            .accessibilityHidden(true)
+        let title = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(meal.mealName)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .lineLimit(2)
 
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(meal.mealName)
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(2)
+            timeRow
+        }
+        let status = FuelPill(text: meal.status.displayName, color: statusColor)
+        let chevron = Image(systemName: "chevron.right")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+            .accessibilityHidden(true)
 
-                timeRow
+        // One row while it fits; at large text sizes the status drops under
+        // the name so no word is cut or hyphenated.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                icon
+                title
+                Spacer(minLength: Tide.s2)
+                status
+                chevron
             }
-
-            Spacer(minLength: Tide.s2)
-
-            FuelPill(text: meal.status.displayName, color: statusColor)
-
-            Image(systemName: "chevron.right")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
+            HStack(alignment: .top, spacing: Tide.s3) {
+                icon
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    title
+                    status
+                }
+                Spacer(minLength: Tide.s2)
+                chevron
+            }
         }
         .frame(minHeight: Tide.hit)
     }
@@ -254,29 +268,18 @@ struct PlannedMealCardView: View {
                 .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                 .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
         .accessibilityLabel("Leave feedback for \(meal.mealName)")
     }
 
     // MARK: - Helpers
 
     private var mealIcon: String {
-        switch meal.mealName.lowercased() {
-        case "breakfast": "sunrise.fill"
-        case "lunch": "sun.max.fill"
-        case "dinner": "moon.stars.fill"
-        case "snack": "carrot.fill"
-        default: "fork.knife"
-        }
+        FuelMealStyle.icon(forName: meal.mealName)
     }
 
     private var mealIconColor: Color {
-        switch meal.status {
-        case .eaten: Tide.good
-        case .skipped: Tide.danger
-        case .planned: mood.accent
-        case .modified: Tide.warn
-        }
+        FuelMealStyle.tone(for: meal.status, accent: mood.accent)
     }
 }
 

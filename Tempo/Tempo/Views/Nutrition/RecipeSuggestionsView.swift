@@ -36,8 +36,13 @@ struct RecipeSuggestionsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                if viewModel.recipeState.suggestions.isEmpty, !viewModel.recipeState.isLoading {
-                    emptyState
+                if viewModel.recipeState.suggestions.isEmpty {
+                    if viewModel.recipeState.isLoading {
+                        // Ranking the pantry against every recipe takes a moment.
+                        FuelAIState(kind: .working("Ranking recipes against your pantry…"))
+                    } else {
+                        emptyState
+                    }
                 } else {
                     ForEach(viewModel.recipeState.suggestions) { suggestion in
                         NavigationLink {
@@ -211,19 +216,31 @@ struct RecipeDetailLoader: View {
 
     @State
     private var recipe: Recipe?
+    @State
+    private var didLoad = false
 
     var body: some View {
         Group {
             if let recipe {
                 RecipeDetailView(recipe: recipe)
+            } else if didLoad {
+                FuelEmptyState(
+                    icon: "questionmark.folder",
+                    title: "Recipe not found",
+                    message: "It may have been deleted. Go back and pick another."
+                )
+                .padding(.horizontal, Tide.edge)
             } else {
-                ProgressView()
-                    .tint(Tide.text)
+                FuelSkeletonRows(count: 4)
+                    .tideCard()
+                    .padding(.horizontal, Tide.edge)
+                    .frame(maxHeight: .infinity, alignment: .top)
             }
         }
         .tidePage()
         .task {
             recipe = try? viewModel.recipeService?.fetch(byID: recipeID)
+            didLoad = true
         }
     }
 }
