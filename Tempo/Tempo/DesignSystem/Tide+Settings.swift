@@ -30,7 +30,7 @@ extension Tide {
     static let settingsAvatar: CGFloat = 56
     static let settingsAvatarLarge: CGFloat = 88
     /// "Connected", "Authorized": a green that keeps its meaning whatever the mood is.
-    static let settingsOK = Color.tempoSuccess
+    static let settingsOK = success
     /// The danger zone's glass: the card ink with a push of red.
     static let settingsDangerGlass = danger.opacity(0.2)
 }

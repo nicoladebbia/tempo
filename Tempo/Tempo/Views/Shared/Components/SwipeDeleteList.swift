@@ -44,7 +44,7 @@ struct SwipeDeleteList<Item: Identifiable, Row: View>: View where Item.ID: Hasha
                             Button(role: .destructive, action: spec.action) {
                                 Label(spec.label, systemImage: "trash.fill")
                             }
-                            .tint(Color.tempoError)
+                            .tint(Tide.danger)
                         }
                     }
             }

@@ -37,6 +37,10 @@ enum Tide {
     static let water = Color(red: 0.36, green: 0.78, blue: 1.00)
     static let streak = Color(red: 1.00, green: 0.66, blue: 0.36)
     static let danger = Color(red: 1.00, green: 0.45, blue: 0.47)
+    /// "Done", "Connected", "Authorized", a figure that went up: a green that
+    /// keeps its meaning whatever the mood is. (`Color.tempoSuccess` and
+    /// `tempoRecoveryGreen` are this same colour.)
+    static let success = Color(red: 0.42, green: 0.94, blue: 0.66)
 
     // MARK: Layout (4 pt grid)
 
@@ -66,6 +70,12 @@ enum Tide {
     static let labelShrink: CGFloat = 0.7
     /// The dial inside a sheet.
     static let dialSheet: CGFloat = 120
+    /// The largest text size drawn inside a ring or dial. The ring itself is a
+    /// fixed size, so text in it stops growing here; the same words are read
+    /// out in full by VoiceOver.
+    static let dialTextCap: DynamicTypeSize = .xxxLarge
+    /// The caption under the figure sits where the ring is narrowest, so it stops at the default size.
+    static let dialCaptionCap: DynamicTypeSize = .large
     /// Numeral sizes at the default text size: hero figure, tile figure, inline figure.
     static let numeralL: CGFloat = 44
     static let numeralM: CGFloat = 34

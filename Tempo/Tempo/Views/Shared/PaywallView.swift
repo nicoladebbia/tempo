@@ -176,7 +176,8 @@ struct PaywallView: View {
     // Per MONETIZATION_STRATEGY.md — Hero Pro features, ordered by Tier 1 priority.
 
     private var featureList: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
+        // Rows that run to several lines at large text need air between them.
+        VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? Tide.s3 : Tide.s1) {
             featureRow(icon: "sparkles", text: "Recovery insights from Whoop & wearables")
             featureRow(icon: "brain.head.profile", text: "AI-powered workout programming")
             featureRow(icon: "fork.knife", text: "AI nutrition coaching & meal plans")
@@ -186,7 +187,8 @@ struct PaywallView: View {
     }
 
     private func featureRow(icon: String, text: String) -> some View {
-        HStack(spacing: Tide.s3) {
+        // The symbol stays level with the first line when the text wraps.
+        HStack(alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
             Image(systemName: icon)
                 .font(Tide.headline)
                 .foregroundStyle(mood.accent)
@@ -265,14 +267,14 @@ struct PaywallView: View {
                         }
 
                         if product.isStudent {
-                            planTag("40% OFF", color: Color.tempoSuccess)
+                            planTag("40% OFF", color: Tide.success)
                         }
                     }
 
                     if isAnnual {
                         Text("Save 33%")
                             .font(Tide.caption)
-                            .foregroundStyle(Color.tempoRecoveryGreen)
+                            .foregroundStyle(Tide.success)
                     }
                 }
 
@@ -338,7 +340,7 @@ struct PaywallView: View {
                     Spacer()
                     Image(systemName: isStudentMode ? "checkmark.circle.fill" : "circle")
                         .font(Tide.headline)
-                        .foregroundStyle(isStudentMode ? Color.tempoSuccess : Tide.text3)
+                        .foregroundStyle(isStudentMode ? Tide.success : Tide.text3)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, Tide.s4)
@@ -376,7 +378,7 @@ struct PaywallView: View {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(Tide.caption)
-                        .foregroundStyle(Color.tempoSuccess)
+                        .foregroundStyle(Tide.success)
                         .accessibilityHidden(true)
                     Text("Replaces Whoop ($30) + MyFitnessPal ($20) + Strong ($5) = saves $55/mo")
                         .font(Tide.caption)

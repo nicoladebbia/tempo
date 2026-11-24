@@ -40,7 +40,7 @@ struct LinearProgressBar: View {
     }
 
     private var fillColor: Color {
-        progress > 1.0 ? Color.tempoSuccess : color
+        progress > 1.0 ? Tide.success : color
     }
 
     var body: some View {

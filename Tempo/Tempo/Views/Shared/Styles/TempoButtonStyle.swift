@@ -3,7 +3,8 @@
 // Tempo
 //
 // The older button style names, drawn the Tide way: one filled capsule in the
-// mood accent for the main action, glass capsules for the rest.
+// mood accent for the main action, glass capsules for the rest. A label that
+// does not fit on one line wraps and the button grows, so it is never cut off.
 //
 
 import SwiftUI
@@ -18,9 +19,9 @@ struct TempoPrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.headline)
             .foregroundStyle(isEnabled ? Tide.ink : Tide.text3)
-            .lineLimit(1)
-            .minimumScaleFactor(Tide.labelShrink)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s3)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(isEnabled ? AnyShapeStyle(.tint) : AnyShapeStyle(Tide.fill), in: .capsule)
             .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
@@ -41,9 +42,9 @@ struct TempoSecondaryButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.headline)
             .foregroundStyle(isEnabled ? Tide.text : Tide.text3)
-            .lineLimit(1)
-            .minimumScaleFactor(Tide.labelShrink)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s3)
             .frame(maxWidth: .infinity, minHeight: 52)
             .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
             .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
@@ -63,9 +64,9 @@ struct TempoDestructiveButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.headline)
             .foregroundStyle(isEnabled ? Tide.danger : Tide.text3)
-            .lineLimit(1)
-            .minimumScaleFactor(Tide.labelShrink)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, Tide.s5)
+            .padding(.vertical, Tide.s3)
             .frame(maxWidth: .infinity, minHeight: 52)
             .glassEffect(.regular.tint(Tide.danger.opacity(0.14)).interactive(), in: .capsule)
             .scaleEffect(configuration.isPressed ? Tide.pressButton : 1)
@@ -85,6 +86,8 @@ struct TempoGhostButtonStyle: ButtonStyle {
         configuration.label
             .font(Tide.bodyStrong)
             .foregroundStyle(isEnabled ? AnyShapeStyle(.tint) : AnyShapeStyle(Tide.text3))
+            .multilineTextAlignment(.center)
+            .padding(.vertical, Tide.s2)
             .frame(maxWidth: .infinity, minHeight: Tide.hit)
             .opacity(configuration.isPressed ? 0.6 : 1)
             .animation(Tide.snap, value: configuration.isPressed)

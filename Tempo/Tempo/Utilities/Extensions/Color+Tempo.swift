@@ -49,7 +49,7 @@ extension Color {
 
     // MARK: - Semantic
 
-    static let tempoSuccess = Color(red: 0.42, green: 0.94, blue: 0.66)
+    static let tempoSuccess = Tide.success
     static let tempoWarning = Color(red: 1.00, green: 0.80, blue: 0.40)
     static let tempoError = Tide.danger
     static let tempoInfo = Color(red: 0.62, green: 0.74, blue: 1.00)
@@ -73,8 +73,8 @@ extension Color {
 
     // MARK: - Recovery Zones
 
-    static let tempoRecoveryGreen = Color(red: 0.42, green: 0.94, blue: 0.66)
-    static let tempoRecoveryGreenBg = Color(red: 0.42, green: 0.94, blue: 0.66).opacity(0.16)
+    static let tempoRecoveryGreen = Tide.success
+    static let tempoRecoveryGreenBg = Tide.success.opacity(0.16)
     static let tempoRecoveryYellow = Color(red: 1.00, green: 0.80, blue: 0.40)
     static let tempoRecoveryYellowBg = Color(red: 1.00, green: 0.80, blue: 0.40).opacity(0.16)
     static let tempoRecoveryRed = Tide.danger

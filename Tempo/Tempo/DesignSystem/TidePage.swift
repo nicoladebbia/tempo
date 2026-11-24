@@ -18,6 +18,8 @@ private struct TidePageModifier: ViewModifier {
     let energy: Double
     @Environment(\.tideInsidePage)
     private var inside
+    @Environment(\.tideMood)
+    private var mood
 
     func body(content: Content) -> some View {
         content
@@ -28,6 +30,28 @@ private struct TidePageModifier: ViewModifier {
                     TideBackground(energy: energy)
                 }
             }
+            // A sheet opened from inside a page inherits "this page already has
+            // a field" and would draw none. Nested here, the field goes behind
+            // the sheet itself. On a page that is not a sheet root this does
+            // nothing, and a sheet that draws its own field is unaffected: the
+            // same field is behind it either way.
+            .tideSheetField(energy: energy, mood: mood, active: inside)
+    }
+}
+
+extension View {
+    /// The field as the background of the sheet or cover this view is the root
+    /// of, when `active`. Ignored when the view is not presented.
+    @ViewBuilder
+    fileprivate func tideSheetField(energy: Double, mood: TideMood, active: Bool) -> some View {
+        if active {
+            // The presentation sits above the page: the mood travels in by hand.
+            presentationBackground {
+                TideBackground(energy: energy).environment(\.tideMood, mood)
+            }
+        } else {
+            self
+        }
     }
 }
 
@@ -46,9 +70,13 @@ struct TidePageBackground: View {
     @Environment(\.tideInsidePage)
     private var inside
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         if inside {
-            Color.clear
+            // Nothing to draw here, but a sheet needs the field behind it.
+            Color.clear.tideSheetField(energy: Tide.sheetEnergy, mood: mood, active: true)
         } else {
             TideBackground(energy: Tide.sheetEnergy)
         }

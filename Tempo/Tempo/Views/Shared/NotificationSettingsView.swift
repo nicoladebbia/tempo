@@ -96,9 +96,9 @@ struct NotificationSettingsView: View {
                     authorizedContent
                 }
             } else {
-                ProgressView()
-                    .tint(Tide.text2)
-                    .frame(maxWidth: .infinity, minHeight: Tide.settingsRow * 3)
+                // The permission check takes a moment: the page's own shape,
+                // breathing, instead of a lone spinner.
+                LoadingStateView(style: .list)
             }
         }
         .navigationTitle("Notifications")
@@ -241,7 +241,7 @@ struct NotificationSettingsView: View {
 
     private var summaryCard: some View {
         TideSettingsHero {
-            Text("Reminders on").tideLabel()
+            TideLabel("Reminders on")
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber(
                     "\(remindersOn)", unit: "of \(remindersTotal)",

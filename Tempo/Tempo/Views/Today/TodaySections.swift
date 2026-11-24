@@ -31,54 +31,85 @@ struct TodayHeader: View {
     var weather: (symbol: String, temperature: String)?
     var openSettings: () -> Void = {}
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        HStack(alignment: .top, spacing: Tide.s2) {
-            VStack(alignment: .leading, spacing: Tide.s1) {
+        if typeSize.isAccessibilitySize {
+            // The greeting needs the whole line: streak and settings go above it.
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack(spacing: Tide.s2) {
-                    Text(dateLine).tideLabel()
-                    if let weather {
-                        Label(weather.temperature, systemImage: weather.symbol)
-                            .labelStyle(.titleAndIcon)
-                            .tideLabel()
-                            .accessibilityLabel("Weather \(weather.temperature)")
-                    }
+                    streak
+                    Spacer(minLength: Tide.s2)
+                    settingsButton
                 }
-                TimelineView(.everyMinute) { context in
-                    Text(TodayGreeting.text(
-                        hour: Calendar.current.component(.hour, from: context.date),
-                        name: snapshot.firstName
-                    ))
-                    .font(Tide.title)
-                    .foregroundStyle(Tide.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
+                titleBlock
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: Tide.s2)
-            if snapshot.streakDays > 0 {
-                HStack(spacing: Tide.s1) {
-                    Image(systemName: "flame.fill").font(Tide.bodyStrong).foregroundStyle(Tide.streak)
-                    TideNumber("\(snapshot.streakDays)", size: Tide.numeralS, relativeTo: .headline)
-                }
-                .padding(.horizontal, Tide.s4)
-                .frame(minHeight: Tide.hit)
-                .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(snapshot.streakDays) day streak")
-                .accessibilityIdentifier("today.streak")
+        } else {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                titleBlock
+                Spacer(minLength: Tide.s2)
+                streak
+                settingsButton
             }
-            Button(action: openSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                    .frame(width: Tide.hit, height: Tide.hit)
-                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Settings")
-            .accessibilityIdentifier("today.settings")
         }
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                : AnyLayout(HStackLayout(spacing: Tide.s2))
+            layout {
+                TideLabel(dateLine)
+                if let weather {
+                    Label(weather.temperature, systemImage: weather.symbol)
+                        .labelStyle(.titleAndIcon)
+                        .tideLabel()
+                        .accessibilityLabel("Weather \(weather.temperature)")
+                }
+            }
+            TimelineView(.everyMinute) { context in
+                Text(TodayGreeting.text(
+                    hour: Calendar.current.component(.hour, from: context.date),
+                    name: snapshot.firstName
+                ))
+                .font(Tide.title)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private var streak: some View {
+        if snapshot.streakDays > 0 {
+            HStack(spacing: Tide.s1) {
+                Image(systemName: "flame.fill").font(Tide.bodyStrong).foregroundStyle(Tide.streak)
+                TideNumber("\(snapshot.streakDays)", size: Tide.numeralS, relativeTo: .headline)
+            }
+            .padding(.horizontal, Tide.s4)
+            .frame(minHeight: Tide.hit)
+            .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(snapshot.streakDays) day streak")
+            .accessibilityIdentifier("today.streak")
+        }
+    }
+
+    private var settingsButton: some View {
+        Button(action: openSettings) {
+            Image(systemName: "gearshape.fill")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("today.settings")
     }
 }
 
@@ -154,6 +185,7 @@ struct TodayNextCard: View {
                     Label(button.title, systemImage: button.icon)
                 }
                 .buttonStyle(.tidePrimary)
+                .workoutZoomSource(.today)
                 .accessibilityIdentifier("today.next.action")
             }
         }
@@ -327,7 +359,7 @@ struct TodayTile<Content: View>: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 HStack {
-                    Text(label).tideLabel()
+                    TideLabel(label)
                     Spacer(minLength: Tide.s1)
                     Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
                         .accessibilityHidden(true)
@@ -373,7 +405,11 @@ struct TodayFuelCard: View {
                 VStack(alignment: .leading, spacing: Tide.s4) {
                     TideSectionLabel(title: "Fuel", trailing: caloriesLeft)
                     VStack(alignment: .leading, spacing: Tide.s2) {
-                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        // The figure and "of 3,130 kcal" go on two lines when one would wrap.
+                        let calorieLayout = typeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s2))
+                        calorieLayout {
                             TideNumber((fuel.calories ?? 0).formatted(), size: Tide.numeralL)
                             Text(fuel.calorieTarget.map { "of \($0.formatted()) kcal" } ?? "kcal")
                                 .font(Tide.body).foregroundStyle(Tide.text2)
@@ -423,7 +459,7 @@ struct TodayFuelCard: View {
 
     private func macro(_ name: String, _ value: Int?, _ target: Int?, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            Text(name).tideLabel()
+            TideLabel(name)
             HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                 TideNumber("\(value ?? 0)", size: Tide.numeralS, relativeTo: .headline)
                 Text(target.map { "/ \($0) g" } ?? "g").font(Tide.caption).foregroundStyle(Tide.text2)
@@ -437,13 +473,26 @@ struct TodayFuelCard: View {
 
     private var water: some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Image(systemName: "drop.fill").font(Tide.caption).foregroundStyle(Tide.water)
-                    .accessibilityHidden(true)
-                Text("Water").tideLabel()
-                Spacer(minLength: Tide.s2)
-                TideNumber(fuel.waterMl.formatted(), size: Tide.numeralS, relativeTo: .headline)
-                Text("/ \(fuel.waterTargetMl.formatted()) ml").font(Tide.caption).foregroundStyle(Tide.text2)
+            if typeSize.isAccessibilitySize {
+                // Name above, amount below: "/ 3,305 ml" never has to wrap.
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Image(systemName: "drop.fill").font(Tide.caption).foregroundStyle(Tide.water)
+                        .accessibilityHidden(true)
+                    TideLabel("Water")
+                }
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(fuel.waterMl.formatted(), size: Tide.numeralS, relativeTo: .headline)
+                    Text("/ \(fuel.waterTargetMl.formatted()) ml").font(Tide.caption).foregroundStyle(Tide.text2)
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    Image(systemName: "drop.fill").font(Tide.caption).foregroundStyle(Tide.water)
+                        .accessibilityHidden(true)
+                    TideLabel("Water")
+                    Spacer(minLength: Tide.s2)
+                    TideNumber(fuel.waterMl.formatted(), size: Tide.numeralS, relativeTo: .headline)
+                    Text("/ \(fuel.waterTargetMl.formatted()) ml").font(Tide.caption).foregroundStyle(Tide.text2)
+                }
             }
             TideLevelBar(progress: progress(fuel.waterMl, fuel.waterTargetMl), color: Tide.water, height: Tide.barSlim)
         }
@@ -478,7 +527,7 @@ struct TodayTasksCard: View {
                 } label: {
                     VStack(alignment: .leading, spacing: Tide.s3) {
                         HStack {
-                            Text("Daily tasks").tideLabel()
+                            TideLabel("Daily tasks")
                             Spacer(minLength: Tide.s1)
                             Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
                                 .accessibilityHidden(true)
@@ -668,10 +717,10 @@ struct TodayNoteCard: View {
                     Image(systemName: icon)
                         .font(Tide.headline)
                         .foregroundStyle(mood.accent)
-                        .frame(width: Tide.icon, alignment: .leading)
+                        .frame(minWidth: Tide.icon, alignment: .leading)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: Tide.s1) {
-                        Text(label).tideLabel()
+                        TideLabel(label)
                         Text(text)
                             .font(Tide.body)
                             .foregroundStyle(Tide.text)
@@ -739,7 +788,7 @@ struct TodaySetupCard: View {
                             Image(systemName: step.done ? "checkmark.circle.fill" : step.icon)
                                 .font(Tide.headline)
                                 .foregroundStyle(step.done ? Tide.text2 : mood.accent)
-                                .frame(width: Tide.icon, alignment: .leading)
+                                .frame(minWidth: Tide.icon, alignment: .leading)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 0) {
                                 Text(step.title).font(Tide.bodyStrong)

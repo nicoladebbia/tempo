@@ -26,6 +26,17 @@ extension Tide {
     static let stateWidth: CGFloat = 420
     /// How far the halo reaches past the symbol tile of an empty or error state.
     static let stateHalo: CGFloat = 72
+    /// The number being typed in the entry sheet, at the default text size.
+    static let numeralReadout: CGFloat = 72
+    /// A digit on the entry keypad, and how tall a key is.
+    static let numeralKey: CGFloat = 30
+    /// The largest a wheel row's digits grow: the row's height is fixed.
+    static let numeralWheelMax: CGFloat = 39
+    static let keyHeight: CGFloat = 60
+    /// The entry sheet at rest, tall enough for the readout, the keys and the Set button.
+    static let keypadSheetHeight: CGFloat = 660
+    /// The wheel alternative in the entry sheet.
+    static let wheelHeight: CGFloat = 320
 }
 
 // MARK: - TideFieldSurface
@@ -65,6 +76,21 @@ extension View {
     }
 }
 
+// MARK: - TideKeyStyle
+
+/// A key on a number pad: a soft tile that lights the instant it is touched,
+/// with no easing, so fast typing never waits on an animation.
+struct TideKeyStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+        configuration.label
+            .foregroundStyle(Tide.text)
+            .background(configuration.isPressed ? Tide.fillStrong : Tide.fill, in: shape)
+            .contentShape(shape)
+            .transaction { $0.animation = nil }
+    }
+}
+
 // MARK: - TideCardPressStyle
 
 /// A tappable card that dips slightly while pressed.
@@ -92,7 +118,9 @@ struct TideIconTile: View {
     var body: some View {
         let color = tint ?? mood.accent
         Image(systemName: systemName)
-            .font(.system(size: size * 0.44 * scale, weight: .semibold))
+            // The tile keeps its size, so the symbol stops growing before it
+            // can spill out of it (a wide glyph like the dumbbell at AX sizes).
+            .font(.system(size: size * 0.44 * min(scale, 1.35), weight: .semibold))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(color)
             .frame(width: size, height: size)

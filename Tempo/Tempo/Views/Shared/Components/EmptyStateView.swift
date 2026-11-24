@@ -11,7 +11,7 @@ import SwiftUI
 // MARK: - Empty State View
 
 // A calm glass card with a breathing symbol, one line of what is missing and,
-// when there is a next step, one button. The spacers stay outside the card so a screen
+// when there is a next step, a button (and a quieter second one). The spacers stay outside the card so a screen
 // that is only this view centres it.
 
 struct EmptyStateView: View {
@@ -20,19 +20,25 @@ struct EmptyStateView: View {
     let message: String
     let actionTitle: String?
     let action: (() -> Void)?
+    let secondaryTitle: String?
+    let secondaryAction: (() -> Void)?
 
     init(
         icon: String,
         title: String,
         message: String,
         actionTitle: String? = nil,
-        action: (() -> Void)? = nil
+        action: (() -> Void)? = nil,
+        secondaryTitle: String? = nil,
+        secondaryAction: (() -> Void)? = nil
     ) {
         self.icon = icon
         self.title = title
         self.message = message
         self.actionTitle = actionTitle
         self.action = action
+        self.secondaryTitle = secondaryTitle
+        self.secondaryAction = secondaryAction
     }
 
     var body: some View {
@@ -57,10 +63,18 @@ struct EmptyStateView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if let actionTitle, let action {
-                    Button(actionTitle, action: action)
-                        .buttonStyle(.tidePrimary)
-                        .padding(.top, Tide.s2)
+                if (actionTitle != nil && action != nil) || (secondaryTitle != nil && secondaryAction != nil) {
+                    VStack(spacing: Tide.s2) {
+                        if let actionTitle, let action {
+                            Button(actionTitle, action: action)
+                                .buttonStyle(.tidePrimary)
+                        }
+                        if let secondaryTitle, let secondaryAction {
+                            Button(secondaryTitle, action: secondaryAction)
+                                .buttonStyle(.tideGlass)
+                        }
+                    }
+                    .padding(.top, Tide.s2)
                 }
             }
             .frame(maxWidth: .infinity)
