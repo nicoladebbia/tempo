@@ -270,16 +270,23 @@ struct ExerciseDetailView: View {
         let sessions30d = thirtyDayHistory.count
 
         return TrainPlanCard(label: "Your stats") {
+            // The one number the lift is judged by leads, larger than the rest.
+            TrainStat(
+                value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
+                label: "Current 1RM",
+                size: Tide.numeralM
+            )
+            if history.isEmpty {
+                Text("No sets logged yet. Your numbers fill in after your first session.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: TideTrain.statColumn * 1.4), spacing: Tide.s3, alignment: .topLeading)],
                 alignment: .leading,
                 spacing: Tide.s4
             ) {
-                TrainStat(
-                    value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
-                    label: "Current 1RM",
-                    size: Tide.numeralS
-                )
                 TrainStat(
                     value: bestSetText(bestSet),
                     label: "Best Set",
