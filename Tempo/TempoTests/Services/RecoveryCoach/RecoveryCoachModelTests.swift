@@ -6,23 +6,32 @@
 @testable import Tempo
 import XCTest
 
+// MARK: - FakeCoachAPI
+
 private final class FakeCoachAPI: RecoveryCoachAPI, @unchecked Sendable {
     private let lock = NSLock()
     private var _requests: [CoachRecoveryRequest] = []
     var sessions: Result<[CoachSession], Error> = .success([])
     var recovery: Result<CoachRecoveryResponse, Error> = .failure(APIError.timeout)
 
-    var requests: [CoachRecoveryRequest] { lock.withLock { _requests } }
+    var requests: [CoachRecoveryRequest] {
+        lock.withLock { _requests }
+    }
 
     private var _fetches = 0
-    var fetches: Int { lock.withLock { _fetches } }
+    var fetches: Int {
+        lock.withLock { _fetches }
+    }
+
     /// Runs inside the first fetch, before it answers (e.g. a WHOOP share landing mid-flight).
     var duringFirstFetch: (@MainActor () async -> Void)?
 
     func recentSessions() async throws -> [CoachSession] {
         let n = lock.withLock { _fetches += 1; return _fetches }
         let answer = sessions // the server answers as of when the request reached it
-        if n == 1, let duringFirstFetch { await duringFirstFetch() }
+        if n == 1, let duringFirstFetch {
+            await duringFirstFetch()
+        }
         return try answer.get()
     }
 
@@ -31,6 +40,8 @@ private final class FakeCoachAPI: RecoveryCoachAPI, @unchecked Sendable {
         return try recovery.get()
     }
 }
+
+// MARK: - RecoveryCoachModelTests
 
 @MainActor
 final class RecoveryCoachModelTests: XCTestCase {
@@ -49,7 +60,8 @@ final class RecoveryCoachModelTests: XCTestCase {
     }
 
     private func make(api: FakeCoachAPI, health: MockHealthKitService = MockHealthKitService(), waterMl: Int = 0)
-        -> (RecoveryCoachModel, RecoveryCoachStore) {
+        -> (RecoveryCoachModel, RecoveryCoachStore)
+    {
         let store = RecoveryCoachStore(defaults: UserDefaults(suiteName: "coach-m-\(UUID().uuidString)")!, key: "k")
         let n = now
         return (RecoveryCoachModel(api: api, healthKit: health, store: store, waterMl: { _, _ in waterMl }, now: { n }), store)
@@ -66,7 +78,7 @@ final class RecoveryCoachModelTests: XCTestCase {
         let api = FakeCoachAPI()
         let s = session()
         api.sessions = .success([s])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let health = MockHealthKitService()
         health.bodyMassSamples = [HealthWeightSample(time: s.start.addingTimeInterval(-600), kg: 78, sourceName: "Withings")]
         let (model, _) = make(api: api, health: health)
@@ -81,7 +93,7 @@ final class RecoveryCoachModelTests: XCTestCase {
 
     /// The server answers 404 while it has no WHOOP access yet (the phone shares it after its WHOOP check).
     /// That is "nothing to weigh", not an error screen.
-    func testServerWithoutWhoopAccessIsQuietNotAnError() async throws {
+    func testServerWithoutWhoopAccessIsQuietNotAnError() async {
         let api = FakeCoachAPI()
         api.sessions = .failure(APIError.notFound)
         let (model, _) = make(api: api)
@@ -127,7 +139,7 @@ final class RecoveryCoachModelTests: XCTestCase {
     func testBodyMassFallsBackToHealthWhenNoWeighInInWindow() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let (model, _) = make(api: api)
         await model.refresh()
         XCTAssertTrue(try XCTUnwrap(api.requests.first).weighIns.isEmpty)
@@ -137,7 +149,7 @@ final class RecoveryCoachModelTests: XCTestCase {
     func testQuickAnswerAndWaterLogsAreSummed() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
-        api.recovery = .success(try response(ready))
+        api.recovery = try .success(response(ready))
         let (model, store) = make(api: api, waterMl: 250)
         store.recordQuickAnswer(sessionID: "s1", bottles: 1, now: now)
         await model.refresh()
@@ -148,7 +160,7 @@ final class RecoveryCoachModelTests: XCTestCase {
     func testOfflineKeepsLastResultAndFlagsIt() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
-        api.recovery = .success(try response(ready))
+        api.recovery = try .success(response(ready))
         let (model, _) = make(api: api)
         await model.refresh()
         XCTAssertFalse(model.isOfflineResult)
@@ -165,7 +177,9 @@ final class RecoveryCoachModelTests: XCTestCase {
         api.sessions = .failure(APIError.timeout)
         let (model, _) = make(api: api)
         await model.refresh()
-        guard case .failed = model.phase else { return XCTFail("expected failed, got \(model.phase)") }
+        guard case .failed = model.phase else {
+            return XCTFail("expected failed, got \(model.phase)")
+        }
         XCTAssertFalse(model.hasSession)
     }
 
@@ -181,7 +195,7 @@ final class RecoveryCoachModelTests: XCTestCase {
         let api = FakeCoachAPI()
         let s = session()
         api.sessions = .success([s])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let (model, _) = make(api: api)
         await model.refresh()
         await model.addManualWeighIn(kg: 77, at: s.end.addingTimeInterval(300))
@@ -194,7 +208,7 @@ final class RecoveryCoachModelTests: XCTestCase {
         let api = FakeCoachAPI()
         let s = session()
         api.sessions = .success([s])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let (model, _) = make(api: api)
         await model.refresh()
         await model.addManualWeighIn(kg: 99, at: s.end.addingTimeInterval(300))
@@ -202,10 +216,45 @@ final class RecoveryCoachModelTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(api.requests.last).weighIns.isEmpty)
     }
 
+    func testUndoOfAnAddedWeighInTakesItAwayAgain() async throws {
+        let api = FakeCoachAPI()
+        let s = session()
+        api.sessions = .success([s])
+        api.recovery = try .success(response(needs))
+        let (model, store) = make(api: api)
+        await model.refresh()
+        let time = s.end.addingTimeInterval(300)
+        let replaced = model.manualWeighIn(at: time)
+        await model.addManualWeighIn(kg: 77, at: time)
+        XCTAssertNil(replaced)
+        XCTAssertEqual(store.read().manualWeighIns.map(\.kg), [77])
+        await model.undoManualWeighIn(at: time, restoring: replaced)
+        XCTAssertTrue(store.read().manualWeighIns.isEmpty)
+        XCTAssertTrue(try XCTUnwrap(api.requests.last).weighIns.isEmpty)
+    }
+
+    func testUndoPutsBackTheWeighInANewOneReplacedAtTheSameSecond() async throws {
+        let api = FakeCoachAPI()
+        let s = session()
+        api.sessions = .success([s])
+        api.recovery = try .success(response(needs))
+        let (model, store) = make(api: api)
+        await model.refresh()
+        let time = s.end.addingTimeInterval(300)
+        await model.addManualWeighIn(kg: 77, at: time)
+        let replaced = model.manualWeighIn(at: time)
+        XCTAssertEqual(replaced?.kg, 77)
+        await model.addManualWeighIn(kg: 80, at: time)
+        XCTAssertEqual(store.read().manualWeighIns.map(\.kg), [80])
+        await model.undoManualWeighIn(at: time, restoring: replaced)
+        XCTAssertEqual(store.read().manualWeighIns.map(\.kg), [77])
+        XCTAssertEqual(api.requests.last?.weighIns.map(\.kg), [77])
+    }
+
     func testClearFluidRemovesTheQuickAnswerToo() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
-        api.recovery = .success(try response(ready))
+        api.recovery = try .success(response(ready))
         let (model, store) = make(api: api)
         store.recordQuickAnswer(sessionID: "s1", bottles: 1, now: now)
         await model.refresh()
@@ -218,7 +267,7 @@ final class RecoveryCoachModelTests: XCTestCase {
     func testChangingTheBottleSizeRepricesAnEarlierAnswer() async throws {
         let api = FakeCoachAPI()
         api.sessions = .success([session()])
-        api.recovery = .success(try response(ready))
+        api.recovery = try .success(response(ready))
         let (model, store) = make(api: api)
         store.recordQuickAnswer(sessionID: "s1", bottles: 1, now: now) // 750 mL at the time
         await model.refresh()
@@ -236,7 +285,7 @@ final class RecoveryCoachModelTests: XCTestCase {
             sportName: nil, strain: nil, kilojoules: nil, averageHeartRate: nil, percentRecorded: nil
         )
         api.sessions = .success([a, newer])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let (model, _) = make(api: api)
         await model.refresh(requestedID: "s1")
         await model.refresh(requestedID: model.session?.id)
@@ -251,7 +300,7 @@ final class RecoveryCoachModelTests: XCTestCase {
             sportName: nil, strain: nil, kilojoules: nil, averageHeartRate: nil, percentRecorded: nil
         )
         api.sessions = .success([a, older])
-        api.recovery = .success(try response(needs))
+        api.recovery = try .success(response(needs))
         let (model, _) = make(api: api)
         await model.refresh(requestedID: "old")
         XCTAssertEqual(model.session?.id, "old")

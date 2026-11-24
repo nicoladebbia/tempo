@@ -3,14 +3,16 @@
 // Tempo
 //
 // Small card on Nutrition Today. Hidden unless a session from the last 48 h
-// needs a weigh-in or has a result. Tapping opens the Recovery Coach.
+// needs a weigh-in or has a result. Tapping opens the Coach section of Fuel,
+// where that session is the first thing on the page.
 //
 
 import SwiftUI
 
 struct RecoveryCoachCard: View {
     @Environment(RecoveryCoachModel.self) private var model: RecoveryCoachModel?
-    @Environment(ServiceContainer.self) private var services
+    /// Opens the Coach section.
+    let onOpen: () -> Void
     @State private var opens = 0
 
     var body: some View {
@@ -19,7 +21,7 @@ struct RecoveryCoachCard: View {
             if let model, let session = model.session {
                 Button {
                     opens += 1
-                    open(session)
+                    onOpen()
                 } label: {
                     HStack(spacing: Tide.s3) {
                         TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit - Tide.s2)
@@ -49,21 +51,6 @@ struct RecoveryCoachCard: View {
                 .sensoryFeedback(.selection, trigger: opens)
                 .accessibilityIdentifier("coach.card")
             }
-        }
-    }
-
-    /// Re-asking for the same session must still present it (the state can outlive a sheet the system closed).
-    private func open(_ session: CoachSession) {
-        let appState = services.appState
-        let request = CoachRequest(id: session.id)
-        guard appState.requestedCoach == request else {
-            appState.requestedCoach = request
-            return
-        }
-        appState.requestedCoach = nil
-        Task { @MainActor in
-            await Task.yield()
-            appState.requestedCoach = request
         }
     }
 

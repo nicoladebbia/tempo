@@ -84,7 +84,7 @@ struct NutritionTodayView: View {
                     WaterCardView()
                         .id(Self.waterID)
                     supplementsCard
-                    RecoveryCoachCard()
+                    RecoveryCoachCard(onOpen: { viewModel.selectedTab = .coach })
                     UseUpSoonCard(viewModel: viewModel)
 
                     // AI disclaimer
