@@ -48,7 +48,7 @@ struct FuelFlowScaffold<Content: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tide.s6) {
                     VStack(alignment: .leading, spacing: Tide.s2) {
-                        if let eyebrow {
+                        if let eyebrow, eyebrow.caseInsensitiveCompare(title) != .orderedSame {
                             Text(eyebrow)
                                 .tideLabel(mood.accent)
                                 .fixedSize(horizontal: false, vertical: true)

@@ -63,9 +63,12 @@ struct UndoMealSheet: View {
                 }
                 .buttonStyle(.fuelDestructive)
                 .accessibilityIdentifier("undoMealConfirm")
-                Button("Keep it", action: onCancel)
-                    .buttonStyle(.tideGlass)
-                    .accessibilityIdentifier("undoMealCancel")
+                Button(action: onCancel) {
+                    Text("Keep it")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("undoMealCancel")
             }
         }
         .tidePage()

@@ -72,8 +72,11 @@ struct WeeklyCheckInView: View {
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(sent ? "Done" : "Cancel") { dismiss() }
+                // Once sent, the Done button under the thumb is the way out.
+                if !sent {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
             }
         }

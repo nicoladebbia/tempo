@@ -593,6 +593,8 @@ struct VoiceTextField: View {
     private var transcriber = VoiceTranscriber()
     @State
     private var textBeforeListening = ""
+    @FocusState
+    private var focused: Bool
     @Environment(\.tideMood)
     private var mood
 
@@ -601,10 +603,14 @@ struct VoiceTextField: View {
             TextField(placeholder, text: $text, axis: .vertical)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
+                .focused($focused)
                 .lineLimit(3 ... 40)
                 .frame(minHeight: minHeight, alignment: .topLeading)
                 .padding(Tide.s4)
                 .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+                // The whole box takes a tap, not just the first line.
+                .contentShape(.rect(cornerRadius: Tide.tileRadius))
+                .onTapGesture { focused = true }
                 .disabled(transcriber.isListening)
             HStack(spacing: Tide.s2) {
                 if let error = transcriber.error {
