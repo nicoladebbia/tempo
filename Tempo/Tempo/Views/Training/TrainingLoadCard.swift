@@ -63,9 +63,9 @@ struct TrainingLoadCard: View {
         let strainDays = dailyStrain.suffix(ReadinessAssembler.strainWindow).filter { $0.strain != nil }.count
 
         VStack(alignment: .leading, spacing: Tide.s3) {
+            // Same small-caps label as every other Progress card.
             Text("Training load")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
+                .tideLabel()
                 .accessibilityAddTraits(.isHeader)
 
             // The hero: this week against the last four, as one tinted figure.
@@ -159,6 +159,8 @@ struct TrainingLoadCard: View {
                     .foregroundStyle(Tide.text3)
             }
         }
+        // Axis labels stop growing at xxxLarge: past that they overlap on a phone.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrainSession.chartHeight)
         .accessibilityLabel("Training load, acute to chronic ratio")
         .accessibilityValue(points.last.map { String(format: "%.2f, %@", $0.ratio, zoneLabel($0.ratio)) } ?? "")

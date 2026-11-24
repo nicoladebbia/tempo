@@ -518,11 +518,7 @@ struct MuscleHeatmapView: View {
                 }
             }
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: TideTrain.statColumn), spacing: Tide.s3, alignment: .topLeading)],
-                alignment: .leading,
-                spacing: Tide.s3
-            ) {
+            TrainStatGrid {
                 TrainStat(value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS)
                 TrainStat(value: "\(sets)", label: "working sets", size: Tide.numeralS)
                 TrainStat(value: "\(exercises.count)", label: "sessions", size: Tide.numeralS)

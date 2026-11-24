@@ -212,6 +212,31 @@ struct TrainStat: View {
     }
 }
 
+// MARK: - TrainStatGrid
+
+/// Stats side by side as far as they fit, one per row at accessibility text sizes
+/// (a fixed minimum column would crowd three big numerals into one line).
+struct TrainStatGrid<Content: View>: View {
+    var minimum: CGFloat = TideTrain.statColumn
+    var rowSpacing: CGFloat = Tide.s3
+    @ViewBuilder var content: Content
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        LazyVGrid(
+            columns: typeSize.isAccessibilitySize
+                ? [GridItem(.flexible(), alignment: .topLeading)]
+                : [GridItem(.adaptive(minimum: minimum), spacing: Tide.s3, alignment: .topLeading)],
+            alignment: .leading,
+            spacing: rowSpacing
+        ) {
+            content
+        }
+    }
+}
+
 // MARK: - TrainStatRow
 
 /// A row of stats on one glass card, separated by thin lines.
@@ -1167,6 +1192,8 @@ struct TrainPlanTrendChart: View {
                     .foregroundStyle(Tide.text3)
             }
         }
+        // Axis labels stop growing at xxxLarge: past that they overlap on a phone.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.chartHeight)
     }
 }
@@ -1252,6 +1279,7 @@ struct TrainPlanBarChart: View {
                 AxisValueLabel().font(TrainPlanAxis.label).foregroundStyle(Tide.text3)
             }
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.barsHeight)
     }
 }
@@ -1280,6 +1308,7 @@ struct TrainPlanDateBars: View {
             }
         }
         .chartXAxis(.hidden)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrain.barsHeight * 0.72)
     }
 }

@@ -109,8 +109,7 @@ struct RunHistoryView: View {
             TideLabel("Last 30 days")
             TideNumber(total.value, unit: total.unit, size: Tide.numeralL, relativeTo: .largeTitle)
                 .contentTransition(.numericText())
-            // The week labels cannot fit side by side at a big text size.
-            if !recentRuns.isEmpty, !typeSize.isAccessibilitySize {
+            if !recentRuns.isEmpty {
                 TrainPlanBarChart(bars: weeklyBars)
                     .accessibilityHidden(true)
             }

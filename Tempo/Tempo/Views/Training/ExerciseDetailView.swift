@@ -282,11 +282,7 @@ struct ExerciseDetailView: View {
                     .foregroundStyle(Tide.text3)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: TideTrain.statColumn * 1.4), spacing: Tide.s3, alignment: .topLeading)],
-                alignment: .leading,
-                spacing: Tide.s4
-            ) {
+            TrainStatGrid(minimum: TideTrain.statColumn * 1.4, rowSpacing: Tide.s4) {
                 TrainStat(
                     value: bestSetText(bestSet),
                     label: "Best Set",
