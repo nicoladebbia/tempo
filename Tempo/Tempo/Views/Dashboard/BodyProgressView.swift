@@ -83,6 +83,7 @@ struct BodyProgressView: View {
                 addPhotoControl
             }
         }
+        .accessibilityIdentifier("body-progress-page")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // The one action on this page stays under the thumb.
             if !typeSize.isAccessibilitySize {
@@ -130,7 +131,6 @@ struct BodyProgressView: View {
             reloadPhotos()
             await BodyCompositionRefresh.refresh(from: services.healthKit, in: modelContext)
         }
-        .accessibilityIdentifier("body-progress-page")
     }
 
     // MARK: Private
@@ -281,20 +281,21 @@ struct BodyProgressView: View {
                 }
 
                 if points.count >= 2 {
+                    let shown = points.map {
+                        TempoLineChartData<BodyMetric>.DataPoint(
+                            date: $0.date,
+                            value: BodyProgress.displayValue($0.value, metric: metric, unit: unit)
+                        )
+                    }
                     TideLineChart(
                         data: [
                             TempoLineChartData(
-                                id: metric, label: metric.rawValue, color: TideTone.sky,
-                                points: points.map {
-                                    TempoLineChartData<BodyMetric>.DataPoint(
-                                        date: $0.date,
-                                        value: BodyProgress.displayValue($0.value, metric: metric, unit: unit)
-                                    )
-                                }
+                                id: metric, label: metric.rawValue, color: TideTone.sky, points: shown
                             ),
                         ],
                         height: Tide.chartHeight,
-                        axisDesiredCount: 4
+                        axisDesiredCount: 4,
+                        yDomain: ChartScale.fitted(shown.map(\.value))
                     )
                 } else {
                     RecoveryChartPlaceholder(message: placeholder(count: points.count))
@@ -397,7 +398,10 @@ struct BodyProgressView: View {
         } label: {
             VStack(spacing: Tide.s1) {
                 ProgressPhotoThumbnail(photo: photo, store: store)
-                Text(photo.date, format: .dateTime.day().month(.abbreviated).year())
+                // Two columns at large text: the year would not fit beside its neighbour.
+                Text(typeSize.isAccessibilitySize
+                    ? photo.date.formatted(.dateTime.day().month(.abbreviated))
+                    : photo.date.formatted(.dateTime.day().month(.abbreviated).year()))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)

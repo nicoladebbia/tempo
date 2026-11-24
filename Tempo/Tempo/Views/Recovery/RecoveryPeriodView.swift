@@ -67,7 +67,7 @@ struct RecoveryPeriodView: View {
                 // Sleep hours and strain over the period
                 singleTrendSection(
                     title: "Sleep trend", id: "sleep", label: "Sleep", color: TideSleepStage.deep,
-                    data: viewModel.sleepChartData
+                    data: viewModel.sleepChartData, fitsRange: true
                 )
                 singleTrendSection(
                     title: "Strain trend", id: "strain", label: "Strain", color: TideTone.amber,
@@ -203,7 +203,8 @@ struct RecoveryPeriodView: View {
         let isPositive = delta.map { higherIsBetter ? $0 >= 0 : $0 <= 0 }
         let tint = isFlat ? Tide.text2 : (isPositive.map { $0 ? TideTone.mint : Tide.danger } ?? Tide.text3)
         let formatted = delta.map { unit == "h" ? String(format: "%+.1f", $0) : String(format: "%+.0f", $0) }
-        let icon = isFlat ? "equal" : (isPositive.map { $0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
+        // The arrow points the way the number moved; the colour says if that is good.
+        let icon = isFlat ? "equal" : (delta.map { $0 > 0 ? "arrow.up.right" : "arrow.down.right" } ?? "minus")
         return HStack(spacing: Tide.s1) {
             Image(systemName: icon)
                 .font(Tide.label)
@@ -221,7 +222,8 @@ struct RecoveryPeriodView: View {
             return Text("No earlier data")
         }
         if isFlat {
-            return Text("Same as \(comparisonName)")
+            // The tile header already says "Change vs last week"; only the hero line spells it out.
+            return withComparison ? Text("Same as \(comparisonName)") : Text("Same")
         }
         return withComparison ? Text("\(formatted)\(unit) vs \(comparisonName)") : Text("\(formatted)\(unit)")
     }
@@ -290,8 +292,10 @@ struct RecoveryPeriodView: View {
     }
 
     /// One vital over the period, in a card of its own.
+    /// `fitsRange` draws the chart over the range the values actually span (sleep
+    /// hours 7 to 8) instead of from zero, so the change shows.
     private func singleTrendSection(
-        title: String, id: String, label: String, color: Color, data: [(Date, Double)]
+        title: String, id: String, label: String, color: Color, data: [(Date, Double)], fitsRange: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: title)
@@ -305,7 +309,8 @@ struct RecoveryPeriodView: View {
                                 points: data.map { TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1) }
                             ),
                         ],
-                        height: Tide.chartHeight
+                        height: Tide.chartHeight,
+                        yDomain: fitsRange ? ChartScale.fitted(data.map(\.1)) : nil
                     )
                 } else {
                     RecoveryChartPlaceholder(message: "Need more days of data to show trends.")

@@ -108,6 +108,9 @@ struct TideLineChart<ID: Hashable>: View {
     var axisDesiredCount: Int?
     /// Format for the scrub readout, e.g. one decimal.
     var valueFormat: FloatingPointFormatStyle<Double> = .number.precision(.fractionLength(0 ... 1))
+    /// The vertical range to draw, from `ChartScale.fitted`. Nil: the chart's own
+    /// range, which the soft area under the line pulls down to zero.
+    var yDomain: ClosedRange<Double>?
 
     @State
     private var selectedDate: Date?
@@ -115,6 +118,22 @@ struct TideLineChart<ID: Hashable>: View {
     private var reduceMotion
 
     var body: some View {
+        scaledChart
+            .frame(height: height)
+            .sensoryFeedback(.selection, trigger: selection?.date)
+            .animation(reduceMotion ? nil : Tide.snap, value: selection?.date)
+    }
+
+    @ViewBuilder
+    private var scaledChart: some View {
+        if let yDomain {
+            chart.chartYScale(domain: yDomain)
+        } else {
+            chart.chartYScale(domain: .automatic(includesZero: false))
+        }
+    }
+
+    private var chart: some View {
         Chart {
             ForEach(data) { series in
                 seriesMarks(series)
@@ -128,10 +147,6 @@ struct TideLineChart<ID: Hashable>: View {
         .chartYAxis {
             tideYAxisMarks(showGrid: showGrid)
         }
-        .chartYScale(domain: .automatic(includesZero: false))
-        .frame(height: height)
-        .sensoryFeedback(.selection, trigger: selection?.date)
-        .animation(reduceMotion ? nil : Tide.snap, value: selection?.date)
     }
 
     // MARK: Marks
@@ -145,14 +160,26 @@ struct TideLineChart<ID: Hashable>: View {
             endPoint: .bottom
         )
         ForEach(series.points, id: \.date) { point in
-            AreaMark(
-                x: .value("Date", point.date),
-                y: .value("Value", point.value),
-                series: .value("Series", key),
-                stacking: .unstacked
-            )
-            .foregroundStyle(fade)
-            .interpolationMethod(.monotone)
+            if let yDomain {
+                // The area rests on the bottom of the drawn range, not on zero.
+                AreaMark(
+                    x: .value("Date", point.date),
+                    yStart: .value("Base", yDomain.lowerBound),
+                    yEnd: .value("Value", point.value),
+                    series: .value("Series", key)
+                )
+                .foregroundStyle(fade)
+                .interpolationMethod(.monotone)
+            } else {
+                AreaMark(
+                    x: .value("Date", point.date),
+                    y: .value("Value", point.value),
+                    series: .value("Series", key),
+                    stacking: .unstacked
+                )
+                .foregroundStyle(fade)
+                .interpolationMethod(.monotone)
+            }
 
             LineMark(
                 x: .value("Date", point.date),

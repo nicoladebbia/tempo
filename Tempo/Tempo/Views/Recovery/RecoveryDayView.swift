@@ -285,12 +285,14 @@ struct RecoveryDayView: View {
 
                 TideNumber(value, unit: metric.unit, size: Tide.numeralM, relativeTo: .title2)
 
-                // Baseline indicator: green is the good side of your own average.
+                // Baseline indicator: the arrow points the way the number moved
+                // against your own average; green is the good side of it.
                 if let indicator {
                     HStack(spacing: Tide.s1) {
-                        Image(systemName: indicator.isPositive ? "arrow.up.right" : "arrow.down.right")
+                        Image(systemName: indicator.isRising ? "arrow.up.right" : "arrow.down.right")
                             .font(Tide.label)
-                        Text("vs avg").font(Tide.caption)
+                            .accessibilityHidden(true)
+                        Text(indicator.isRising ? "above avg" : "below avg").font(Tide.caption)
                     }
                     .foregroundStyle(indicator.isPositive ? TideTone.mint : Tide.danger)
                 } else {
@@ -402,29 +404,45 @@ struct RecoveryDayView: View {
         let rounded = delta.rounded()
         let isFlat = rounded == 0
         let isPositive = isHigherBetter ? delta >= 0 : delta <= 0
-        return HStack(spacing: Tide.s3) {
-            Text(label)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text2)
-                .frame(minWidth: Tide.s10, alignment: .leading)
-
-            TideNumber(todayValue, unit: unit.isEmpty ? nil : unit, size: Tide.numeralS, relativeTo: .headline)
-
-            Spacer(minLength: Tide.s2)
-
-            // Delta arrow
-            HStack(spacing: Tide.s1) {
-                Image(systemName: isFlat ? "equal" : (isPositive ? "arrow.up.right" : "arrow.down.right"))
-                    .font(Tide.label)
-                Text(isFlat ? "0" : String(format: "%+.0f", rounded))
-                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+        let name = Text(label)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text2)
+        let value = TideNumber(todayValue, unit: unit.isEmpty ? nil : unit, size: Tide.numeralS, relativeTo: .headline)
+        let change = HStack(spacing: Tide.s1) {
+            Image(systemName: isFlat ? "equal" : (delta > 0 ? "arrow.up.right" : "arrow.down.right"))
+                .font(Tide.label)
+            Text(isFlat ? "0" : String(format: "%+.0f", rounded))
+                .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+        }
+        .foregroundStyle(isFlat ? Tide.text2 : (isPositive ? TideTone.mint : Tide.danger))
+        let average = Text("avg \(baselineValue)")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
+        return Group {
+            if typeSize.isAccessibilitySize {
+                // At large text the four parts no longer share a row: name and
+                // value on top, change and average underneath.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(spacing: Tide.s3) {
+                        name
+                        value
+                    }
+                    HStack(spacing: Tide.s3) {
+                        change
+                        average
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Tide.s2)
+            } else {
+                HStack(spacing: Tide.s3) {
+                    name.frame(minWidth: Tide.s10, alignment: .leading)
+                    value
+                    Spacer(minLength: Tide.s2)
+                    change
+                    average.frame(minWidth: Tide.s10 + Tide.s6, alignment: .trailing)
+                }
             }
-            .foregroundStyle(isFlat ? Tide.text2 : (isPositive ? TideTone.mint : Tide.danger))
-
-            Text("avg \(baselineValue)")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-                .frame(minWidth: Tide.s10 + Tide.s6, alignment: .trailing)
         }
         .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
@@ -436,7 +454,10 @@ struct RecoveryDayView: View {
     // MARK: - Baseline Indicator Helper
 
     private struct BaselineIndicator {
+        /// Good side of the average: green.
         let isPositive: Bool
+        /// Above the average: the arrow points up.
+        let isRising: Bool
     }
 
     private func baselineIndicator(for metric: MetricType) -> BaselineIndicator? {
@@ -445,23 +466,23 @@ struct RecoveryDayView: View {
             guard let delta = viewModel.hrvDelta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta >= 0) // Higher HRV = better
+            return BaselineIndicator(isPositive: delta >= 0, isRising: delta >= 0) // Higher HRV = better
         case .rhr:
             guard let delta = viewModel.rhrDelta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta <= 0) // Lower RHR = better
+            return BaselineIndicator(isPositive: delta <= 0, isRising: delta > 0) // Lower RHR = better
         case .spo2:
             guard let delta = viewModel.spo2Delta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta >= 0) // Higher SpO2 = better
+            return BaselineIndicator(isPositive: delta >= 0, isRising: delta >= 0) // Higher SpO2 = better
         case .temp:
             guard let delta = viewModel.skinTempDelta else {
                 return nil
             }
             // Skin temp: closer to baseline is better, deviation either way is concerning
-            return BaselineIndicator(isPositive: abs(delta) < 0.5)
+            return BaselineIndicator(isPositive: abs(delta) < 0.5, isRising: delta >= 0)
         }
     }
 

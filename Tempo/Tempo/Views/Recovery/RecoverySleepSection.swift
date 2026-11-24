@@ -138,8 +138,12 @@ struct RecoverySleepSection: View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             Text("Sleep debt").tideLabel()
 
-            // Debt amount with severity colour
-            HStack(spacing: Tide.s3) {
+            // Debt amount with severity colour. At large text the amount, its
+            // caption and the severity no longer share one row.
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
+            layout {
                 Image(systemName: debtSeverityIcon)
                     .font(Tide.title2)
                     .foregroundStyle(debtSeverityColor)
@@ -153,9 +157,12 @@ struct RecoverySleepSection: View {
                     Text("accumulated over 7 days")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: Tide.s2)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
 
                 TideStatusPill(text: viewModel.sleepDebtSeverity.rawValue, tint: debtSeverityColor)
             }

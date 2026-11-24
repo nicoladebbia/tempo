@@ -79,7 +79,8 @@ struct MetricTrendSheet: View {
                                 }
                             ),
                         ],
-                        height: Tide.chartHeight
+                        height: Tide.chartHeight,
+                        yDomain: ChartScale.fitted(trendData.map(\.1))
                     )
                 } else {
                     RecoveryChartPlaceholder(

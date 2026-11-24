@@ -81,6 +81,7 @@ struct ProgressPhotoViewer: View {
                     .multilineTextAlignment(.center)
             }
             .padding(Tide.edge)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .tidePage()
             .navigationTitle("Photo")
             .navigationBarTitleDisplayMode(.inline)
@@ -155,8 +156,8 @@ struct ProgressPhotoCompare: View {
             ScrollView {
                 VStack(spacing: Tide.s4) {
                     HStack(alignment: .top, spacing: Tide.s3) {
-                        side(title: "Earlier", photo: earlier, selection: $earlierID)
-                        side(title: "Later", photo: later, selection: $laterID)
+                        side(title: "Earlier", photo: earlier, options: earlierOptions, selection: $earlierID)
+                        side(title: "Later", photo: later, options: laterOptions, selection: $laterID)
                     }
                     if let gap {
                         Text(gap)
@@ -181,11 +182,23 @@ struct ProgressPhotoCompare: View {
         .accessibilityIdentifier("progress-photo-compare")
     }
 
-    private func side(title: String, photo: ProgressPhoto?, selection: Binding<String?>) -> some View {
+    /// "Earlier" only offers photos older than the "Later" one, and the other way
+    /// round, so the left side is never the newer picture.
+    private var earlierOptions: [ProgressPhoto] {
+        photos.filter { $0.date < (later?.date ?? .distantFuture) }
+    }
+
+    private var laterOptions: [ProgressPhoto] {
+        photos.filter { $0.date > (earlier?.date ?? .distantPast) }
+    }
+
+    private func side(
+        title: String, photo: ProgressPhoto?, options: [ProgressPhoto], selection: Binding<String?>
+    ) -> some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             Text(title).tideLabel(Tide.text3)
             Menu {
-                ForEach(photos) { option in
+                ForEach(options) { option in
                     Button(option.date.formatted(date: .abbreviated, time: .omitted)) {
                         selection.wrappedValue = option.id
                     }
