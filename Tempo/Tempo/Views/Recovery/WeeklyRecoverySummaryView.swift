@@ -209,12 +209,19 @@ struct WeeklyRecoverySummaryView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Tide.s1) {
-                HStack(alignment: .firstTextBaseline) {
+                // The score drops under the name when the text is large.
+                let head = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                head {
                     Text(label)
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Spacer(minLength: Tide.s2)
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
+                    }
 
                     TideNumber("\(Int(score))", unit: "%", size: Tide.numeralM, relativeTo: .title2, color: color)
                 }
@@ -292,14 +299,20 @@ struct WeeklyRecoverySummaryView: View {
                     }
 
                     // Legend
-                    HStack(spacing: Tide.s4) {
+                    let legend = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                        : AnyLayout(HStackLayout(spacing: Tide.s4))
+                    legend {
                         legendDot(label: "Recovery", color: TideTone.mint)
                         legendDot(label: "Strain", color: TideTone.amber)
-                        Spacer(minLength: Tide.s2)
+                        if !typeSize.isAccessibilitySize {
+                            Spacer(minLength: Tide.s2)
+                        }
                         Text("Total: \(String(format: "%.0f", stats.totalStrain))")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, Tide.s1)
 
                     // Balance assessment

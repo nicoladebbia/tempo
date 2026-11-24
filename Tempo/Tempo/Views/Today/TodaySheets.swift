@@ -151,6 +151,9 @@ struct InsightDetailSheet: View {
 struct ScoreBreakdownSheet: View {
     let vm: DashboardViewModel
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     /// Each of the four parts is worth this much of the 100.
     private static let partMax: Double = 25
 
@@ -187,21 +190,31 @@ struct ScoreBreakdownSheet: View {
     }
 
     private func row(icon: String, label: String, points: Double, available: Bool) -> some View {
-        VStack(spacing: Tide.s2) {
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                Image(systemName: icon)
-                    .font(Tide.caption)
-                    .foregroundStyle(available ? Tide.text2 : Tide.text3)
-                    .frame(width: Tide.s5)
-                    .accessibilityHidden(true)
-                Text(label)
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(available ? Tide.text : Tide.text3)
-                Spacer(minLength: Tide.s2)
+        // At large text the points drop under the name instead of squeezing it.
+        let stacks = typeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
+        return VStack(spacing: Tide.s2) {
+            layout {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                    Image(systemName: icon)
+                        .font(Tide.caption)
+                        .foregroundStyle(available ? Tide.text2 : Tide.text3)
+                        .frame(width: Tide.s5)
+                        .accessibilityHidden(true)
+                    Text(label)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(available ? Tide.text : Tide.text3)
+                }
+                if !stacks {
+                    Spacer(minLength: Tide.s2)
+                }
                 Text(available ? "\(points.formatted(.number.precision(.fractionLength(1)))) / \(Int(Self.partMax))" : "No data")
                     .font(available ? Tide.numeral(Tide.numeralS) : Tide.caption)
                     .foregroundStyle(available ? Tide.text : Tide.text3)
                     .contentTransition(.numericText())
+                    .padding(.leading, stacks ? Tide.s5 + Tide.s3 : 0)
             }
             TideLevelBar(progress: available ? min(points / Self.partMax, 1) : 0, height: Tide.bar)
         }

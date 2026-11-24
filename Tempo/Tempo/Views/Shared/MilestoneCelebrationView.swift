@@ -26,13 +26,6 @@ struct MilestoneCelebrationView: View {
     private var showContent = false
     @State
     private var showIcon = false
-    @State
-    private var start = Date()
-    @State
-    private var burstDone = false
-
-    /// Seconds the burst plays before it holds its last, nearly empty, frame.
-    private let burstSeconds = 4.5
 
     var body: some View {
         // The scroll view only matters at the largest text sizes on a small
@@ -46,19 +39,14 @@ struct MilestoneCelebrationView: View {
             .scrollIndicators(.hidden)
             .scrollBounceBehavior(.basedOnSize)
         }
-        .background { burst }
+        // The same burst every moment in the app opens with (Tide+Arena kit).
+        .background { ArenaBurst(accent: mood.accent).ignoresSafeArea() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             buttons
         }
         .tidePage(energy: 1)
         .sensoryFeedback(.success, trigger: showIcon)
-        .task {
-            // The shader stops redrawing once the burst has played out.
-            try? await Task.sleep(for: .seconds(burstSeconds))
-            burstDone = true
-        }
         .onAppear {
-            start = Date()
             if reduceMotion {
                 showIcon = true
                 showContent = true
@@ -117,24 +105,6 @@ struct MilestoneCelebrationView: View {
 
             Spacer()
         }
-    }
-
-    // MARK: - Burst
-
-    private var burst: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || burstDone)) { context in
-            let t = reduceMotion || burstDone ? burstSeconds : min(context.date.timeIntervalSince(start), burstSeconds)
-            Rectangle()
-                .fill(Tide.text)
-                .visualEffect { content, proxy in
-                    content.colorEffect(ShaderLibrary.tideBurst(
-                        .float2(proxy.size), .float(t), .color(mood.accent), .color(Tide.carbs)
-                    ))
-                }
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     // MARK: - Buttons
