@@ -263,10 +263,8 @@ struct OnboardingAuthView: View {
         guard !name.isEmpty else {
             return
         }
+        // The handle follows the name (see `OnboardingViewModel.displayName`).
         viewModel.displayName = name
-        if viewModel.username.isEmpty {
-            viewModel.username = OnboardingViewModel.suggestedUsername(from: name)
-        }
     }
 }
 

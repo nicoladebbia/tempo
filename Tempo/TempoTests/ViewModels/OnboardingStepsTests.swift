@@ -157,6 +157,30 @@ final class OnboardingStepsTests: XCTestCase {
         XCTAssertEqual(OnboardingViewModel.suggestedUsername(from: String(repeating: "a", count: 50)).count, 30)
     }
 
+    func testTheHandleFollowsTheNameUntilThePersonTypesTheirOwn() {
+        let vm = OnboardingViewModel()
+        vm.displayName = "Nic"
+        XCTAssertEqual(vm.username, "nic")
+        vm.displayName = "Nicola Rossi"
+        XCTAssertEqual(vm.username, "nicolarossi")
+        vm.username = "nico_r"
+        vm.usernameEdited = true
+        vm.displayName = "Nicola R"
+        XCTAssertEqual(vm.username, "nico_r", "their own handle is kept")
+    }
+
+    func testASavedHandleThatIsNotTheSuggestionCountsAsTheirOwn() {
+        let first = OnboardingViewModel()
+        first.displayName = "Nicola"
+        first.username = "nico_r"
+        first.currentStep = .aboutYou
+        let second = OnboardingViewModel()
+        XCTAssertEqual(second.username, "nico_r")
+        XCTAssertTrue(second.usernameEdited)
+        second.displayName = "Nicola Rossi"
+        XCTAssertEqual(second.username, "nico_r")
+    }
+
     func testUsernameRules() {
         XCTAssertTrue(OnboardingViewModel.isValidUsername("nic_ola9"))
         XCTAssertFalse(OnboardingViewModel.isValidUsername("ab"))

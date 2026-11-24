@@ -66,7 +66,7 @@ struct PermissionsSetupView: View {
             switch self {
             case .health: "Steps, sleep and workouts, so your day starts with real numbers."
             case .notifications: "Morning briefings, meal and training reminders, streak alerts."
-            case .location: "Weather-aware hydration and training tips."
+            case .location: "Weather tips, run pace and distance, and meals eaten out."
             }
         }
     }
@@ -85,6 +85,7 @@ struct PermissionsSetupView: View {
                         title: kind.title,
                         why: kind.why,
                         access: access(for: kind),
+                        grantedText: kind == .health ? "Done" : "On",
                         isBusy: busy == kind,
                         errorText: errors[kind],
                         identifier: kind.rawValue
@@ -186,6 +187,8 @@ private struct PermissionRow: View {
     let title: String
     let why: String
     let access: SystemAccess
+    /// Health never says whether reading was allowed, so its row says "Done", not "On".
+    let grantedText: String
     let isBusy: Bool
     let errorText: String?
     let identifier: String
@@ -241,7 +244,7 @@ private struct PermissionRow: View {
             switch access {
             case .granted,
                  .limited:
-                Label("On", systemImage: "checkmark.circle.fill")
+                Label(grantedText, systemImage: "checkmark.circle.fill")
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.good)
                     .frame(minHeight: Tide.hit)

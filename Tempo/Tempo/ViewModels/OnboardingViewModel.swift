@@ -30,8 +30,18 @@ final class OnboardingViewModel {
     var isAnimatingTransition = false
 
     // Profile data
-    var displayName: String = ""
+    var displayName: String = "" {
+        didSet {
+            // The handle follows the name until the person types in the handle field.
+            if !usernameEdited {
+                username = Self.suggestedUsername(from: displayName)
+            }
+        }
+    }
+
     var username: String = ""
+    /// The person typed their own handle: stop suggesting one from the name.
+    var usernameEdited = false
 
     // Identity ("What best describes you?")
     var identityLabel: String = OnboardingViewModel.identityLabels[0]
@@ -466,6 +476,8 @@ final class OnboardingViewModel {
         }
         displayName = data["displayName"] as? String ?? ""
         username = data["username"] as? String ?? ""
+        // A saved handle that is not the one the name would give was typed by the person.
+        usernameEdited = !username.isEmpty && username != Self.suggestedUsername(from: displayName)
         identityLabel = data["identityLabel"] as? String ?? OnboardingViewModel.identityLabels[0]
         daysPerWeek = data["daysPerWeek"] as? Int ?? 4
         preferredSplit = data["preferredSplit"] as? String

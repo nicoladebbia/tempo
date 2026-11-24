@@ -28,9 +28,6 @@ struct ProfileSetupView: View {
     private var focusedField: Field?
     @State
     private var usernameError: String?
-    /// The person has typed in the handle field: stop filling it from the name.
-    @State
-    private var usernameEdited = false
     @ScaledMetric(relativeTo: .title)
     private var avatarSize: CGFloat = Tide.tileLarge + Tide.s2
 
@@ -90,16 +87,13 @@ struct ProfileSetupView: View {
                     .textContentType(.name)
                     .submitLabel(.next)
                     .onSubmit { focusedField = .username }
-                    .onChange(of: viewModel.displayName) { _, name in
-                        suggestUsername(from: name)
-                    }
                     .tideFieldSurface(focused: focusedField == .displayName)
             }
 
             VStack(alignment: .leading, spacing: Tide.s2) {
                 OnboardingSectionLabel("Username")
 
-                TextField("", text: $viewModel.username, prompt: Text("@username").foregroundStyle(Tide.text3))
+                TextField("", text: usernameBinding, prompt: Text("@username").foregroundStyle(Tide.text3))
                     .font(Tide.headline.weight(.regular))
                     .foregroundStyle(Tide.text)
                     .textInputAutocapitalization(.never)
@@ -108,12 +102,6 @@ struct ProfileSetupView: View {
                     .submitLabel(.done)
                     .onChange(of: viewModel.username) { _, _ in
                         checkUsernameAvailability()
-                    }
-                    .onChange(of: focusedField) { _, field in
-                        // Once the person touches the handle, it is theirs: stop suggesting.
-                        if field == .username {
-                            usernameEdited = true
-                        }
                     }
                     .tideFieldSurface(focused: focusedField == .username, invalid: usernameError != nil)
 
@@ -132,10 +120,6 @@ struct ProfileSetupView: View {
             identityMenu
         }
         .onAppear {
-            // A handle that is not the one we would suggest was typed by the person (or kept from a
-            // run that was interrupted): leave it alone.
-            let suggested = OnboardingViewModel.suggestedUsername(from: viewModel.displayName)
-            usernameEdited = !viewModel.username.isEmpty && viewModel.username != suggested
             if viewModel.displayName.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     focusedField = .displayName
@@ -145,12 +129,17 @@ struct ProfileSetupView: View {
         }
     }
 
-    /// Fills the handle from the name until the person edits the handle themselves.
-    private func suggestUsername(from name: String) {
-        guard !usernameEdited else {
-            return
-        }
-        viewModel.username = OnboardingViewModel.suggestedUsername(from: name)
+    /// Typing in the handle makes it the person's own: it stops following the name.
+    private var usernameBinding: Binding<String> {
+        Binding(
+            get: { viewModel.username },
+            set: { newValue in
+                if newValue != viewModel.username {
+                    viewModel.usernameEdited = true
+                    viewModel.username = newValue
+                }
+            }
+        )
     }
 
     // MARK: - Identity

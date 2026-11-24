@@ -83,13 +83,18 @@ struct ContentView: View {
         // Onboarding leaves its answers for this function to read; they are
         // not needed once the profile exists.
         defer { UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data") }
-        let descriptor = FetchDescriptor<UserProfile>()
-        guard (try? modelContext.fetchCount(descriptor)) == 0 else {
-            return
-        }
-
         // Read onboarding data from UserDefaults (persisted during onboarding)
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")
+        let chosenGoal = PrimaryGoal(saved: data?["primaryGoal"] as? String)
+        let descriptor = FetchDescriptor<UserProfile>()
+        guard (try? modelContext.fetchCount(descriptor)) == 0 else {
+            // Onboarding run again on a phone that already has its profile: the goal just chosen wins.
+            if let chosenGoal, let existing = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first {
+                existing.primaryGoal = chosenGoal
+                try? modelContext.save()
+            }
+            return
+        }
         let name = data?["displayName"] as? String ?? "Athlete"
         let user = data?["username"] as? String ?? "athlete"
         let identity = data?["identityLabel"] as? String ?? "Athlete"
@@ -123,13 +128,11 @@ struct ContentView: View {
             } else if let days = data?["daysPerWeek"] as? Int {
                 settings.trainingSplit = TrainingSplit.forDaysPerWeek(days)
             }
-            settings.primaryGoal = PrimaryGoal(saved: data?["primaryGoal"] as? String)
+            settings.primaryGoal = chosenGoal
             modelContext.insert(settings)
-        } else if let goal = PrimaryGoal(saved: data?["primaryGoal"] as? String),
-                  let existing = try? modelContext.fetch(settingsDescriptor).first, existing.primaryGoalRaw == nil
-        {
+        } else if let chosenGoal, let existing = try? modelContext.fetch(settingsDescriptor).first {
             // Settings were created before the profile (another screen got there first).
-            existing.primaryGoal = goal
+            existing.primaryGoal = chosenGoal
         }
 
         try? modelContext.save()
