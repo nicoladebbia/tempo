@@ -14,6 +14,9 @@ import UniformTypeIdentifiers
 
 // Shows completed workouts sorted by date descending.
 // Tapping a card expands to show per-exercise detail (sets/reps/weight).
+// This is the "History" tab of ProgressChartsView: the page, its background
+// and its title come from there; this view brings its own scrolling list, the
+// import overlay and the run-history and CSV buttons for the nav bar.
 
 struct WorkoutHistoryView: View {
     @Query(
@@ -124,11 +127,20 @@ struct WorkoutHistoryView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             if completedWorkouts.isEmpty {
-                TrainEmptyCard(
-                    systemImage: "clock.arrow.circlepath",
-                    title: "No Workouts Yet",
-                    message: "Complete your first workout to see your history here."
-                )
+                VStack(spacing: Tide.s3) {
+                    TrainEmptyCard(
+                        systemImage: "clock.arrow.circlepath",
+                        title: "No workouts yet",
+                        message: "Complete your first workout to see your history here, or bring in the history you already have."
+                    )
+                    Button {
+                        showCSVImporter = true
+                    } label: {
+                        Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.trainPlanSecondary)
+                }
                 .padding(.horizontal, Tide.edge)
                 .padding(.top, Tide.s4)
             } else {
@@ -142,149 +154,148 @@ struct WorkoutHistoryView: View {
                 .padding(.bottom, TideTrain.pageBottom)
             }
         }
-        .tidePage()
         #if DEBUG
-            // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
-            // path as the file picker (parse off-main, unit prompt, progress).
-            .task {
-                if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
-                    importCSV(.success(URL(fileURLWithPath: path)))
-                }
+        // Sim check: `-debugCSVImportPath /path/file.csv` runs the same import
+        // path as the file picker (parse off-main, unit prompt, progress).
+        .task {
+            if let path = UserDefaults.standard.string(forKey: "debugCSVImportPath"), !path.isEmpty {
+                importCSV(.success(URL(fileURLWithPath: path)))
             }
+        }
         #endif
-            .overlay {
-                if let importStage {
-                    importOverlay(importStage)
-                }
+        .overlay {
+            if let importStage {
+                importOverlay(importStage)
             }
-            .navigationTitle("Workout History")
-            .navigationBarTitleDisplayMode(.inline)
-            // §13 — cardio lives on its own surface; gym history stays this one.
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    NavigationLink(destination: RunHistoryView()) {
-                        Image(systemName: "figure.run")
-                    }
+        }
+        // §13 — cardio lives on its own surface; gym history stays this one.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                NavigationLink(destination: RunHistoryView()) {
+                    Image(systemName: "figure.run")
                 }
-                // §20 — CSV import (Strong/Hevy/generic) + Strong-compatible export.
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button {
-                            showCSVImporter = true
-                        } label: {
-                            Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
-                        }
-                        Button {
-                            exportHistory()
-                        } label: {
-                            Label("Export CSV", systemImage: "square.and.arrow.up")
-                        }
-                        .disabled(completedWorkouts.isEmpty)
-                        if undoableImportBatch != nil {
-                            Button(role: .destructive) {
-                                showUndoImportConfirm = true
-                            } label: {
-                                Label("Undo last import", systemImage: "arrow.uturn.backward")
-                            }
-                        }
+                .accessibilityLabel("Run history")
+            }
+            // §20 — CSV import (Strong/Hevy/generic) + Strong-compatible export.
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button {
+                        showCSVImporter = true
                     } label: {
-                        Image(systemName: "arrow.up.arrow.down.square")
+                        Label("Import CSV (Strong/Hevy)", systemImage: "square.and.arrow.down")
+                    }
+                    Button {
+                        exportHistory()
+                    } label: {
+                        Label("Export CSV", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(completedWorkouts.isEmpty)
+                    if undoableImportBatch != nil {
+                        Button(role: .destructive) {
+                            showUndoImportConfirm = true
+                        } label: {
+                            Label("Undo last import", systemImage: "arrow.uturn.backward")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.square")
+                }
+                .accessibilityLabel("Import or export workouts")
+            }
+        }
+        .fileImporter(
+            isPresented: $showCSVImporter,
+            allowedContentTypes: [.commaSeparatedText, .plainText]
+        ) { result in
+            importCSV(result)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { exportFileURL != nil },
+                set: {
+                    if !$0 {
+                        exportFileURL = nil
+                    }
+                }
+            )
+        ) {
+            if let url = exportFileURL {
+                ShareSheet(items: [url])
+            }
+        }
+        .confirmationDialog(
+            "Which unit is this file in?",
+            isPresented: Binding(
+                get: { pendingUnitChoice != nil },
+                set: {
+                    if !$0 {
+                        pendingUnitChoice = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            // The athlete's own unit first — the likeliest answer.
+            ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
+                Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
+                    if let file = pendingUnitChoice {
+                        pendingUnitChoice = nil
+                        startImport(file, unit: unit)
                     }
                 }
             }
-            .fileImporter(
-                isPresented: $showCSVImporter,
-                allowedContentTypes: [.commaSeparatedText, .plainText]
-            ) { result in
-                importCSV(result)
-            }
-            .sheet(
-                isPresented: Binding(
-                    get: { exportFileURL != nil },
-                    set: {
-                        if !$0 {
-                            exportFileURL = nil
-                        }
-                    }
-                )
-            ) {
-                if let url = exportFileURL {
-                    ShareSheet(items: [url])
-                }
-            }
-            .confirmationDialog(
-                "Which unit is this file in?",
-                isPresented: Binding(
-                    get: { pendingUnitChoice != nil },
-                    set: {
-                        if !$0 {
-                            pendingUnitChoice = nil
-                        }
-                    }
-                ),
-                titleVisibility: .visible
-            ) {
-                // The athlete's own unit first — the likeliest answer.
-                ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
-                    Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
-                        if let file = pendingUnitChoice {
-                            pendingUnitChoice = nil
-                            startImport(file, unit: unit)
-                        }
+            Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
+        } message: {
+            Text(
+                "This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation)."
+            )
+        }
+        .alert(
+            "Workout Import",
+            isPresented: Binding(
+                get: { csvResultMessage != nil },
+                set: {
+                    if !$0 {
+                        csvResultMessage = nil
+                        resultOffersUndo = false
                     }
                 }
-                Button("Cancel", role: .cancel) { pendingUnitChoice = nil }
-            } message: {
-                Text(
-                    "This export doesn't say. Picking the wrong one makes every weight 2.2x off. Tempo is set to \(weightUnit.abbreviation)."
-                )
-            }
-            .alert(
-                "Workout Import",
-                isPresented: Binding(
-                    get: { csvResultMessage != nil },
-                    set: {
-                        if !$0 {
-                            csvResultMessage = nil
-                            resultOffersUndo = false
-                        }
-                    }
-                )
-            ) {
-                Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
-                if resultOffersUndo, undoableImportBatch != nil {
-                    Button("Undo import", role: .destructive) { undoLastImport() }
-                }
-            } message: {
-                Text(csvResultMessage ?? "")
-            }
-            .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
+            )
+        ) {
+            Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
+            if resultOffersUndo, undoableImportBatch != nil {
                 Button("Undo import", role: .destructive) { undoLastImport() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
             }
-            .alert(
-                "Delete this workout?",
-                isPresented: Binding(
-                    get: { pendingDelete != nil },
-                    set: {
-                        if !$0 {
-                            pendingDelete = nil
-                        }
+        } message: {
+            Text(csvResultMessage ?? "")
+        }
+        .alert("Undo last import?", isPresented: $showUndoImportConfirm) {
+            Button("Undo import", role: .destructive) { undoLastImport() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes every workout, record and new exercise that import added. Workouts you logged yourself stay.")
+        }
+        .alert(
+            "Delete this workout?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: {
+                    if !$0 {
+                        pendingDelete = nil
                     }
-                ),
-                presenting: pendingDelete
-            ) { workout in
-                Button("Delete Workout", role: .destructive) {
-                    deleteWorkout(workout)
                 }
-                Button("Cancel", role: .cancel) {
-                    pendingDelete = nil
-                }
-            } message: { workout in
-                Text(Self.deleteConfirmationMessage(workout))
+            ),
+            presenting: pendingDelete
+        ) { workout in
+            Button("Delete Workout", role: .destructive) {
+                deleteWorkout(workout)
             }
+            Button("Cancel", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: { workout in
+            Text(Self.deleteConfirmationMessage(workout))
+        }
     }
 
     // MARK: - Swipe-to-Delete Row

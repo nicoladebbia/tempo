@@ -89,58 +89,46 @@ struct TrainingTabView: View {
 
     /// Everything else in Train: plan, routines, library, progress, history.
     private func moreMenu(viewModel: TrainingViewModel) -> some View {
-            Menu {
-                NavigationLink {
-                    WeekPlanView(viewModel: viewModel)
-                } label: {
-                    Label("Week Plan", systemImage: "calendar")
-                }
-
-                NavigationLink {
-                    RoutinesView(viewModel: viewModel)
-                } label: {
-                    Label("My Routines", systemImage: "list.bullet.rectangle")
-                }
-
-                NavigationLink {
-                    TrainerProgramView()
-                } label: {
-                    Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
-                }
-
-                Button {
-                    showAwayMode = true
-                } label: {
-                    Label("Away from the gym", systemImage: "airplane")
-                }
-
-                NavigationLink {
-                    ExerciseLibraryView()
-                } label: {
-                    Label("Exercise Library", systemImage: "books.vertical")
-                }
-
-                NavigationLink {
-                    ProgressChartsView()
-                } label: {
-                    Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
-                }
-
-                NavigationLink {
-                    MuscleHeatmapView()
-                } label: {
-                    Label("Muscle Map", systemImage: "figure.arms.open")
-                }
-
-                NavigationLink {
-                    WorkoutHistoryView()
-                } label: {
-                    Label("History", systemImage: "clock.arrow.circlepath")
-                }
+        Menu {
+            NavigationLink {
+                WeekPlanView(viewModel: viewModel)
             } label: {
+                Label("Week Plan", systemImage: "calendar")
+            }
+
+            NavigationLink {
+                RoutinesView(viewModel: viewModel)
+            } label: {
+                Label("My Routines", systemImage: "list.bullet.rectangle")
+            }
+
+            NavigationLink {
+                TrainerProgramView()
+            } label: {
+                Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
+            }
+
+            Button {
+                showAwayMode = true
+            } label: {
+                Label("Away from the gym", systemImage: "airplane")
+            }
+
+            NavigationLink {
+                ExerciseLibraryView()
+            } label: {
+                Label("Exercise Library", systemImage: "books.vertical")
+            }
+
+            NavigationLink {
+                ProgressChartsView()
+            } label: {
+                Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+            }
+        } label: {
             Image(systemName: "line.3.horizontal")
         }
         .accessibilityLabel("More")
-        .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
+        .accessibilityHint("Open week plan, routines, trainer program, exercise library, or progress.")
     }
 }

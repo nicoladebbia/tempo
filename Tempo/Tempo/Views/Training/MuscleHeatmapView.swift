@@ -7,7 +7,8 @@
 // (MuscleHeatEngine). Tapping a muscle opens a drill-down card: volume,
 // sets, the exercises that trained it, and the trend vs the prior week.
 // All geometry is normalized 0…1 body space drawn with pure SwiftUI paths —
-// no image assets.
+// no image assets. Hosted at the top of the "Body" tab of ProgressChartsView,
+// so it draws its content only (no page, background or title of its own).
 //
 
 import SwiftData
@@ -216,7 +217,7 @@ struct MuscleHeatmapView: View {
     }
 
     var body: some View {
-        TrainPlanPage {
+        VStack(spacing: Tide.s4) {
             TrainPlanTabs(
                 items: [(tag: false, label: "Front"), (tag: true, label: "Back")],
                 selection: $showBack
@@ -238,9 +239,6 @@ struct MuscleHeatmapView: View {
             }
         }
         .animation(Tide.lively, value: selectedMuscle)
-        .tidePage()
-        .navigationTitle("Muscle Map")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     // MARK: Week summary
