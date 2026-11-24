@@ -209,7 +209,7 @@ struct FocusHistoryView: View {
             VStack(spacing: Tide.hair) {
                 // Day-of-week header
                 HStack(spacing: Tide.hair) {
-                    Color.clear.frame(width: Tide.s6, height: 1)
+                    Color.clear.frame(width: Tide.s6, height: Tide.rule)
                     ForEach(Array(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].enumerated()), id: \.offset) { _, d in
                         Text(d)
                             .font(Tide.label)

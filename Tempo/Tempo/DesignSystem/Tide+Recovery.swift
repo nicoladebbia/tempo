@@ -19,6 +19,10 @@ extension Tide {
     /// Standard chart heights.
     static let chartHeight: CGFloat = 180
     static let chartHeightCompact: CGFloat = 140
+    /// Chart line weight and the size of the latest and the scrubbed point markers.
+    static let chartLineWidth: CGFloat = 2.5
+    static let chartMarkSize: CGFloat = 70
+    static let chartMarkSizeSelected: CGFloat = 90
     /// The font every chart axis uses.
     static let axisFont = Tide.numeral(axisSize, .medium)
 }
@@ -143,14 +147,14 @@ struct TideLineChart<ID: Hashable>: View {
                 series: .value("Series", key)
             )
             .foregroundStyle(series.color)
-            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .lineStyle(StrokeStyle(lineWidth: Tide.chartLineWidth, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.monotone)
         }
         // The latest reading is always marked.
         if let last = series.points.max(by: { $0.date < $1.date }) {
             PointMark(x: .value("Date", last.date), y: .value("Value", last.value))
                 .foregroundStyle(series.color)
-                .symbolSize(70)
+                .symbolSize(Tide.chartMarkSize)
         }
     }
 
@@ -168,7 +172,7 @@ struct TideLineChart<ID: Hashable>: View {
                 }
             PointMark(x: .value("Date", selected.date), y: .value("Value", selected.value))
                 .foregroundStyle(Tide.text)
-                .symbolSize(90)
+                .symbolSize(Tide.chartMarkSizeSelected)
         }
     }
 
