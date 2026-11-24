@@ -209,17 +209,12 @@ struct RecipeSuggestionsView: View {
         .padding(.top, Tide.s6)
     }
 
-    /// Write one yourself, or say it and let the AI fill the form.
+    /// Write one yourself, or say it and let the AI fill the form. Stacked, so
+    /// each label has the full width at any text size.
     private var addButtons: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Tide.s2) {
-                writeButton
-                tellAIButton
-            }
-            VStack(spacing: Tide.s2) {
-                writeButton
-                tellAIButton
-            }
+        VStack(spacing: Tide.s2) {
+            writeButton
+            tellAIButton
         }
     }
 
@@ -228,8 +223,6 @@ struct RecipeSuggestionsView: View {
             showWriteRecipe = true
         } label: {
             Label("Write a recipe", systemImage: "square.and.pencil")
-                // One line, so the pair stacks instead of squeezing when side by side is too tight.
-                .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tidePrimary)
@@ -241,7 +234,6 @@ struct RecipeSuggestionsView: View {
             showTellAIRecipe = true
         } label: {
             Label("Tell AI", systemImage: "wand.and.stars")
-                .lineLimit(1)
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.tideGlass)
