@@ -24,8 +24,6 @@ extension TrainingViewModel {
     struct LoggedSetUndo {
         let setID: UUID
         let exerciseIndex: Int
-        /// Display name for the toast ("Bench Press").
-        let exerciseName: String
         let weightKg: Double
         let reps: Int
         /// The signed added load for a bodyweight lift, so Undo can put the
@@ -167,7 +165,6 @@ extension TrainingViewModel {
         let plan: WorkoutPlan
         let exerciseIndex: Int
         let set: PlannedSet
-        let exerciseName: String
         let values: SetValues
         let detectedPRCount: Int
         let recordFingerprint: [String]
@@ -194,7 +191,6 @@ extension TrainingViewModel {
             return LoggedSetUndo(
                 setID: set.id,
                 exerciseIndex: exerciseIndex,
-                exerciseName: exerciseName,
                 weightKg: weight,
                 reps: reps,
                 addedLoadKg: addedLoadKg,
@@ -224,7 +220,6 @@ extension TrainingViewModel {
             plan: plan,
             exerciseIndex: currentExerciseIndex,
             set: set,
-            exerciseName: slot.exercise?.name ?? "set",
             values: SetValues(set),
             detectedPRCount: detectedPRs.count,
             recordFingerprint: recordFingerprint(for: plan, exerciseIndex: currentExerciseIndex),
@@ -252,18 +247,18 @@ extension TrainingViewModel {
     /// Sets taken out of the plan by a skip, kept so Undo can put them back.
     struct SkippedSetsUndo {
         let exerciseIndex: Int
-        let exerciseName: String
         let sets: [SetSnapshot]
         /// The set the cursor was on, to land on again.
         let cursorSetID: UUID?
 
-        /// "Skipped a set of Bench Press", "Skipped a warm-up set" or
-        /// "Skipped 2 warm-up sets".
+        /// "Skipped a set", "Skipped a warm-up set" or "Skipped 2 warm-up
+        /// sets". Short on purpose: the exercise is already on screen, and a
+        /// long toast takes over the page at large text sizes.
         var message: String {
             if sets.allSatisfy(\.isWarmup) {
                 return sets.count == 1 ? "Skipped a warm-up set" : "Skipped \(sets.count) warm-up sets"
             }
-            return "Skipped a set of \(exerciseName)"
+            return "Skipped a set"
         }
     }
 
@@ -355,7 +350,6 @@ extension TrainingViewModel {
         let doomed = sets[currentSetIndex]
         let undo = SkippedSetsUndo(
             exerciseIndex: currentExerciseIndex,
-            exerciseName: slot.exercise?.name ?? "this exercise",
             sets: [SetSnapshot(doomed)],
             cursorSetID: doomed.id
         )
@@ -383,7 +377,6 @@ extension TrainingViewModel {
         }
         let undo = SkippedSetsUndo(
             exerciseIndex: currentExerciseIndex,
-            exerciseName: slot.exercise?.name ?? "this exercise",
             sets: doomed.map(SetSnapshot.init),
             cursorSetID: doomed.first?.id
         )

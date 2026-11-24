@@ -813,7 +813,9 @@ struct ActiveWorkoutView: View {
     /// Few-second Undo after a set is logged. Brings the set back open with
     /// the numbers that were typed, so a slip is a one-tap fix.
     private func offerUndo(_ undo: TrainingViewModel.LoggedSetUndo) {
-        let message = "Logged \(undo.exerciseName), \(WeightFormat.text(kg: undo.weightKg, unit: weightUnit)) x \(undo.reps)"
+        // Short on purpose: the exercise is already on screen, and a long
+        // toast takes over the page at large text sizes.
+        let message = "Logged \(WeightFormat.text(kg: undo.weightKg, unit: weightUnit)) x \(undo.reps)"
         undoToast = ToastData(message: message, style: .success, actionTitle: "Undo") {
             let typed = RestoredEntry(
                 setID: undo.setID,

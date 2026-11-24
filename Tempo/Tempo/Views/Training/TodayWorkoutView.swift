@@ -864,7 +864,10 @@ struct TodayWorkoutView: View {
             label: isDone ? "Time" : "Estimated time",
             figure: "\(minutes)",
             unit: "min",
-            stats: [.init(value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)", label: TrainCount.noun(total, "exercise"))],
+            stats: [.init(
+                value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)",
+                label: TrainCount.noun(total, "exercise")
+            )],
             chips: Array(muscles.prefix(4))
         ) {
             TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)
@@ -878,11 +881,19 @@ struct TodayWorkoutView: View {
     /// currentExerciseIndex, and a completed day's order is history.
     private func exercisesHeader(plan: WorkoutPlan) -> some View {
         let showsReorder = plan.status == .planned && plan.orderedExercises.count > 1
-        return HStack(alignment: .center, spacing: Tide.s2) {
+        // At accessibility sizes the label and the button do not fit on one
+        // line ("EXERCIS-ES"), so the button drops under the label.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
+        return layout {
             Text("Exercises")
                 .tideLabel()
+                .lineLimit(1)
                 .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: Tide.s2)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
             if showsReorder {
                 Button {
                     showReorderSheet = true
@@ -891,6 +902,9 @@ struct TodayWorkoutView: View {
                     Label("Reorder", systemImage: "arrow.up.arrow.down")
                         .font(Tide.caption)
                         .foregroundStyle(TideTrain.caution)
+                        // One word: never "Re-order" across two lines at large text.
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .frame(minHeight: Tide.hit)
                         .contentShape(.rect)
                 }

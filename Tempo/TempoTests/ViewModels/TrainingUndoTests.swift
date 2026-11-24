@@ -347,7 +347,7 @@ final class TrainingUndoTests: XCTestCase {
 
         enterSetActive(vm)
         let working = try XCTUnwrap(vm.skipCurrentSetCapturingUndo(modelContext: context))
-        XCTAssertEqual(working.message, "Skipped a set of Bench Press")
+        XCTAssertEqual(working.message, "Skipped a set")
     }
 
     func testNoUndoWhenTheSkipEndedTheWorkout() throws {
