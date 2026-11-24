@@ -156,11 +156,7 @@ struct SleepDetailView: View {
                     .accessibilityHidden(true)
                 Text(name).tideLabel(color)
             }
-            Text(formatMinutes(minutes))
-                .font(Tide.numeral(Tide.numeralS, .bold))
-                .foregroundStyle(Tide.text)
-                .lineLimit(1)
-                .minimumScaleFactor(Tide.labelShrink)
+            TideNumber(formatMinutes(minutes), size: Tide.numeralS, relativeTo: .title3)
             Text("\(stagePercent(minutes))%")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)

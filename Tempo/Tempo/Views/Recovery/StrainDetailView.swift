@@ -178,9 +178,13 @@ struct StrainDetailView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
-            Text(value)
-                .font(Tide.numeral(bold ? Tide.numeralS : Tide.numeralS - Tide.s1, .semibold))
-                .foregroundStyle(Tide.text)
+            // Scales with the text around it, so the amount never reads smaller than its label.
+            TideNumber(
+                value,
+                size: bold ? Tide.numeralS : Tide.numeralS - Tide.s1,
+                relativeTo: .body,
+                weight: .semibold
+            )
         }
         .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
         .padding(.vertical, stacks ? Tide.s2 : 0)

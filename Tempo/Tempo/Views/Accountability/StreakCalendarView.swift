@@ -108,9 +108,12 @@ struct StreakCalendarView: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(next.title).font(Tide.caption).foregroundStyle(Tide.text2)
                     Spacer(minLength: Tide.s2)
-                    Text("\(next.rawValue - count) to go")
-                        .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
-                        .foregroundStyle(Tide.text)
+                    TideNumber(
+                        "\(next.rawValue - count) to go",
+                        size: Tide.numeralS - Tide.s1,
+                        relativeTo: .headline,
+                        weight: .semibold
+                    )
                 }
                 .accessibilityElement(children: .combine)
             } else {
@@ -318,7 +321,8 @@ struct StreakCalendarView: View {
             }
             .padding(.bottom, isLast ? 0 : Tide.s4)
         }
-        .frame(minHeight: Tide.hit)
+        // Full width, so every node sits on the same rail whatever its text wraps to.
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
         .opacity(achieved || isNext ? 1 : 0.6)
         .accessibilityElement(children: .combine)
         .accessibilityValue(achieved ? "Reached" : "")
