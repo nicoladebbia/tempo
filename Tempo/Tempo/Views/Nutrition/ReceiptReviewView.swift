@@ -27,6 +27,8 @@ struct ReceiptReviewView: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var model: ReceiptReviewModel
     @State
@@ -198,24 +200,28 @@ struct ReceiptReviewView: View {
         return Button {
             editingLine = line
         } label: {
-            HStack(spacing: Tide.s3) {
-                ProductImageView(
-                    url: model.photoURL(for: line),
-                    fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood),
-                    size: Tide.Kitchen.tile
-                )
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(line.displayName.isEmpty ? line.rawText : line.displayName)
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                        .lineLimit(2)
-                    Text(detailText(line))
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                        .lineLimit(1)
+            rowLayout {
+                HStack(spacing: Tide.s3) {
+                    ProductImageView(
+                        url: model.photoURL(for: line),
+                        fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: line.canonicalFoodName, isNonFood: notFood),
+                        size: Tide.Kitchen.tile
+                    )
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(line.displayName.isEmpty ? line.rawText : line.displayName)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(typeSize.isAccessibilitySize ? 3 : 2)
+                        Text(detailText(line))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                    }
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
+                    }
                 }
-                Spacer(minLength: Tide.s2)
-                VStack(alignment: .trailing, spacing: Tide.s1) {
+                VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s1) {
                     TideNumber(
                         line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—",
                         size: Tide.numeralS, relativeTo: .headline, weight: .semibold
@@ -236,6 +242,14 @@ struct ReceiptReviewView: View {
         .accessibilityHint("Opens the editor")
     }
 
+    /// Name and price sit side by side; at the accessibility sizes the price
+    /// and shelf drop under the name so neither gets squeezed.
+    private var rowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+    }
+
     private func detailText(_ line: ReceiptLineItem) -> String {
         var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.rawValue]
         if let size = line.sizeValue, let unit = line.sizeUnit {
@@ -248,10 +262,16 @@ struct ReceiptReviewView: View {
     }
 
     private func chip(_ text: String, icon: String, color: Color) -> some View {
-        Label(text, systemImage: icon)
-            .font(Tide.label)
-            .foregroundStyle(color)
-            .padding(.horizontal, Tide.s2)
+        HStack(spacing: Tide.s1) {
+            Image(systemName: icon)
+                .accessibilityHidden(true)
+            Text(text)
+        }
+        .font(Tide.label)
+        .lineLimit(1)
+        .fixedSize()
+        .foregroundStyle(color)
+        .padding(.horizontal, Tide.s2)
             .padding(.vertical, Tide.s1)
             .background(Tide.fill, in: .capsule)
     }
@@ -304,7 +324,7 @@ struct ReceiptReviewView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .buttonStyle(.tidePrimary)
+            .buttonStyle(.kitchenBar)
             .disabled(isIngesting || model.includedCount == 0)
         }
         .padding(.horizontal, Tide.edge)

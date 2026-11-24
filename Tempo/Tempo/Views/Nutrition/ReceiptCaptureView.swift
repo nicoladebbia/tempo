@@ -110,74 +110,70 @@ struct ReceiptCaptureView: View {
     // MARK: - Sections
 
     private var captureOptions: some View {
-        VStack(spacing: Tide.s5) {
-            Spacer(minLength: 0)
-            KitchenHeroDisc(systemImage: "receipt")
-
-            VStack(spacing: Tide.s2) {
-                Text("Snap your receipt")
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .accessibilityAddTraits(.isHeader)
-                Text("On-device OCR plus AI structuring. Review each line before it goes in your pantry.")
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, Tide.s5)
-
-            if documentScannerAvailable {
-                Text("Long receipt? Tap + after the first page to add more — they're stitched together automatically.")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Tide.s5)
-            }
-
-            if let scanBlocker {
-                AIBlockerCard(
-                    blocker: scanBlocker,
-                    message: scanBlocker == .proRequired
-                        ? "Reading receipts is a Tempo Pro feature."
-                        : "AI features are off. Turn them on to read receipts."
-                ) {
-                    self.scanBlocker = nil
-                    scanError = nil
-                }
-                .padding(.horizontal, Tide.edge)
-            } else if let scanError {
-                KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: scanError, tint: Tide.danger)
-                    .padding(.horizontal, Tide.edge)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(spacing: Tide.s3) {
-                Button {
-                    if documentScannerAvailable {
-                        isShowingDocumentScanner = true
-                    } else {
-                        pickerSource = .camera
-                        isShowingPicker = true
-                    }
-                } label: {
-                    Label("Take Photo", systemImage: "camera.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tidePrimary)
-
-                Button {
-                    pickerSource = .library
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Take Photo", systemImage: "camera.fill", role: .primary) {
+                if documentScannerAvailable {
+                    isShowingDocumentScanner = true
+                } else {
+                    pickerSource = .camera
                     isShowingPicker = true
-                } label: {
-                    Label("Choose from Library", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tideGlass)
+            },
+            KitchenStateAction(title: "Choose from Library", systemImage: "photo.on.rectangle") {
+                pickerSource = .library
+                isShowingPicker = true
+            },
+        ]) {
+            VStack(spacing: Tide.s5) {
+                KitchenReceiptSketch()
+                    .padding(.vertical, Tide.s2)
+                KitchenStateText(
+                    title: "Snap your receipt",
+                    message: "On-device OCR plus AI structuring. Review each line before it goes in your pantry."
+                )
+                tips
+                if let scanBlocker {
+                    AIBlockerCard(
+                        blocker: scanBlocker,
+                        message: scanBlocker == .proRequired
+                            ? "Reading receipts is a Tempo Pro feature."
+                            : "AI features are off. Turn them on to read receipts."
+                    ) {
+                        self.scanBlocker = nil
+                        scanError = nil
+                    }
+                } else if let scanError {
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: scanError, tint: Tide.danger)
+                }
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.bottom, Tide.s4)
+        }
+    }
+
+    /// What makes a receipt read well, as short lines, and how a long one is
+    /// added (the document camera's own + control).
+    private var tips: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            tip("rectangle.portrait", "Lay it flat, whole receipt in the frame")
+            tip("sun.max", "Good light, no shadow across the text")
+            if documentScannerAvailable {
+                tip("plus.rectangle.on.rectangle", "Long receipt? Tap + after the first page to add more — they're stitched together automatically.")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private func tip(_ systemImage: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+            Image(systemName: systemImage)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.icon)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

@@ -204,65 +204,43 @@ struct FoodBarcodeFlow: View {
     // MARK: - Not found
 
     private func notFoundContent(_ barcode: String) -> some View {
-        VStack(spacing: Tide.s4) {
-            Spacer()
-            VStack(spacing: Tide.s4) {
-                KitchenHeroDisc(systemImage: "barcode.viewfinder")
-                VStack(spacing: Tide.s2) {
-                    Text("Not in the database yet")
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                        .multilineTextAlignment(.center)
-                        .accessibilityAddTraits(.isHeader)
-                    Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
-                        .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                VStack(spacing: Tide.s3) {
-                    Button("Add this product") {
-                        showAddProduct = true
-                    }
-                    .buttonStyle(.tidePrimary)
-                    .accessibilityIdentifier("addMissingProduct")
-
-                    Button("Search by name") {
-                        showSearch = true
-                    }
-                    .buttonStyle(.tideGlass)
-
-                    Button("Scan again") {
-                        scanState = .scanning
-                    }
-                    .buttonStyle(.tideGlass)
-                }
-                .padding(.top, Tide.s2)
-            }
-            .frame(maxWidth: .infinity)
-            .tideCard(padding: Tide.s6)
-            .frame(maxWidth: Tide.stateWidth)
-            Spacer()
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Add this product", systemImage: "plus", role: .primary, identifier: "addMissingProduct") {
+                showAddProduct = true
+            },
+            KitchenStateAction(title: "Search by name", systemImage: "magnifyingglass") {
+                showSearch = true
+            },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+                scanState = .scanning
+            },
+        ]) {
+            KitchenStateHero(
+                systemImage: "barcode.viewfinder",
+                title: "Not in the database yet",
+                message: "Barcode \(barcode). Add it once with two photos — every scan after that is instant."
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Failed
 
     private func failedContent(barcode: String, message: String) -> some View {
-        VStack {
-            Spacer()
-            KitchenFailure(
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Try again", systemImage: "arrow.clockwise", role: .primary) {
+                lookUp(barcode)
+            },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+                scanState = .scanning
+            },
+        ]) {
+            KitchenStateHero(
+                systemImage: "exclamationmark.triangle.fill",
+                tint: Tide.danger,
                 title: "Couldn't look it up",
-                message: message,
-                retry: { lookUp(barcode) },
-                secondaryTitle: "Scan again",
-                secondary: { scanState = .scanning }
+                message: message
             )
-            Spacer()
         }
-        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: - Actions

@@ -17,12 +17,13 @@ struct ReceiptProcessingView: View {
     private var startedAt = Date()
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         ScrollView {
             VStack(spacing: Tide.s4) {
-                thumbnail
-                summaryCard
+                heroCard
                 stagesCard
                 Text("Matching and price checks keep running while you review.")
                     .font(Tide.caption)
@@ -73,35 +74,54 @@ struct ReceiptProcessingView: View {
         .accessibilityLabel("Photo of your receipt")
     }
 
-    // MARK: - Summary
+    // MARK: - Hero: the picture and what has been read so far
 
-    private var summaryCard: some View {
-        HStack(spacing: Tide.s3) {
-            summaryCell(title: "Store", value: progress.storeName)
-            summaryCell(
-                title: "Total",
-                value: progress.totalAmount.map { String(format: "$%.2f", $0) }
-            )
-            summaryCell(title: "Items", value: progress.itemCandidateCount.map { "~\($0)" })
+    /// The page being read, with the store, the total and the item count
+    /// filling in beside it as the on-device parse finds them. They stack
+    /// under the picture at the accessibility text sizes.
+    private var heroCard: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: Tide.s5))
+        return layout {
+            thumbnail
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                summaryCell(title: "Store", value: progress.storeName)
+                summaryCell(
+                    title: "Total",
+                    value: progress.totalAmount.map { String(format: "$%.2f", $0) },
+                    large: true
+                )
+                summaryCell(title: "Items", value: progress.itemCandidateCount.map { "~\($0)" })
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity)
         .tideCard(padding: Tide.s4)
     }
 
-    private func summaryCell(title: String, value: String?) -> some View {
+    private func summaryCell(title: String, value: String?, large: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             Text(title).tideLabel(Tide.text3)
             if let value {
-                Text(value)
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                    .lineLimit(1)
-                    .minimumScaleFactor(Tide.labelShrink)
-                    .contentTransition(.numericText())
-                    .transition(.opacity)
+                Group {
+                    if large {
+                        TideNumber(value, size: Tide.numeralM, relativeTo: .title)
+                    } else {
+                        Text(value)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .contentTransition(.numericText())
+                .transition(.opacity)
             } else {
                 RoundedRectangle(cornerRadius: Tide.controlRadius)
                     .fill(Tide.fill)
-                    .frame(width: Tide.s10 + Tide.s3, height: Tide.s4)
+                    .frame(width: Tide.s10 + Tide.s3, height: large ? Tide.s6 : Tide.s4)
+                    .shimmer()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -114,38 +134,54 @@ struct ReceiptProcessingView: View {
         let stages = ReceiptScanProgress.Stage.allCases
         let finished = stages.filter { progress.state(of: $0) == .done }.count
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideLevelBar(progress: Double(finished) / Double(max(stages.count, 1)), color: mood.accent, height: Tide.bar)
-                .animation(Tide.settle, value: finished)
-                .accessibilityHidden(true)
-            ForEach(stages, id: \.self) { stage in
-                stageRow(stage)
-            }
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text("\(Int(context.date.timeIntervalSince(startedAt)))s")
-                    .font(Tide.caption.monospacedDigit())
-                    .foregroundStyle(Tide.text3)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-        .tideCard(padding: Tide.s4)
-    }
-
-    private func stageRow(_ stage: ReceiptScanProgress.Stage) -> some View {
-        let state = progress.state(of: stage)
-        return HStack(spacing: Tide.s3) {
-            ZStack {
-                switch state {
-                case .done:
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Tide.Kitchen.good)
-                case .active:
-                    ProgressView()
-                case .upcoming:
-                    Image(systemName: "circle")
+            HStack(alignment: .firstTextBaseline) {
+                Text("Reading").tideLabel()
+                Spacer(minLength: Tide.s2)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text("\(Int(context.date.timeIntervalSince(startedAt)))s")
+                        .font(Tide.caption.monospacedDigit())
                         .foregroundStyle(Tide.text3)
                 }
             }
-            .frame(width: Tide.icon, height: Tide.icon)
+            TideLevelBar(progress: Double(finished) / Double(max(stages.count, 1)), color: mood.accent, height: Tide.bar)
+                .animation(Tide.settle, value: finished)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(stages, id: \.self) { stage in
+                    stageRow(stage, isLast: stage == stages.last)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4)
+    }
+
+    /// One step of the read, joined to the next by a line that turns green
+    /// once the step is done.
+    private func stageRow(_ stage: ReceiptScanProgress.Stage, isLast: Bool) -> some View {
+        let state = progress.state(of: stage)
+        return HStack(alignment: .top, spacing: Tide.s3) {
+            VStack(spacing: Tide.s1) {
+                ZStack {
+                    switch state {
+                    case .done:
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Tide.Kitchen.good)
+                    case .active:
+                        ProgressView()
+                    case .upcoming:
+                        Image(systemName: "circle")
+                            .foregroundStyle(Tide.text3)
+                    }
+                }
+                .frame(width: Tide.icon, height: Tide.icon)
+                if !isLast {
+                    Capsule()
+                        .fill(state == .done ? Tide.Kitchen.good.opacity(Tide.Kitchen.connectorDone) : Tide.hairline)
+                        .frame(width: Tide.hair)
+                        .frame(maxHeight: .infinity)
+                }
+            }
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(stage.title)
                     .font(state == .active ? Tide.bodyStrong : Tide.body)
@@ -156,7 +192,8 @@ struct ReceiptProcessingView: View {
                         .foregroundStyle(Tide.text2)
                 }
             }
-            Spacer()
+            .padding(.bottom, isLast ? 0 : Tide.s3)
+            Spacer(minLength: 0)
         }
         .animation(Tide.snap, value: state == .done)
         .accessibilityElement(children: .combine)

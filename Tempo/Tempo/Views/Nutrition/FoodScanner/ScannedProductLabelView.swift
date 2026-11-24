@@ -25,6 +25,8 @@ struct ScannedProductLabelView: View {
     private var services
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showEditor = false
@@ -121,7 +123,10 @@ struct ScannedProductLabelView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: Tide.s3) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return layout {
             FoodRemoteImage(url: product.imageURL ?? product.imageSmallURL, product: product, contentMode: .fit)
                 .frame(width: thumb, height: thumb)
                 .background(Tide.fill)
@@ -140,16 +145,20 @@ struct ScannedProductLabelView: View {
                         .foregroundStyle(Tide.text2)
                         .lineLimit(1)
                 }
-                HStack(spacing: Tide.s1) {
+                let idLayout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.hair))
+                    : AnyLayout(HStackLayout(spacing: Tide.s1))
+                idLayout {
                     if let barcode = product.barcode {
                         Label(barcode, systemImage: "barcode")
                             .font(Tide.caption)
                             .monospacedDigit()
                             .foregroundStyle(Tide.text3)
                             .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
                     }
                     if let quantity = product.quantityLabel {
-                        Text("· \(quantity)")
+                        Text(typeSize.isAccessibilitySize ? quantity : "· \(quantity)")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text3)
                             .lineLimit(1)
@@ -157,8 +166,11 @@ struct ScannedProductLabelView: View {
                 }
                 gradeBadges
             }
-            Spacer(minLength: 0)
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: 0)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -471,25 +483,28 @@ struct ScannedProductLabelView: View {
 
     // MARK: - Missing + warnings + actions
 
+    /// No label for this product: not a card but a hero on the field, with the
+    /// one way forward as the full-width bar button right under it.
     private var missingCard: some View {
-        VStack(spacing: Tide.s3) {
-            KitchenHeroDisc(systemImage: "doc.text.magnifyingglass", tint: Tide.Kitchen.warn)
-            Text("No label data yet")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-                .accessibilityAddTraits(.isHeader)
-            Text("We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("Photograph the label") { showEditor = true }
-                .buttonStyle(.tidePrimary)
-                .padding(.top, Tide.s1)
-                .accessibilityIdentifier("labelPhotograph")
+        VStack(spacing: Tide.s5) {
+            KitchenStateHero(
+                systemImage: "doc.text.magnifyingglass",
+                tint: Tide.Kitchen.warn,
+                title: "No label data yet",
+                message: "We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you."
+            )
+            Button {
+                showEditor = true
+            } label: {
+                Label("Photograph the label", systemImage: "camera.viewfinder")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.kitchenBar)
+            .accessibilityIdentifier("labelPhotograph")
         }
+        .frame(maxWidth: Tide.stateWidth)
         .frame(maxWidth: .infinity)
-        .tideCard()
+        .padding(.vertical, Tide.s6)
     }
 
     private func warning(_ text: String) -> some View {

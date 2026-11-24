@@ -58,70 +58,16 @@ struct GroceryListView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Tide.s5) {
-                if let list = viewModel.groceryState.latest {
-                    summaryCard(for: list)
-                    ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
-                        categorySection(category: category, items: items(in: list, category: category))
-                    }
-                    if !list.boughtItems.isEmpty {
-                        boughtSection(for: list)
-                    }
-                    exportButton(for: list)
-                } else {
-                    emptyState
-                }
-                if let error = viewModel.groceryState.lastError {
-                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
-                }
+        Group {
+            if let list = viewModel.groceryState.latest {
+                listPage(list)
+            } else {
+                emptyState
             }
-            .padding(.horizontal, Tide.edge)
-            .padding(.top, Tide.s2)
-            .padding(.bottom, Tide.s8)
         }
-        .scrollIndicators(.hidden)
-        .scrollEdgeEffectStyle(.soft, for: .all)
         .tidePage()
         .tideCovered(isCovered)
         .sensoryFeedback(.selection, trigger: ticks)
-        .toolbar {
-            // Only surface Add/Sync when a list actually exists — there's
-            // nothing to add to or sync against until generation runs.
-            if let list = viewModel.groceryState.latest {
-                // feat/grocery-share-order (Lane C) — share as text / live link / order online.
-                ToolbarItem(placement: .topBarTrailing) {
-                    GroceryShareMenu(list: list)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            showAddItem = true
-                        } label: {
-                            Label("Add Item", systemImage: "plus")
-                        }
-                        Button {
-                            let removed = viewModel.reapplyPantryToGrocery()
-                            pantrySyncMessage = removed == 0
-                                ? "List is already in sync with pantry"
-                                : "Removed \(removed) item\(removed == 1 ? "" : "s") already in pantry"
-                            HapticManager.lightImpact()
-                        } label: {
-                            Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        Button {
-                            showSpendHistory = true
-                        } label: {
-                            Label("Spend History", systemImage: "chart.bar.fill")
-                        }
-                        storePickerMenu
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("More")
-                }
-            }
-        }
         .sheet(isPresented: $showAddItem) {
             AddGroceryItemSheet { name, qty, unit in
                 viewModel.addGroceryItem(name: name, quantity: qty, unit: unit)
@@ -166,6 +112,92 @@ struct GroceryListView: View {
         }
     }
 
+    // MARK: - The list
+
+    private func listPage(_ list: GroceryList) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                summaryCard(for: list)
+                ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
+                    categorySection(category: category, items: items(in: list, category: category))
+                }
+                if !list.boughtItems.isEmpty {
+                    boughtSection(for: list)
+                }
+                addItemRow
+                exportButton(for: list)
+                if let error = viewModel.groceryState.lastError {
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s4)
+        }
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
+        // The way into the shop sits where the thumb is, not up in the card.
+        .kitchenBottomBar {
+            Button {
+                showStoreMode = true
+            } label: {
+                Label("Store Mode", systemImage: "figure.walk")
+            }
+            .buttonStyle(.kitchenBar)
+            .matchedTransitionSource(id: "storeMode", in: zoom)
+            .sensoryFeedback(.impact(weight: .light), trigger: showStoreMode)
+        }
+    }
+
+    /// Everything that used to live in the navigation bar, which the Fuel tab
+    /// hides: add, rebuild, sync with the pantry, spend history, the store.
+    private var moreMenu: some View {
+        Menu {
+            Button {
+                showAddItem = true
+            } label: {
+                Label("Add Item", systemImage: "plus")
+            }
+            Button {
+                viewModel.generateGroceryList()
+            } label: {
+                Label("Generate list", systemImage: "wand.and.stars")
+            }
+            .disabled(viewModel.groceryState.isGenerating)
+            Button {
+                let removed = viewModel.reapplyPantryToGrocery()
+                pantrySyncMessage = removed == 0
+                    ? "List is already in sync with pantry"
+                    : "Removed \(removed) item\(removed == 1 ? "" : "s") already in pantry"
+                HapticManager.lightImpact()
+            } label: {
+                Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
+            }
+            Button {
+                showSpendHistory = true
+            } label: {
+                Label("Spend History", systemImage: "chart.bar.fill")
+            }
+            storePickerMenu
+        } label: {
+            KitchenGlassIcon(systemImage: "ellipsis", isWorking: viewModel.groceryState.isGenerating)
+        }
+        .accessibilityLabel("More")
+    }
+
+    private var addItemRow: some View {
+        Button {
+            showAddItem = true
+        } label: {
+            Label("Add an item", systemImage: "plus")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Store picker
 
     private var storePickerMenu: some View {
@@ -192,7 +224,15 @@ struct GroceryListView: View {
         let total = max(1, list.itemCount)
         let progress = Double(list.checkedCount) / Double(total)
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "This week", trailing: progress >= 1 ? "All checked" : nil)
+            HStack(spacing: Tide.s2) {
+                Text("This week").tideLabel()
+                if progress >= 1 {
+                    KitchenTag(text: "All checked", tint: Tide.Kitchen.good)
+                }
+                Spacer(minLength: Tide.s2)
+                GroceryShareMenu(list: list)
+                moreMenu
+            }
             TideNumber(
                 "\(list.checkedCount)", unit: "of \(list.itemCount) checked",
                 size: Tide.numeralL, relativeTo: .largeTitle,
@@ -202,31 +242,6 @@ struct GroceryListView: View {
                 .animation(Tide.settle, value: progress)
                 .accessibilityLabel("Checked off")
             budgetLine(for: list)
-            HStack(spacing: Tide.s3) {
-                Button {
-                    showStoreMode = true
-                } label: {
-                    Label("Store Mode", systemImage: "figure.walk")
-                }
-                .buttonStyle(.tidePrimary)
-                .matchedTransitionSource(id: "storeMode", in: zoom)
-                .sensoryFeedback(.impact(weight: .light), trigger: showStoreMode)
-                Button {
-                    viewModel.generateGroceryList()
-                } label: {
-                    if viewModel.groceryState.isGenerating {
-                        ProgressView()
-                            .frame(minHeight: Tide.hit + Tide.s2)
-                    } else {
-                        Image(systemName: "wand.and.stars")
-                            .frame(minHeight: Tide.hit + Tide.s2)
-                    }
-                }
-                .buttonStyle(.tideGlass)
-                .fixedSize()
-                .disabled(viewModel.groceryState.isGenerating)
-                .accessibilityLabel("Generate list")
-            }
         }
         .tideCard()
     }
@@ -407,34 +422,26 @@ struct GroceryListView: View {
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: Tide.s3) {
-            Image(systemName: "cart")
-                .font(Tide.largeTitle)
-                .foregroundStyle(mood.accent)
-                .accessibilityHidden(true)
-            Text("No grocery list yet")
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-            Text("Generate a meal plan first, then tap Generate to build your shopping list.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            Button {
-                viewModel.generateGroceryList()
-            } label: {
-                if viewModel.groceryState.isGenerating {
-                    ProgressView()
-                } else {
-                    Label("Generate", systemImage: "wand.and.stars")
+        let generating = viewModel.groceryState.isGenerating
+        return KitchenStatePage(actions: [
+            KitchenStateAction(
+                title: generating ? "Generating…" : "Generate",
+                systemImage: "wand.and.stars",
+                role: .primary,
+                isEnabled: !generating
+            ) { viewModel.generateGroceryList() },
+        ]) {
+            VStack(spacing: Tide.s4) {
+                KitchenStateHero(
+                    systemImage: "cart",
+                    title: "No grocery list yet",
+                    message: "Generate a meal plan first, then tap Generate to build your shopping list."
+                )
+                if let error = viewModel.groceryState.lastError {
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
                 }
             }
-            .buttonStyle(.tidePrimary)
-            .disabled(viewModel.groceryState.isGenerating)
-            .padding(.top, Tide.s2)
         }
-        .frame(maxWidth: .infinity)
-        .tideCard(padding: Tide.s6)
     }
 
     private func formatQuantity(_ value: Double) -> String {
