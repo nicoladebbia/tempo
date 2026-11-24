@@ -40,6 +40,19 @@ extension RecoveryZone {
     }
 }
 
+extension StrainLevel {
+    /// The strain gauge's zone colour: green below 10, amber to 14, orange to 18, red above.
+    var tideColor: Color {
+        switch self {
+        case .light,
+             .low: TideTone.mint
+        case .moderate: TideTone.amber
+        case .moderateHigh: Tide.streak
+        case .overreaching: Tide.danger
+        }
+    }
+}
+
 // MARK: - TideSleepStage
 
 enum TideSleepStage {
@@ -95,6 +108,9 @@ struct TideLineChart<ID: Hashable>: View {
     var axisDesiredCount: Int?
     /// Format for the scrub readout, e.g. one decimal.
     var valueFormat: FloatingPointFormatStyle<Double> = .number.precision(.fractionLength(0 ... 1))
+    /// The vertical range to draw, from `ChartScale.fitted`. Nil: the chart's own
+    /// range, which the soft area under the line pulls down to zero.
+    var yDomain: ClosedRange<Double>?
 
     @State
     private var selectedDate: Date?
@@ -102,6 +118,22 @@ struct TideLineChart<ID: Hashable>: View {
     private var reduceMotion
 
     var body: some View {
+        scaledChart
+            .frame(height: height)
+            .sensoryFeedback(.selection, trigger: selection?.date)
+            .animation(reduceMotion ? nil : Tide.snap, value: selection?.date)
+    }
+
+    @ViewBuilder
+    private var scaledChart: some View {
+        if let yDomain {
+            chart.chartYScale(domain: yDomain)
+        } else {
+            chart.chartYScale(domain: .automatic(includesZero: false))
+        }
+    }
+
+    private var chart: some View {
         Chart {
             ForEach(data) { series in
                 seriesMarks(series)
@@ -115,10 +147,6 @@ struct TideLineChart<ID: Hashable>: View {
         .chartYAxis {
             tideYAxisMarks(showGrid: showGrid)
         }
-        .chartYScale(domain: .automatic(includesZero: false))
-        .frame(height: height)
-        .sensoryFeedback(.selection, trigger: selection?.date)
-        .animation(reduceMotion ? nil : Tide.snap, value: selection?.date)
     }
 
     // MARK: Marks
@@ -132,14 +160,26 @@ struct TideLineChart<ID: Hashable>: View {
             endPoint: .bottom
         )
         ForEach(series.points, id: \.date) { point in
-            AreaMark(
-                x: .value("Date", point.date),
-                y: .value("Value", point.value),
-                series: .value("Series", key),
-                stacking: .unstacked
-            )
-            .foregroundStyle(fade)
-            .interpolationMethod(.monotone)
+            if let yDomain {
+                // The area rests on the bottom of the drawn range, not on zero.
+                AreaMark(
+                    x: .value("Date", point.date),
+                    yStart: .value("Base", yDomain.lowerBound),
+                    yEnd: .value("Value", point.value),
+                    series: .value("Series", key)
+                )
+                .foregroundStyle(fade)
+                .interpolationMethod(.monotone)
+            } else {
+                AreaMark(
+                    x: .value("Date", point.date),
+                    y: .value("Value", point.value),
+                    series: .value("Series", key),
+                    stacking: .unstacked
+                )
+                .foregroundStyle(fade)
+                .interpolationMethod(.monotone)
+            }
 
             LineMark(
                 x: .value("Date", point.date),
@@ -475,6 +515,35 @@ private struct RecoveryGaugeArc: Shape {
     }
 }
 
+// MARK: - RecoveryStagesBar
+
+/// One night as a row of rounded segments, one per sleep stage, each as wide as
+/// its share of the night. Read aloud as a single value.
+struct RecoveryStagesBar: View {
+    let segments: [(minutes: Int, color: Color)]
+    let accessibilityValue: String
+
+    var body: some View {
+        // A stage with no minutes has no slice: it would otherwise show as a sliver.
+        let shown = segments.filter { $0.minutes > 0 }
+        let total = Double(shown.reduce(0) { $0 + $1.minutes })
+        GeometryReader { geo in
+            let gaps = Tide.hair * CGFloat(max(shown.count - 1, 0))
+            HStack(spacing: Tide.hair) {
+                ForEach(Array(shown.enumerated()), id: \.offset) { _, segment in
+                    RoundedRectangle(cornerRadius: Tide.s1 + Tide.hair, style: .continuous)
+                        .fill(segment.color)
+                        .frame(width: max(Tide.s2, (geo.size.width - gaps) * Double(segment.minutes) / total))
+                }
+            }
+        }
+        .frame(height: Tide.s8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sleep stages")
+        .accessibilityValue(accessibilityValue)
+    }
+}
+
 // MARK: - RecoverySkeleton
 
 extension Tide {
@@ -562,5 +631,50 @@ struct RecoveryChartPlaceholder: View {
         }
         .frame(minHeight: height)
         .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - RecoveryErrorPanel
+
+/// A refresh failed and there is nothing to show: what went wrong, and a button
+/// to try again.
+struct RecoveryErrorPanel: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        TideEmptyPanel(
+            systemImage: "wifi.exclamationmark",
+            title: "Recovery isn't loading",
+            message: message,
+            actionTitle: "Try again",
+            action: retry
+        )
+        .tideCard()
+        .accessibilityIdentifier("recovery-error")
+    }
+}
+
+// MARK: - RecoveryErrorBanner
+
+/// The same failure with numbers already on screen: a line above them, not a
+/// takeover. Pull down to try again.
+struct RecoveryErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(TideTone.amber)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recovery-error-banner")
     }
 }

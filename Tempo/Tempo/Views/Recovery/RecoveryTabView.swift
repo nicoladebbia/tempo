@@ -9,10 +9,11 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Recovery Tab View
+// MARK: - RecoveryTabView
 
-// Per MODULE_RECOVERY.md Section 2 — Tab container with segmented control.
-// Per BUILD_PLAN.md Step 8.6 — Today / Sleep / Strain / Trends tabs + gear icon.
+// Per MODULE_RECOVERY.md Section 2. One page, one question (how recovered am I
+// and why), with a Day / Week / Month switch: Day is today's score, vitals,
+// sleep and strain; Week and Month are the trends. They used to be four tabs.
 
 struct RecoveryTabView: View {
     @Environment(ServiceContainer.self)
@@ -57,32 +58,57 @@ struct RecoveryTabView: View {
         @Bindable
         var vm = viewModel
         return VStack(spacing: Tide.s2) {
-            // Per MODULE_RECOVERY.md Section 2 — Today / Sleep / Strain / Trends
-            TidePillPicker(
-                options: RecoveryTab.allCases,
-                selection: $vm.selectedTab,
-                title: \.rawValue,
-                label: "Recovery section"
-            )
+            VStack(spacing: Tide.s2) {
+                TidePillPicker(
+                    options: RecoveryRange.allCases,
+                    selection: $vm.selectedRange,
+                    title: \.rawValue,
+                    label: "Recovery period"
+                )
+
+                // A month can reach back 30 or 90 days.
+                if viewModel.selectedRange == .month {
+                    TidePillPicker(
+                        options: MonthSpan.allCases,
+                        selection: Binding(
+                            get: { vm.monthShowsQuarter ? .ninety : .thirty },
+                            set: { vm.monthShowsQuarter = $0 == .ninety }
+                        ),
+                        title: \.rawValue,
+                        label: "Month length"
+                    )
+                    .transition(.opacity)
+                }
+            }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
 
-            // Tab content
             Group {
-                switch viewModel.selectedTab {
-                case .today:
-                    RecoveryTodayView(viewModel: viewModel)
-                case .sleep:
-                    SleepDetailView(viewModel: viewModel)
-                case .strain:
-                    StrainDetailView(viewModel: viewModel)
-                case .trends:
-                    RecoveryTrendsView(viewModel: viewModel)
+                switch viewModel.selectedRange {
+                case .day:
+                    RecoveryDayView(viewModel: viewModel)
+                case .week,
+                     .month:
+                    RecoveryPeriodView(viewModel: viewModel)
                 }
             }
             .transition(.opacity)
         }
-        .animation(Tide.snap, value: viewModel.selectedTab)
+        .animation(Tide.snap, value: viewModel.selectedRange)
         .tidePage(energy: 1)
+        // One load for the whole page, whichever view is showing.
+        .task {
+            if viewModel.loadState != .loaded {
+                await viewModel.refresh(modelContext: modelContext)
+            }
+        }
     }
+}
+
+// MARK: - MonthSpan
+
+/// How far back the Month view reaches.
+private enum MonthSpan: String, CaseIterable {
+    case thirty = "30 days"
+    case ninety = "90 days"
 }

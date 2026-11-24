@@ -6,6 +6,8 @@
 > **Last Updated**: 2026-05-19
 > **Audience**: iOS developers. This document is an **AS-BUILT description reconciled to the codebase on 2026-05-19**. It describes what the code actually does, not the original aspirational spec. Original spec intent is preserved inline in `> **Divergence from original spec:**` and `> **Status: NOT IMPLEMENTED.**` callouts so nothing is lost. The code is ground truth; if this doc and the code disagree, the code wins and this doc is the bug.
 
+> **UI rework, Nov 2026:** `FocusHistoryView` was deleted. The Study page (`MindQuadrantDetailView`, opened from Today's Mind tile) now holds the focus timer entry, focus history and exams in one place; `StudyHistory` and `StudySessionRemoval` hold its rules. Completing, skipping or deleting a non-negotiable, and deleting a focus session, show an Undo toast (`NonNegotiableUndo`).
+
 Primary source files referenced throughout (cited by file + symbol, never line number — lines drift):
 - `Tempo/Tempo/Views/Accountability/LockdownTabView.swift` (tab container + `OverrideSelectionView`)
 - `Tempo/Tempo/Views/Accountability/LockdownMainView.swift` (Today view, cards, leisure bar, unlock celebration)

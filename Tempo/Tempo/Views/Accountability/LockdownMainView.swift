@@ -56,6 +56,9 @@ struct LockdownMainView: View {
     private var showHistoryAlert = false
     @State
     private var editingNonNegotiable: NonNegotiableProgress?
+    /// "Marked done" / "Skipped" with Undo for a few seconds.
+    @State
+    private var toast: ToastData?
 
     private var showsQuickAction: Bool {
         hasTimedNonNegotiable && focusTimerEnabled
@@ -118,7 +121,13 @@ struct LockdownMainView: View {
                     viewModel.loadToday(modelContext: modelContext)
                 }
         }
+        .tempoToast($toast)
         .onChange(of: viewModel.isLeisureUnlocked) { _, unlocked in
+            if !unlocked {
+                // Undo took the unlock back: the moment is over.
+                unlockDismissTask?.cancel()
+                withAnimation { showUnlockCelebration = false }
+            }
             if unlocked {
                 withAnimation(Tide.lively) {
                     showUnlockCelebration = true
@@ -247,9 +256,8 @@ struct LockdownMainView: View {
             if hour < 12 {
                 return "All done by noon. Legend."
             }
-            let early = viewModel.timeToPS5
-            if early > 0 {
-                return "Unlocked \(viewModel.formattedTimeToPS5) early. Ahead of schedule."
+            if let early = PS5Countdown.remaining(viewModel.timeToPS5) {
+                return "Unlocked \(early) early. Ahead of schedule."
             }
             return "Unlocked. Better late than never."
         }
@@ -263,17 +271,7 @@ struct LockdownMainView: View {
             return "Just 1 more. So close."
         }
 
-        let timeToPS5 = viewModel.timeToPS5
-        if timeToPS5 < 30 * 60 {
-            return "\(viewModel.formattedTimeToPS5). Move."
-        }
-        if timeToPS5 < 60 * 60 {
-            return "\(viewModel.formattedTimeToPS5). Clock's ticking."
-        }
-        if timeToPS5 < 2 * 3600 {
-            return "\(viewModel.formattedTimeToPS5) left. Focus up."
-        }
-        return "\(viewModel.formattedTimeToPS5) until your usual PS5 time"
+        return PS5Countdown.statusLine(seconds: viewModel.timeToPS5)
     }
 
     private var statusTimeColor: Color {
@@ -361,56 +359,26 @@ struct LockdownMainView: View {
             return nil
         }
 
-        let done = viewModel.completedCount
-        let total = viewModel.totalCount
-        let remaining = total - done
-        let timeToPS5 = viewModel.timeToPS5
-
-        // Already failed
-        if viewModel.dailyState == .dayFailed {
-            return ("PS5 time has passed. \(remaining) task\(remaining == 1 ? "" : "s") still incomplete.", false)
-        }
-
-        // All done (shouldn't reach here since we filter .unlocked)
-        if remaining == 0 {
-            return nil
-        }
-
-        // Calculate pace: how much time has elapsed and how much is done
-        let totalDaySeconds: TimeInterval = 11.5 * 3600 // 8 AM to 7:30 PM typical
-        let elapsed = max(1, totalDaySeconds - timeToPS5)
-        let pacePerTask = done > 0 ? elapsed / Double(done) : totalDaySeconds / Double(total)
-        let estimatedTimeForRemaining = pacePerTask * Double(remaining)
-
-        // Study-specific prediction
         let studyProgress = viewModel.progressItems.first(where: { $0.nonNegotiable?.type == .study })
         let studyRemaining = max(0, (studyProgress?.targetValue ?? 0) - (studyProgress?.currentValue ?? 0))
 
-        if studyRemaining > 0 {
-            let studySecondsNeeded = studyRemaining * 60 // minutes to seconds
-            let totalTimeNeeded = max(estimatedTimeForRemaining, studySecondsNeeded)
+        // The day has failed: the countdown is zero whatever the clock rounds to.
+        let timeToPS5 = viewModel.dailyState == .dayFailed ? 0 : viewModel.timeToPS5
 
-            if totalTimeNeeded > timeToPS5 {
-                let deficit = Int((totalTimeNeeded - timeToPS5) / 60)
-                return ("At this pace, you'll be \(deficit)min behind. Pick up the speed.", false)
-            }
+        guard let reading = LockdownPace.reading(
+            done: viewModel.completedCount,
+            total: viewModel.totalCount,
+            timeToPS5: timeToPS5,
+            studyMinutesRemaining: studyRemaining,
+            now: Date()
+        )
+        else {
+            return nil
         }
-
-        if estimatedTimeForRemaining > timeToPS5 {
-            return ("WARNING: At current pace, you won't finish in time. Accelerate.", false)
+        let message = LockdownPace.message(for: reading) { finish in
+            finish.formatted(date: .omitted, time: .shortened)
         }
-
-        // Estimate finish time
-        let estimatedFinish = Date().addingTimeInterval(estimatedTimeForRemaining)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let finishStr = formatter.string(from: estimatedFinish)
-
-        if estimatedTimeForRemaining < timeToPS5 * 0.5 {
-            return ("On pace to finish by \(finishStr). Ahead of schedule.", true)
-        }
-
-        return ("At this pace, you'll finish by \(finishStr). Stay focused.", true)
+        return (message, reading.onTrack)
     }
 
     // MARK: - Non-Negotiable Cards
@@ -448,6 +416,13 @@ struct LockdownMainView: View {
         .animation(Tide.snap, value: finished.count)
     }
 
+    /// A few seconds to take a tap back: the task, the unlock and the streak go back as they were.
+    private func offerUndo(_ message: String, _ undo: NonNegotiableUndo) {
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            viewModel.undo(undo, modelContext: modelContext)
+        }
+    }
+
     private func card(for progress: NonNegotiableProgress) -> some View {
         NonNegotiableCardView(
             progress: progress,
@@ -461,10 +436,12 @@ struct LockdownMainView: View {
                 }
             },
             onComplete: {
-                viewModel.completeItem(progress, modelContext: modelContext)
+                let undo = viewModel.completeItem(progress, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") marked done.", undo)
             },
             onSkip: {
-                viewModel.skipItem(progress, modelContext: modelContext)
+                let undo = viewModel.skipItem(progress, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") skipped.", undo)
             },
             onUpdateValue: { value in
                 viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)

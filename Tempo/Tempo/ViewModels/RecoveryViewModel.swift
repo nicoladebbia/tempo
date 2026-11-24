@@ -12,19 +12,10 @@ import SwiftUI
 
 // MARK: - RecoveryLoadState
 
-enum RecoveryLoadState {
+enum RecoveryLoadState: Equatable {
     case loading
     case loaded
     case error(String)
-}
-
-// MARK: - RecoveryTab
-
-enum RecoveryTab: String, CaseIterable {
-    case today = "Today"
-    case sleep = "Sleep"
-    case strain = "Strain"
-    case trends = "Trends"
 }
 
 // MARK: - RecoveryViewModel
@@ -37,8 +28,19 @@ final class RecoveryViewModel {
     // MARK: - State
 
     var loadState: RecoveryLoadState = .loading
-    var selectedTab: RecoveryTab = .today
-    var selectedTrendRange: TrendRange = .week
+    /// Day, Week or Month: the one switch on the page.
+    var selectedRange: RecoveryRange = .day
+    /// Month can reach back 90 days instead of 30.
+    var monthShowsQuarter = false
+
+    /// How far back the charts and averages reach. Day reads like Week for the
+    /// few numbers that borrow a trend (the vitals sheet).
+    var selectedTrendRange: TrendRange {
+        switch selectedRange {
+        case .day, .week: .week
+        case .month: monthShowsQuarter ? .quarter : .month
+        }
+    }
 
     // MARK: - Today's Data
 
@@ -128,7 +130,8 @@ final class RecoveryViewModel {
         let recoveryData: WhoopRecoveryData?
         let sleepData: WhoopSleepData?
         let cycleData: WhoopCycleData?
-        if whoop.providesRealData {
+        let connectedToRealData = whoop.providesRealData
+        if connectedToRealData {
             recoveryData = try? await whoop.fetchRecovery(for: today)
             sleepData = try? await whoop.fetchSleep(for: today)
             cycleData = try? await whoop.fetchCycle(for: today)
@@ -198,7 +201,12 @@ final class RecoveryViewModel {
         // We need recentRecoveries loaded first for 7-day averages,
         // so we'll add anomaly warnings after the full data load below.
 
-        try? modelContext.save()
+        var saveFailed = false
+        do {
+            try modelContext.save()
+        } catch {
+            saveFailed = true
+        }
 
         // Seed historical records from Whoop batch data (fills trends on first launch).
         // Only creates new records for dates that don't already exist in the database.
@@ -283,7 +291,13 @@ final class RecoveryViewModel {
             try? modelContext.save()
         }
 
-        loadState = .loaded
+        // A failure only reads as an error when it leaves nothing to show.
+        loadState = RecoveryLoadResolver.resolve(
+            isConnectedToRealData: connectedToRealData,
+            fetchedAnything: recoveryData != nil || sleepData != nil || cycleData != nil,
+            todayHasReadings: Self.reading(from: recovery).hasReadings,
+            saveFailed: saveFailed
+        )
     }
 
     /// One-time 30-day historical backfill of recovery + sleep + cycle data,
@@ -614,128 +628,67 @@ final class RecoveryViewModel {
         return today - baseline
     }
 
-    // MARK: - Calorie Split (Task 4)
-
-    // Estimate active vs basal calories from strain
-
-    /// Active calories estimated from strain (Whoop strain correlates with active energy).
-    /// Uses the Whoop strain-to-calorie relationship: higher strain = more active burn.
-    var activeCalories: Double? {
-        guard let totalCal = todayRecovery?.caloriesBurned,
-              let strain = todayRecovery?.strain,
-              totalCal > 0
-        else {
-            return nil
-        }
-        // Strain 0-21 scale. Basal metabolic rate is roughly 1600-2000 kcal/day.
-        // Active calories = total - estimated basal.
-        // Estimate basal as total minus strain-proportional active component.
-        // Whoop strain is logarithmic; approximate active fraction from strain level.
-        let strainFraction = min(strain / 21.0, 1.0)
-        // At strain 0, ~100% basal. At strain 21, ~60% active.
-        let activeFraction = strainFraction * 0.6
-        let active = totalCal * activeFraction
-        return max(active, 0)
-    }
-
-    var basalCalories: Double? {
-        guard let totalCal = todayRecovery?.caloriesBurned,
-              let active = activeCalories
-        else {
-            return nil
-        }
-        return totalCal - active
-    }
-
-    var activeCaloriePercent: Int? {
-        guard let totalCal = todayRecovery?.caloriesBurned,
-              let active = activeCalories,
-              totalCal > 0
-        else {
-            return nil
-        }
-        return Int((active / totalCal) * 100)
-    }
-
-    var basalCaloriePercent: Int? {
-        guard let active = activeCaloriePercent else {
-            return nil
-        }
-        return 100 - active
-    }
-
     // MARK: - Chart Data
 
-    /// Recoveries filtered to the selected trend range (7/30/90 days)
-    private var rangeFilteredRecoveries: [DailyRecovery] {
+    /// Every stored day as plain readings (days without any reading left out).
+    var readings: [RecoveryDayReading] {
+        recentRecoveries.map(Self.reading(from:)).filter(\.hasReadings)
+    }
+
+    static func reading(from recovery: DailyRecovery) -> RecoveryDayReading {
+        RecoveryDayReading(
+            date: recovery.date,
+            recovery: recovery.recoveryScore,
+            hrv: recovery.hrvRmssd,
+            rhr: recovery.restingHR,
+            sleepHours: recovery.sleepHours,
+            strain: recovery.strain
+        )
+    }
+
+    /// The calendar days the selected range covers, oldest first.
+    var periodReadings: [RecoveryDayReading] {
+        RecoveryWindow.select(
+            readings, days: trendRangeDays(selectedTrendRange), endingOn: Date()
+        )
+    }
+
+    /// Averages, best and worst day and zone counts of the selected range, with
+    /// the range before it for comparison. Nil under three days of readings.
+    var periodStats: RecoveryPeriodStats? {
         let days = trendRangeDays(selectedTrendRange)
-        return Array(recentRecoveries.suffix(days))
+        return RecoveryPeriodStats.make(
+            window: periodReadings,
+            previous: RecoveryWindow.previous(readings, days: days, endingOn: Date())
+        )
+    }
+
+    /// Days with readings in the last `days` calendar days, as stored rows.
+    func recoveries(lastDays days: Int) -> [DailyRecovery] {
+        let window = Set(
+            RecoveryWindow.select(readings, days: days, endingOn: Date()).map(\.date)
+        )
+        return recentRecoveries.filter { window.contains($0.date) }
     }
 
     var recoveryChartData: [(Date, Double)] {
-        rangeFilteredRecoveries.map { ($0.date, $0.recoveryScore) }
+        periodReadings.map { ($0.date, $0.recovery) }
     }
 
     var hrvChartData: [(Date, Double)] {
-        rangeFilteredRecoveries.compactMap { r in
-            guard let hrv = r.hrvRmssd else {
-                return nil
-            }
-            return (r.date, hrv)
-        }
+        periodReadings.compactMap { r in r.hrv.map { (r.date, $0) } }
     }
 
     var rhrChartData: [(Date, Double)] {
-        rangeFilteredRecoveries.compactMap { r in
-            guard let rhr = r.restingHR else {
-                return nil
-            }
-            return (r.date, rhr)
-        }
+        periodReadings.compactMap { r in r.rhr.map { (r.date, $0) } }
     }
 
     var sleepChartData: [(Date, Double)] {
-        rangeFilteredRecoveries.compactMap { r in
-            guard let hours = r.sleepHours else {
-                return nil
-            }
-            return (r.date, hours)
-        }
+        periodReadings.compactMap { r in r.sleepHours.map { (r.date, $0) } }
     }
 
     var strainChartData: [(Date, Double)] {
-        rangeFilteredRecoveries.compactMap { r in
-            guard let strain = r.strain else {
-                return nil
-            }
-            return (r.date, strain)
-        }
-    }
-
-    // MARK: - Averages (dynamic based on selectedTrendRange)
-
-    var avgRecovery7d: Double? {
-        let recent = rangeFilteredRecoveries
-        guard !recent.isEmpty else {
-            return nil
-        }
-        return recent.map(\.recoveryScore).reduce(0, +) / Double(recent.count)
-    }
-
-    var avgHRV7d: Double? {
-        let values = rangeFilteredRecoveries.compactMap(\.hrvRmssd)
-        guard !values.isEmpty else {
-            return nil
-        }
-        return values.reduce(0, +) / Double(values.count)
-    }
-
-    var avgRHR7d: Double? {
-        let values = rangeFilteredRecoveries.compactMap(\.restingHR)
-        guard !values.isEmpty else {
-            return nil
-        }
-        return values.reduce(0, +) / Double(values.count)
+        periodReadings.compactMap { r in r.strain.map { (r.date, $0) } }
     }
 
     // MARK: - Recovery Comparison
@@ -1077,70 +1030,6 @@ final class RecoveryViewModel {
         explanation += " (\(components.joined(separator: ", ")))."
 
         return explanation
-    }
-
-    // MARK: - Weekly Recovery Summary Data (Task 5)
-
-    struct WeeklyStats {
-        let avgRecovery: Double
-        let avgHRV: Double
-        let avgRHR: Double
-        let avgSleep: Double
-        let bestDay: (Date, Double)?
-        let worstDay: (Date, Double)?
-        let totalStrain: Double
-        let prevWeekAvgRecovery: Double?
-        let prevWeekAvgHRV: Double?
-        let prevWeekAvgRHR: Double?
-        let prevWeekAvgSleep: Double?
-    }
-
-    var weeklyStats: WeeklyStats? {
-        let last7 = Array(recentRecoveries.suffix(7))
-        guard last7.count >= 3 else {
-            return nil
-        }
-
-        let recoveryScores = last7.map(\.recoveryScore)
-        let hrvValues = last7.compactMap(\.hrvRmssd)
-        let rhrValues = last7.compactMap(\.restingHR)
-        let sleepValues = last7.compactMap(\.sleepHours)
-        let strainValues = last7.compactMap(\.strain)
-
-        let avgRecovery = recoveryScores.reduce(0, +) / Double(recoveryScores.count)
-        let avgHRV = hrvValues.isEmpty ? 0 : hrvValues.reduce(0, +) / Double(hrvValues.count)
-        let avgRHR = rhrValues.isEmpty ? 0 : rhrValues.reduce(0, +) / Double(rhrValues.count)
-        let avgSleep = sleepValues.isEmpty ? 0 : sleepValues.reduce(0, +) / Double(sleepValues.count)
-        let totalStrain = strainValues.reduce(0, +)
-
-        let bestDay = last7.max(by: { $0.recoveryScore < $1.recoveryScore }).map { ($0.date, $0.recoveryScore) }
-        let worstDay = last7.min(by: { $0.recoveryScore < $1.recoveryScore }).map { ($0.date, $0.recoveryScore) }
-
-        // Previous week stats for comparison
-        let prev14 = Array(recentRecoveries.suffix(14))
-        let prevWeek = prev14.count > 7 ? Array(prev14.prefix(prev14.count - 7).suffix(7)) : []
-
-        let prevAvgRecovery: Double? = prevWeek.count >= 3 ? prevWeek.map(\.recoveryScore).reduce(0, +) / Double(prevWeek.count) : nil
-        let prevHRV = prevWeek.compactMap(\.hrvRmssd)
-        let prevAvgHRV: Double? = prevHRV.count >= 3 ? prevHRV.reduce(0, +) / Double(prevHRV.count) : nil
-        let prevRHR = prevWeek.compactMap(\.restingHR)
-        let prevAvgRHR: Double? = prevRHR.count >= 3 ? prevRHR.reduce(0, +) / Double(prevRHR.count) : nil
-        let prevSleep = prevWeek.compactMap(\.sleepHours)
-        let prevAvgSleep: Double? = prevSleep.count >= 3 ? prevSleep.reduce(0, +) / Double(prevSleep.count) : nil
-
-        return WeeklyStats(
-            avgRecovery: avgRecovery,
-            avgHRV: avgHRV,
-            avgRHR: avgRHR,
-            avgSleep: avgSleep,
-            bestDay: bestDay,
-            worstDay: worstDay,
-            totalStrain: totalStrain,
-            prevWeekAvgRecovery: prevAvgRecovery,
-            prevWeekAvgHRV: prevAvgHRV,
-            prevWeekAvgRHR: prevAvgRHR,
-            prevWeekAvgSleep: prevAvgSleep
-        )
     }
 
     // MARK: - Sleep Stage Data

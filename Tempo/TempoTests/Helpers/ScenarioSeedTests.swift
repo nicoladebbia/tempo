@@ -212,6 +212,43 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(profile.currentWeightKg, latest.kg, accuracy: 0.001, "Fuel profile weight must match the latest weigh-in")
     }
 
+    func testBodyProgressHasWeighInsWithBodyFatSleepStagesAndThreePhotos() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "scenario-photos-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photoStore = ProgressPhotoStore(folder: folder)
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+
+        // Weigh-ins: all three readings, one real measurement a day, trending up.
+        let snapshots = fetchAll(BodyComposition.self).map(BodySnapshot.init)
+        let measurements = BodyProgress.measurements(from: snapshots)
+        XCTAssertGreaterThan(measurements.count, 20)
+        XCTAssertTrue(measurements.allSatisfy { $0.weightKg != nil && $0.bodyFatPercent != nil && $0.leanMassKg != nil })
+        let weight = BodyProgress.series(.weight, from: measurements, days: nil, now: Date())
+        let trend = try XCTUnwrap(BodyProgress.trend(of: weight))
+        XCTAssertEqual(trend.weeklyRate ?? 0, 0.25, accuracy: 0.08)
+
+        // The Body page's sleep stages and week of recovery.
+        let recovery = fetchAll(DailyRecovery.self)
+        let todayRow = try XCTUnwrap(recovery.first { cal.isDate($0.date, inSameDayAs: today()) })
+        XCTAssertNotNil(SleepStageMinutes(
+            deep: todayRow.deepSleepMin, rem: todayRow.remSleepMin, light: todayRow.lightSleepMin, awake: todayRow.awakeMin
+        ))
+        XCTAssertGreaterThanOrEqual(
+            RecoveryWindow.select(recovery.map(RecoveryViewModel.reading(from:)), days: 7, endingOn: Date()).count, 6
+        )
+
+        // Photos: three, oldest 8 weeks ago, newest today.
+        let photos = photoStore.photos()
+        XCTAssertEqual(photos.count, 3)
+        XCTAssertTrue(try cal.isDate(XCTUnwrap(photos.first).date, inSameDayAs: today()))
+        let oldest = try XCTUnwrap(photos.last).date
+        XCTAssertEqual(cal.dateComponents([.day], from: oldest, to: Date()).day, 56)
+
+        // Seeding again must not double the photos.
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+        XCTAssertEqual(photoStore.photos().count, 3)
+    }
+
     func testAthleteMealsHitTheirTargetsAndFeedTheAdaptiveEstimate() throws {
         ScenarioSeed.seed("athlete", context: context)
         let yesterday = try XCTUnwrap(cal.date(byAdding: .day, value: -1, to: today()))

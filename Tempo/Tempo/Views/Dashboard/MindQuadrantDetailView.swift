@@ -11,55 +11,101 @@ import SwiftUI
 
 // MARK: - MindQuadrantDetailView
 
-// Per MODULE_DASHBOARD.md Section 4.4 — Mind Expanded View.
-// Study progress hero, today's sessions, upcoming exams,
-// study trend chart, streak display.
+// The Study page. Per MODULE_DASHBOARD.md Section 4.4 (Mind Expanded View),
+// with the focus history folded in: the study target, today's sessions, the
+// timer, exams, the week and the history behind it are one page. You start a
+// session from it, the timer covers the screen while it runs, and you land
+// back here with the session in the list.
 
 struct MindQuadrantDetailView: View {
     let data: MindQuadrantData
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.modelContext)
+    private var modelContext
     @Environment(\.dynamicTypeSize)
     private var typeSize
     @Environment(\.tideMood)
     private var mood
+
+    /// The timer's own view model, alive while the timer covers the page. It must
+    /// not be rebuilt when this page redraws, or a running timer would reset.
     @State
-    private var showFocusTimer = false
+    private var focusModel: AccountabilityViewModel?
     @State
     private var showAddExam = false
+    @State
+    private var exams: [ExamData]
+    @State
+    private var toast: ToastData?
+    /// A deleted session stays in the store until its Undo toast is over.
+    @State
+    private var pendingDeleteID: UUID?
 
-    /// Today's completed study sessions, freshest first.
+    /// Every finished session, freshest first.
     @Query(
         filter: #Predicate<StudySession> { $0.endTime != nil },
         sort: [SortDescriptor(\StudySession.startTime, order: .reverse)]
     )
     private var allCompletedSessions: [StudySession]
 
-    /// Sessions whose startTime falls in today's calendar day.
-    private var todaysSessions: [StudySession] {
+    /// Today's accountability record: the same minutes the Today tile counts.
+    @Query
+    private var todayRecords: [DailyAccountability]
+
+    init(data: MindQuadrantData) {
+        self.data = data
+        _exams = State(initialValue: data.exams)
         let start = Calendar.current.startOfDay(for: Date())
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
-        return allCompletedSessions.filter { $0.startTime >= start && $0.startTime < end }
+        _todayRecords = Query(
+            filter: #Predicate<DailyAccountability> { $0.date >= start },
+            sort: [SortDescriptor(\DailyAccountability.date, order: .reverse)]
+        )
     }
 
-    /// 7-day rolling study minutes per day (oldest → today).
-    private var studyTrend: [StudyTrendPoint] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let weekStart = calendar.date(byAdding: .day, value: -6, to: today) ?? today
-        let recent = allCompletedSessions.filter { $0.startTime >= weekStart }
-        var bucket = [Date: Int]()
-        for session in recent {
-            let day = calendar.startOfDay(for: session.startTime)
-            bucket[day, default: 0] += session.durationMinutes
-        }
-        return (-6 ... 0).compactMap { offset in
-            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else {
-                return nil
-            }
-            return StudyTrendPoint(date: day, minutes: bucket[day, default: 0])
-        }
+    // MARK: Derived
+
+    /// Sessions without the one waiting on its Undo.
+    private var sessions: [StudySession] {
+        allCompletedSessions.filter { $0.id != pendingDeleteID }
     }
+
+    private var todaysSessions: [StudySession] {
+        let start = Calendar.current.startOfDay(for: Date())
+        return sessions.filter { $0.startTime >= start }
+    }
+
+    private var earlierSessions: [StudySession] {
+        let start = Calendar.current.startOfDay(for: Date())
+        return Array(sessions.filter { $0.startTime < start }.prefix(20))
+    }
+
+    private var entries: [StudyEntry] {
+        sessions.map { StudyEntry(startTime: $0.startTime, durationMinutes: $0.durationMinutes, subject: $0.subject) }
+    }
+
+    /// The minutes the page counts today. The hidden session's minutes are
+    /// already off, so the number and the list never disagree during the Undo.
+    private var minutesToday: Int {
+        let counted = todayRecords.first?.totalStudyMinutes ?? data.studyMinutesToday
+        let hidden = allCompletedSessions.first { $0.id == pendingDeleteID }
+        let hiddenToday = hidden.map {
+            $0.startTime >= Calendar.current.startOfDay(for: Date()) ? StudySessionRemoval.creditedMinutes(of: $0) : 0
+        } ?? 0
+        return StudyTodayList.shownMinutes(counted: counted, removed: hiddenToday)
+    }
+
+    private var shown: MindQuadrantData {
+        var copy = data
+        copy.studyMinutesToday = minutesToday
+        return copy
+    }
+
+    private var hasHistory: Bool {
+        !sessions.isEmpty
+    }
+
+    // MARK: Body
 
     var body: some View {
         TideScrollPage(spacing: Tide.s6, spacer: Tide.s2) {
@@ -71,7 +117,13 @@ struct MindQuadrantDetailView: View {
                 startSessionButton
             }
             upcomingExamsSection
-            studyTrendSection
+            if hasHistory {
+                weekSection
+                statsSection
+                subjectSection
+                timeOfDaySection
+                earlierSessionsSection
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // The one primary action stays under the thumb.
@@ -84,22 +136,39 @@ struct MindQuadrantDetailView: View {
                     .pinnedBarScrim()
             }
         }
-        .navigationTitle("Mind")
+        .navigationTitle("Study")
         .navigationBarTitleDisplayMode(.inline)
         // The page field rests while the timer or the exam sheet is over it.
         // This must sit on the page itself: it sets an environment value that
         // only reaches the views below it.
-        .tideCovered(showFocusTimer || showAddExam)
-        .sheet(isPresented: $showFocusTimer) {
-            NavigationStack {
-                FocusTimerView(viewModel: AccountabilityViewModel(engine: services.accountabilityEngine))
+        .tideCovered(focusModel != nil || showAddExam)
+        .fullScreenCover(isPresented: Binding(
+            get: { focusModel != nil },
+            set: {
+                if !$0 {
+                    focusModel = nil
+                }
+            }
+        )) {
+            if let focusModel {
+                FocusTimerView(viewModel: focusModel)
             }
         }
-        .sheet(isPresented: $showAddExam) {
+        .sheet(isPresented: $showAddExam, onDismiss: reloadExams) {
             NavigationStack {
                 AddExamSheet(calendar: services.calendar)
             }
         }
+        .tempoToast($toast)
+        .onChange(of: toast) { _, newValue in
+            // The Undo window is over: the delete becomes final.
+            if newValue == nil {
+                commitPendingDeletion()
+            }
+        }
+        .onDisappear { commitPendingDeletion() }
+        .task { reloadExams() }
+        .accessibilityIdentifier("study-page")
     }
 
     // MARK: - Progress Hero
@@ -107,34 +176,36 @@ struct MindQuadrantDetailView: View {
     // Per MODULE_DASHBOARD.md Section 4.4 — Progress Hero
 
     private var progressHeroSection: some View {
-        let percent = Int((min(data.studyProgress, 1.0) * 100).rounded())
+        let hero = shown
+        let percent = Int((min(hero.studyProgress, 1.0) * 100).rounded())
         return RecoveryHero {
             TideDial(score: percent, caption: "Target", diameter: Tide.dialHero)
                 .accessibilityLabel("Study target")
                 .accessibilityValue("\(percent) percent")
         } side: {
             Text("Studied today").tideLabel()
-            TideNumber(data.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
-            Text("of \(data.formattedStudyTarget) target")
+            TideNumber(hero.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
+            Text("of \(hero.formattedStudyTarget) target")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
 
             // Drill sergeant quip
-            Text(studyQuip)
+            Text(studyQuip(progress: hero.studyProgress))
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, Tide.s1)
 
             // Streak badge
-            if data.currentStreakDays >= 2 {
+            if hero.currentStreakDays >= 2 {
                 TideStatusPill(
-                    text: "\(data.currentStreakDays)-day streak",
-                    tint: data.currentStreakDays >= 7 ? Tide.streak : Tide.text2,
+                    text: "\(hero.currentStreakDays)-day streak",
+                    tint: hero.currentStreakDays >= 7 ? Tide.streak : Tide.text2,
                     systemImage: "flame.fill"
                 )
             }
         }
+        .accessibilityIdentifier("study-hero")
     }
 
     // MARK: - Today's Sessions
@@ -145,15 +216,29 @@ struct MindQuadrantDetailView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Today's sessions")
 
-            let sessions = todaysSessions
-            if sessions.isEmpty {
-                TideEmptyPanel(systemImage: "book.closed", title: "No study sessions yet")
+            let today = todaysSessions
+            if let empty = StudyTodayList.empty(minutesToday: minutesToday, sessionCount: today.count) {
+                switch empty {
+                case .nothingYet:
+                    TideEmptyPanel(
+                        systemImage: "book.closed",
+                        title: "No study sessions yet",
+                        message: "Start one below and it lands here."
+                    )
                     .tideCard()
+                case .minutesWithoutSessions:
+                    TideEmptyPanel(
+                        systemImage: "book.closed",
+                        title: "No session to list",
+                        message: "Today's study time was counted without the focus timer."
+                    )
+                    .tideCard()
+                }
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
-                        sessionRow(session)
-                        if index < sessions.count - 1 {
+                    ForEach(Array(today.enumerated()), id: \.element.id) { index, session in
+                        sessionRow(session, showsDate: false)
+                        if index < today.count - 1 {
                             TideDivider().padding(.leading, Tide.s4)
                         }
                     }
@@ -163,40 +248,89 @@ struct MindQuadrantDetailView: View {
         }
     }
 
-    private func sessionRow(_ session: StudySession) -> some View {
+    private func sessionRow(_ session: StudySession, showsDate: Bool) -> some View {
         // At accessibility sizes the icon goes and the duration drops under the name.
         let stacks = typeSize.isAccessibilitySize
-        let layout = stacks
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
-            : AnyLayout(HStackLayout(spacing: Tide.s3))
-        return layout {
+        let score = session.effectiveFocusScore > 0
+            ? TideNumber(
+                "\(session.effectiveFocusScore)", unit: "%", size: Tide.numeralS, relativeTo: .headline,
+                weight: .semibold, color: focusScoreColor(session.effectiveFocusScore)
+            )
+            : nil
+
+        return HStack(alignment: stacks ? .top : .center, spacing: Tide.s3) {
             if !stacks {
                 TideAreaIconTile(systemName: "book.fill", tint: mood.accent)
             }
 
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(session.subject ?? "Focus Session")
+                Text(session.subject ?? "Focus session")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(2)
-                Text(rangeText(session))
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text3)
+                    .lineLimit(stacks ? 4 : 2)
+                Group {
+                    if showsDate {
+                        Text(session.startTime, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    } else {
+                        Text(rangeText(session))
+                    }
+                }
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+
+                if stacks {
+                    durationAndScore(session, score: score)
+                }
             }
 
             if !stacks {
                 Spacer(minLength: Tide.s2)
+                durationAndScore(session, score: score)
             }
 
+            sessionMenu(session)
+        }
+        .padding(.leading, Tide.s4)
+        .padding(.trailing, Tide.s2)
+        .padding(.vertical, Tide.s2)
+        .frame(minHeight: Tide.hit)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("study-session-row")
+    }
+
+    @ViewBuilder
+    private func durationAndScore(_ session: StudySession, score: TideNumber?) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
             TideNumber(
                 "\(session.durationMinutes)", unit: "m", size: Tide.numeralS, relativeTo: .headline,
                 weight: .semibold
             )
+            if let score {
+                score
+            }
         }
-        .padding(.horizontal, Tide.s4)
-        .padding(.vertical, Tide.s3)
-        .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
+    }
+
+    private func sessionMenu(_ session: StudySession) -> some View {
+        Menu {
+            Button(role: .destructive) {
+                removeWithUndo(session)
+            } label: {
+                Label("Delete session", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text2)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect)
+        }
+        .accessibilityLabel("Session options")
+        .accessibilityIdentifier("study-session-menu")
     }
 
     private func rangeText(_ session: StudySession) -> String {
@@ -215,11 +349,12 @@ struct MindQuadrantDetailView: View {
 
     private var startSessionButton: some View {
         Button {
-            showFocusTimer = true
+            focusModel = AccountabilityViewModel(engine: services.accountabilityEngine)
         } label: {
-            Label("Start Study Session", systemImage: "play.fill")
+            Label("Start study session", systemImage: "play.fill")
         }
         .buttonStyle(.tidePrimary)
+        .accessibilityIdentifier("study-start-session")
     }
 
     // MARK: - Upcoming Exams
@@ -230,7 +365,7 @@ struct MindQuadrantDetailView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Upcoming exams")
 
-            if data.exams.isEmpty {
+            if exams.isEmpty {
                 TideEmptyPanel(
                     systemImage: "calendar.badge.clock",
                     title: "No upcoming exams",
@@ -243,7 +378,7 @@ struct MindQuadrantDetailView: View {
             } else {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     VStack(spacing: 0) {
-                        ForEach(Array(data.exams.enumerated()), id: \.element.id) { index, exam in
+                        ForEach(Array(exams.enumerated()), id: \.element.id) { index, exam in
                             if index > 0 {
                                 TideDivider()
                             }
@@ -285,14 +420,27 @@ struct MindQuadrantDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: - Study Trend Chart
+    /// Exams come from the calendar. Reload them when the page opens and after
+    /// one is added, so a new exam shows here without leaving the page.
+    private func reloadExams() {
+        let start = Calendar.current.startOfDay(for: Date())
+        let end = Calendar.current.date(byAdding: .weekOfYear, value: 3, to: Date()) ?? Date()
+        let found = services.calendar
+            .detectExamDates(in: DateInterval(start: start, end: end))
+            .map { ExamData(name: $0.subject, date: $0.date) }
+        if !found.isEmpty {
+            exams = found
+        }
+    }
+
+    // MARK: - This Week
 
     // Per MODULE_DASHBOARD.md Section 4.4 — Study Trend Chart
 
-    private var studyTrendSection: some View {
-        let trend = studyTrend
-        let weekTotal = trend.reduce(0) { $0 + $1.minutes }
-        let bars = trend.map {
+    private var weekSection: some View {
+        let days = StudyHistory.lastDays(entries, endingOn: Date())
+        let weekTotal = days.reduce(0) { $0 + $1.minutes }
+        let bars = days.map {
             TempoBarChartSeries<String>.Bar(
                 label: TempoDateFormatters.shortDayOfWeek.string(from: $0.date), value: Double($0.minutes)
             )
@@ -300,7 +448,7 @@ struct MindQuadrantDetailView: View {
         let series = TempoBarChartSeries(id: "study", label: "Study", color: mood.accent, bars: bars)
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Study trend", trailing: "Weekly total \(formatMinutes(weekTotal))")
+            TideSectionLabel(title: "Last 7 days", trailing: StudyHistory.formatMinutes(weekTotal))
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 TideBarChart(
@@ -326,16 +474,254 @@ struct MindQuadrantDetailView: View {
         }
     }
 
+    // MARK: - Stats
+
+    private var statsSection: some View {
+        let best = StudyHistory.bestDay(entries)
+        let total = entries.reduce(0) { $0 + $1.durationMinutes }
+        let average = averageFocusScore
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "All time")
+
+            LazyVGrid(
+                // One tile per row at accessibility sizes, so the numbers keep their width.
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: Tide.s3),
+                    count: typeSize.isAccessibilitySize ? 1 : 2
+                ),
+                spacing: Tide.s3
+            ) {
+                TideMetricTile(
+                    label: "Sessions", value: "\(sessions.count)", tint: Tide.text, systemImage: "clock.fill"
+                )
+                TideMetricTile(
+                    label: "Total time", value: StudyHistory.formatMinutes(total), tint: Tide.text,
+                    systemImage: "timer"
+                )
+                TideMetricTile(
+                    label: "Avg focus",
+                    value: average.map { "\($0)" } ?? "--",
+                    unit: average == nil ? nil : "%",
+                    tint: average.map(focusScoreColor) ?? Tide.text3,
+                    systemImage: "brain.head.profile"
+                )
+                TideMetricTile(
+                    label: "Best day",
+                    value: best.map { $0.date.formatted(.dateTime.weekday(.abbreviated)) } ?? "--",
+                    detail: best.map { StudyHistory.formatMinutes($0.minutes) },
+                    tint: TideTone.gold,
+                    systemImage: "trophy.fill"
+                )
+            }
+        }
+        .accessibilityIdentifier("study-stats")
+    }
+
+    /// The average over sessions that have a focus score or a recorded
+    /// distraction. Nil when none does, so the tile says "--" and not 0%.
+    private var averageFocusScore: Int? {
+        let scored = sessions.filter { $0.focusScore != nil || $0.distractions > 0 }
+        guard !scored.isEmpty else {
+            return nil
+        }
+        return scored.reduce(0) { $0 + $1.effectiveFocusScore } / scored.count
+    }
+
+    // MARK: - By Subject
+
+    private var subjectSection: some View {
+        let calendar = Calendar.current
+        let weekStart = calendar.date(
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
+        ) ?? Date()
+        let totals = StudyHistory.subjectTotals(entries, since: weekStart)
+
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "By subject", trailing: "This week")
+
+            if totals.isEmpty {
+                TideEmptyPanel(systemImage: "books.vertical", title: "No subjects logged this week")
+                    .tideCard()
+            } else {
+                VStack(spacing: Tide.s4) {
+                    let total = max(1, totals.reduce(0) { $0 + $1.minutes })
+                    ForEach(totals, id: \.subject) { row in
+                        subjectRow(row, total: total)
+                    }
+                }
+                .tideCard()
+            }
+        }
+    }
+
+    private func subjectRow(_ row: StudyHistory.SubjectTotal, total: Int) -> some View {
+        let fraction = Double(row.minutes) / Double(total)
+        let stacks = typeSize.isAccessibilitySize
+        let head = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            head {
+                Text(row.subject)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(stacks ? 3 : 1)
+                if !stacks {
+                    Spacer(minLength: Tide.s2)
+                }
+                Text(StudyHistory.formatMinutes(row.minutes))
+                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                    .foregroundStyle(Tide.text2)
+            }
+            TideLevelBar(progress: fraction, color: mood.accent.opacity(0.5 + 0.5 * fraction), height: Tide.barSlim)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Time of Day
+
+    @ScaledMetric(relativeTo: .caption2)
+    private var heatCell: CGFloat = 14
+
+    private var timeOfDaySection: some View {
+        let grid = StudyHistory.heatmap(entries, now: Date())
+        let maxValue = max(1, grid.flatMap(\.self).max() ?? 1)
+        let hasData = grid.contains { $0.contains { $0 > 0 } }
+        let hours = Array(StudyHistory.heatmapHours)
+
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Time of day", trailing: "Last 30 days")
+
+            if hasData {
+                VStack(spacing: Tide.hair) {
+                    // Day-of-week header
+                    HStack(spacing: Tide.hair) {
+                        Color.clear.frame(width: Tide.s6, height: Tide.rule)
+                        ForEach(Array(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].enumerated()), id: \.offset) { _, day in
+                            Text(day)
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
+                                .lineLimit(1)
+                                .minimumScaleFactor(Tide.labelShrink)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .accessibilityHidden(true)
+
+                    ForEach(Array(hours.enumerated()), id: \.offset) { row, hour in
+                        HStack(spacing: Tide.hair) {
+                            Text(hour % 3 == 0 ? "\(hour)" : "")
+                                .font(Tide.axisFont)
+                                .foregroundStyle(Tide.text3)
+                                .frame(width: Tide.s6, alignment: .trailing)
+                                .padding(.trailing, Tide.s1)
+                                .accessibilityHidden(true)
+                            ForEach(0 ..< 7, id: \.self) { column in
+                                heatmapCell(value: grid[column][row], max: maxValue)
+                            }
+                        }
+                    }
+                }
+                .tideCard(padding: Tide.s4)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Study time by weekday and hour, last 30 days")
+                .accessibilityValue("Busiest slot \(busiestSlot(grid))")
+            } else {
+                TideEmptyPanel(systemImage: "clock", title: "No sessions in the last 30 days")
+                    .tideCard()
+            }
+        }
+    }
+
+    private func heatmapCell(value: Int, max: Int) -> some View {
+        let intensity = Double(value) / Double(max)
+        let color = value == 0 ? Tide.fill : mood.accent.opacity(0.2 + 0.8 * intensity)
+        return RoundedRectangle(cornerRadius: Tide.hair)
+            .fill(color)
+            .frame(maxWidth: .infinity)
+            .frame(height: heatCell)
+    }
+
+    private func busiestSlot(_ grid: [[Int]]) -> String {
+        var best = (column: 0, row: 0, value: -1)
+        for column in 0 ..< 7 {
+            for row in 0 ..< grid[column].count where grid[column][row] > best.value {
+                best = (column, row, grid[column][row])
+            }
+        }
+        let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        return "\(names[best.column]) at \(best.row + StudyHistory.heatmapHours.lowerBound):00"
+    }
+
+    // MARK: - Earlier Sessions
+
+    @ViewBuilder
+    private var earlierSessionsSection: some View {
+        let earlier = earlierSessions
+        if !earlier.isEmpty {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "Earlier sessions")
+
+                VStack(spacing: 0) {
+                    ForEach(Array(earlier.enumerated()), id: \.element.id) { index, session in
+                        sessionRow(session, showsDate: true)
+                        if index < earlier.count - 1 {
+                            TideDivider().padding(.leading, Tide.s4)
+                        }
+                    }
+                }
+                .tideCard(padding: 0)
+            }
+        }
+    }
+
+    // MARK: - Delete with Undo
+
+    /// Hides the session and offers Undo. It is only deleted when the toast is over.
+    private func removeWithUndo(_ session: StudySession) {
+        // A second delete while the first toast is up makes the first final.
+        commitPendingDeletion()
+        let id = session.id
+        withAnimation(Tide.snap) {
+            pendingDeleteID = id
+        }
+        toast = ToastData(
+            message: "Session deleted.",
+            style: .info,
+            actionTitle: "Undo"
+        ) {
+            withAnimation(Tide.snap) {
+                if pendingDeleteID == id {
+                    pendingDeleteID = nil
+                }
+            }
+        }
+    }
+
+    private func commitPendingDeletion() {
+        guard let id = pendingDeleteID else {
+            return
+        }
+        pendingDeleteID = nil
+        guard let session = allCompletedSessions.first(where: { $0.id == id }) else {
+            return
+        }
+        // Its minutes come off the day's total and the Study task, so Today,
+        // Lockdown and this page agree.
+        StudySessionRemoval.remove(session, modelContext: modelContext)
+        // Today and Lockdown reload when study progress changes.
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+    }
+
     // MARK: - Helpers
 
-    private var studyQuip: String {
-        let progress = data.studyProgress
+    private func studyQuip(progress: Double) -> String {
         switch progress {
-        case 0: return "Zero minutes. The books miss you."
-        case ..<0.5: return "Not done yet. Back to the desk."
-        case ..<1.0: return "More than half. Keep going."
-        case 1.0: return "Target hit. Respect."
-        default: return "Going extra. That's elite."
+        case 0: "Zero minutes. The books miss you."
+        case ..<0.5: "Not done yet. Back to the desk."
+        case ..<1.0: "More than half. Keep going."
+        case 1.0: "Target hit. Respect."
+        default: "Going extra. That's elite."
         }
     }
 
@@ -347,25 +733,15 @@ struct MindQuadrantDetailView: View {
         }
     }
 
-    private func formatMinutes(_ minutes: Int) -> String {
-        let h = minutes / 60
-        let m = minutes % 60
-        if h > 0, m > 0 {
-            return "\(h)h \(m)m"
+    private func focusScoreColor(_ score: Int) -> Color {
+        if score >= 80 {
+            return TideTone.mint
         }
-        if h > 0 {
-            return "\(h)h"
+        if score >= 50 {
+            return TideTone.amber
         }
-        return "\(m)m"
+        return Tide.danger
     }
-}
-
-// MARK: - StudyTrendPoint
-
-struct StudyTrendPoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let minutes: Int
 }
 
 // MARK: - AddExamSheet

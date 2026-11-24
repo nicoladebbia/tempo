@@ -236,10 +236,12 @@ final class AccountabilityViewModel {
 
     // Per MODULE_ACCOUNTABILITY.md — manual completion flow.
 
+    @discardableResult
     func completeItem(
         _ progress: NonNegotiableProgress,
         modelContext: ModelContext
-    ) {
+    ) -> NonNegotiableUndo {
+        let undo = makeUndo(for: progress)
         engine.updateProgress(
             progress: progress,
             newValue: progress.targetValue,
@@ -254,6 +256,7 @@ final class AccountabilityViewModel {
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        return undo
     }
 
     func updateItemProgress(
@@ -279,14 +282,35 @@ final class AccountabilityViewModel {
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
+    @discardableResult
     func skipItem(
         _ progress: NonNegotiableProgress,
         modelContext: ModelContext
-    ) {
+    ) -> NonNegotiableUndo {
+        let undo = makeUndo(for: progress)
         engine.skipNonNegotiable(progress: progress, modelContext: modelContext)
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        return undo
+    }
+
+    // MARK: - Undo
+
+    /// Reads what completing or skipping `progress` is about to change.
+    private func makeUndo(for progress: NonNegotiableProgress) -> NonNegotiableUndo {
+        NonNegotiableUndo(
+            progress: progress,
+            accountability: accountability,
+            habitStreak: progress.nonNegotiable.flatMap { habitStreaks[$0.type] }
+        )
+    }
+
+    /// Takes back a completion or a skip, and anything it set off (the unlock, the streak).
+    func undo(_ undo: NonNegotiableUndo, modelContext: ModelContext) {
+        undo.apply(modelContext: modelContext)
+        refreshProgressItems()
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 

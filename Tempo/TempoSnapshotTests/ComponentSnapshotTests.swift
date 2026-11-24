@@ -114,9 +114,9 @@ final class ComponentSnapshotTests: TempoSnapshotTestCase {
 
     // MARK: - Body Quadrant Metric Cards (Bug #3 regression)
 
-    /// Pins HRV/RHR/Sleep/SpO2 cards at identical dimensions. If a future change
-    /// re-introduces unit suffixes inside the value or removes the minHeight,
-    /// this snapshot will fail.
+    /// Pins the top of the Body page: the recovery hero and the HRV/RHR/Sleep/SpO2
+    /// tiles at identical dimensions, with no stored days behind them (so "No
+    /// baseline yet", never an invented average).
     func testBodyQuadrantDetailMetricRow() {
         let view = NavigationStack {
             BodyQuadrantDetailView(
@@ -128,6 +128,10 @@ final class ComponentSnapshotTests: TempoSnapshotTestCase {
                 )
             )
         }
+        .modelContainer(
+            for: [DailyRecovery.self, DailyPrescription.self, BodyComposition.self, UserSettings.self],
+            inMemory: true
+        )
         assertComponentSnapshot(of: view, size: CGSize(width: 393, height: 360))
     }
 }

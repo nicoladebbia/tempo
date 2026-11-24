@@ -1,20 +1,20 @@
 //
-// RecoveryTodayView.swift
+// RecoveryDayView.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
-//
+// The Day view of the Recovery page: how recovered you are and why, the vitals,
+// last night's sleep and today's strain, then the morning check-in.
 //
 
 import SwiftData
 import SwiftUI
 
-// MARK: - RecoveryTodayView
+// MARK: - RecoveryDayView
 
-// Per MODULE_RECOVERY.md Section 4 — Main screen of RecoverIQ module.
-// Per WIREFRAMES.md Section 5 — Recovery layout.
+// Per MODULE_RECOVERY.md Section 4 (score, vitals), Section 5 (sleep) and
+// Section 6 (strain): the three used to be tabs, they are sections of one page.
 
-struct RecoveryTodayView: View {
+struct RecoveryDayView: View {
     @Bindable
     var viewModel: RecoveryViewModel
     @Environment(\.modelContext)
@@ -43,17 +43,18 @@ struct RecoveryTodayView: View {
     /// True once a night of readings is in. Before that the day holds a record
     /// with a score of 0 and nothing else, which must not read as a red day.
     private var hasData: Bool {
-        guard let recovery = viewModel.todayRecovery else {
-            return false
-        }
-        return recovery.hrvRmssd != nil || recovery.restingHR != nil
-            || recovery.sleepHours != nil || recovery.strain != nil
-            || recovery.recoveryScore > 0
+        viewModel.todayRecovery.map { RecoveryViewModel.reading(from: $0).hasReadings } ?? false
     }
 
     var body: some View {
         TideScrollPage(energy: 1) {
             if hasData {
+                // A refresh that failed after the data was already on screen
+                // keeps the numbers and says what went wrong.
+                if case let .error(message) = viewModel.loadState {
+                    RecoveryErrorBanner(message: message)
+                }
+
                 // Hero: the recovery dial
                 heroSection
 
@@ -71,20 +72,26 @@ struct RecoveryTodayView: View {
                 // score (replaces the old static 2-day prescription text).
                 RecoveryAIInsightView(recovery: viewModel.todayRecovery)
 
-                // Key Metrics
-                metricsGrid
-
-                // Recovery Score Breakdown
+                // What drove the score, then the vitals behind it
                 scoreBreakdownSection
+                metricsGrid
 
                 // Recovery Score Explanation
                 recoveryExplanationSection
 
+                // Last night and today's load
+                RecoverySleepSection(viewModel: viewModel)
+                RecoveryStrainSection(viewModel: viewModel)
+
                 // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
                 MorningCheckInCard()
+            } else if case let .error(message) = viewModel.loadState {
+                RecoveryErrorPanel(message: message) {
+                    Task { await viewModel.forceRefresh(modelContext: modelContext) }
+                }
 
-                // Quick Insights
-                quickInsightsSection
+                // How you feel does not need a wearable.
+                MorningCheckInCard()
             } else if viewModel.loadState == .loading {
                 // The page's own shape while the first read is on its way.
                 RecoverySkeleton(label: "Loading recovery")
@@ -98,11 +105,6 @@ struct RecoveryTodayView: View {
         }
         .refreshable {
             await viewModel.forceRefresh(modelContext: modelContext)
-        }
-        .task {
-            if viewModel.loadState != .loaded {
-                await viewModel.refresh(modelContext: modelContext)
-            }
         }
         .tideCovered(selectedMetric != nil || showWhoopConnect)
         .sheet(item: $selectedMetric) { metric in
@@ -283,12 +285,14 @@ struct RecoveryTodayView: View {
 
                 TideNumber(value, unit: metric.unit, size: Tide.numeralM, relativeTo: .title2)
 
-                // Baseline indicator: green is the good side of your own average.
+                // Baseline indicator: the arrow points the way the number moved
+                // against your own average; green is the good side of it.
                 if let indicator {
                     HStack(spacing: Tide.s1) {
-                        Image(systemName: indicator.isPositive ? "arrow.up.right" : "arrow.down.right")
+                        Image(systemName: indicator.isRising ? "arrow.up.right" : "arrow.down.right")
                             .font(Tide.label)
-                        Text("vs avg").font(Tide.caption)
+                            .accessibilityHidden(true)
+                        Text(indicator.isRising ? "above avg" : "below avg").font(Tide.caption)
                     }
                     .foregroundStyle(indicator.isPositive ? TideTone.mint : Tide.danger)
                 } else {
@@ -333,97 +337,6 @@ struct RecoveryTodayView: View {
                 .accessibilityElement(children: .combine)
             }
         }
-    }
-
-    // MARK: - Quick Insights Section
-
-    // Per MODULE_RECOVERY.md Section 4.5
-
-    private var quickInsightsSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Quick insights")
-
-            // Three ways into the other tabs read as one list, not three cards.
-            VStack(spacing: 0) {
-                // Recovery Trends Teaser
-                if let avg = viewModel.avgRecovery7d {
-                    NavigationLink {
-                        RecoveryTrendsView(viewModel: viewModel)
-                    } label: {
-                        insightRow(
-                            icon: "chart.line.uptrend.xyaxis",
-                            title: "Recovery trends",
-                            detail: "7-day avg: \(Int(avg))%"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Sleep Teaser
-                if viewModel.todayRecovery?.sleepHours != nil {
-                    if viewModel.avgRecovery7d != nil {
-                        TideDivider()
-                    }
-                    NavigationLink {
-                        SleepDetailView(viewModel: viewModel)
-                    } label: {
-                        insightRow(
-                            icon: "moon.zzz.fill",
-                            title: "Last night's sleep",
-                            detail: "\(viewModel.formattedSleepHours) · Score: \(viewModel.formattedSleepScore)"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Strain Teaser
-                if viewModel.todayRecovery?.strain != nil {
-                    if viewModel.avgRecovery7d != nil || viewModel.todayRecovery?.sleepHours != nil {
-                        TideDivider()
-                    }
-                    NavigationLink {
-                        StrainDetailView(viewModel: viewModel)
-                    } label: {
-                        insightRow(
-                            icon: "flame.fill",
-                            title: "Today's strain",
-                            detail: "\(viewModel.formattedStrain) · Calories: \(viewModel.formattedCalories)"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-        }
-    }
-
-    private func insightRow(icon: String, title: String, detail: String) -> some View {
-        HStack(spacing: Tide.s3) {
-            // At the largest text sizes the words need the whole row, not the icon tile.
-            if !typeSize.isAccessibilitySize {
-                TideAreaIconTile(systemName: icon, tint: zoneColor)
-            }
-
-            VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(title)
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                Text(detail)
-                    .font(Tide.body)
-                    .foregroundStyle(Tide.text2)
-            }
-
-            Spacer(minLength: Tide.s2)
-
-            Image(systemName: "chevron.right")
-                .font(Tide.label)
-                .foregroundStyle(Tide.text3)
-                .accessibilityHidden(true)
-        }
-        .padding(.vertical, Tide.s3)
-        .frame(minHeight: Tide.hit)
-        .contentShape(.rect)
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Score Breakdown Section
@@ -491,29 +404,45 @@ struct RecoveryTodayView: View {
         let rounded = delta.rounded()
         let isFlat = rounded == 0
         let isPositive = isHigherBetter ? delta >= 0 : delta <= 0
-        return HStack(spacing: Tide.s3) {
-            Text(label)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text2)
-                .frame(minWidth: Tide.s10, alignment: .leading)
-
-            TideNumber(todayValue, unit: unit.isEmpty ? nil : unit, size: Tide.numeralS, relativeTo: .headline)
-
-            Spacer(minLength: Tide.s2)
-
-            // Delta arrow
-            HStack(spacing: Tide.s1) {
-                Image(systemName: isFlat ? "equal" : (isPositive ? "arrow.up.right" : "arrow.down.right"))
-                    .font(Tide.label)
-                Text(isFlat ? "0" : String(format: "%+.0f", rounded))
-                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+        let name = Text(label)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text2)
+        let value = TideNumber(todayValue, unit: unit.isEmpty ? nil : unit, size: Tide.numeralS, relativeTo: .headline)
+        let change = HStack(spacing: Tide.s1) {
+            Image(systemName: isFlat ? "equal" : (delta > 0 ? "arrow.up.right" : "arrow.down.right"))
+                .font(Tide.label)
+            Text(isFlat ? "0" : String(format: "%+.0f", rounded))
+                .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+        }
+        .foregroundStyle(isFlat ? Tide.text2 : (isPositive ? TideTone.mint : Tide.danger))
+        let average = Text("avg \(baselineValue)")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
+        return Group {
+            if typeSize.isAccessibilitySize {
+                // At large text the four parts no longer share a row: name and
+                // value on top, change and average underneath.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(spacing: Tide.s3) {
+                        name
+                        value
+                    }
+                    HStack(spacing: Tide.s3) {
+                        change
+                        average
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Tide.s2)
+            } else {
+                HStack(spacing: Tide.s3) {
+                    name.frame(minWidth: Tide.s10, alignment: .leading)
+                    value
+                    Spacer(minLength: Tide.s2)
+                    change
+                    average.frame(minWidth: Tide.s10 + Tide.s6, alignment: .trailing)
+                }
             }
-            .foregroundStyle(isFlat ? Tide.text2 : (isPositive ? TideTone.mint : Tide.danger))
-
-            Text("avg \(baselineValue)")
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text3)
-                .frame(minWidth: Tide.s10 + Tide.s6, alignment: .trailing)
         }
         .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
@@ -525,7 +454,10 @@ struct RecoveryTodayView: View {
     // MARK: - Baseline Indicator Helper
 
     private struct BaselineIndicator {
+        /// Good side of the average: green.
         let isPositive: Bool
+        /// Above the average: the arrow points up.
+        let isRising: Bool
     }
 
     private func baselineIndicator(for metric: MetricType) -> BaselineIndicator? {
@@ -534,23 +466,23 @@ struct RecoveryTodayView: View {
             guard let delta = viewModel.hrvDelta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta >= 0) // Higher HRV = better
+            return BaselineIndicator(isPositive: delta >= 0, isRising: delta >= 0) // Higher HRV = better
         case .rhr:
             guard let delta = viewModel.rhrDelta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta <= 0) // Lower RHR = better
+            return BaselineIndicator(isPositive: delta <= 0, isRising: delta > 0) // Lower RHR = better
         case .spo2:
             guard let delta = viewModel.spo2Delta else {
                 return nil
             }
-            return BaselineIndicator(isPositive: delta >= 0) // Higher SpO2 = better
+            return BaselineIndicator(isPositive: delta >= 0, isRising: delta >= 0) // Higher SpO2 = better
         case .temp:
             guard let delta = viewModel.skinTempDelta else {
                 return nil
             }
             // Skin temp: closer to baseline is better, deviation either way is concerning
-            return BaselineIndicator(isPositive: abs(delta) < 0.5)
+            return BaselineIndicator(isPositive: abs(delta) < 0.5, isRising: delta >= 0)
         }
     }
 
@@ -561,166 +493,3 @@ struct RecoveryTodayView: View {
     }
 }
 
-// MARK: - MetricType
-
-enum MetricType: String, Identifiable, CaseIterable {
-    case hrv = "HRV"
-    case rhr = "RHR"
-    case spo2 = "SpO2"
-    case temp = "Temp"
-
-    var id: String {
-        rawValue
-    }
-
-    var unit: String {
-        switch self {
-        case .hrv: "ms"
-        case .rhr: "bpm"
-        case .spo2: "%"
-        case .temp: "°C"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .hrv: "waveform.path.ecg"
-        case .rhr: "heart.fill"
-        case .spo2: "lungs.fill"
-        case .temp: "thermometer.medium"
-        }
-    }
-}
-
-// MARK: - MetricTrendSheet
-
-struct MetricTrendSheet: View {
-    let metric: MetricType
-    @Bindable
-    var viewModel: RecoveryViewModel
-    @Environment(\.dismiss)
-    private var dismiss
-
-    var body: some View {
-        TideScrollPage(spacing: Tide.s5, spacer: Tide.s6) {
-            // Header
-            HStack(spacing: Tide.s3) {
-                TideAreaIconTile(systemName: metric.icon, tint: sparklineColor)
-                VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(metric.rawValue)
-                        .font(Tide.title2)
-                        .foregroundStyle(Tide.text)
-                    Text("Last 7 days")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                }
-                Spacer(minLength: Tide.s2)
-                TideCloseButton { dismiss() }
-            }
-            .accessibilityElement(children: .contain)
-
-            // Sparkline chart
-            Group {
-                if trendData.count >= 2 {
-                    TideLineChart(
-                        data: [
-                            TempoLineChartData(
-                                id: metric.rawValue,
-                                label: metric.rawValue,
-                                color: sparklineColor,
-                                points: trendData.map {
-                                    TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
-                                }
-                            ),
-                        ],
-                        height: Tide.chartHeight
-                    )
-                } else {
-                    RecoveryChartPlaceholder(
-                        message: "Need \(3 - trendData.count) more days of data to show trends."
-                    )
-                }
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-
-            // Summary stats
-            if !trendData.isEmpty {
-                HStack(spacing: Tide.s3) {
-                    summaryItem(label: "Min", value: trendData.map(\.1).min())
-                    summaryItem(label: "Avg", value: trendData.map(\.1).reduce(0, +) / Double(trendData.count))
-                    summaryItem(label: "Max", value: trendData.map(\.1).max())
-                }
-            }
-        }
-    }
-
-    private func summaryItem(label: String, value: Double?) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
-            Text(label).tideLabel()
-            TideNumber(
-                value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--",
-                unit: metric.unit,
-                size: Tide.numeralS + Tide.s1,
-                relativeTo: .title3
-            )
-        }
-        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var sparklineColor: Color {
-        switch metric {
-        case .hrv: TideSleepStage.rem
-        case .rhr: Tide.danger
-        case .spo2: TideTone.mint
-        case .temp: TideTone.amber
-        }
-    }
-
-    private var trendData: [(Date, Double)] {
-        let recent = Array(viewModel.recentRecoveries.suffix(7))
-        switch metric {
-        case .hrv:
-            return recent.compactMap { r in
-                guard let v = r.hrvRmssd else {
-                    return nil
-                }
-                return (r.date, v)
-            }
-        case .rhr:
-            return recent.compactMap { r in
-                guard let v = r.restingHR else {
-                    return nil
-                }
-                return (r.date, v)
-            }
-        case .spo2:
-            return recent.compactMap { r in
-                guard let v = r.spo2 else {
-                    return nil
-                }
-                return (r.date, v)
-            }
-        case .temp:
-            return recent.compactMap { r in
-                guard let v = r.skinTemp else {
-                    return nil
-                }
-                return (r.date, v)
-            }
-        }
-    }
-}
-
-// MARK: - RecoveryLoadState + Equatable
-
-extension RecoveryLoadState: Equatable {
-    static func == (lhs: RecoveryLoadState, rhs: RecoveryLoadState) -> Bool {
-        switch (lhs, rhs) {
-        case (.loading, .loading): true
-        case (.loaded, .loaded): true
-        case let (.error(a), .error(b)): a == b
-        default: false
-        }
-    }
-}
