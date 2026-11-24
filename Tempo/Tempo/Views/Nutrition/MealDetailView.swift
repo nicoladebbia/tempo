@@ -421,7 +421,12 @@ struct MealDetailView: View {
                 Int(recipe.totalCarbsGrams.rounded()), Int(recipe.totalFatGrams.rounded())
             )
         }
-        return (Int(meal.totalCalories.rounded()), Int(meal.totalProtein.rounded()), Int(meal.totalCarbs.rounded()), Int(meal.totalFat.rounded()))
+        return (
+            Int(meal.totalCalories.rounded()),
+            Int(meal.totalProtein.rounded()),
+            Int(meal.totalCarbs.rounded()),
+            Int(meal.totalFat.rounded())
+        )
     }
 
     /// A meal that is not eaten or skipped yet, on a day that has begun: the
@@ -721,6 +726,7 @@ struct MealDetailView: View {
         }
         if saved {
             HapticManager.notification(.success)
+            FuelLogToast.post(ToastData(message: "Saved as a favourite.", style: .success))
         }
     }
 

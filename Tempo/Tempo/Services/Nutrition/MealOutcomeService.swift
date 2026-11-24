@@ -602,6 +602,21 @@ enum MealOutcomeService {
         isPinned: Bool = false,
         modelContext: ModelContext
     ) throws -> MealPreset {
+        // The same name and the same foods is the same saved meal: saving it again
+        // keeps one row (and pins it if asked) instead of stacking a copy.
+        let signature = UsualMeals.signature(of: foods)
+        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let saved = (try? modelContext.fetch(FetchDescriptor<MealPreset>())) ?? []
+        if let existing = saved.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == wanted
+                && UsualMeals.signature(of: $0.foodItems.map { EatenMealRecorder.plannedFood(from: $0) }) == signature
+        }) {
+            if isPinned, !existing.isPinned {
+                existing.isPinned = true
+                try save(modelContext)
+            }
+            return existing
+        }
         let preset = MealPreset(
             name: name,
             foodItems: foods.map(EatenMealRecorder.input(from:)),

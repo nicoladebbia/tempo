@@ -283,6 +283,25 @@ final class MealOutcomeServiceTests: XCTestCase {
         XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 1)
     }
 
+    func testSavingTheSameMealAgainKeepsOneFavouriteAndPinsIt() throws {
+        let foods = [PlannedFood(name: "Oats", quantityGrams: 80, calories: 300, proteinG: 10, carbsG: 50, fatG: 6)]
+        let first = try MealOutcomeService.savePreset(
+            name: "Usual", foods: foods, mealType: .breakfast, modelContext: context
+        )
+        XCTAssertFalse(first.isPinned)
+        let again = try MealOutcomeService.savePreset(
+            name: " usual ", foods: foods, mealType: .breakfast, isPinned: true, modelContext: context
+        )
+        XCTAssertEqual(again.id, first.id)
+        XCTAssertTrue(again.isPinned)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 1)
+        // A different name or different foods is a different saved meal.
+        _ = try MealOutcomeService.savePreset(name: "Light", foods: foods, mealType: .breakfast, modelContext: context)
+        let other = [PlannedFood(name: "Eggs", quantityGrams: 100, calories: 150, proteinG: 12, carbsG: 1, fatG: 10)]
+        _ = try MealOutcomeService.savePreset(name: "Usual", foods: other, mealType: .breakfast, modelContext: context)
+        XCTAssertEqual(try (context.fetch(FetchDescriptor<MealPreset>())).count, 3)
+    }
+
     func testPresetLogGoesThroughRecorderAndHitsCanonicalReaders() throws {
         let preset = MealPreset(
             name: "Usual", foodItems: [food("Oats", kcal: 300)], totalCalories: 300,
