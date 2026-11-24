@@ -438,7 +438,8 @@ struct NutritionWeeklyPlanView: View {
 
     private var generateButton: some View {
         VStack(spacing: Tide.s2) {
-            if viewModel.isGeneratingPlan, !viewModel.planGenerationStatusLabel.isEmpty {
+            // With no plan yet the same words already show in the wait card above.
+            if viewModel.isGeneratingPlan, viewModel.weeklyPlan != nil, !viewModel.planGenerationStatusLabel.isEmpty {
                 Text(viewModel.planGenerationStatusLabel)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
@@ -478,11 +479,21 @@ struct NutritionWeeklyPlanView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(viewModel.isGeneratingPlan || isPreparingWizard)
-        .alert("Rebuild the rest of the week?", isPresented: $showRebuildConfirm) {
-            Button("Rebuild") { startGenerate() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Meals you've eaten and past days stay. Planned meals from today on are replaced.")
+        // The question is a page of its own, with the answer under the thumb.
+        .sheet(isPresented: $showRebuildConfirm) {
+            FuelDecisionSheet(
+                icon: "arrow.triangle.2.circlepath",
+                title: "Rebuild the rest of the week?",
+                message: "Meals you've eaten and past days stay. Planned meals from today on are replaced.",
+                primaryTitle: "Rebuild",
+                primary: {
+                    showRebuildConfirm = false
+                    // Let this sheet finish leaving before the next one can come up.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startGenerate() }
+                },
+                cancel: { showRebuildConfirm = false }
+            )
+            .environment(\.tideInsidePage, false)
         }
     }
 
