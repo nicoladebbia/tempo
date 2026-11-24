@@ -37,8 +37,41 @@ enum EatenMealRecorder {
     struct Result {
         /// The PlannedMeal that now holds the log.
         let meal: PlannedMeal
+        /// Its id, kept apart so Undo can find the meal again even after it
+        /// was deleted somewhere else (a deleted model must not be read).
+        let mealID: UUID
         /// Totals of the foods just logged (not the whole meal after a merge).
         let logged: MealMacros
+        /// Set only when the foods were merged into a meal that was already
+        /// eaten: what that meal looked like before, so Undo takes back just
+        /// the new foods and never the whole meal.
+        var merged: MergeSnapshot?
+
+        init(meal: PlannedMeal, logged: MealMacros, merged: MergeSnapshot? = nil) {
+            self.meal = meal
+            mealID = meal.id
+            self.logged = logged
+            self.merged = merged
+        }
+    }
+
+    /// An already-eaten meal as it was just before a log merged into it.
+    struct MergeSnapshot {
+        let foods: [PlannedFood]
+        let totals: MealMacros
+        let baseline: [Double?]
+        let hadStashedPlan: Bool
+        let actualEatenAt: Date?
+        let originRaw: String?
+        let decrementDetailJSON: Data?
+        let didDecrementPantry: Bool
+        let legacyLogID: UUID?
+        let legacyItemIDs: Set<UUID>
+        let legacyLoggedAt: Date?
+        /// Lowercased names an "edit" replaced (empty for a plain add).
+        let replacedNames: Set<String>
+        /// What the merge took off the pantry.
+        var deducted: [PantryDecrementDetail] = []
     }
 
     // MARK: - Matching
@@ -317,6 +350,7 @@ enum EatenMealRecorder {
             }
             // Whatever happens next rewrites the totals — keep the plan's
             // allocation for the daily target.
+            var snapshot = mergeSnapshot(of: existing, items: items, resolution: resolution, in: modelContext)
             existing.capturePlanBaselineIfNeeded()
             existing.stashPlannedDishIfNeeded()
             switch resolution {
@@ -355,13 +389,125 @@ enum EatenMealRecorder {
                 throw error
             }
             NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
-            return Result(meal: existing, logged: logged)
+            snapshot.deducted = deducted
+            return Result(meal: existing, logged: logged, merged: snapshot)
         }
 
         return try recordUnplannedLog(
             items: items, plannedFoods: plannedFoods, logged: logged,
             type: type, eatenAt: eatenAt, source: source, origin: origin, deductPantry: shouldDeduct, now: now, in: modelContext
         )
+    }
+
+    // MARK: - Undo a log
+
+    private static func mergeSnapshot(
+        of meal: PlannedMeal,
+        items: [MealFoodItemInput],
+        resolution: DuplicateResolution,
+        in context: ModelContext
+    ) -> MergeSnapshot {
+        var legacyItemIDs: Set<UUID> = []
+        var legacyLoggedAt: Date?
+        if let logID = meal.linkedMealLogID {
+            var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
+            descriptor.fetchLimit = 1
+            if let log = try? context.fetch(descriptor).first {
+                legacyItemIDs = Set(log.items.map(\.id))
+                legacyLoggedAt = log.loggedAt
+            }
+        }
+        return MergeSnapshot(
+            foods: meal.foods,
+            totals: meal.totals,
+            baseline: [meal.planBaselineCalories, meal.planBaselineProtein, meal.planBaselineCarbs, meal.planBaselineFat],
+            hadStashedPlan: meal.replacedPlanJSON != nil,
+            actualEatenAt: meal.actualEatenAt,
+            originRaw: meal.originRaw,
+            decrementDetailJSON: meal.decrementDetailJSON,
+            didDecrementPantry: meal.didDecrementPantry,
+            legacyLogID: meal.linkedMealLogID,
+            legacyItemIDs: legacyItemIDs,
+            legacyLoggedAt: legacyLoggedAt,
+            replacedNames: resolution == .edit ? Set(items.map { $0.name.lowercased() }) : []
+        )
+    }
+
+    /// Takes back exactly what `record` just wrote, from the `Result` it
+    /// returned. A new log is removed and a filled plan slot goes back to its
+    /// planned dish (both `MealOutcomeService.undo`); foods merged into an
+    /// already-eaten meal come back out and the meal keeps what it had.
+    /// Returns false when there was nothing to take back (the meal is already
+    /// gone or no longer eaten).
+    @discardableResult
+    static func undoLog(_ result: Result, env: MealOutcomeService.Env) throws -> Bool {
+        let ctx = env.modelContext
+        let mealID = result.mealID
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == mealID })
+        descriptor.fetchLimit = 1
+        guard let meal = try ctx.fetch(descriptor).first, meal.status == .eaten else {
+            return false
+        }
+        guard let snapshot = result.merged else {
+            try MealOutcomeService.undo(meal, env: env)
+            return true
+        }
+        PantryDecrementService.creditExact(details: snapshot.deducted, modelContext: ctx)
+        // An edit of a plan slot parked the planned dish: it was the foods the
+        // meal had before, so putting it back also brings the recipe back.
+        if meal.replacedPlanJSON != nil, !snapshot.hadStashedPlan {
+            meal.restoreReplacedPlan()
+        }
+        meal.foods = snapshot.foods
+        meal.totalCalories = snapshot.totals.calories
+        meal.totalProtein = snapshot.totals.protein
+        meal.totalCarbs = snapshot.totals.carbs
+        meal.totalFat = snapshot.totals.fat
+        meal.planBaselineCalories = snapshot.baseline[0]
+        meal.planBaselineProtein = snapshot.baseline[1]
+        meal.planBaselineCarbs = snapshot.baseline[2]
+        meal.planBaselineFat = snapshot.baseline[3]
+        meal.actualEatenAt = snapshot.actualEatenAt
+        meal.originRaw = snapshot.originRaw
+        meal.decrementDetailJSON = snapshot.decrementDetailJSON
+        meal.didDecrementPantry = snapshot.didDecrementPantry
+        revertLegacyLog(of: meal, snapshot: snapshot, in: ctx)
+        try commit(ctx)
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+        return true
+    }
+
+    /// Puts the legacy MealLog back the way the merge found it.
+    private static func revertLegacyLog(of meal: PlannedMeal, snapshot: MergeSnapshot, in ctx: ModelContext) {
+        guard let logID = meal.linkedMealLogID else {
+            return
+        }
+        var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
+        descriptor.fetchLimit = 1
+        let log = try? ctx.fetch(descriptor).first
+        guard let before = snapshot.legacyLogID else {
+            // The merge had to create the log: it goes again.
+            if let log {
+                ctx.delete(log)
+            }
+            meal.linkedMealLogID = nil
+            return
+        }
+        guard let log else {
+            return
+        }
+        for item in log.items where !snapshot.legacyItemIDs.contains(item.id) {
+            ctx.delete(item)
+        }
+        log.items.removeAll { !snapshot.legacyItemIDs.contains($0.id) }
+        // An edit deleted same-named items: bring them back from the foods.
+        let bringBack = snapshot.foods.filter { snapshot.replacedNames.contains($0.name.lowercased()) }
+        log.items.append(contentsOf: bringBack.map { MealFoodItem(from: input(from: $0)) })
+        log.recalculateTotals()
+        if let loggedAt = snapshot.legacyLoggedAt {
+            log.loggedAt = loggedAt
+        }
+        meal.linkedMealLogID = before
     }
 
     /// Takes `foods` off the pantry and records the exact per-row detail on
