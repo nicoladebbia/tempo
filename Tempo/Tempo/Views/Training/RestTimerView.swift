@@ -15,6 +15,8 @@ import SwiftUI
 //
 // The rest is a shader-lit ring that drains as the seconds pass. The last ten
 // seconds turn it amber, so the colour says "get ready" before the number does.
+// Under it, one pill says what you are resting toward; then the quick "how was
+// that set" card; Skip Rest is the one filled button, at the bottom.
 
 struct RestTimerView: View {
     @Bindable
@@ -23,7 +25,7 @@ struct RestTimerView: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
     @ScaledMetric(relativeTo: .largeTitle)
-    private var timeSize: CGFloat = 72
+    private var timeSize: CGFloat = TideTrainSession.restClock
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -67,16 +69,16 @@ struct RestTimerView: View {
         TrainRing(
             progress: remainingFraction,
             tint: ringTint,
-            diameter: viewModel.currentFeedback != nil ? 224 : 264
+            diameter: viewModel.currentFeedback != nil ? TideTrainSession.restRingCompact : TideTrainSession.restRing
         ) {
             VStack(spacing: Tide.hair) {
                 Text(viewModel.formattedRestTimer)
-                    .font(Tide.numeral(timeSize))
+                    .font(Tide.numeral(min(timeSize, TideTrainSession.restClockCap)))
                     .foregroundStyle(endingSoon ? TideTrain.caution : Tide.text)
                     .contentTransition(.numericText(countsDown: true))
                     .animation(reduceMotion ? nil : Tide.snap, value: viewModel.formattedRestTimer)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                    .minimumScaleFactor(TideTrainSession.clockShrink)
                 Text("Rest").tideLabel()
             }
             .scaleEffect(!reduceMotion && secondsLeft <= 5 && secondsLeft > 0 && secondsLeft % 2 == 1 ? 1.06 : 1)
@@ -87,13 +89,16 @@ struct RestTimerView: View {
         .accessibilityLabel("Rest")
         .accessibilityValue("\(secondsLeft) seconds left")
 
-        // Between sets: one line under the ring, before the questions.
+        // Between sets: one pill under the ring says what the rest leads to.
         if !viewModel.restContext.isExerciseTransition, !viewModel.restContext.label.isEmpty {
             Text(viewModel.restContext.label)
                 .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text2)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Tide.s4)
+                .padding(.vertical, Tide.s3)
+                .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
         }
 
         // Inline "how was that set?" — edits the eagerly-created feedback
@@ -118,6 +123,7 @@ struct RestTimerView: View {
             HapticManager.notification(.success)
         } label: {
             Text(skipButtonTitle)
+                .frame(minHeight: TideTrain.bigButton - Tide.s2)
         }
         .buttonStyle(.tidePrimary)
     }
@@ -138,12 +144,23 @@ struct RestTimerView: View {
             // content inside the single outer ScrollView so the whole rest page
             // scrolls as one unit (the inner scroll made this card bounce on its
             // own).
-            VStack(alignment: .leading, spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 Text("Up next").tideLabel()
-                Text(exercise.name)
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Tide.s3) {
+                    ExerciseImageView(exercise: exercise, style: .hero)
+                        .frame(width: TideTrain.thumb, height: TideTrain.thumb)
+                        .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(exercise.name)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(exercise.muscleGroup.displayName)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
 
                 if let instructions = exercise.instructions, !instructions.isEmpty {
                     Text(instructions)
@@ -153,12 +170,13 @@ struct RestTimerView: View {
                 }
 
                 if !exercise.cues.isEmpty {
-                    VStack(alignment: .leading, spacing: Tide.s1) {
+                    TrainSessionRule()
+                    VStack(alignment: .leading, spacing: Tide.s2) {
                         ForEach(exercise.cues, id: \.self) { cue in
                             HStack(alignment: .top, spacing: Tide.s2) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(Tide.caption)
-                                    .foregroundStyle(Color.accentColor)
+                                    .foregroundStyle(TideTrain.positive)
                                     .accessibilityHidden(true)
                                 Text(cue)
                                     .font(Tide.caption)
@@ -167,7 +185,6 @@ struct RestTimerView: View {
                             }
                         }
                     }
-                    .padding(.top, Tide.s1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

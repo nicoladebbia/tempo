@@ -42,10 +42,12 @@ struct MonthlyReviewView: View {
     private var summaryText: String?
     @State
     private var generationFailed = false
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Tide.s5) {
                     if let summary = summaryText {
                         reportSection(summary)
@@ -54,7 +56,16 @@ struct MonthlyReviewView: View {
                     }
                 }
                 .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s4)
+                .padding(.vertical, Tide.s3)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
+            .safeAreaBar(edge: .bottom) {
+                if summaryText == nil {
+                    submitButton
+                        .padding(.horizontal, Tide.edge)
+                        .padding(.bottom, Tide.s3)
+                }
             }
             .trainSheetRoot()
             .navigationTitle(monthDisplayName)
@@ -76,37 +87,40 @@ struct MonthlyReviewView: View {
         VStack(alignment: .leading, spacing: Tide.s5) {
             Text("Month's over. debrief.").tideLabel(Tide.text3)
 
-            question(
-                "What went well?",
+            MonthlyReviewQuestion(
+                title: "What went well?",
                 text: $wentWell,
                 placeholder: "Streaks, sessions that clicked, habits that held…"
             )
-            question(
-                "What did you skip — and why?",
+            MonthlyReviewQuestion(
+                title: "What did you skip — and why?",
                 text: $struggles,
                 placeholder: "The honest version. PS5 nights count."
             )
-            question(
-                "Injuries or niggles?",
+            MonthlyReviewQuestion(
+                title: "Injuries or niggles?",
                 text: $niggles,
                 placeholder: "Anything next month's plan should route around."
             )
-            question(
-                "Feel different?",
+            MonthlyReviewQuestion(
+                title: "Feel different?",
                 text: $subjectiveProgress,
                 placeholder: "Faster, stronger, leaner — what no sensor sees."
             )
-            question(
-                "Goals for next month?",
+            MonthlyReviewQuestion(
+                title: "Goals for next month?",
                 text: $goalsNextMonth,
                 placeholder: "Concrete beats vague."
             )
 
             VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Next month's emphasis")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                HStack(spacing: Tide.s2) {
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s2))
+                layout {
                     emphasisButton(nil, label: "Keep current")
                     ForEach(BlockEmphasis.allCases, id: \.self) { e in
                         emphasisButton(e, label: e.displayName)
@@ -115,40 +129,31 @@ struct MonthlyReviewView: View {
             }
 
             if generationFailed {
-                Text("Interview saved. Report generation failed — it'll retry next time you open the app.")
-                    .font(Tide.caption)
-                    .foregroundStyle(TideTrain.caution)
+                TrainBanner(
+                    systemImage: "exclamationmark.triangle.fill",
+                    label: "Saved",
+                    tint: TideTrain.caution,
+                    message: "Interview saved. Report generation failed — it'll retry next time you open the app."
+                ) {}
             }
-
-            Button {
-                Task { await submit() }
-            } label: {
-                HStack {
-                    if isGenerating {
-                        ProgressView().tint(Tide.ink)
-                    }
-                    Text(isGenerating ? "Writing your report…" : "File the report")
-                        .font(Tide.headline)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(Color.accentColor)
-                .foregroundStyle(Tide.ink)
-                .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
-            }
-            .disabled(isGenerating)
         }
     }
 
-    private func question(_ title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(title)
-                .font(Tide.caption)
-                .foregroundStyle(Tide.text2)
-            TextField(placeholder, text: text, axis: .vertical)
-                .lineLimit(2 ... 4)
-                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    /// File the report sits in the thumb zone and shows its own progress.
+    private var submitButton: some View {
+        Button {
+            Task { await submit() }
+        } label: {
+            HStack(spacing: Tide.s2) {
+                if isGenerating {
+                    ProgressView().tint(Tide.ink)
+                }
+                Text(isGenerating ? "Writing your report…" : "File the report")
+            }
+            .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
         }
+        .buttonStyle(.tidePrimary)
+        .disabled(isGenerating)
     }
 
     private func emphasisButton(_ value: BlockEmphasis?, label: String) -> some View {
@@ -158,6 +163,9 @@ struct MonthlyReviewView: View {
         } label: {
             Text(label)
                 .font(Tide.bodyStrong)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity, minHeight: TideTrainSession.choiceHeight)
         }
         .buttonStyle(.trainChoice(isSelected: chosenEmphasis == value))
     }
@@ -166,10 +174,15 @@ struct MonthlyReviewView: View {
 
     private func reportSection(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            Text("The report").tideLabel(Tide.text3)
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: "doc.text.fill", tint: TideTrain.violet)
+                Text("The report").tideLabel(Tide.text3)
+            }
             Text(summary)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
     }
@@ -222,5 +235,33 @@ struct MonthlyReviewView: View {
             return monthKey
         }
         return interval.start.formatted(.dateTime.month(.wide).year())
+    }
+}
+
+// MARK: - MonthlyReviewQuestion
+
+/// One interview question: a title and a Tide text field that rings up while focused.
+private struct MonthlyReviewQuestion: View {
+    let title: String
+    @Binding
+    var text: String
+    let placeholder: String
+
+    @FocusState
+    private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(title)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            TextField(placeholder, text: $text, axis: .vertical)
+                .lineLimit(2 ... 4)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .focused($focused)
+                .tideFieldSurface(focused: focused)
+        }
     }
 }

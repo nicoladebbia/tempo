@@ -60,10 +60,7 @@ struct MobilityFlowPickerView: View {
 
     private func flowRow(_ flow: MobilityFlow) -> some View {
         HStack(spacing: Tide.s3) {
-            Image(systemName: "figure.flexibility")
-                .font(Tide.headline)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 32)
+            TideIconTile(systemName: "figure.flexibility")
 
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(flow.name)
@@ -73,14 +70,19 @@ struct MobilityFlowPickerView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("\(flow.estimatedDuration) · \(flow.moves.count) moves")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            Text("\(flow.estimatedDuration) · \(flow.moves.count) moves")
-                .font(Tide.caption)
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
                 .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s4)
     }
 }
@@ -155,39 +157,55 @@ struct MobilityFlowPlayerView: View {
     private func moveContent(_ move: WarmupMove) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: Tide.s5) {
-                Text("Move \(moveIndex + 1) of \(flow.moves.count)").tideLabel(Tide.text3)
-                    .padding(.top, Tide.s5)
+                VStack(spacing: Tide.s2) {
+                    Text("Move \(moveIndex + 1) of \(flow.moves.count)").tideLabel(Tide.text3)
+                    TrainSessionDots(count: flow.moves.count, current: moveIndex)
+                }
+                .padding(.top, Tide.s3)
 
-                Text(move.name)
-                    .font(Tide.title2)
-                    .foregroundStyle(Tide.text)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: Tide.s1) {
+                    Text(move.name)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text(move.dose)
-                    .font(Tide.headline)
-                    .foregroundStyle(Color.accentColor)
+                    Text(move.dose)
+                        .font(TideTrain.figure(.headline))
+                        .foregroundStyle(Color.accentColor)
+                }
 
                 // Countdown for timed moves — wall-clock, survives backgrounding.
-                if move.durationSeconds != nil, let end = moveEndDate {
+                if let secs = move.durationSeconds, let end = moveEndDate {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         let remaining = max(0, Int(end.timeIntervalSince(context.date).rounded()))
-                        Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
-                            .trainNumeral(56, weight: .bold)
-                            .foregroundStyle(Tide.text)
+                        TrainRing(
+                            progress: secs > 0 ? Double(remaining) / Double(secs) : 0,
+                            diameter: TideTrainSession.restRingCompact
+                        ) {
+                            Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
+                                .trainNumeral(TideTrainSession.ringClock, weight: .bold)
+                                .foregroundStyle(Tide.text)
+                                .contentTransition(.numericText(countsDown: true))
+                                .lineLimit(1)
+                                .minimumScaleFactor(TideTrainSession.clockShrink)
+                        }
                     }
                 }
 
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     Text(move.howTo)
                         .font(Tide.body)
-                        .foregroundStyle(Tide.text2)
+                        .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let cue = move.cue {
-                        HStack(alignment: .top, spacing: Tide.s1) {
+                        TrainSessionRule()
+                        HStack(alignment: .top, spacing: Tide.s2) {
                             Image(systemName: "lightbulb.fill")
                                 .font(Tide.caption)
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(TideTrain.caution)
+                                .accessibilityHidden(true)
                             Text(cue)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
@@ -195,13 +213,21 @@ struct MobilityFlowPlayerView: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard(padding: Tide.s4)
-
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s5)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            Group {
                 if move.durationSeconds == nil {
                     Button {
                         advance()
                     } label: {
                         Text("Done — next")
+                            .frame(minHeight: TideTrain.bigButton - Tide.s2)
                     }
                     .buttonStyle(.tidePrimary)
                 } else {
@@ -209,54 +235,36 @@ struct MobilityFlowPlayerView: View {
                         advance()
                     } label: {
                         Text("Skip")
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
                     }
                     .buttonStyle(.tideGlass)
                 }
             }
             .padding(.horizontal, Tide.edge)
-            .padding(.bottom, Tide.s8)
+            .padding(.bottom, Tide.s3)
         }
     }
 
     // MARK: Completion
 
     private var completionContent: some View {
-        VStack(spacing: Tide.s5) {
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .trainGlyph(72)
-                .foregroundStyle(TideTrain.positive)
-
-            Text("Flow complete")
-                .font(Tide.title)
-                .foregroundStyle(Tide.text)
-
-            Text(dayMarkedDone
+        TrainSessionStateView(
+            systemImage: "checkmark.circle.fill",
+            tint: TideTrain.positive,
+            title: "Flow complete",
+            message: dayMarkedDone
                 ? "Mobility day logged. That counts."
-                : "Recovery work done. Your future sessions thank you.")
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
-
-            Spacer()
-
+                : "Recovery work done. Your future sessions thank you."
+        ) {
             Button {
                 dismiss()
                 onFinished()
             } label: {
                 Text("DONE")
-                    .font(Tide.headline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.accentColor)
-                    .foregroundStyle(Tide.ink)
-                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+                    .frame(minHeight: TideTrain.bigButton - Tide.s2)
             }
-            .padding(.bottom, Tide.s6)
+            .buttonStyle(.tidePrimary)
         }
-        .padding(.horizontal, Tide.edge)
     }
 
     // MARK: Advance

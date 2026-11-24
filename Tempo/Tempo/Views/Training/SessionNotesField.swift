@@ -14,6 +14,9 @@ struct SessionNotesField: View {
     @Bindable
     var plan: WorkoutPlan
 
+    @FocusState
+    private var focused: Bool
+
     private var text: Binding<String> {
         Binding(
             get: { plan.userNotes ?? "" },
@@ -22,7 +25,7 @@ struct SessionNotesField: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text("Session notes").tideLabel(Tide.text3)
             TextField(
                 "Crowded gym, tight shoulder, felt strong…",
@@ -32,7 +35,8 @@ struct SessionNotesField: View {
             .lineLimit(2 ... 6)
             .font(Tide.body)
             .foregroundStyle(Tide.text)
-            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+            .tideFieldSurface(focused: focused)
+            .focused($focused)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

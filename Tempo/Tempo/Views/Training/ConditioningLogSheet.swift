@@ -43,6 +43,12 @@ struct ConditioningLogSheet: View {
     private var isLoadingFill = false
     @State
     private var fillMessage: String?
+    @FocusState
+    private var notesFocused: Bool
+    @ScaledMetric(relativeTo: .body)
+    private var fieldWidth: CGFloat = TideTrainSession.fieldWidth
+    @ScaledMetric(relativeTo: .body)
+    private var repLabelWidth: CGFloat = TideTrainSession.repLabel
 
     init(block: ProgramExercise, workoutPlanID: UUID, programSessionKey: String, viewModel: TrainingViewModel) {
         self.block = block
@@ -84,7 +90,21 @@ struct ConditioningLogSheet: View {
                     rpeSection
                     notesSection
                 }
-                .padding(Tide.edge)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
+            .safeAreaBar(edge: .bottom) {
+                Button {
+                    save()
+                } label: {
+                    Text("Save")
+                        .frame(minHeight: TideTrain.bigButton - Tide.s2)
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s3)
             }
             .trainSheetRoot()
             .navigationTitle("Log Block")
@@ -93,10 +113,6 @@ struct ConditioningLogSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .fontWeight(.bold)
-                }
             }
         }
     }
@@ -104,19 +120,18 @@ struct ConditioningLogSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
+        VStack(alignment: .leading, spacing: Tide.s1) {
             // trainer-feedback-tests — "TEST — work up to a max" banner.
             if block.isTest == true {
-                Text("TEST — WORK UP TO A MAX")
-                    .font(Tide.caption.weight(.bold))
-                    .foregroundStyle(Color.accentColor)
+                TrainTag(text: "TEST — WORK UP TO A MAX", color: Color.accentColor)
             }
             Text(block.name)
-                .font(Tide.headline)
+                .font(Tide.title2)
                 .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
             if let detail = block.detail, !detail.isEmpty {
                 Text(detail)
-                    .font(Tide.caption)
+                    .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -129,6 +144,7 @@ struct ConditioningLogSheet: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
     }
 
     /// nil when this block isn't distance-shaped, or no baseline test of
@@ -155,7 +171,7 @@ struct ConditioningLogSheet: View {
                     ? "EACH REP — \(formatDistance(distance, unit)) · cap \(formatSeconds(capSeconds!))"
                     : "EACH REP — \(formatDistance(distance, unit))"
             )
-            VStack(spacing: Tide.s1) {
+            VStack(spacing: Tide.s2) {
                 ForEach(Array(repTimeText.indices), id: \.self) { index in
                     repTimeRow(index: index, capSeconds: capSeconds)
                 }
@@ -164,6 +180,7 @@ struct ConditioningLogSheet: View {
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func repTimeRow(index: Int, capSeconds: Double?) -> some View {
@@ -173,19 +190,23 @@ struct ConditioningLogSheet: View {
             Text("Rep \(index + 1)")
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
-                .frame(width: 60, alignment: .leading)
-            TextField("mm:ss or sec", text: $repTimeText[index])
-                .keyboardType(.numbersAndPunctuation)
-                .font(TideTrain.figure(.headline))
-                .monospacedDigit()
-                .padding(.horizontal, Tide.s3)
-                .padding(.vertical, Tide.s3)
-                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                .fixedSize()
+                .frame(minWidth: repLabelWidth, alignment: .leading)
+            TextField(
+                "mm:ss or sec",
+                text: $repTimeText[index],
+                prompt: Text("mm:ss or sec").font(Tide.body).foregroundStyle(Tide.text3)
+            )
+            .keyboardType(.numbersAndPunctuation)
+            .font(TideTrain.figure(.headline))
+            .foregroundStyle(Tide.text)
+            .tideFieldSurface()
             if let met {
                 Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundStyle(met ? TideTrain.positive : Tide.danger)
+                    .frame(width: Tide.icon, height: Tide.icon)
             } else {
-                Spacer().frame(width: 20)
+                Color.clear.frame(width: Tide.icon, height: Tide.icon)
             }
         }
         .accessibilityElement(children: .combine)
@@ -208,6 +229,7 @@ struct ConditioningLogSheet: View {
             labeledField(label: "Duration (min)", text: $durationText, keyboard: .decimalPad)
             labeledField(label: "Distance (m)", text: $distanceText, keyboard: .decimalPad)
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - interval sets (drills)
@@ -217,6 +239,7 @@ struct ConditioningLogSheet: View {
             sectionLabel("ROUNDS — target \(sets * reps) (\(sets) × \(reps))")
             labeledField(label: "Rounds completed", text: $roundsText, keyboard: .numberPad)
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - Fill from Whoop/Health
@@ -231,11 +254,11 @@ struct ConditioningLogSheet: View {
     }
 
     private var fillButton: some View {
-        VStack(alignment: .leading, spacing: Tide.s1) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Button {
                 Task { await fillFromDevice() }
             } label: {
-                HStack(spacing: Tide.s1) {
+                HStack(spacing: Tide.s2) {
                     if isLoadingFill {
                         ProgressView().tint(Color.accentColor)
                     } else {
@@ -243,10 +266,8 @@ struct ConditioningLogSheet: View {
                     }
                     Text("Fill from Whoop/Health")
                 }
-                .font(Tide.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.accentColor)
             }
+            .buttonStyle(.tideGlass)
             .disabled(isLoadingFill)
             if let fillMessage {
                 Text(fillMessage)
@@ -300,18 +321,16 @@ struct ConditioningLogSheet: View {
             TextField("How did it feel?", text: $notes, axis: .vertical)
                 .font(Tide.body)
                 .lineLimit(2 ... 4)
-                .padding(Tide.s3)
-                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                .focused($notesFocused)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface(focused: notesFocused)
         }
     }
 
     // MARK: - Shared field pieces
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(Tide.caption)
-            .fontWeight(.bold)
-            .foregroundStyle(Tide.text3)
+        Text(text).tideLabel()
     }
 
     private func labeledField(label: String, text: Binding<String>, keyboard: UIKeyboardType) -> some View {
@@ -324,11 +343,8 @@ struct ConditioningLogSheet: View {
                 .keyboardType(keyboard)
                 .multilineTextAlignment(.trailing)
                 .font(TideTrain.figure(.headline))
-                .monospacedDigit()
-                .frame(width: 100)
-                .padding(.horizontal, Tide.s2)
-                .padding(.vertical, Tide.s1)
-                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                .frame(width: fieldWidth)
+                .tideFieldSurface()
         }
     }
 

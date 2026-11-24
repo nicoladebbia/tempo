@@ -60,13 +60,7 @@ extension TodayWorkoutView {
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(spacing: Tide.s2) {
-                Image(systemName: "moon.zzz.fill")
-                    .font(Tide.headline)
-                    .foregroundStyle(TideTrain.violet)
-                    .frame(width: 40, height: 40)
-                    .background(TideTrain.violet.opacity(TempoOpacity.o15))
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
+                TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet)
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("It's past midnight. Get to bed.")
                         .font(Tide.headline)
@@ -98,7 +92,7 @@ extension TodayWorkoutView {
                 Text("Skip for tonight")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.tideGlass)
         }
         .tideCard(padding: Tide.s4)
         .padding(.horizontal, Tide.s4)

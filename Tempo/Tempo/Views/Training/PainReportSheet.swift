@@ -23,6 +23,10 @@ struct PainReportSheet: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @FocusState
+    private var noteFocused: Bool
 
     @State
     private var bodyArea: PainBodyArea = .knee
@@ -66,48 +70,22 @@ struct PainReportSheet: View {
     // MARK: - Step 1: report
 
     private var form: some View {
-        Form {
-            Section("Where") {
-                Picker("Body area", selection: $bodyArea) {
-                    ForEach(PainBodyArea.allCases, id: \.self) { area in
-                        Label(area.displayName, systemImage: area.symbolName).tag(area)
-                    }
-                }
-                .pickerStyle(.navigationLink)
-            }
-            .listRowBackground(Tide.fill)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Tide.s5) {
+                whereSection
+                severityCard
+                noteSection
 
-            Section("How bad, 1–10") {
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    HStack {
-                        Text("\(Int(severity))")
-                            .font(TideTrain.figure(.title))
-                            .foregroundStyle(severityColor)
-                            .contentTransition(.numericText())
-                        Spacer()
-                        Text(tierLabel)
-                            .font(Tide.caption.weight(.semibold))
-                            .foregroundStyle(severityColor)
-                    }
-                    Slider(value: $severity, in: 1 ... 10, step: 1)
-                        .tint(severityColor)
-                }
-            }
-            .listRowBackground(Tide.fill)
-
-            Section("Note (optional)") {
-                TextField("e.g. sharp on the way down", text: $note, axis: .vertical)
-                    .lineLimit(2 ... 4)
-            }
-            .listRowBackground(Tide.fill)
-
-            Section {
                 Text(disclaimer)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .listRowBackground(Color.clear)
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
         .safeAreaBar(edge: .bottom) {
             Button {
                 submit()
@@ -117,6 +95,78 @@ struct PainReportSheet: View {
             .buttonStyle(.tidePrimary)
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s2)
+        }
+    }
+
+    /// Six body areas as tiles: one tap, no list to open.
+    private var whereSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Where").tideLabel()
+            LazyVGrid(columns: areaColumns, spacing: Tide.s2) {
+                ForEach(PainBodyArea.allCases, id: \.self) { area in
+                    Button {
+                        bodyArea = area
+                        HapticManager.selection()
+                    } label: {
+                        VStack(spacing: Tide.s1) {
+                            Image(systemName: area.symbolName)
+                                .font(Tide.headline)
+                                .accessibilityHidden(true)
+                            Text(area.displayName)
+                                .font(Tide.bodyStrong)
+                                .lineLimit(1)
+                                .minimumScaleFactor(Tide.labelShrink)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton)
+                    }
+                    .buttonStyle(.trainChoice(isSelected: bodyArea == area))
+                    .accessibilityLabel(area.displayName)
+                }
+            }
+        }
+    }
+
+    private var areaColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s2),
+            count: typeSize.isAccessibilitySize ? 2 : 3
+        )
+    }
+
+    /// The number is the hero, tinted by how serious it is; the slider moves it.
+    private var severityCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("How bad, 1–10").tideLabel()
+            HStack(alignment: .lastTextBaseline) {
+                TideNumber(
+                    "\(Int(severity))",
+                    size: TideTrainSession.stateFigure,
+                    relativeTo: .largeTitle,
+                    color: severityColor
+                )
+                Spacer(minLength: Tide.s2)
+                Text(tierLabel)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(severityColor)
+            }
+            .animation(Tide.snap, value: Int(severity))
+            Slider(value: $severity, in: 1 ... 10, step: 1)
+                .tint(severityColor)
+                .accessibilityLabel("Pain from 1 to 10")
+                .sensoryFeedback(.selection, trigger: Int(severity))
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Note (optional)").tideLabel()
+            TextField("e.g. sharp on the way down", text: $note, axis: .vertical)
+                .lineLimit(2 ... 4)
+                .focused($noteFocused)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface(focused: noteFocused)
         }
     }
 
@@ -200,13 +250,11 @@ struct PainReportSheet: View {
                                 swapFailedMessage = "You've already logged a set on this one — swapping mid-exercise isn't safe. Skip it instead."
                             }
                         } label: {
-                            HStack {
-                                Text(alt.name)
-                                    .font(Tide.body)
-                                Spacer()
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                            }
-                            .foregroundStyle(Tide.text)
+                            TrainRowLabel(
+                                systemImage: "arrow.triangle.2.circlepath",
+                                title: alt.name,
+                                tint: TideTrain.caution
+                            )
                             .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                         }
                         .buttonStyle(.plain)
@@ -219,9 +267,6 @@ struct PainReportSheet: View {
                     dismiss()
                 } label: {
                     Text("Skip this exercise")
-                        .font(Tide.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
                 }
                 .buttonStyle(.tideGlass)
             }
@@ -246,7 +291,7 @@ struct PainReportSheet: View {
                         viewModel.endSessionDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
                     } label: {
                         Text("End the session")
-                            .font(Tide.body.weight(.semibold))
+                            .font(Tide.bodyStrong)
                             .frame(maxWidth: .infinity)
                             .frame(height: TideTrain.bigButton)
                             .foregroundStyle(Tide.ink)
@@ -262,9 +307,6 @@ struct PainReportSheet: View {
                     dismiss()
                 } label: {
                     Text("Just skip this exercise, keep going")
-                        .font(Tide.body)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
                 }
                 .buttonStyle(.tideGlass)
             }
@@ -276,9 +318,6 @@ struct PainReportSheet: View {
             dismiss()
         } label: {
             Text("Done")
-                .font(Tide.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
         }
         .buttonStyle(.tideGlass)
     }
@@ -287,22 +326,8 @@ struct PainReportSheet: View {
         icon: String, color: Color, title: String, message: String,
         @ViewBuilder actions: () -> some View
     ) -> some View {
-        VStack(spacing: Tide.s4) {
-            Spacer(minLength: Tide.s5)
-            Image(systemName: icon)
-                .font(Tide.largeTitle)
-                .foregroundStyle(color)
-            Text(title)
-                .font(Tide.headline)
-                .foregroundStyle(Tide.text)
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text2)
-                .multilineTextAlignment(.center)
+        TrainSessionStateView(systemImage: icon, tint: color, title: title, message: message) {
             actions()
-            Spacer()
         }
-        .padding(Tide.s5)
     }
 }

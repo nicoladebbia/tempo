@@ -43,11 +43,13 @@ struct GuidedRunSummaryView: View {
     private var isSaving = false
     @State
     private var showDiscardConfirm = false
+    @FocusState
+    private var notesFocused: Bool
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s6) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     header
                     ForEach(plan.blocks) { block in
                         blockSummary(block)
@@ -55,7 +57,15 @@ struct GuidedRunSummaryView: View {
                     rpeSection
                     notesSection
                 }
-                .padding(Tide.edge)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
+            .safeAreaBar(edge: .bottom) {
+                saveButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s3)
             }
             .trainSheetRoot()
             .navigationTitle("Session Summary")
@@ -64,20 +74,6 @@ struct GuidedRunSummaryView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Discard") { showDiscardConfirm = true }
                         .foregroundStyle(Tide.danger)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        save()
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                        } else {
-                            Text("Save")
-                        }
-                    }
-                    .fontWeight(.bold)
-                    .disabled(isSaving || loggableInputs.isEmpty)
-                    .accessibilityIdentifier("guidedRunSaveButton")
                 }
             }
             .confirmationDialog(
@@ -96,14 +92,34 @@ struct GuidedRunSummaryView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
-            Text("Session complete")
-                .font(Tide.label)
-                .foregroundStyle(Color.accentColor)
-            Text("Here's what you put in.")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Session complete")
+                    .font(Tide.label)
+                    .foregroundStyle(Color.accentColor)
+                Text("Here's what you put in.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+
+            // The whole session at a glance: how long, how far, how much of it.
+            HStack(alignment: .top, spacing: Tide.s4) {
+                if let startedAt, let endedAt, endedAt > startedAt {
+                    TrainStat(value: GuidedRunFormatting.clock(endedAt.timeIntervalSince(startedAt)), label: "Time")
+                }
+                TrainStat(value: "\(results.count)/\(plan.blocks.count)", label: "Blocks")
+                if totalDistance > 0 {
+                    TrainStat(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: "Distance")
+                }
+            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
+    }
+
+    private var totalDistance: Double {
+        results.values.compactMap(\.distanceMeters).reduce(0, +)
     }
 
     // MARK: - Per-block summary
@@ -114,10 +130,11 @@ struct GuidedRunSummaryView: View {
                 Text(block.name)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
-                Spacer()
+                Spacer(minLength: Tide.s2)
                 if let met = targetMet(block) {
                     Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .foregroundStyle(met ? TideTrain.positive : Tide.danger)
+                        .accessibilityLabel(met ? "Target met" : "Target missed")
                 }
             }
             Text(block.trainerText)
@@ -132,6 +149,7 @@ struct GuidedRunSummaryView: View {
                     .foregroundStyle(Tide.text3)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
@@ -200,7 +218,7 @@ struct GuidedRunSummaryView: View {
             }
             .font(Tide.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Tide.text3)
+            .foregroundStyle(Tide.text2)
         }
     }
 
@@ -266,16 +284,34 @@ struct GuidedRunSummaryView: View {
             TextField("How did it feel?", text: $notes, axis: .vertical)
                 .font(Tide.body)
                 .lineLimit(2 ... 4)
-                .padding(Tide.s3)
-                .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                .focused($notesFocused)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface(focused: notesFocused)
         }
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(Tide.caption)
-            .fontWeight(.bold)
-            .foregroundStyle(Tide.text3)
+        Text(text).tideLabel()
+    }
+
+    /// Save sits at the bottom, under the thumb. Disabled until there is
+    /// something to log.
+    private var saveButton: some View {
+        Button {
+            save()
+        } label: {
+            Group {
+                if isSaving {
+                    ProgressView()
+                } else {
+                    Text("Save")
+                }
+            }
+            .frame(minHeight: TideTrain.bigButton - Tide.s2)
+        }
+        .buttonStyle(.tidePrimary)
+        .disabled(isSaving || loggableInputs.isEmpty)
+        .accessibilityIdentifier("guidedRunSaveButton")
     }
 
     // MARK: - Save
