@@ -47,13 +47,7 @@ struct BodyQuadrantDetailView: View {
                         title: "No Whoop Connected",
                         message: "Connect your Whoop to see recovery, HRV, sleep, and strain data."
                     )
-                    Button {
-                        showWhoopConnect = true
-                    } label: {
-                        Text("Connect Whoop")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tidePrimary)
+                    .padding(.top, Tide.s4)
                 }
             }
             .padding(.horizontal, Tide.edge)
@@ -61,6 +55,20 @@ struct BodyQuadrantDetailView: View {
             .padding(.bottom, TideTrain.pageBottom)
         }
         .tidePage()
+        .safeAreaBar(edge: .bottom) {
+            // The one action while nothing is connected, under the thumb.
+            if !data.isConnected {
+                Button {
+                    showWhoopConnect = true
+                } label: {
+                    Text("Connect Whoop")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
+        }
         .navigationTitle("Body")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $showWhoopConnect) {
@@ -166,6 +174,10 @@ struct BodyQuadrantDetailView: View {
         case 34 ..< 50: return "Your body is waving a yellow flag."
         default: return "Sit down. Seriously."
         }
+    }
+
+    private var strainDigits: String {
+        data.strain.map { String(format: "%.1f", $0) } ?? "--"
     }
 
     private var strainZoneLabel: String {
@@ -513,7 +525,13 @@ struct BodyQuadrantDetailView: View {
                     .frame(width: TideTrain.gaugeWidth, height: TideTrain.gaugeHeight)
             }
             .frame(height: TideTrain.gaugeHeight + TideTrain.ringStroke)
-            .accessibilityHidden(true)
+            .overlay(alignment: .bottom) {
+                // The day's strain, out of the 21 the scale runs to.
+                TideNumber(strainDigits, unit: "/ 21", size: Tide.numeralM, relativeTo: .title)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Strain")
+            .accessibilityValue(data.strain == nil ? "not available" : "\(strainDigits) of 21")
 
             Text("Strain zone: \(strainZoneLabel)")
                 .font(Tide.bodyStrong)
@@ -635,8 +653,12 @@ struct BodyQuadrantDetailView: View {
             Circle()
                 .fill(color)
                 .frame(width: TideTrain.dot, height: TideTrain.dot)
-            Text("\(label)  \(duration)")
+            Text(label)
                 .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(duration)
+                .font(TideTrain.figure(.callout, weight: .semibold))
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
