@@ -34,15 +34,24 @@ struct AIBlockerCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             // A message of several lines keeps its icon level with the first.
-            HStack(alignment: typeSize.isAccessibilitySize ? .top : .center, spacing: Tide.s3) {
+            let head = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+            head {
                 TideIconTile(
                     systemName: blocker == .proRequired ? "lock.fill" : "sparkles",
                     tint: Tide.streak
                 )
-                Text(message ?? blocker.message)
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(blocker.title)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(message ?? blocker.message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             if let consentError {
                 Text(consentError)
@@ -54,8 +63,9 @@ struct AIBlockerCard: View {
                 act()
             } label: {
                 Text(isWorking ? "Working…" : blocker.actionTitle)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tideGlass)
+            .buttonStyle(.tidePrimary)
             .disabled(isWorking)
             .accessibilityIdentifier("aiBlockerAction")
         }
