@@ -129,18 +129,34 @@ struct TempoToast: View {
 final class ToastPresence {
     static let shared = ToastPresence()
 
-    private(set) var count = 0
+    private(set) var liveToasts = 0
 
     var isUp: Bool {
-        count > 0
+        liveToasts > 0
     }
 
     func enter() {
-        count += 1
+        liveToasts += 1
     }
 
     func leave() {
-        count = max(0, count - 1)
+        liveToasts = max(0, liveToasts - 1)
+    }
+
+    /// When each toast first showed. A page that is covered (a push, another tab) or swapped for
+    /// another one (the workout's set page for its rest page) cancels and restarts the slot's timer:
+    /// the toast must then keep only what is left of its time, with no second haptic or announcement.
+    @ObservationIgnored
+    private var shownTimes: [UUID: Date] = [:]
+
+    func firstShown(_ id: UUID, now: Date = Date()) -> (at: Date, isNew: Bool) {
+        // A toast lasts 5 s at most: anything older is gone, so the table never grows.
+        shownTimes = shownTimes.filter { now.timeIntervalSince($0.value) < 60 }
+        if let at = shownTimes[id] {
+            return (at, false)
+        }
+        shownTimes[id] = now
+        return (now, true)
     }
 }
 
@@ -176,12 +192,6 @@ struct ToastModifier: ViewModifier {
     /// The last toast shown: drawn (invisible, not tappable) while its room is held after `toast` clears.
     @State
     private var last: ToastData?
-    /// When the toast on screen first showed. The timer is a task, and a page that is covered (a pushed
-    /// screen, another tab) cancels it: when the page comes back the toast has only what is left of its
-    /// time, or goes at once if that has run out, without a second haptic or announcement.
-    @State
-    private var shownAt: (id: UUID, at: Date)?
-
     private var displayed: ToastData? {
         toast ?? last
     }
@@ -274,16 +284,14 @@ struct ToastModifier: ViewModifier {
             return
         }
         last = current
-        var remaining = current.duration
-        if let started = shownAt, started.id == current.id {
-            // Back on a page that was covered: only what is left of its time.
-            remaining -= Date().timeIntervalSince(started.at)
-        } else {
-            shownAt = (current.id, Date())
+        let started = ToastPresence.shared.firstShown(current.id)
+        if started.isNew {
             HapticManager.notification(current.style.haptic)
             // A toast is not focused, so VoiceOver would never read it.
             AccessibilityNotification.Announcement(current.spokenText).post()
         }
+        // On a page that was covered or swapped: only what is left of its time.
+        let remaining = current.duration - Date().timeIntervalSince(started.at)
         // A toast with an action stays long enough to use it. A newer toast is never
         // dismissed by an older timer: this task is cancelled when the id changes.
         if remaining > 0 {
@@ -295,6 +303,40 @@ struct ToastModifier: ViewModifier {
         withAnimation(Tide.snap) {
             toast = nil
         }
+    }
+}
+
+// MARK: - ToastSlotModifier
+
+extension EnvironmentValues {
+    /// A toast a host keeps but a page shows in its own room (see `toastSlot`): the app shell's, for the
+    /// tab on screen, and the workout's, for a page with a bottom bar.
+    @Entry var pageToast: Binding<ToastData?>?
+}
+
+extension View {
+    /// Shows the toast a host keeps (`pageToast`) in this view's own room at the bottom. Put it on a
+    /// tab's root, or on a page just before its bottom bar so the bar stays where it is; `active` is
+    /// whether this is the slot that should show it, so only one does.
+    func toastSlot(active: Bool) -> some View {
+        modifier(ToastSlotModifier(active: active))
+    }
+}
+
+// MARK: - ToastSlotModifier
+
+private struct ToastSlotModifier: ViewModifier {
+    let active: Bool
+    @Environment(\.pageToast)
+    private var pageToast
+
+    func body(content: Content) -> some View {
+        content.tempoToast(
+            Binding(
+                get: { active ? pageToast?.wrappedValue : nil },
+                set: { pageToast?.wrappedValue = $0 }
+            )
+        )
     }
 }
 

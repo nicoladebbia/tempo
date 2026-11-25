@@ -78,7 +78,7 @@ struct TempoShell: View {
             // The one place the workout screens are presented from.
             .workoutSessionHost()
             // Fuel logs made from the "+" sheet or the Scan tile end with an Undo toast. The shell keeps
-            // it, and the tab on screen shows it in its own room above the tab bar (`shellToastSlot`).
+            // it, and the tab on screen shows it in its own room above the tab bar (`toastSlot`).
             .fuelLogToastHost(showsSlot: false)
             // Search, and Settings or "Ask Tempo" opened from anywhere (search results, the Today checklist).
             .appSearchHost()
@@ -125,21 +125,21 @@ struct TempoShell: View {
     private var mainTabs: some TabContent<Slot> {
         SwiftUI.Tab(AppTab.today.title, systemImage: AppTab.today.icon, value: Slot.today) {
             TodayView()
-                .shellToastSlot(active: services.appState.activeTab == .today)
+                .toastSlot(active: services.appState.activeTab == .today)
         }
         SwiftUI.Tab(AppTab.train.title, systemImage: AppTab.train.icon, value: Slot.train) {
             TrainingTabView()
-                .shellToastSlot(active: services.appState.activeTab == .train)
+                .toastSlot(active: services.appState.activeTab == .train)
                 .onAppear { TempoSignpost.tabContentShown(.train) }
         }
         SwiftUI.Tab(AppTab.fuel.title, systemImage: AppTab.fuel.icon, value: Slot.fuel) {
             NutritionTabView(viewModel: nutritionViewModel)
-                .shellToastSlot(active: services.appState.activeTab == .fuel)
+                .toastSlot(active: services.appState.activeTab == .fuel)
                 .onAppear { TempoSignpost.tabContentShown(.fuel) }
         }
         SwiftUI.Tab(AppTab.arena.title, systemImage: AppTab.arena.icon, value: Slot.arena) {
             ArenaTabView()
-                .shellToastSlot(active: services.appState.activeTab == .arena)
+                .toastSlot(active: services.appState.activeTab == .arena)
                 .onAppear { TempoSignpost.tabContentShown(.arena) }
         }
     }

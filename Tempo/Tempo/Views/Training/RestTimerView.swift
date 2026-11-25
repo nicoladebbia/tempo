@@ -37,6 +37,8 @@ struct RestTimerView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // Before the bar, so the undo toast rests on it and the Skip button stays put.
+        .toastSlot(active: true)
         .safeAreaBar(edge: .bottom) {
             skipButton
                 .padding(.horizontal, Tide.edge)

@@ -44,7 +44,23 @@ final class ToastTests: XCTestCase {
         presence.leave()
         presence.leave()
         XCTAssertFalse(presence.isUp)
-        XCTAssertEqual(presence.count, 0)
+        XCTAssertEqual(presence.liveToasts, 0)
+    }
+
+    func testAToastIsNewOnlyTheFirstTimeAPageShowsIt() {
+        let presence = ToastPresence()
+        let toast = ToastData(message: "Saved", style: .success)
+        let start = Date()
+        let first = presence.firstShown(toast.id, now: start)
+        XCTAssertTrue(first.isNew)
+        // The page is covered or swapped and shows it again: same start, no second haptic.
+        let again = presence.firstShown(toast.id, now: start.addingTimeInterval(2))
+        XCTAssertFalse(again.isNew)
+        XCTAssertEqual(again.at, start)
+        // Another toast is its own.
+        XCTAssertTrue(presence.firstShown(ToastData(message: "Other", style: .info).id, now: start.addingTimeInterval(2)).isNew)
+        // Old entries are forgotten, so the table stays small.
+        XCTAssertTrue(presence.firstShown(toast.id, now: start.addingTimeInterval(120)).isNew)
     }
 
     func testAToastWithAnActionStaysLongerThanOneWithout() {
@@ -63,7 +79,7 @@ final class ToastTests: XCTestCase {
 
     func testAShownToastClearsItselfAndHoldsItsRoomBriefly() async throws {
         let box = ToastBox()
-        let before = ToastPresence.shared.count
+        let before = ToastPresence.shared.liveToasts
         box.toast = ToastData(message: "Saved", style: .success)
 
         let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
@@ -75,15 +91,15 @@ final class ToastTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(600))
         XCTAssertNotNil(box.toast, "still up")
-        XCTAssertEqual(ToastPresence.shared.count, before + 1, "the toast is counted while it is up")
+        XCTAssertEqual(ToastPresence.shared.liveToasts, before + 1, "the toast is counted while it is up")
 
         // 3 s for a toast without an action: look just after it goes, well inside the held room.
         let duration = Duration.seconds(ToastData(message: "x", style: .info).duration)
         try await Task.sleep(for: duration - .milliseconds(600) + .milliseconds(200))
         XCTAssertNil(box.toast, "it clears itself")
-        XCTAssertEqual(ToastPresence.shared.count, before + 1, "its room is held a moment after it goes")
+        XCTAssertEqual(ToastPresence.shared.liveToasts, before + 1, "its room is held a moment after it goes")
 
         try await Task.sleep(for: ToastSlot.shield + .milliseconds(500))
-        XCTAssertEqual(ToastPresence.shared.count, before, "then the room closes")
+        XCTAssertEqual(ToastPresence.shared.liveToasts, before, "then the room closes")
     }
 }

@@ -17,8 +17,6 @@ extension EnvironmentValues {
     /// True below a view that already shows Fuel log toasts, so a log screen
     /// knows it can close at once and leave the toast to that host.
     @Entry var fuelLogToastHosted: Bool = false
-    /// The shell's toast, for the tab on screen to show (see `shellToastSlot`).
-    @Entry var shellToast: Binding<ToastData?>?
 }
 
 // MARK: - FuelLogToast
@@ -64,7 +62,7 @@ enum FuelLogToast {
 
 struct FuelLogToastHost: ViewModifier {
     /// False on the app shell: it keeps the toast but cannot show it (a slot outside the tab bar
-    /// would sit under it), so each tab shows it with `shellToastSlot` instead.
+    /// would sit under it), so each tab shows it with `toastSlot` instead.
     var showsSlot: Bool = true
 
     @Environment(\.fuelLogToastHosted)
@@ -80,7 +78,7 @@ struct FuelLogToastHost: ViewModifier {
                 .tempoToast($toast)
         } else {
             hosted(content)
-                .environment(\.shellToast, $toast)
+                .environment(\.pageToast, $toast)
         }
     }
 
@@ -116,29 +114,6 @@ extension View {
     /// shell can both use it without double toasts.
     func fuelLogToastHost(showsSlot: Bool = true) -> some View {
         modifier(FuelLogToastHost(showsSlot: showsSlot))
-    }
-
-    /// Shows the app shell's toast in this tab's own room above the tab bar. Put it on a tab's
-    /// root; `active` is whether that tab is the one on screen, so only one slot shows it.
-    func shellToastSlot(active: Bool) -> some View {
-        modifier(ShellToastSlot(active: active))
-    }
-}
-
-// MARK: - ShellToastSlot
-
-private struct ShellToastSlot: ViewModifier {
-    let active: Bool
-    @Environment(\.shellToast)
-    private var shellToast
-
-    func body(content: Content) -> some View {
-        content.tempoToast(
-            Binding(
-                get: { active ? shellToast?.wrappedValue : nil },
-                set: { shellToast?.wrappedValue = $0 }
-            )
-        )
     }
 }
 
