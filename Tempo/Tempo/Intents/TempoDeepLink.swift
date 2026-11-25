@@ -5,6 +5,10 @@
 // The `tempo://` links the widgets (and Shortcuts) open:
 //
 //   tempo://open/<today|train|fuel|arena>     go to a tab
+//
+// Debug builds only, so QA scripts can drive the start flows without Siri
+// (a link in a release build must not be able to start a session by itself;
+// the Start intents are how the system asks for that):
 //   tempo://start/workout                     start or resume today's session
 //   tempo://start/focus[?minutes=25]          start a focus timer
 //
@@ -31,12 +35,14 @@ enum TempoDeepLink: Equatable {
                 return nil
             }
             self = .open(tab)
-        case ("start", "workout"):
-            self = .start(.workout)
-        case ("start", "focus"):
-            let minutes = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first { $0.name == "minutes" }?.value.flatMap(Int.init)
-            self = .start(.focus(minutes: minutes.map { min(max($0, 1), 180) }))
+        #if DEBUG
+            case ("start", "workout"):
+                self = .start(.workout)
+            case ("start", "focus"):
+                let minutes = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "minutes" }?.value.flatMap(Int.init)
+                self = .start(.focus(minutes: minutes.map { min(max($0, 1), 180) }))
+        #endif
         default:
             return nil
         }

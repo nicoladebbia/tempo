@@ -30,6 +30,8 @@ final class SystemIntentsTests: XCTestCase {
         healthKit = MockHealthKitService()
         UserDefaults().removePersistentDomain(forName: suiteName)
         defaults = UserDefaults(suiteName: suiteName)
+        // The dedupe cache is static: a write another test made must not skip this one's.
+        WidgetSyncService.resetDedupe()
         appState = AppState(authService: AuthService())
         TempoIntentEnvironment.override = TempoIntentEnvironment(
             context: context, healthKit: healthKit, appState: appState, widgetDefaults: defaults
@@ -110,6 +112,17 @@ final class SystemIntentsTests: XCTestCase {
         // A second drain finds nothing: no glass is ever counted twice.
         XCTAssertEqual(WaterLogging.drainPending(store: store, context: context, defaults: defaults), 0)
         XCTAssertEqual(WaterStore.total(on: Date(), in: context), 500)
+    }
+
+    func testLoggingCountsGlassesTheWidgetQueuedFirst() throws {
+        XCTAssertTrue(PendingWaterQueue.append(ml: 250, at: Date().addingTimeInterval(-30), defaults: defaults))
+        let store = WaterStore(context: context, healthKit: healthKit)
+
+        let outcome = try WaterLogging.log(ml: 250, store: store, context: context, defaults: defaults)
+
+        XCTAssertEqual(outcome.totalMl, 500, "the queued glass is part of the total the answer and the widgets show")
+        XCTAssertTrue(PendingWaterQueue.pending(defaults: defaults).isEmpty)
+        XCTAssertEqual(try XCTUnwrap(WidgetSnapshot.read(from: defaults)).waterMl, 500)
     }
 
     func testQueueKeepsOldestFirst() {

@@ -15,7 +15,6 @@
 
 import Foundation
 import OSLog
-import SwiftData
 import WidgetKit
 
 @MainActor
@@ -58,7 +57,8 @@ enum WidgetSyncService {
         reload()
     }
 
-    /// Water was saved or removed: put the day's new total in the widgets now.
+    /// Water was logged with no screen up to refresh the widgets: put the day's
+    /// new total in them now.
     /// Patches the water of the snapshot already there, or starts today's
     /// with only water filled in when the app has not written one yet.
     static func recordWater(
@@ -70,15 +70,6 @@ enum WidgetSyncService {
     ) {
         let base = WidgetSnapshot.read(from: defaults) ?? .empty(for: Calendar.current.startOfDay(for: now))
         publish(base.updatingWater(ml: totalMl, targetMl: targetMl, now: now), defaults: defaults, reload: reload)
-    }
-
-    /// Reads today's water from the store the app saves it in and records it.
-    static func recordWater(in context: ModelContext, now: Date = Date()) {
-        recordWater(
-            totalMl: WaterStore.total(on: now, in: context),
-            targetMl: DailyNutritionTargets.todayWaterTargetMl(in: context, now: now),
-            now: now
-        )
     }
 
     /// Test hook: forget the dedupe cache.

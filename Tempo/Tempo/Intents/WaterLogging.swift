@@ -30,6 +30,9 @@ enum WaterLogging {
         now: Date = Date(),
         defaults: UserDefaults? = UserDefaults(suiteName: WidgetSnapshot.appGroupID)
     ) throws -> WaterLogOutcome {
+        // Glasses a widget queued earlier go in first, so the total this
+        // returns (and the widgets show) already counts them.
+        drainPending(store: store, context: context, defaults: defaults, now: now)
         guard store.add(ml: ml, at: now) != nil else {
             throw WaterIntentError.couldNotSave
         }
