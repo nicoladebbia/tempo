@@ -81,6 +81,28 @@ final class TodayDayModel {
     }
 }
 
+// MARK: - TodayRowIcon
+
+/// The icon at the start of a row. Every row gives it the same width, growing with
+/// the text, so the words beside it line up whatever the symbol.
+struct TodayRowIcon: View {
+    let systemName: String
+    /// nil is the quiet secondary text colour.
+    let tint: Color?
+    var font: Font = Tide.headline
+
+    @ScaledMetric(relativeTo: .headline)
+    private var width = Tide.icon
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(font)
+            .foregroundStyle(tint ?? Tide.text2)
+            .frame(width: width, alignment: .leading)
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: - DayItemRow
 
 /// One line of the day: what, when and how it went. Used by the "later today"
@@ -95,11 +117,7 @@ struct DayItemRow: View {
 
     var body: some View {
         HStack(spacing: Tide.s3) {
-            Image(systemName: icon)
-                .font(Tide.headline)
-                .foregroundStyle(tint)
-                .frame(minWidth: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+            TodayRowIcon(systemName: icon, tint: tint)
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.title)
                     .font(Tide.bodyStrong)
@@ -306,11 +324,7 @@ struct TodayTomorrowCard: View {
 
     private func line(_ icon: String, _ title: String, _ caption: String) -> some View {
         HStack(spacing: Tide.s3) {
-            Image(systemName: icon)
-                .font(Tide.headline)
-                .foregroundStyle(mood.accent)
-                .frame(minWidth: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+            TodayRowIcon(systemName: icon, tint: mood.accent)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title)
                     .font(Tide.bodyStrong)
@@ -363,12 +377,11 @@ struct TodayWeekReviewCard: View {
 // MARK: - WeekReviewFormat
 
 enum WeekReviewFormat {
-    /// "16 to 22 Nov".
+    /// "Nov 16 – 22", in the person's own format.
     static func range(of review: WeekReview, calendar: Calendar = .current) -> String {
         let end = calendar.date(byAdding: .day, value: 6, to: review.weekStart) ?? review.weekStart
-        let day = review.weekStart.formatted(.dateTime.day())
-        let last = end.formatted(.dateTime.day().month(.abbreviated))
-        return "\(day) to \(last)"
+        // Half-open, so the end is a moment later than the Sunday it names.
+        return (review.weekStart ..< end.addingTimeInterval(60)).formatted(.interval.month(.abbreviated).day())
     }
 }
 
@@ -469,10 +482,7 @@ struct TodayQuietLinks: View {
                 ForEach(links) { link in
                     Button(action: link.action) {
                         HStack(spacing: Tide.s3) {
-                            Image(systemName: link.icon)
-                                .font(Tide.bodyStrong)
-                                .frame(minWidth: Tide.icon, alignment: .leading)
-                                .accessibilityHidden(true)
+                            TodayRowIcon(systemName: link.icon, tint: nil, font: Tide.bodyStrong)
                             Text(link.title)
                                 .font(Tide.caption)
                                 .multilineTextAlignment(.leading)

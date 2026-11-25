@@ -24,13 +24,18 @@ struct SetupChecklistCard: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         let open = checklist.remaining
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: "Get set up", trailing: "\(checklist.doneCount) of \(checklist.total) done")
             VStack(spacing: 0) {
-                ForEach(open.prefix(Self.visibleLines)) { line in
+                ForEach(Array(open.prefix(Self.visibleLines).enumerated()), id: \.element.id) { index, line in
+                    if index > 0 {
+                        TideDivider()
+                    }
                     Button { onStep(line.step) } label: {
                         row(line.step)
                     }
@@ -54,11 +59,14 @@ struct SetupChecklistCard: View {
 
     private func row(_ step: SetupStep) -> some View {
         HStack(spacing: Tide.s3) {
-            Image(systemName: step.icon)
-                .font(Tide.headline)
-                .foregroundStyle(mood.accent)
-                .frame(minWidth: Tide.icon, alignment: .leading)
-                .accessibilityHidden(true)
+            // At the largest sizes the words need the width more than the icon does.
+            if typeSize.isAccessibilitySize == false {
+                Image(systemName: step.icon)
+                    .font(Tide.headline)
+                    .foregroundStyle(mood.accent)
+                    .frame(minWidth: Tide.icon, alignment: .leading)
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 0) {
                 Text(step.title)
                     .font(Tide.bodyStrong)
@@ -75,6 +83,7 @@ struct SetupChecklistCard: View {
                 .foregroundStyle(Tide.text3)
                 .accessibilityHidden(true)
         }
+        .padding(.vertical, Tide.s2)
         .frame(minHeight: Tide.hit + Tide.s2)
         .contentShape(.rect)
     }

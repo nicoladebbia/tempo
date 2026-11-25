@@ -150,7 +150,7 @@ final class WeekReviewTests: XCTestCase {
         let last = WeekTotals(foodDays: 5, avgKcal: 2700, avgProtein: 170)
         XCTAssertEqual(
             WeekReviewWords.food(week, last),
-            "Logged 6 days, averaging \(2850.formatted()) kcal and 190 g protein. Protein up 20 g on last week."
+            "Logged 6 days, averaging \(2850.formatted())\u{00A0}kcal and 190\u{00A0}g protein. Protein up 20\u{00A0}g on last week."
         )
         XCTAssertEqual(WeekReviewWords.food(WeekTotals(), last), "No meals logged this week.")
         XCTAssertFalse(WeekReviewWords.food(week, WeekTotals()).contains("last week"))

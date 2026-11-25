@@ -191,10 +191,10 @@ enum WeekReviewWords {
         guard let kcal = week.avgKcal, let protein = week.avgProtein else {
             return "No meals logged this week."
         }
-        var line = "Logged \(count(week.foodDays, "day")), averaging \(kcal.formatted()) kcal and \(protein) g protein."
+        var line = "Logged \(count(week.foodDays, "day")), averaging \(kcal.formatted())\u{00A0}kcal and \(protein)\u{00A0}g protein."
         if let lastProtein = last.avgProtein, lastProtein != protein {
             let move = protein - lastProtein
-            line += " Protein \(move > 0 ? "up" : "down") \(abs(move)) g on last week."
+            line += " Protein \(move > 0 ? "up" : "down") \(abs(move))\u{00A0}g on last week."
         }
         return line
     }

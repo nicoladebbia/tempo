@@ -292,8 +292,9 @@ struct TodayView: View {
                 TodayHero(snapshot: snapshot, actions: actions)
                 let now = TodayClock.now
                 let next = NextStepEngine.choose(for: snapshot, hour: Calendar.current.component(.hour, from: now))
-                prompts(now: now)
+                promptsAbove(now: now)
                 TodayNextCard(action: next, snapshot: snapshot, actions: actions)
+                promptsBelow(now: now)
                 let later = DayTimeline.upcoming(dayModel.items, limit: 3, excluding: Self.itemIDs(of: next))
                 if !later.isEmpty {
                     TodayLaterCard(
@@ -520,23 +521,31 @@ struct TodayView: View {
         )
     }
 
-    /// At most one of: the setup checklist, the week in review, tomorrow. The
-    /// rest wait as quiet links at the bottom of the page.
+    /// Above the Next card: signing in, and getting set up. Nothing else comes before what to do next.
     @ViewBuilder
-    private func prompts(now: Date) -> some View {
+    private func promptsAbove(now: Date) -> some View {
         if showSignInNudge {
             SignInPromptCard(style: .tide, onDismiss: { signInNudgeDismissedAt = Date().timeIntervalSince1970 })
                 .transition(.opacity)
         }
         let checklist = checklist
-        switch TodayPromptPlanner.prominent(promptFacts(checklist: checklist), now: now) {
-        case .setup:
+        if TodayPromptPlanner.prominent(promptFacts(checklist: checklist), now: now) == .setup {
             SetupChecklistCard(
                 checklist: checklist,
                 onStep: runSetupStep,
                 onLater: { withAnimation(Tide.snap) { hasCompletedSetup = true } }
             )
             .transition(.opacity)
+        }
+    }
+
+    /// Under the Next card: the week in review or tomorrow, when it is the time for one. At most one
+    /// prompt is prominent; the rest wait as quiet links at the bottom of the page.
+    @ViewBuilder
+    private func promptsBelow(now: Date) -> some View {
+        switch TodayPromptPlanner.prominent(promptFacts(checklist: checklist), now: now) {
+        case .setup:
+            EmptyView()
         case .weekReview:
             if let review = dayModel.week {
                 TodayWeekReviewCard(review: review) { actions.open(.weekReview) }
