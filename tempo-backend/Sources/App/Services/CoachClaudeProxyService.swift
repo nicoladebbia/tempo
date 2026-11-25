@@ -31,7 +31,7 @@ final class CoachClaudeProxyService: @unchecked Sendable {
         input: CoachProxyChatRequest,
         on req: Request
     ) async throws -> CoachProxyChatResponse {
-        guard let apiKey = Environment.get("ANTHROPIC_API_KEY") else {
+        guard let apiKey = Self.apiKey(on: req) else {
             throw CoachProxyError.missingAPIKey
         }
 
@@ -117,6 +117,18 @@ final class CoachClaudeProxyService: @unchecked Sendable {
             ),
             model: model
         )
+    }
+
+    // MARK: - API key
+
+    /// The Anthropic key. Test mode answers from fixtures and never sends it
+    /// anywhere, so it also runs without one: a test can't set the process-wide
+    /// env var without racing the suites that assert it is unset.
+    private static func apiKey(on req: Request) -> String? {
+        if let key = Environment.get("ANTHROPIC_API_KEY") {
+            return key
+        }
+        return req.application.testMode == nil ? nil : "test-mode"
     }
 
     // MARK: - Model resolution
@@ -226,15 +238,22 @@ enum CoachContentBlock: Content {
 
     // MARK: - Codable
 
+    // Every coder that touches these blocks (the app's global JSON config, and
+    // the ones in `CoachClaudeProxyService` for Anthropic) uses
+    // `.convertFromSnakeCase` / `.convertToSnakeCase`. The decoder rewrites
+    // "tool_use_id" to "toolUseId" BEFORE looking a key up, so a raw value of
+    // "tool_use_id" never matches and the block fails to decode. Spell the
+    // converted names; the encoder turns them back into "tool_use_id" and
+    // "is_error" on the wire.
     private enum CodingKeys: String, CodingKey {
         case type
         case text
         case id
         case name
         case input
-        case toolUseID = "tool_use_id"
+        case toolUseID = "toolUseId"
         case content
-        case isError = "is_error"
+        case isError
     }
 
     init(from decoder: Decoder) throws {
@@ -291,12 +310,9 @@ struct CoachTool: Content {
     /// JSON Schema describing the tool's input arguments. Free-form to
     /// preserve schema flexibility — Anthropic validates it server-side.
     let inputSchema: AnyCodable
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case description
-        case inputSchema = "input_schema"
-    }
+    // No CodingKeys on purpose: the snake_case coders map `input_schema` <->
+    // `inputSchema` by themselves. A raw value of "input_schema" is never found
+    // by `.convertFromSnakeCase`.
 }
 
 /// Tool selection control. iOS usually passes "auto"; "any" forces a tool;
