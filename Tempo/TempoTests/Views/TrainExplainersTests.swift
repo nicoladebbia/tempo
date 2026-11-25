@@ -28,7 +28,7 @@ final class TrainExplainersTests: XCTestCase {
             for (name, answer) in [("what", explainer.what), ("how", explainer.how), ("action", explainer.action)] {
                 let words = text(answer)
                 XCTAssertFalse(words.trimmingCharacters(in: .whitespaces).isEmpty, "\(explainer.id) has no \(name)")
-                XCTAssertLessThanOrEqual(words.count, 360, "\(explainer.id) \(name) is too long to read in a sheet")
+                XCTAssertLessThanOrEqual(words.count, 300, "\(explainer.id) \(name) is too long to read in a sheet")
                 XCTAssertTrue(words.hasSuffix("."), "\(explainer.id) \(name) should be a sentence")
             }
             XCTAssertFalse(text(explainer.title).isEmpty)

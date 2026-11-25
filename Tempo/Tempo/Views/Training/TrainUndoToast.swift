@@ -34,8 +34,12 @@ private struct DiscardedWorkoutToast: ViewModifier {
                     actionTitle: "Undo"
                 ) {
                     Task { @MainActor in
-                        await viewModel.undoDiscardedWorkoutWhenSettled(undo, modelContext: modelContext)
+                        let restored = await viewModel.undoDiscardedWorkoutWhenSettled(undo, modelContext: modelContext)
                         viewModel.forgetDiscardedWorkout()
+                        if !restored {
+                            // Say so, rather than leave a dead button.
+                            toast = ToastData(message: "Can't undo that now", style: .warning)
+                        }
                     }
                 }
             }

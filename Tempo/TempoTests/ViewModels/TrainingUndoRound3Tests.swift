@@ -181,6 +181,61 @@ final class TrainingUndoRound3Tests: XCTestCase {
         vm.resetState()
     }
 
+    func testUndoKeepsTheWorkoutClockAndAnOpenPause() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, _) = seed(sets: 2, context: context)
+        vm.todayPlan = plan
+        plan.status = .inProgress
+        // Started 30 minutes ago, logged a set 25 minutes ago, then sat in
+        // cooldown: the crash path alone would call the last 15 minutes dead.
+        plan.startedAt = Date().addingTimeInterval(-1800)
+        plan.pausedSeconds = 120
+        enterSetActive(vm)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        let logged = try XCTUnwrap(sets(plan).first)
+        logged.completedAt = Date().addingTimeInterval(-1500)
+        let undo = try XCTUnwrap(vm.discardActiveWorkoutCapturingUndo(modelContext: context))
+        vm.sessionState = .idle
+        XCTAssertTrue(vm.undoDiscardedWorkout(undo, modelContext: context))
+
+        // Only the 120 s that were already paused, plus the moment the workout
+        // sat discarded, are off the clock.
+        XCTAssertEqual(plan.pausedSeconds, 120, accuracy: 5)
+        XCTAssertNil(plan.pausedAt)
+        XCTAssertEqual(vm.totalPauseDuration, plan.pausedSeconds, accuracy: 0.001)
+        XCTAssertEqual(vm.elapsedSeconds, 1800 - 120, accuracy: 5)
+        vm.resetState()
+    }
+
+    func testAnUndoIsRefusedWhenTheDayWasRebuiltAndTheLoggedSetsAreGone() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, _) = seed(sets: 2, context: context)
+        vm.todayPlan = plan
+        plan.status = .inProgress
+        plan.startedAt = Date().addingTimeInterval(-60)
+        enterSetActive(vm)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        let undo = try XCTUnwrap(vm.discardActiveWorkoutCapturingUndo(modelContext: context))
+        vm.sessionState = .idle
+
+        // The reload re-prescribed the day: same plan, brand-new set rows.
+        let slot = plan.orderedExercises[0]
+        for old in slot.orderedSets {
+            context.delete(old)
+        }
+        slot.sets = (1 ... 2).map {
+            PlannedSet(setNumber: $0, targetReps: 8, targetWeight: 80, plannedExercise: slot)
+        }
+        try context.save()
+
+        XCTAssertFalse(vm.canUndoDiscardedWorkout(undo))
+        XCTAssertFalse(vm.undoDiscardedWorkout(undo, modelContext: context))
+        XCTAssertEqual(plan.status, .planned)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SetFeedback>()), 0)
+    }
+
     // MARK: - Remove a set with "−"
 
     func testUndoPutsTheRemovedSetBackInPlace() throws {

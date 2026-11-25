@@ -22,6 +22,7 @@ extension TrainingViewModel {
     /// A discarded workout, kept for the few seconds Undo is offered.
     struct DiscardedWorkoutUndo: Identifiable {
         let id = UUID()
+        let discardedAt = Date()
         let planID: UUID
         /// How many sets were logged, for the toast and for deciding whether
         /// there is anything worth offering Undo for.
@@ -258,6 +259,21 @@ extension TrainingViewModel {
         discardUndo = nil
         sessionState = .crashedRecovery
         resumeFromCrash()
+        // The crash path guesses how long the app was dead and counts a long
+        // idle stretch as paused. Here nothing was dead: put the clock back as
+        // it was, and count only the time the workout really sat discarded (and
+        // any pause that was open when it was discarded) as paused.
+        let now = Date()
+        let openPause = undo.pausedAt.map { max(0, undo.discardedAt.timeIntervalSince($0)) } ?? 0
+        let paused = undo.pausedSeconds + openPause + max(0, now.timeIntervalSince(undo.discardedAt))
+        plan.pausedSeconds = paused
+        plan.pausedAt = nil
+        plan.crashRecoveredAt = undo.crashRecoveredAt
+        totalPauseDuration = paused
+        if let startedAt = plan.startedAt {
+            elapsedSeconds = max(0, now.timeIntervalSince(startedAt) - paused)
+        }
+        saveGuarded(modelContext, operation: "restored workout")
         detectedPRs = restored.filter { undo.detectedRecordIDs.contains($0.id) }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         HapticManager.selection()
@@ -273,17 +289,24 @@ extension TrainingViewModel {
         else {
             return false
         }
+        // Reloading the day can rebuild a still-planned workout from scratch.
+        // If any set that was logged is gone, there is nothing to put the
+        // numbers back on: refuse instead of resuming an empty session.
+        let present = Set(plan.orderedExercises.flatMap(\.orderedSets).map(\.id))
+        guard undo.loggedValues.keys.allSatisfy(present.contains) else {
+            return false
+        }
         // `.discarded` is the moment before the day reloads and settles on
         // `.idle`; undoing inside it would be overwritten by that settle.
         return sessionState == .idle
     }
 
-    /// The Undo button: waits (up to two seconds) for the day to finish
+    /// The Undo button: waits (up to six seconds) for the day to finish
     /// reloading after the discard, then brings the workout back.
     @discardableResult
     func undoDiscardedWorkoutWhenSettled(_ undo: DiscardedWorkoutUndo, modelContext: ModelContext) async -> Bool {
         var waited = 0
-        while sessionState == .discarded, waited < 20 {
+        while sessionState == .discarded, waited < 60 {
             try? await Task.sleep(for: .milliseconds(100))
             waited += 1
         }

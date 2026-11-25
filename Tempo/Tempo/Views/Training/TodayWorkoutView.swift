@@ -883,7 +883,7 @@ struct TodayWorkoutView: View {
                 label: TrainCount.noun(total, "exercise")
             )],
             chips: Array(muscles.prefix(4)),
-            figureExplainer: isDone ? nil : TrainExplainers.estimatedTime
+            figureExplainer: isDone || plan.durationMinutes != nil ? nil : TrainExplainers.estimatedTime
         ) {
             TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)
                 .explains(TrainExplainers.setsDone.showing("\(plan.completedSets) of \(plan.totalSets)"))

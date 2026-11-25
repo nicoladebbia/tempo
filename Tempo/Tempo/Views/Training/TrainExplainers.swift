@@ -72,7 +72,7 @@ enum TrainExplainers {
         id: "train.pr",
         title: "Personal record",
         what: "A new best on a lift, beyond anything you have logged before.",
-        how: "The first log of a lift only sets the starting mark. After that, a set is a record when its estimated 1RM beats your best (up to 12 reps), or when it is the heaviest weight you have used, and for bodyweight moves when it is the most reps. A lift gets at most one record per workout, and warm-ups and drop sets never count.",
+        how: "The first log of a lift only sets the starting mark. After that, a set is a record when it beats your best estimated 1RM and your best plain weight-and-reps (up to 12 reps), or is your heaviest weight yet. Bodyweight moves count most reps. Warm-ups and drop sets never count.",
         action: "Share it if you like, and log your effort honestly so the next target builds on the new best.",
         systemImage: "trophy"
     )
