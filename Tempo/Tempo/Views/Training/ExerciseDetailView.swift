@@ -32,6 +32,8 @@ struct ExerciseDetailView: View {
     /// §10.6 — delete confirmation for custom exercises.
     @State
     private var showDeleteConfirm = false
+    @Environment(\.offerExerciseUndo)
+    private var offerExerciseUndo
     /// §10.6/§1 — blocks the delete when the exercise is in today's
     /// unfinished plan (deleting it mid-plan would nullify a slot the active
     /// session is about to read).
@@ -121,6 +123,9 @@ struct ExerciseDetailView: View {
                     Button(role: .destructive) {
                         if isInTodaysActivePlan {
                             showActivePlanBlock = true
+                        } else if offerExerciseUndo != nil {
+                            // Undo is on offer, so no question first.
+                            deleteCustomExercise()
                         } else {
                             showDeleteConfirm = true
                         }
@@ -170,9 +175,11 @@ struct ExerciseDetailView: View {
         guard exercise.isCustom, !isInTodaysActivePlan else {
             return
         }
+        let snapshot = ExerciseSnapshot(exercise)
         modelContext.delete(exercise)
         modelContext.saveOrAlert("exercise")
         HapticManager.notification(.success)
+        offerExerciseUndo?(snapshot)
         dismiss()
     }
 

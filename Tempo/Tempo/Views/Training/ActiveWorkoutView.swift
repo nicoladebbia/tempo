@@ -438,7 +438,7 @@ struct ActiveWorkoutView: View {
                 // Discard rolls back + resets; TrainingTabView observes
                 // .discarded and dismisses the cover (don't dismiss here too,
                 // which raced the reset and left a blank screen).
-                viewModel.discardActiveWorkout(modelContext: modelContext)
+                viewModel.discardActiveWorkoutCapturingUndo(modelContext: modelContext)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -862,6 +862,15 @@ struct ActiveWorkoutView: View {
     private func offerUndo(_ undo: TrainingViewModel.SkippedSetsUndo) {
         undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
             if !viewModel.undoSkippedSets(undo, modelContext: modelContext) {
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
+            }
+        }
+    }
+
+    /// Few-second Undo after the "−" button takes a set out.
+    private func offerUndo(_ undo: TrainingViewModel.RemovedSetUndo) {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+            if !viewModel.undoRemovedSet(undo, modelContext: modelContext) {
                 undoToast = ToastData(message: "Can't undo that now", style: .info)
             }
         }
@@ -1306,10 +1315,12 @@ struct ActiveWorkoutView: View {
     private var setProgress: some View {
         HStack(spacing: Tide.s2) {
             Button {
-                viewModel.removeLastUncompletedSet(
+                if let removed = viewModel.removeLastUncompletedSetCapturingUndo(
                     from: viewModel.currentExerciseIndex,
                     modelContext: modelContext
-                )
+                ) {
+                    offerUndo(removed)
+                }
             } label: {
                 Image(systemName: "minus")
                     .font(Tide.bodyStrong)
@@ -1458,7 +1469,7 @@ struct ActiveWorkoutView: View {
 
             Button {
                 // .discarded closes this cover from TrainingTabView.
-                viewModel.discardCrashedWorkout(modelContext: modelContext)
+                viewModel.discardActiveWorkoutCapturingUndo(modelContext: modelContext)
             } label: {
                 Text("Discard")
                     .foregroundStyle(Tide.danger)

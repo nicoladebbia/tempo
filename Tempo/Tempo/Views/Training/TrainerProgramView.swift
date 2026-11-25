@@ -27,6 +27,9 @@ struct TrainerProgramView: View {
 
     @State
     private var showImport = false
+    /// The Undo toast after a program is deleted.
+    @State
+    private var toast: ToastData?
     @State
     private var showEdit = false
     @State
@@ -57,6 +60,25 @@ struct TrainerProgramView: View {
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
+    }
+
+    /// Deletes the program and offers Undo for a few seconds. The program is
+    /// copied first; Undo puts it back as it was and the week is rebuilt from it
+    /// again, the way it was when the program was first switched on.
+    private func delete(_ program: TrainerProgram) {
+        let snapshot = TrainerProgramSnapshot(program)
+        modelContext.delete(program)
+        _ = modelContext.saveOrAlert("trainer program delete")
+        if snapshot.isActive {
+            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+        }
+        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+            snapshot.restore(in: modelContext)
+            _ = modelContext.saveOrAlert("trainer program restore")
+            if snapshot.isActive {
+                NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+            }
+        }
     }
 
     /// What the compliance numbers depend on among the program's own fields.
@@ -118,6 +140,7 @@ struct TrainerProgramView: View {
             systemImage: "square.and.arrow.down"
         )
         .navigationBarTitleDisplayMode(.inline)
+        .tempoToast($toast)
         .task(id: complianceKey) {
             refreshCompliance()
         }
@@ -184,15 +207,10 @@ struct TrainerProgramView: View {
             presenting: pendingDelete
         ) { program in
             Button("Delete \"\(program.name)\"", role: .destructive) {
-                let wasActive = program.isActive
-                modelContext.delete(program)
-                _ = modelContext.saveOrAlert("trainer program delete")
-                if wasActive {
-                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                }
+                delete(program)
             }
         } message: { _ in
-            Text("This can't be undone. Your workout history stays either way.")
+            Text("Your workout history stays either way.")
         }
         .confirmationDialog(
             "Run this program?",

@@ -32,6 +32,9 @@ struct TodayWorkoutView: View {
     private var typeSize
     @State
     private var showMobilityFlows = false
+    /// The Undo toast after a session rating.
+    @State
+    private var undoToast: ToastData?
     /// Late-night "Skip for tonight" — persisted (not launch-only): the
     /// timestamp (epoch seconds) until which the bedtime card stays hidden,
     /// today's 05:00 local (`LateNightWindow.skipUntil`). 0 (never skipped
@@ -243,6 +246,8 @@ struct TodayWorkoutView: View {
             .padding(.bottom, Tide.s6)
         }
         .tidePage(energy: 1)
+        .discardedWorkoutUndoToast(viewModel)
+        .tempoToast($undoToast)
         .scrollEdgeEffectStyle(.soft, for: .all)
         // §2.16 — pull-to-refresh: full reload through the same coalesced
         // pipeline the .task uses (an in-flight load absorbs the pull).
@@ -944,7 +949,14 @@ struct TodayWorkoutView: View {
     private func sessionRPESection(plan: WorkoutPlan) -> some View {
         if plan.status == .completed {
             TrainRPECard(logged: plan.sessionRPE) { value in
-                viewModel.recordSessionRPE(value, modelContext: modelContext)
+                guard let undo = viewModel.recordSessionRPECapturingUndo(value, modelContext: modelContext) else {
+                    return
+                }
+                undoToast = ToastData(message: "Rated \(undo.rating) of 10", style: .info, actionTitle: "Undo") {
+                    if !viewModel.undoSessionRPE(undo, modelContext: modelContext) {
+                        undoToast = ToastData(message: "Can't undo that now", style: .info)
+                    }
+                }
             }
         }
     }

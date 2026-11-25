@@ -15,6 +15,7 @@
 
 import Foundation
 import SwiftData
+import SwiftUI
 
 // MARK: - RoutineSnapshot
 
@@ -53,6 +54,234 @@ struct RoutineSnapshot: Equatable {
         context.insert(routine)
         return routine
     }
+}
+
+// MARK: - MatchSnapshot
+
+/// A scheduled match as it was the moment it was deleted. A match is plain
+/// values, so it is copied before the delete and put back as it was.
+struct MatchSnapshot: Equatable {
+    let id: UUID
+    let kickoff: Date
+    let opponent: String?
+    let isCompetitive: Bool
+    let createdAt: Date
+
+    init(_ match: Match) {
+        id = match.id
+        kickoff = match.kickoff
+        opponent = match.opponent
+        isCompetitive = match.isCompetitive
+        createdAt = match.createdAt
+    }
+
+    /// "Deleted the match vs Inter" or "Deleted the match".
+    var message: String {
+        opponent.map { "Deleted the match vs \($0)" } ?? "Deleted the match"
+    }
+
+    /// Puts the match back with its old id, so it lands in the same place in
+    /// the list. Does nothing if it is already back (a double tap on Undo).
+    /// The caller saves.
+    @MainActor
+    @discardableResult
+    func restore(in context: ModelContext) -> Match {
+        let wanted = id
+        let existing = try? context.fetch(
+            FetchDescriptor<Match>(predicate: #Predicate { $0.id == wanted })
+        ).first
+        if let existing {
+            return existing
+        }
+        let match = Match(kickoff: kickoff, opponent: opponent, isCompetitive: isCompetitive, createdAt: createdAt)
+        match.id = id
+        context.insert(match)
+        return match
+    }
+}
+
+// MARK: - TrainerProgramSnapshot
+
+/// A trainer program as it was the moment it was deleted. A program is plain
+/// stored fields (no relationships), so every one is copied before the delete
+/// and put back with the same id.
+struct TrainerProgramSnapshot {
+    let id: UUID
+    let name: String
+    let createdAt: Date
+    let startDate: Date
+    let weeks: [ProgramWeek]
+    let repeats: Bool
+    let isActive: Bool
+    let sourceKind: String
+    let sourceText: String?
+    let autoWarmups: Bool?
+    let scheduleModeRaw: String?
+    let queuedActivationDate: Date?
+    let endedAt: Date?
+    let cadenceRaw: String?
+    let changeLog: [TrainerProgramChangeLogEntry]
+    let skippedSessions: [TrainerProgramSkip]
+
+    init(_ program: TrainerProgram) {
+        id = program.id
+        name = program.name
+        createdAt = program.createdAt
+        startDate = program.startDate
+        weeks = program.weeks
+        repeats = program.repeats
+        isActive = program.isActive
+        sourceKind = program.sourceKind
+        sourceText = program.sourceText
+        autoWarmups = program.autoWarmups
+        scheduleModeRaw = program.scheduleModeRaw
+        queuedActivationDate = program.queuedActivationDate
+        endedAt = program.endedAt
+        cadenceRaw = program.cadenceRaw
+        changeLog = program.changeLog
+        skippedSessions = program.skippedSessions
+    }
+
+    /// Puts the program back as it was. Does nothing if it is already back (a
+    /// double tap on Undo). At most one program is active: if another one took
+    /// over in the meantime, this one comes back as a saved, inactive program
+    /// instead of fighting it. The caller saves and tells the plan to rebuild.
+    @MainActor
+    @discardableResult
+    func restore(in context: ModelContext) -> TrainerProgram {
+        let wanted = id
+        if let existing = try? context.fetch(
+            FetchDescriptor<TrainerProgram>(predicate: #Predicate { $0.id == wanted })
+        ).first {
+            return existing
+        }
+        let anotherIsActive = ((try? context.fetch(FetchDescriptor<TrainerProgram>())) ?? []).contains { $0.isActive }
+        let program = TrainerProgram(
+            id: id,
+            name: name,
+            startDate: startDate,
+            weeks: weeks,
+            repeats: repeats,
+            isActive: isActive && !anotherIsActive,
+            sourceKind: sourceKind,
+            sourceText: sourceText,
+            autoWarmups: autoWarmups,
+            queuedActivationDate: queuedActivationDate,
+            changeLog: changeLog,
+            createdAt: createdAt
+        )
+        program.startDate = startDate
+        program.scheduleModeRaw = scheduleModeRaw
+        program.cadenceRaw = cadenceRaw
+        program.endedAt = endedAt
+        program.skippedSessions = skippedSessions
+        context.insert(program)
+        return program
+    }
+}
+
+// MARK: - ExerciseSnapshot
+
+/// A custom exercise as it was the moment it was deleted, with the rows that
+/// pointed at it. Deleting an exercise only detaches those rows (they keep
+/// their logged sets and their own copy of the name), so Undo creates the
+/// exercise again with its old id and points them back at it.
+struct ExerciseSnapshot {
+    let id: UUID
+    let name: String
+    let muscleGroupRaw: String
+    let secondaryMusclesJSON: Data?
+    let equipmentRaw: String
+    let movementPatternRaw: String
+    let isCompound: Bool
+    let isCustom: Bool
+    let demoAsset: String?
+    let instructions: String?
+    let cuesJSON: Data?
+    let preferredRestSeconds: Int?
+    let importBatchID: UUID?
+    let plannedExerciseIDs: [UUID]
+    let historyIDs: [UUID]
+    let recordIDs: [UUID]
+
+    init(_ exercise: Exercise) {
+        id = exercise.id
+        name = exercise.name
+        muscleGroupRaw = exercise.muscleGroupRaw
+        secondaryMusclesJSON = exercise.secondaryMusclesJSON
+        equipmentRaw = exercise.equipmentRaw
+        movementPatternRaw = exercise.movementPatternRaw
+        isCompound = exercise.isCompound
+        isCustom = exercise.isCustom
+        demoAsset = exercise.demoAsset
+        instructions = exercise.instructions
+        cuesJSON = exercise.cuesJSON
+        preferredRestSeconds = exercise.preferredRestSeconds
+        importBatchID = exercise.importBatchID
+        plannedExerciseIDs = (exercise.plannedExercises ?? []).map(\.id)
+        historyIDs = (exercise.history ?? []).map(\.id)
+        recordIDs = (exercise.personalRecords ?? []).map(\.id)
+    }
+
+    /// Creates the exercise again with its old id and fields, and points its
+    /// old sessions, history rows and records back at it. Does nothing if it
+    /// is already back (a double tap on Undo). The caller saves.
+    @MainActor
+    @discardableResult
+    func restore(in context: ModelContext) -> Exercise {
+        let wanted = id
+        if let existing = try? context.fetch(
+            FetchDescriptor<Exercise>(predicate: #Predicate { $0.id == wanted })
+        ).first {
+            return existing
+        }
+        let exercise = Exercise(
+            id: id,
+            name: name,
+            muscleGroup: .chest,
+            equipment: .barbell,
+            movementPattern: .horizontalPush,
+            isCompound: isCompound,
+            isCustom: isCustom,
+            demoAsset: demoAsset,
+            instructions: instructions
+        )
+        exercise.muscleGroupRaw = muscleGroupRaw
+        exercise.secondaryMusclesJSON = secondaryMusclesJSON
+        exercise.equipmentRaw = equipmentRaw
+        exercise.movementPatternRaw = movementPatternRaw
+        exercise.cuesJSON = cuesJSON
+        exercise.preferredRestSeconds = preferredRestSeconds
+        exercise.importBatchID = importBatchID
+        context.insert(exercise)
+
+        let plannedIDs = plannedExerciseIDs
+        for row in (try? context.fetch(
+            FetchDescriptor<PlannedExercise>(predicate: #Predicate { plannedIDs.contains($0.id) })
+        )) ?? [] {
+            row.exercise = exercise
+        }
+        let historyIDs = historyIDs
+        for row in (try? context.fetch(
+            FetchDescriptor<ExerciseHistory>(predicate: #Predicate { historyIDs.contains($0.id) })
+        )) ?? [] {
+            row.exercise = exercise
+        }
+        let recordIDs = recordIDs
+        for row in (try? context.fetch(
+            FetchDescriptor<PersonalRecord>(predicate: #Predicate { recordIDs.contains($0.id) })
+        )) ?? [] {
+            row.exercise = exercise
+        }
+        return exercise
+    }
+}
+
+extension EnvironmentValues {
+    /// Set by the Train tab: shows the Undo toast for a custom exercise that was
+    /// just deleted. Nil where there is nowhere to show it, and the delete then
+    /// goes through without Undo.
+    @Entry var offerExerciseUndo: (@MainActor (ExerciseSnapshot) -> Void)?
 }
 
 // MARK: - RoutineItemRemoval
