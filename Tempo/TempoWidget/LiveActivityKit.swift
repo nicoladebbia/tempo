@@ -68,7 +68,10 @@ struct ActivityReadout<Value: View>: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: Tide.hair) {
+            // The tracked capitals run a hair past their measured width: the
+            // Dynamic Island's tight trailing column cut the last letter off.
             WidgetLabel(label, color: tone)
+                .padding(.trailing, Tide.hair)
             value()
                 .font(Tide.numeral(Tide.numeralM))
                 .foregroundStyle(Tide.text)

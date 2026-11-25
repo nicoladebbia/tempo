@@ -65,6 +65,8 @@ struct FocusTimerLiveActivity: Widget {
                             .foregroundStyle(Tide.text2)
                             .lineLimit(1)
                     }
+                    // The island's bottom corners are round: keep the line off them.
+                    .padding(.horizontal, Tide.s2)
                 }
             } compactLeading: {
                 Image(systemName: "book.fill")

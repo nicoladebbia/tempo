@@ -41,7 +41,9 @@ struct GuidedRunLiveActivity: Widget {
                         .minimumScaleFactor(0.8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
+                    // The island's bottom corners are round: keep the line off them.
                     GuidedRunDetailRow(state: state)
+                        .padding(.horizontal, Tide.s2)
                 }
             } compactLeading: {
                 Image(systemName: state.isRest ? "hourglass" : "figure.run")
