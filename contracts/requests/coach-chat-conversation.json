@@ -1,0 +1,283 @@
+{
+  "max_tokens" : 800,
+  "messages" : [
+    {
+      "content" : [
+        {
+          "text" : "Move dinner to 8:30pm",
+          "type" : "text"
+        }
+      ],
+      "role" : "user"
+    },
+    {
+      "content" : [
+        {
+          "text" : "Moving it.",
+          "type" : "text"
+        },
+        {
+          "id" : "toolu_01A",
+          "input" : {
+            "mealID" : "B5F0C2A4-0000-4000-8000-000000000001",
+            "newTimeHHmm" : "20:30"
+          },
+          "name" : "moveMeal",
+          "type" : "tool_use"
+        }
+      ],
+      "role" : "assistant"
+    },
+    {
+      "content" : [
+        {
+          "content" : "Moved dinner 19:30 -> 20:30",
+          "tool_use_id" : "toolu_01A",
+          "type" : "tool_result"
+        },
+        {
+          "content" : "Meal not found",
+          "is_error" : true,
+          "tool_use_id" : "toolu_01B",
+          "type" : "tool_result"
+        }
+      ],
+      "role" : "user"
+    },
+    {
+      "content" : [
+        {
+          "text" : "Thanks, and skip lunch tomorrow",
+          "type" : "text"
+        }
+      ],
+      "role" : "user"
+    }
+  ],
+  "model" : "haiku",
+  "system" : "You are Tempo's coach.",
+  "tools" : [
+    {
+      "description" : "Shift a planned meal to a new time. Reschedules notifications.",
+      "input_schema" : {
+        "properties" : {
+          "mealID" : {
+            "description" : "PlannedMeal UUID",
+            "type" : "string"
+          },
+          "newTimeHHmm" : {
+            "pattern" : "^[0-2][0-9]:[0-5][0-9]$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "mealID",
+          "newTimeHHmm"
+        ],
+        "type" : "object"
+      },
+      "name" : "moveMeal"
+    },
+    {
+      "description" : "Change a calendar day's training type. scaleMacros true scales every planned meal by caloriesMultiplier.",
+      "input_schema" : {
+        "properties" : {
+          "caloriesMultiplier" : {
+            "type" : "number"
+          },
+          "date" : {
+            "description" : "YYYY-MM-DD",
+            "type" : "string"
+          },
+          "newType" : {
+            "enum" : [
+              "strength",
+              "cardio",
+              "soccer",
+              "double",
+              "rest"
+            ],
+            "type" : "string"
+          },
+          "scaleMacros" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [
+          "date",
+          "newType",
+          "scaleMacros"
+        ],
+        "type" : "object"
+      },
+      "name" : "swapDayType"
+    },
+    {
+      "description" : "Mark a planned meal as skipped and cancel its notification.",
+      "input_schema" : {
+        "properties" : {
+          "mealID" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "mealID"
+        ],
+        "type" : "object"
+      },
+      "name" : "skipMeal"
+    },
+    {
+      "description" : "Suggest up to 3 quicker recipes whose totalMinutes ≤ maxPrepMin and macros are close to the original meal. Does NOT auto-replace.",
+      "input_schema" : {
+        "properties" : {
+          "maxPrepMin" : {
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "mealID" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "mealID",
+          "maxPrepMin"
+        ],
+        "type" : "object"
+      },
+      "name" : "swapToQuickerMeal"
+    },
+    {
+      "description" : "Acknowledge a bedtime shift for a date. v1: no DB persistence yet — just confirms the intent.",
+      "input_schema" : {
+        "properties" : {
+          "date" : {
+            "description" : "YYYY-MM-DD",
+            "type" : "string"
+          },
+          "newBedtimeHHmm" : {
+            "pattern" : "^[0-2][0-9]:[0-5][0-9]$",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "date",
+          "newBedtimeHHmm"
+        ],
+        "type" : "object"
+      },
+      "name" : "shiftBedtime"
+    },
+    {
+      "description" : "Ask the user a question. Choices are optional; when present, the UI renders them as tappable chips.",
+      "input_schema" : {
+        "properties" : {
+          "choices" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "question" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "question"
+        ],
+        "type" : "object"
+      },
+      "name" : "askUser"
+    },
+    {
+      "description" : "Insert a new LearnedPreference row. Use when the user reveals a recurring pattern.",
+      "input_schema" : {
+        "properties" : {
+          "confidence" : {
+            "type" : "number"
+          },
+          "polarity" : {
+            "enum" : [
+              "positive",
+              "negative",
+              "avoidAtAllCosts"
+            ],
+            "type" : "string"
+          },
+          "scope" : {
+            "enum" : [
+              "always",
+              "weekday",
+              "weekend",
+              "dayTypeHard",
+              "dayTypeRest",
+              "eventTravel",
+              "eventMatch",
+              "seasonalSummer"
+            ],
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [
+              "explicit",
+              "observed",
+              "inferred",
+              "userVerified"
+            ],
+            "type" : "string"
+          },
+          "subject" : {
+            "description" : "dot.path.taxonomy",
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "text",
+          "subject",
+          "source",
+          "polarity",
+          "scope"
+        ],
+        "type" : "object"
+      },
+      "name" : "recordPreference"
+    },
+    {
+      "description" : "Mutate an existing LearnedPreference. Action: supersede / keepClarifyScope / deactivate / markOneOff.",
+      "input_schema" : {
+        "properties" : {
+          "action" : {
+            "enum" : [
+              "supersede",
+              "keepClarifyScope",
+              "deactivate",
+              "markOneOff"
+            ],
+            "type" : "string"
+          },
+          "newScope" : {
+            "type" : "string"
+          },
+          "newText" : {
+            "type" : "string"
+          },
+          "prefID" : {
+            "type" : "string"
+          },
+          "supersededByID" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "prefID",
+          "action"
+        ],
+        "type" : "object"
+      },
+      "name" : "updatePreference"
+    }
+  ]
+}

@@ -54,3 +54,23 @@ does.
 Not covered: routes the app defines but never calls (`/v1/sync/*` has no server
 route either), `/v1/auth/logout` (the app ignores the body), error bodies, and
 non-JSON responses (`GET /v1/exercise-images/:slug` is raw image bytes).
+
+## Request fixtures (`requests/`)
+
+`requests/*.json` is the opposite direction: the JSON the app really POSTs, for
+bodies the server decodes with explicit field rules (free-form tool schemas,
+polymorphic blocks). Today: "Ask Tempo" (`POST /v1/nutrition/ai/coach/chat`).
+
+- **iOS** `CoachChatRequestContractTests` builds each body with the app's real
+  encoder (through `CoachChatAIClientAdapter` and the shipped tool catalog) and
+  fails if it differs from the file. Rewrite the files after an intended change:
+  `TEST_RUNNER_TEMPO_UPDATE_CONTRACTS=1 scripts/sim.sh test -only-testing:TempoTests/CoachChatRequestContractTests`
+- **Backend** `CoachChatRequestContractTests` posts the same files through the real
+  route in test mode (Claude stubbed) and checks the server decodes them, forwards
+  Anthropic's key names (`input_schema`, `tool_use_id`, `is_error`, `tool_choice`,
+  `max_tokens`) and hands tool arguments back untouched.
+
+Why it exists: the server's global JSON decoder is `.convertFromSnakeCase`, which
+rewrites `tool_use_id` to `toolUseId` before a key is looked up, so a CodingKey
+spelled `"tool_use_id"` never matches and every chat message got a 400. A new
+request DTO with snake_case CodingKeys needs a fixture here, not just a golden.

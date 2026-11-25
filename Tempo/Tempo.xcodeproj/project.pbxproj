@@ -308,6 +308,7 @@
 		333D91E6DA09BA8D9D8E8F50 /* TrainerTestResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF085AF109988AA0C035146 /* TrainerTestResultTests.swift */; };
 		33C285BCB571E3FC403F4C91 /* CoachMessageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCCF9DB497D960176050A63 /* CoachMessageRenderer.swift */; };
 		3465EECEDE6026A694FA7DC8 /* ScanResume.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2AC12BB82C314633860750 /* ScanResume.swift */; };
+		34925F88E52D80A77D308561 /* CoachChatRequestContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39DFAC4680ECCEEECD3B317E /* CoachChatRequestContractTests.swift */; };
 		34F64809A7B735B9DAC8A8EB /* TravelSwapEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 275E8EF5A2C8854403532268 /* TravelSwapEngineTests.swift */; };
 		35438B3FAA82FD3396F17C64 /* ActiveWorkoutView+PerSide.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8046EEF2F37DC88A4BB980 /* ActiveWorkoutView+PerSide.swift */; };
 		3548A0E78706A5237467E3B8 /* BenchedDayUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEF15E4D19B60DCE7F4469CC /* BenchedDayUITestSeed.swift */; };
@@ -1865,6 +1866,7 @@
 		3968C905E6F1D397714F365E /* cue_ex_machine_chest_press.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_machine_chest_press.mp3; sourceTree = "<group>"; };
 		39D8089C3654E8C856D13034 /* LocationAuthorizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationAuthorizer.swift; sourceTree = "<group>"; };
 		39DE452550DC311EAA4BF034 /* ArenaXPLedgerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArenaXPLedgerTests.swift; sourceTree = "<group>"; };
+		39DFAC4680ECCEEECD3B317E /* CoachChatRequestContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachChatRequestContractTests.swift; sourceTree = "<group>"; };
 		3A841343FBA054B38BA16DA2 /* SupplementPicksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementPicksView.swift; sourceTree = "<group>"; };
 		3AF793C6007C4FCAEB54CAC7 /* PantryDecrementServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PantryDecrementServiceTests.swift; sourceTree = "<group>"; };
 		3B1D62692C68F3738217E9E7 /* SessionNotesField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionNotesField.swift; sourceTree = "<group>"; };
@@ -3986,6 +3988,7 @@
 			isa = PBXGroup;
 			children = (
 				136963A111DC33A7AEB2B7D4 /* APIContractTests.swift */,
+				39DFAC4680ECCEEECD3B317E /* CoachChatRequestContractTests.swift */,
 				EEE3408F7EFA08AAC9556EA9 /* LaunchNetworkTests.swift */,
 			);
 			path = Network;
@@ -6108,6 +6111,7 @@
 				C5DF8C485FF2D9A3CC8E032B /* CircuitFlowTests.swift in Sources */,
 				FE23AA5BB530DD8212F81922 /* CoachAdaptersTests.swift in Sources */,
 				98EED5987E62D1089FCD5E6A /* CoachAnalyticsTests.swift in Sources */,
+				34925F88E52D80A77D308561 /* CoachChatRequestContractTests.swift in Sources */,
 				224A102EF5577C92FE16C26B /* CoachClearUndoTests.swift in Sources */,
 				820A038F312A97A144E299CD /* CoachContextAssemblerTests.swift in Sources */,
 				129D8129AAAC63C750E11385 /* CoachConversationTests.swift in Sources */,

@@ -1,0 +1,43 @@
+{
+  "max_tokens" : 512,
+  "messages" : [
+    {
+      "content" : [
+        {
+          "text" : "No fish on weekdays",
+          "type" : "text"
+        }
+      ],
+      "role" : "user"
+    }
+  ],
+  "model" : "sonnet",
+  "system" : "Extract the preference.",
+  "tool_choice" : {
+    "name" : "askUser",
+    "type" : "tool"
+  },
+  "tools" : [
+    {
+      "description" : "Ask the user a question. Choices are optional; when present, the UI renders them as tappable chips.",
+      "input_schema" : {
+        "properties" : {
+          "choices" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "question" : {
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "question"
+        ],
+        "type" : "object"
+      },
+      "name" : "askUser"
+    }
+  ]
+}
