@@ -20,7 +20,9 @@ import SwiftUI
 
 struct ParsedFoodReviewSheet: View {
     let items: [ParsedFoodItem]
-    let onConfirm: ([ParsedFoodItem], MealType, Date, MealOrigin) -> Void
+    /// Saves the meal. Returns why it could not be saved, or nil when it was (or when
+    /// the caller has taken over, as for a repeat question): the sheet closes only then.
+    let onConfirm: ([ParsedFoodItem], MealType, Date, MealOrigin) -> String?
     let onCancel: () -> Void
 
     @Environment(\.tideMood)
@@ -36,6 +38,9 @@ struct ParsedFoodReviewSheet: View {
     /// Set on the first Log tap so a double-tap can't log the meal twice.
     @State
     private var didConfirm = false
+    /// Why the last Log tap did not save. The sheet stays open, with the meal as it was typed.
+    @State
+    private var saveError: String?
 
     /// nil = no fix / no home / too imprecise. Set by the fix started in `.task`.
     @State
@@ -56,7 +61,7 @@ struct ParsedFoodReviewSheet: View {
         items: [ParsedFoodItem],
         hintedMealType: MealType?,
         hintedDate: Date?,
-        onConfirm: @escaping ([ParsedFoodItem], MealType, Date, MealOrigin) -> Void,
+        onConfirm: @escaping ([ParsedFoodItem], MealType, Date, MealOrigin) -> String?,
         onCancel: @escaping () -> Void
     ) {
         self.items = items
@@ -104,16 +109,28 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Primary action
 
     private var logBar: some View {
-        Button(action: confirm) {
-            Text(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kcal")
-                .monospacedDigit()
-                .contentTransition(.numericText())
+        VStack(spacing: Tide.s3) {
+            if let saveError {
+                // On the sheet itself: a toast behind it would never be seen.
+                Label(saveError, systemImage: "exclamationmark.triangle.fill")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("reviewSaveError")
+            }
+            Button(action: confirm) {
+                Text(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kcal")
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+            }
+            .buttonStyle(.tidePrimary)
+            .disabled(didConfirm || draft.items.isEmpty)
+            .animation(Tide.snap, value: draft.totalCalories)
+            .accessibilityIdentifier("reviewLog")
+            .accessibilityLabel(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kilocalories")
         }
-        .buttonStyle(.tidePrimary)
-        .disabled(didConfirm || draft.items.isEmpty)
-        .animation(Tide.snap, value: draft.totalCalories)
-        .accessibilityIdentifier("reviewLog")
-        .accessibilityLabel(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kilocalories")
+        .animation(Tide.snap, value: saveError)
     }
 
     private func confirm() {
@@ -121,9 +138,16 @@ struct ParsedFoodReviewSheet: View {
             return
         }
         didConfirm = true
-        HapticManager.success()
+        saveError = nil
         HomeLocationStore().lastOrigin = draft.origin
-        onConfirm(draft.items, draft.mealType, draft.eatenAt, draft.origin)
+        if let failure = onConfirm(draft.items, draft.mealType, draft.eatenAt, draft.origin) {
+            // Not saved: stay open so nothing typed is lost, and let the next tap try again.
+            didConfirm = false
+            saveError = failure
+            HapticManager.notification(.error)
+            return
+        }
+        HapticManager.success()
         dismiss()
     }
 

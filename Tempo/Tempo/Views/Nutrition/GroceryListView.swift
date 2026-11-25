@@ -66,7 +66,7 @@ struct GroceryListView: View {
         .sensoryFeedback(.selection, trigger: ticks)
         .sheet(isPresented: $showAddItem) {
             AddGroceryItemSheet { name, qty, unit in
-                viewModel.addGroceryItem(name: name, quantity: qty, unit: unit)
+                viewModel.addGroceryItemWithUndo(name: name, quantity: qty, unit: unit)
             }
         }
         .sheet(isPresented: $showDoneShopping) {
@@ -248,21 +248,27 @@ struct GroceryListView: View {
         let spent = cap.map { $0 > 0 ? min(total / Double($0), 1) : 0 } ?? 0
         return VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber(
-                    list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
-                    size: Tide.numeralM, relativeTo: .title,
-                    color: isOver ? Tide.danger : Tide.text
-                )
-                if list.hasUnresolvedPrices {
-                    Text("pricing…")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
+                        size: Tide.numeralM, relativeTo: .title,
+                        color: isOver ? Tide.danger : Tide.text
+                    )
+                    if list.hasUnresolvedPrices {
+                        Text("pricing…")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
                 }
+                .explains(.fuelGroceryTotal.showing(formatUSD(total)))
                 Spacer(minLength: Tide.s2)
                 if let cap {
                     Text("of $\(cap) budget")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                        .explains(.fuelGroceryBudget.showing("$\(cap)"))
                 }
             }
             if cap != nil {
@@ -335,11 +341,13 @@ struct GroceryListView: View {
         ) {
             ForEach(items, id: \.id) { item in
                 Button {
-                    viewModel.toggleGroceryItem(item)
+                    let toast = viewModel.toggleGroceryItemWithUndo(item)
                     ticks += 1
                     if item.isChecked {
                         viewModel.recordGroceryCategoryTick(item.category)
-                        viewModel.offerUndoCheck(of: item)
+                    }
+                    if let toast {
+                        FuelLogToast.post(toast)
                     }
                 } label: {
                     itemRow(item)

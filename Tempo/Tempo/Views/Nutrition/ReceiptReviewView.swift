@@ -119,6 +119,7 @@ struct ReceiptReviewView: View {
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaBar(edge: .bottom, spacing: 0) { bottomBar }
+        .firstTip("fuel.receipts", "Check the lines marked needs a look, then add the receipt to your pantry.")
         .sheet(item: $editingLine) { line in
             ReceiptLineEditSheet(
                 line: line,
@@ -163,6 +164,9 @@ struct ReceiptReviewView: View {
                     Text("·")
                     Text("Saved \(String(format: "$%.2f", savings))")
                         .foregroundStyle(Tide.Kitchen.good)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                        .explains(.fuelReceiptSaved.showing(String(format: "$%.2f", savings)))
                 }
             }
             .font(Tide.caption)
@@ -174,11 +178,12 @@ struct ReceiptReviewView: View {
                     .padding(.horizontal, Tide.s3)
                     .padding(.vertical, Tide.s1)
                     .background(Tide.Kitchen.warn.opacity(0.14), in: .capsule)
+                    .explains(.fuelReceiptNeedsLook.showing("\(needsLook)"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private func sectionHeader(_ section: ReceiptReviewSection, count: Int) -> some View {

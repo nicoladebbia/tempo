@@ -614,6 +614,7 @@
 		6C55A146D24E6EDF5AFA1F65 /* FoodPortionLabelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D7F4DBD9EB186AEEF687CF /* FoodPortionLabelTests.swift */; };
 		6CA8F1003A66F161B77DC2C3 /* TrainDisplayLogic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3A12F979F7F2608ED91F43 /* TrainDisplayLogic.swift */; };
 		6CFE0287FB91AE2C2EEED076 /* GuidedRunSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FF68B9ED31E55FC6D9EB7C1 /* GuidedRunSessionTests.swift */; };
+		6D0A70CB7D62F983BD55AA87 /* FuelUndoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2235C8EE182CEEB0A038BA17 /* FuelUndoTests.swift */; };
 		6D31C62C78F51E00EE15EFB8 /* GoalEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EAC6DE0F665B696C16AFE2 /* GoalEngine.swift */; };
 		6D3F56B24A419FB042CABA9D /* NutritionPlanUITestSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57DD6E491EB713E3CA406095 /* NutritionPlanUITestSeed.swift */; };
 		6D4B5FEB767CE0253099ADB2 /* WorkoutHistoryDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9B549634BED8063BCCBAA5 /* WorkoutHistoryDeletionTests.swift */; };
@@ -640,7 +641,6 @@
 		7158C8D680EA656812597323 /* RecoveryOverrideStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD041199CE54A8A1496ED1C7 /* RecoveryOverrideStepView.swift */; };
 		71912D8F052D821F044EA9A6 /* GroceryShareTextFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72A589E2F7C564B169D17DDB /* GroceryShareTextFormatter.swift */; };
 		71BA354225F94E1C674AC8F0 /* ProgressPhotoSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F072C67A1999BEB48DCD900D /* ProgressPhotoSeed.swift */; };
-		71CF03BCAE26E00E234D9285 /* UndoMealSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */; };
 		72103139EB6C0BF0A5597267 /* HydrationMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE2B3F0D3BE4D51F3199557 /* HydrationMath.swift */; };
 		724223D6FAD4DC2A3FA02B9E /* cue_ex_dumbbell_romanian_deadlift.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2705F81FF948AC1079F1E0A1 /* cue_ex_dumbbell_romanian_deadlift.mp3 */; };
 		72C790581C89A59A4A25AE7C /* RecipeSuggestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D80435DD4731EBFEB97EC18 /* RecipeSuggestionsView.swift */; };
@@ -897,6 +897,7 @@
 		9E34EE3E8EE6E6A4122C5BFA /* SupplementReorderServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2DD53DE45DB363005436BD /* SupplementReorderServiceTests.swift */; };
 		9E3E0F6E3E675137AA78288F /* TrainerFeedbackParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBCC2E6D851283D13C9D2C56 /* TrainerFeedbackParserTests.swift */; };
 		9EB2EEE22A9C6A1C66CBB6D5 /* PlanRebuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E7264BD56C426CE32EAE75 /* PlanRebuild.swift */; };
+		9ECA474961445FDB5DE3A4D5 /* FuelExplainers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A42F4E310425266265FF32F /* FuelExplainers.swift */; };
 		9EEF46AEA59FC58B0A322CDB /* SignInPromptCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB465F8670B4CE3B1A75A91B /* SignInPromptCard.swift */; };
 		9F1CDA502E1BA6D98E533E1B /* FirstTipsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FC79C3C2B86054A59736EF8 /* FirstTipsTests.swift */; };
 		9F26ED7292C711E5F0A0DFFD /* InlineSetFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 737ABFC0539B7BC86E5493F6 /* InlineSetFeedbackView.swift */; };
@@ -1695,6 +1696,7 @@
 		2200FB0C75186F4713BFAEAB /* FoodFit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodFit.swift; sourceTree = "<group>"; };
 		220C5012CEE735968C6927D8 /* DayTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayTimeline.swift; sourceTree = "<group>"; };
 		2223A45E3B356FE41938CD63 /* SkipSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkipSetTests.swift; sourceTree = "<group>"; };
+		2235C8EE182CEEB0A038BA17 /* FuelUndoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelUndoTests.swift; sourceTree = "<group>"; };
 		224834D08E1BFBE2C96971F6 /* GroceryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroceryListView.swift; sourceTree = "<group>"; };
 		224D3240F67D9E27D5249E17 /* FoodSuggestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodSuggestions.swift; sourceTree = "<group>"; };
 		22541A7EA928F9F5D137895D /* MorningCheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MorningCheckIn.swift; sourceTree = "<group>"; };
@@ -2158,6 +2160,7 @@
 		795AFDCB448A6368CD49624F /* WeekOverWeekProgressLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekOverWeekProgressLoader.swift; sourceTree = "<group>"; };
 		79A3507C8D401E7B86209B35 /* WorkoutCSVParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutCSVParsingTests.swift; sourceTree = "<group>"; };
 		7A16F19C67EC623FBA0DEB1D /* RunHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunHistoryView.swift; sourceTree = "<group>"; };
+		7A42F4E310425266265FF32F /* FuelExplainers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelExplainers.swift; sourceTree = "<group>"; };
 		7AA62C74B8140770502A34CE /* CoachContextAssemblerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachContextAssemblerTests.swift; sourceTree = "<group>"; };
 		7AF085AF109988AA0C035146 /* TrainerTestResultTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerTestResultTests.swift; sourceTree = "<group>"; };
 		7B020D95D451799ABAD44B5D /* ErrorStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorStateView.swift; sourceTree = "<group>"; };
@@ -2340,7 +2343,6 @@
 		9B3F74E16CD09D164A6620E6 /* TestServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestServer.swift; sourceTree = "<group>"; };
 		9B4B950B94AF31126AF651FC /* RunUnitsFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunUnitsFormattingTests.swift; sourceTree = "<group>"; };
 		9B4C6DA0A866E45B6DDEBDB7 /* SupplementTimingSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementTimingSection.swift; sourceTree = "<group>"; };
-		9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UndoMealSheet.swift; sourceTree = "<group>"; };
 		9B6D0DA45F33BE74DF539DD6 /* FoodProductActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodProductActionBar.swift; sourceTree = "<group>"; };
 		9BA725894165E147EB72A7CE /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		9BE5F2EEF6074E06C0FC727D /* MealPlanScheduleEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealPlanScheduleEnforcer.swift; sourceTree = "<group>"; };
@@ -3857,6 +3859,7 @@
 				2FB9132748AEE2F655CB0A26 /* DailyNutritionMealEntriesTests.swift */,
 				87D7781F7F777A8D2A080234 /* ExerciseTechniqueTests.swift */,
 				D36A34FDB31EF50413991E8A /* FoodProductViewLogicTests.swift */,
+				2235C8EE182CEEB0A038BA17 /* FuelUndoTests.swift */,
 				EEA252C7587148927B7864EA /* KitchenUndoTests.swift */,
 				DD6EB1F1F4DDDFE20F54C304 /* KitchenWordsTests.swift */,
 				62F11210E6B64AA8536E58A2 /* LateNightWindowTests.swift */,
@@ -5256,6 +5259,7 @@
 				86C89121EB82F1EF2CB4FB3E /* CheaperSwapsSheet.swift */,
 				E4539B2940363761D247FF8E /* DailyNutritionSummaryView.swift */,
 				C7E99872CBF166AF9BB8CBC4 /* FoodSearchView.swift */,
+				7A42F4E310425266265FF32F /* FuelExplainers.swift */,
 				F85AB6291CF11BEA3118F869 /* FuelLogToast.swift */,
 				758F9F80C111AE9C794DC780 /* FuelWords.swift */,
 				C2713E8FB55CBB62854487C5 /* GroceryDoneShoppingView.swift */,
@@ -5306,7 +5310,6 @@
 				9B4C6DA0A866E45B6DDEBDB7 /* SupplementTimingSection.swift */,
 				482D68428AB7838E01758165 /* TellAIRecipeView.swift */,
 				8B940E93CF89A8E9C2CFB0BD /* TodaySupplementsCard.swift */,
-				9B58276C3B05203B1B64A658 /* UndoMealSheet.swift */,
 				6B0AA76F0D6E4C4C02DFD5FC /* UseUpSoonCard.swift */,
 				BEF1ADE800B362B94773359D /* VoiceMealLogView.swift */,
 				422C16C025153ACD2F8B2D8A /* VoicePantryView.swift */,
@@ -6075,6 +6078,7 @@
 				2736E1F727E58FE5491570DF /* FuelSetupSingleStoreTests.swift in Sources */,
 				26D53EB85F274583A5B52529 /* FuelSetupTests.swift in Sources */,
 				19F956381727DFC0621775EB /* FuelTotalsTests.swift in Sources */,
+				6D0A70CB7D62F983BD55AA87 /* FuelUndoTests.swift in Sources */,
 				5A59139655C9571DD7D712B6 /* GenericFoodImagesTests.swift in Sources */,
 				E855B81A961142EDF5B71627 /* GoalDraftTests.swift in Sources */,
 				309CDE5A2218583A7723CF12 /* GoalEngineTests.swift in Sources */,
@@ -6594,6 +6598,7 @@
 				E50E9358FE57EB4F7DB68680 /* FriendInviteSheet.swift in Sources */,
 				091F7ED1A8424636DCDCA5F6 /* FriendSystemView.swift in Sources */,
 				E080DBAFD051A76A7ED2A045 /* FuelDayScheduleViewModel.swift in Sources */,
+				9ECA474961445FDB5DE3A4D5 /* FuelExplainers.swift in Sources */,
 				85E0A825ECFD5D01F737F462 /* FuelLogToast.swift in Sources */,
 				E293D5CE44723A7EDA12B1A9 /* FuelMealScheduleAnnotator.swift in Sources */,
 				B2630D8A5B6D6F23BA5678DD /* FuelQuadrantDetailContainer.swift in Sources */,
@@ -7140,7 +7145,6 @@
 				3332041E03F8C25398C06166 /* TravelSwapEngine.swift in Sources */,
 				95E7B6FD52C4DC238CBF987B /* UIImage+Downsample.swift in Sources */,
 				B223F2AC3F0D1556400456AF /* USDAFoodClient.swift in Sources */,
-				71CF03BCAE26E00E234D9285 /* UndoMealSheet.swift in Sources */,
 				E476EA1421671B73F466F430 /* UniversalScanView.swift in Sources */,
 				EDEB79EC78343AEA14B4ECE9 /* UniversityDirectory.swift in Sources */,
 				0D4F9532ADBD5277A7B39897 /* UseItUpNotificationPlanner.swift in Sources */,

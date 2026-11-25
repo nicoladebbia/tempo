@@ -34,6 +34,9 @@ struct GroceryStoreModeView: View {
     private var manuallyExpanded: Set<String> = []
     @State
     private var ticks = 0
+    /// "Milk checked off" with its Undo. Kept here: this cover sits over the Fuel toast host.
+    @State
+    private var toast: ToastData?
 
     private var orderedCategories: [String] {
         viewModel.resolvedGroceryCategoryOrder(for: list)
@@ -92,9 +95,12 @@ struct GroceryStoreModeView: View {
             .scrollIndicators(.hidden)
             .scrollEdgeEffectStyle(.soft, for: .all)
             .kitchenPage(energy: 1)
+            // Before the bottom bar, so the toast rests above "Done shopping", not on it.
+            .tempoToast($toast, placement: .bottom)
             .kitchenBottomBar {
                 doneShoppingButton
             }
+            .firstTip("fuel.store-mode", "Tap each item as it goes in your basket, then Done shopping moves it to your pantry.")
             .sensoryFeedback(.impact(flexibility: .solid), trigger: ticks)
             .sensoryFeedback(.success, trigger: finishedAisles) { old, new in new > old }
             .navigationTitle("Store Mode")
@@ -220,7 +226,7 @@ struct GroceryStoreModeView: View {
 
     private func storeModeRow(_ item: GroceryListItem, isNext: Bool) -> some View {
         Button {
-            viewModel.toggleGroceryItem(item)
+            toast = viewModel.toggleGroceryItemWithUndo(item)
             ticks += 1
             if item.isChecked {
                 viewModel.recordGroceryCategoryTick(item.category)

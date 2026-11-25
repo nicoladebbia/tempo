@@ -33,6 +33,8 @@ struct FoodCheckView: View {
     private var showSearch = false
     @State
     private var catalog: FoodCatalog?
+    @State
+    private var toast: ToastData?
 
     enum Tab: String, CaseIterable, Identifiable {
         case history = "History"
@@ -104,8 +106,18 @@ struct FoodCheckView: View {
                         }
                         .onDelete { offsets in
                             let doomed = offsets.map { rows[$0] }
+                            let snapshots = doomed.map(ScannedFoodSnapshot.init)
                             for row in doomed {
                                 catalog.remove(row, in: modelContext)
+                            }
+                            let context = modelContext
+                            let message = snapshots.count == 1
+                                ? "\(snapshots[0].name) removed."
+                                : "\(FuelWords.count(snapshots.count, "product")) removed."
+                            toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+                                for snapshot in snapshots {
+                                    snapshot.restore(in: context)
+                                }
                             }
                         }
                     }
@@ -124,6 +136,7 @@ struct FoodCheckView: View {
                     .foregroundStyle(Tide.text2)
                 }
             }
+            .tempoToast($toast)
             .sheet(isPresented: $showScanner) {
                 UniversalScanView(context: .foodCheck)
             }

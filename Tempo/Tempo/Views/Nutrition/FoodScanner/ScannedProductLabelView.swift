@@ -183,9 +183,11 @@ struct ScannedProductLabelView: View {
                         "Nutri-Score \(score.nutriScoreGrade.uppercased())\(score.nutriScoreEstimated ? "*" : "")",
                         color: FoodProductView.gradeColor(score.nutriScoreGrade)
                     )
+                    .explains(.fuelNutriScore.showing(score.nutriScoreGrade.uppercased()))
                 }
                 if let nova = product.novaGroup {
                     badge("NOVA \(nova)", color: nova >= 4 ? Tide.Kitchen.warn : (nova == 3 ? Tide.Kitchen.warn : Tide.Kitchen.good))
+                        .explains(.fuelNova.showing("Group \(nova)"))
                 }
             }
             .padding(.top, Tide.hair)
@@ -316,6 +318,7 @@ struct ScannedProductLabelView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
+        .explains(.fuelTrafficLights)
     }
 
     private func levelRow(_ name: String, _ icon: String, _ nutrient: LabelFacts.Nutrient, _ value: Double?) -> some View {
@@ -403,6 +406,7 @@ struct ScannedProductLabelView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
+            .explains(.fuelForYou)
             .accessibilityIdentifier("labelFitCard")
         }
     }

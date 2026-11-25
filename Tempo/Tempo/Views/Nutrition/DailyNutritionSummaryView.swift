@@ -261,6 +261,7 @@ struct DailyNutritionSummaryView: View {
                 carbs: (carbsGrams, carbsTarget),
                 fat: (fatGrams, fatTarget)
             )
+            .explains(.fuelMacroTargets)
 
             // Remaining macro messages
             VStack(alignment: .leading, spacing: Tide.s1) {
@@ -275,6 +276,7 @@ struct DailyNutritionSummaryView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .explains(.fuelMacroStatus)
         }
         .tideCard()
     }
@@ -336,6 +338,7 @@ struct DailyNutritionSummaryView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .explains(.fuelEnergyBalance.showing(balance.balanceText))
             }
             .tideCard()
         }

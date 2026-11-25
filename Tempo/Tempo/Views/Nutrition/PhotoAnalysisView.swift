@@ -450,6 +450,7 @@ struct PhotoAnalysisView: View {
         .padding(.vertical, Tide.s1)
         .background(confidence.color.opacity(0.12), in: Capsule())
         .accessibilityLabel("\(item.confidencePercent) percent sure\(item.isVerified ? ", macros checked against the food database" : "")")
+        .explains(.fuelPhotoConfidence.showing("\(item.confidencePercent)%"))
     }
 
     // MARK: - Add All Button

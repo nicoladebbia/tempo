@@ -208,6 +208,7 @@ struct SpendingView: View {
                         .foregroundStyle(week.isOverBudget ? Tide.danger : Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .explains(.fuelSpendingWeek.showing(SpendingSummary.money(week.totalUSD)))
                 if let cap = week.budgetCapUSD {
                     TideLevelBar(
                         progress: min(1, week.totalUSD / Double(max(cap, 1))),
@@ -231,6 +232,7 @@ struct SpendingView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .explains(.fuelSpendingAverage)
             } else {
                 Text("Confirmed receipts and purchases you add count toward your spend.")
                     .font(Tide.caption)

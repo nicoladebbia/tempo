@@ -240,6 +240,7 @@ struct SupplementsView: View {
                 KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
                 if lowCount > 0 {
                     KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
+                        .explains(.fuelSupplementDaysLeft)
                 }
             }
             if lowCount > 0 {
