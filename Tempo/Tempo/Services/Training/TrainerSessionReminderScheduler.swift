@@ -164,9 +164,16 @@ enum TrainerSessionReminderScheduler {
         let supersets = Set(day.exercises.compactMap(\.group)).count
         let minutes = Self.estimatedMinutes(for: day)
         let exerciseCount = day.exercises.count
-        let detail = supersets > 0
-            ? String(localized: "\(supersets) supersets, ~\(minutes) min")
-            : String(localized: "\(exerciseCount) exercises, ~\(minutes) min")
+        let detail: String
+        if supersets > 0 {
+            detail = supersets == 1
+                ? String(localized: "\(supersets) superset, ~\(minutes) min")
+                : String(localized: "\(supersets) supersets, ~\(minutes) min")
+        } else {
+            detail = exerciseCount == 1
+                ? String(localized: "\(exerciseCount) exercise, ~\(minutes) min")
+                : String(localized: "\(exerciseCount) exercises, ~\(minutes) min")
+        }
         return (String(localized: "\(label) at \(time)"), detail)
     }
 

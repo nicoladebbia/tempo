@@ -262,7 +262,9 @@ final class LocalizationCatalogTests: XCTestCase {
                 return itBundle
             }
         }
-        throw XCTSkip("No Italian localization is built into this test host.")
+        struct MissingItalian: Error {}
+        XCTFail("No Italian localization is built into the app (it.lproj is missing).")
+        throw MissingItalian()
     }
 
     private func italian(_ key: String, _ count: Int) throws -> String {
