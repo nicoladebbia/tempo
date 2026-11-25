@@ -172,6 +172,29 @@ final class WatchActionRouterTests: XCTestCase {
         XCTAssertTrue(router.handle(.init(action: .startFocusTimer, payload: [:])))
     }
 
+    /// A focus session already running on the phone (or started by Siri) is not
+    /// doubled by the watch's Start.
+    func testWatchDoesNotStartAFocusTimerWhileAnotherIsLive() async throws {
+        let coordinator = LiveActivityCoordinator.shared
+        await coordinator.waitUntilIdle()
+        coordinator.resetForTesting()
+        defer { coordinator.resetForTesting() }
+
+        final class LiveFocus: LiveActivityParticipant {
+            var hasActiveLiveSession = true
+            func suspendLiveActivity() async {}
+            func resumeLiveActivityIfNeeded() async {}
+        }
+        let live = LiveFocus()
+        coordinator.register(live, for: .focusTimer)
+
+        let router = try makeRouter(configured: makeContext())
+        XCTAssertFalse(router.handle(.init(action: .startFocusTimer, payload: [:])))
+
+        live.hasActiveLiveSession = false
+        XCTAssertTrue(router.handle(.init(action: .startFocusTimer, payload: [:])), "the session ended: the watch may start")
+    }
+
     func testFocusTimerActionsNoOpWithNoActiveSession() throws {
         let context = try makeContext()
         let router = makeRouter(configured: context)

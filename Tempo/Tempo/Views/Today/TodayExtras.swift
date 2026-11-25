@@ -414,11 +414,12 @@ struct WeekReviewView: View {
     let model: TodayDayModel
     let reload: () async -> Void
 
+    @Environment(\.modelContext)
+    private var modelContext
+
     var body: some View {
         TideScrollPage(spacing: Tide.s4, spacer: Tide.s2) {
             if let review = model.week, !review.thisWeek.isEmpty {
-                // TODO(share): the "Share this week" action goes here:
-                // ShareCard.present(.week(review)) once the share cards lane lands its `.week` card.
                 Text(WeekReviewFormat.range(of: review))
                     .tideLabel()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -444,6 +445,15 @@ struct WeekReviewView: View {
                     last: review.lastWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" }, id: "discipline",
                     explainer: Explainer.weekTasks
                 )
+                Button {
+                    ShareCard.present(WeekShare.card(
+                        for: review, xp: WeekShare.xp(in: modelContext, weekStart: review.weekStart)
+                    ))
+                } label: {
+                    Label("Share this week", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("weekReview.share")
             } else {
                 TideEmptyPanel(
                     systemImage: "chart.bar.fill",
