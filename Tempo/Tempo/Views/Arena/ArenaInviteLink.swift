@@ -155,6 +155,13 @@ struct ArenaInviteSheet: View {
         case failed(String)
     }
 
+    private var isAdding: Bool {
+        if case .adding = stage {
+            return true
+        }
+        return false
+    }
+
     @State
     private var stage: Stage = .loading
 
@@ -281,20 +288,14 @@ struct ArenaInviteSheet: View {
                     Button {
                         Task { await accept(preview) }
                     } label: {
-                        if case .adding = stage {
+                        if isAdding {
                             ProgressView()
                         } else {
                             Text("Add \(preview.displayName)")
                         }
                     }
                     .buttonStyle(.tidePrimary)
-                    .disabled({
-                        if case .adding = stage {
-                            true
-                        } else {
-                            false
-                        }
-                    }())
+                    .disabled(isAdding)
                     .accessibilityIdentifier("arena.invite.accept")
                     Button("Not now") { finish() }
                         .buttonStyle(.tideGlass)

@@ -6,685 +6,577 @@
 //
 //
 
-import SwiftData
 import SwiftUI
-
-// MARK: - ChallengeTemplate
-
-// Pre-defined challenge templates users can start with one tap.
-
-struct ChallengeTemplate: Identifiable {
-    let id = UUID()
-    let iconName: String
-    let name: String
-    let templateDescription: String
-    let metric: String
-    let durationDays: Int
-    let color: Color
-
-    static let templates: [ChallengeTemplate] = [
-        ChallengeTemplate(
-            iconName: "flame.fill",
-            name: "7-Day Grind",
-            templateDescription: "Complete all non-negotiables for 7 days straight",
-            metric: "non_negotiable_streak",
-            durationDays: 7,
-            color: Tide.streak
-        ),
-        ChallengeTemplate(
-            iconName: "dumbbell.fill",
-            name: "Volume King",
-            templateDescription: "Highest total training volume in a week",
-            metric: "training_volume",
-            durationDays: 7,
-            color: TideTone.mint
-        ),
-        ChallengeTemplate(
-            iconName: "moon.fill",
-            name: "Sleep Better",
-            templateDescription: "Highest average sleep score over 7 days",
-            metric: "sleep_score",
-            durationDays: 7,
-            color: TideTone.violet
-        ),
-        ChallengeTemplate(
-            iconName: "book.fill",
-            name: "Study Marathon",
-            templateDescription: "Most study minutes in a week",
-            metric: "study_minutes",
-            durationDays: 7,
-            color: Tide.water
-        ),
-        ChallengeTemplate(
-            iconName: "figure.walk",
-            name: "Step Master",
-            templateDescription: "Most steps in a week",
-            metric: "steps",
-            durationDays: 7,
-            color: TideTone.sky
-        ),
-    ]
-}
 
 // MARK: - ChallengesView
 
-// Per MODULE_ARENA.md Section 9 — Challenge hub with active, invites, create new.
-// Per WIREFRAMES.md Screens 38-39 — Challenge creation + active view.
-// Enhanced with Quick Start challenge templates.
+// Real challenges, kept on the server: you and the friends you invite race on
+// one number (XP, finished workouts or focus minutes) for a few days. The score
+// is what each person's own phone pushed (ArenaStatsDayDTO), counted for the
+// challenge's dates only, so the ranking is the same on every phone.
 
 struct ChallengesView: View {
-    @Environment(ServiceContainer.self)
-    private var services
-    @Environment(\.modelContext)
-    private var modelContext
+    @Environment(ArenaService.self)
+    private var arena
     @Environment(\.tideMood)
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
-    @Query(filter: #Predicate<ChallengeLocal> { $0.isActive })
-    private var activeChallenges: [ChallengeLocal]
 
     @State
-    private var selectedTab: ChallengeTab = .active
+    private var showCreate = false
     @State
-    private var showCreateChallenge = false
+    private var challengeToLeave: ArenaChallengeDTO?
     @State
-    private var startedCount = 0
+    private var errorMessage: String?
+    @State
+    private var busyIDs: Set<String> = []
 
     var body: some View {
-        TideScrollPage {
-            TidePillPicker(
-                options: ChallengeTab.allCases,
-                selection: $selectedTab,
-                title: \.label,
-                label: "Challenges"
-            )
+        Group {
+            switch arena.phase {
+            case .idle,
+                 .loading:
+                TideScrollPage {
+                    ArenaListSkeleton(rows: 3, label: "Loading challenges")
+                }
 
-            switch selectedTab {
-            case .active:
-                quickStartSection
-                activeSection
-            case .pending:
-                pendingSection
-            case .completed:
-                completedSection
+            case let .failed(message):
+                TideScrollPage {
+                    TideEmptyPanel(
+                        systemImage: "wifi.exclamationmark", title: "Could not load your challenges",
+                        message: message, actionTitle: "Try again"
+                    ) { Task { await arena.refresh() } }
+                        .tideCard()
+                }
+
+            case .ready:
+                if arena.challenges.isEmpty {
+                    emptyPage
+                } else {
+                    list
+                }
             }
         }
         .navigationTitle("Challenges")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showCreateChallenge = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("New challenge")
-            }
+        .accessibilityIdentifier("arena.challenges")
+        .task { await arena.refresh() }
+        .tideCovered(showCreate)
+        .sheet(isPresented: $showCreate) {
+            ChallengeCreationSheet()
         }
-        .sensoryFeedback(.success, trigger: startedCount)
-        // Starting one is the page's action: it stays under the thumb on the Active tab.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if selectedTab == .active {
-                Button {
-                    showCreateChallenge = true
-                } label: {
-                    Label("Start a challenge", systemImage: "flag.2.crossed.fill")
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: {
+                if !$0 {
+                    errorMessage = nil
                 }
-                .buttonStyle(.tidePrimary)
-                .padding(.horizontal, Tide.edge)
-                .padding(.bottom, Tide.s2)
             }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
         }
-        .tideCovered(showCreateChallenge)
-        .sheet(isPresented: $showCreateChallenge) {
-            ChallengeCreationSheet(isPresented: $showCreateChallenge)
+        .confirmationDialog(
+            "Leave \(challengeToLeave?.title ?? "this challenge")?",
+            isPresented: Binding(get: { challengeToLeave != nil }, set: {
+                if !$0 {
+                    challengeToLeave = nil
+                }
+            }),
+            titleVisibility: .visible
+        ) {
+            Button("Leave challenge", role: .destructive) {
+                if let challenge = challengeToLeave {
+                    run(challenge.id) { try await arena.leave(challenge) }
+                }
+            }
+            Button("Stay in", role: .cancel) {}
+        } message: {
+            Text("Your score leaves the board for this challenge.")
         }
     }
 
-    // MARK: - Quick Start Section
+    // MARK: - Empty
 
-    private var quickStartSection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Quick start")
+    private var emptyPage: some View {
+        ArenaEmptyPage(
+            title: "Race for a week",
+            message: "Pick a goal, invite friends or go solo, and see who gets the most XP, workouts or focus time.",
+            actionTitle: "New challenge",
+            actionSystemImage: "flag.2.crossed.fill",
+            action: { showCreate = true },
+            art: { ArenaEmptyArt(systemImage: "flag.2.crossed.fill", tint: TideTone.amber) }
+        )
+    }
 
-            if typeSize.isAccessibilitySize {
-                // Wide cards would run off a large-text screen: they stack instead.
-                VStack(spacing: Tide.s3) {
-                    ForEach(ChallengeTemplate.templates) { template in
-                        quickStartCard(template)
+    // MARK: - List
+
+    private var list: some View {
+        TideScrollPage {
+            let invited = arena.invitedChallenges
+            let running = arena.runningChallenges
+            let finished = arena.finishedChallenges
+
+            if !invited.isEmpty {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    TideSectionLabel(title: "Invitations", trailing: "\(invited.count)")
+                    ForEach(invited) { challenge in
+                        invitationCard(challenge)
+                    }
+                }
+            }
+
+            if !running.isEmpty {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    TideSectionLabel(title: "Running", trailing: "\(running.count)")
+                    ForEach(running) { challenge in
+                        runningCard(challenge)
+                    }
+                }
+            }
+
+            if !finished.isEmpty {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    TideSectionLabel(title: "Finished")
+                    VStack(spacing: 0) {
+                        ForEach(Array(finished.prefix(5).enumerated()), id: \.element.id) { index, challenge in
+                            if index > 0 {
+                                TideDivider()
+                            }
+                            finishedRow(challenge)
+                        }
+                    }
+                    .tideCard(padding: Tide.s4)
+                }
+            }
+
+            if arena.isStale {
+                Label("Showing the last scores we got. Pull down to retry.", systemImage: "wifi.slash")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .refreshable { await arena.refresh() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                showCreate = true
+            } label: {
+                Label("New challenge", systemImage: "plus")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+            .accessibilityIdentifier("arena.newChallenge")
+        }
+    }
+
+    // MARK: - Cards
+
+    private func invitationCard(_ challenge: ArenaChallengeDTO) -> some View {
+        let busy = busyIDs.contains(challenge.id)
+        let inviter = challenge.participants.first(where: { !$0.isMe && $0.status == "joined" })?.displayName
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(challenge.title)
+                    .font(Tide.headline).foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle(challenge))
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let inviter {
+                    Text("From \(inviter)").font(Tide.caption).foregroundStyle(Tide.text2)
+                }
+            }
+            HStack(spacing: Tide.s2) {
+                Button("Decline") {
+                    run(challenge.id) { try await arena.leave(challenge) }
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("arena.challengeDecline")
+                Button("Join") {
+                    run(challenge.id) { try await arena.join(challenge) }
+                }
+                .buttonStyle(.tidePrimary)
+                .accessibilityIdentifier("arena.challengeJoin")
+            }
+            .disabled(busy)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+        .opacity(busy ? 0.5 : 1)
+    }
+
+    private func runningCard(_ challenge: ArenaChallengeDTO) -> some View {
+        let metric = challenge.metricKind
+        let parts = metric?.parts(challenge.myScore) ?? (value: "\(challenge.myScore)", unit: "")
+        let joined = challenge.participants
+            .filter { $0.status == "joined" }
+            .sorted { ($0.rank ?? .max) < ($1.rank ?? .max) }
+        let busy = busyIDs.contains(challenge.id)
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(challenge.title)
+                        .font(Tide.headline).foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(subtitle(challenge))
+                        .font(Tide.caption).foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Menu {
+                    Button("Leave challenge", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                        challengeToLeave = challenge
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .accessibilityLabel("More for \(challenge.title)")
+                .accessibilityIdentifier("arena.challengeMenu")
+            }
+
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
+            layout {
+                TideNumber(parts.value, unit: parts.unit, size: Tide.numeralL, color: mood.accent)
+                if let rank = challenge.myRank, challenge.memberCount > 1 {
+                    Text(ArenaText.rank(rank, of: challenge.memberCount))
+                        .font(Tide.bodyStrong).foregroundStyle(Tide.text2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+
+            TideLevelBar(progress: challenge.timelineProgress(), height: Tide.barSlim)
+
+            if joined.count > 1 {
+                VStack(spacing: 0) {
+                    ForEach(Array(joined.enumerated()), id: \.element.id) { index, person in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        participantRow(person, metric: metric)
                     }
                 }
             } else {
-                ScrollView(.horizontal) {
-                    GlassEffectContainer(spacing: Tide.s3) {
-                        HStack(alignment: .top, spacing: Tide.s3) {
-                            ForEach(ChallengeTemplate.templates) { template in
-                                quickStartCard(template)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Tide.edge)
-                }
-                .scrollIndicators(.hidden)
-                // Cards run to the screen edge; the page's own padding is undone.
-                .padding(.horizontal, -Tide.edge)
+                Text("Just you so far. Invite a friend from the Friends page.")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-
-    private func quickStartCard(_ template: ChallengeTemplate) -> some View {
-        Button {
-            startQuickChallenge(template)
-        } label: {
-            VStack(alignment: .leading, spacing: Tide.s3) {
-                HStack {
-                    TideAreaIconTile(systemName: template.iconName, tint: template.color)
-                    Spacer(minLength: Tide.s2)
-                    TideStatusPill(text: "\(template.durationDays) days", tint: template.color)
-                }
-
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text(template.name)
-                        .font(Tide.headline)
-                        .foregroundStyle(Tide.text)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
-                        .minimumScaleFactor(Tide.labelShrink)
-                        .fixedSize(horizontal: false, vertical: typeSize.isAccessibilitySize)
-
-                    Text(template.templateDescription)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .lineLimit(typeSize.isAccessibilitySize ? nil : 3)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: typeSize.isAccessibilitySize)
-                }
-
-                Spacer(minLength: 0)
-
-                Label("Start", systemImage: "play.fill")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(template.color)
-                    .frame(minHeight: Tide.hit - Tide.s3, alignment: .leading)
-            }
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            .frame(width: typeSize.isAccessibilitySize ? nil : Tide.s10 * 4.5)
-            .contentShape(.rect(cornerRadius: Tide.tileRadius))
-        }
-        .buttonStyle(TideCardPressStyle())
-        .accessibilityLabel("Start \(template.name), \(template.durationDays) days")
-        .accessibilityHint(template.templateDescription)
-    }
-
-    private func startQuickChallenge(_ template: ChallengeTemplate) {
-        let challenge = ChallengeLocal(
-            name: template.name,
-            metric: template.metric,
-            startDate: Date(),
-            endDate: Calendar.current.date(byAdding: .day, value: template.durationDays, to: Date()) ?? Date(),
-            myScore: 0,
-            isActive: true,
-            challengeDescription: template.templateDescription,
-            participantCount: 1
-        )
-        modelContext.insert(challenge)
-        try? modelContext.save()
-        startedCount += 1
-    }
-
-    // MARK: - Active Section
-
-    @ViewBuilder
-    private var activeSection: some View {
-        if activeChallenges.isEmpty {
-            TideEmptyPanel(
-                systemImage: "trophy",
-                title: "No active challenges",
-                message: "Pick a quick start above, or set up your own."
-            )
-            .tideCard()
-        } else {
-            ForEach(activeChallenges, id: \.id) { challenge in
-                challengeCard(challenge)
-            }
-        }
-    }
-
-    // MARK: - Pending Section
-
-    private var pendingSection: some View {
-        TideEmptyPanel(
-            systemImage: "envelope.badge",
-            title: "No pending invites",
-            message: "Challenge invites from friends will appear here."
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
+        .opacity(busy ? 0.5 : 1)
+        .accessibilityIdentifier("arena.challengeCard")
     }
 
-    // MARK: - Completed Section
-
-    private var completedSection: some View {
-        TideEmptyPanel(
-            systemImage: "checkmark.circle",
-            title: "No completed challenges yet",
-            message: "Finish a challenge to see your history."
-        )
-        .tideCard()
-    }
-
-    // MARK: - Challenge Card
-
-    private func challengeCard(_ challenge: ChallengeLocal) -> some View {
-        let large = typeSize.isAccessibilitySize
-        let header = large
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+    private func participantRow(_ person: ArenaChallengeParticipantDTO, metric: ArenaChallengeMetric?) -> some View {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
             : AnyLayout(HStackLayout(spacing: Tide.s3))
-        let scores = large
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
-
-        return VStack(alignment: .leading, spacing: Tide.s4) {
-            // Header: at large text the status drops under the name.
-            header {
-                HStack(spacing: Tide.s3) {
-                    TideAreaIconTile(systemName: "flag.2.crossed.fill", tint: mood.accent)
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(challenge.name)
-                            .font(Tide.headline)
-                            .foregroundStyle(Tide.text)
-                            .lineLimit(2)
-                        Text("\(challenge.daysRemaining) days left")
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
-                    }
-                }
-                if !large {
-                    Spacer(minLength: Tide.s2)
-                }
-                TideStatusPill(
-                    text: challenge.hasStarted ? "Active" : "Upcoming",
-                    tint: challenge.hasStarted ? TideTone.mint : TideTone.amber
+        return layout {
+            HStack(spacing: Tide.s3) {
+                TideNumber(
+                    person.rank.map { "\($0)" } ?? "-", size: Tide.numeralS, relativeTo: .headline,
+                    color: Tide.text2
                 )
+                .frame(minWidth: Tide.s6)
+                Text(person.isMe ? "You" : person.displayName)
+                    .font(Tide.body)
+                    .foregroundStyle(person.isMe ? mood.accent : Tide.text)
+                    .lineLimit(stacked ? 3 : 1)
             }
-
-            // Score
-            scores {
-                VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("Your score").tideLabel()
-                    TideNumber(
-                        challenge.myScore.formatted(.number.precision(.fractionLength(0))),
-                        size: Tide.numeralL, color: mood.accent
-                    )
-                }
-                if !large {
-                    Spacer(minLength: Tide.s2)
-                }
-                if let rank = challenge.myRank {
-                    VStack(alignment: large ? .leading : .trailing, spacing: Tide.s1) {
-                        Text("Rank").tideLabel()
-                        TideNumber("#\(rank)", size: Tide.numeralL, color: rank == 1 ? TideTone.gold : Tide.text)
-                    }
-                }
+            if !stacked {
+                Spacer(minLength: Tide.s2)
             }
+            Text(metric?.format(person.score) ?? "\(person.score)")
+                .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+        }
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
 
-            // Progress bar
-            VStack(alignment: .leading, spacing: Tide.s2) {
-                TideLevelBar(progress: challenge.timelineProgress, height: Tide.bar)
-                HStack {
-                    Text("Day \(Int(challenge.timelineProgress * Double(challenge.totalDays)) + 1) of \(challenge.totalDays)")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                    Spacer()
-                    Text("\(Int(challenge.timelineProgress * 100))%")
-                        .font(Tide.numeral(Tide.numeralS - Tide.s2, .semibold))
-                        .foregroundStyle(Tide.text2)
-                }
+    private func finishedRow(_ challenge: ArenaChallengeDTO) -> some View {
+        let result: String = {
+            guard let rank = challenge.myRank, challenge.memberCount > 1 else {
+                return challenge.metricKind?.format(challenge.myScore) ?? "\(challenge.myScore)"
+            }
+            return "\(ArenaText.rank(rank, of: challenge.memberCount)) · \(challenge.metricKind?.format(challenge.myScore) ?? "")"
+        }()
+        return HStack(spacing: Tide.s3) {
+            TideAreaIconTile(
+                systemName: challenge.myRank == 1 && challenge.memberCount > 1 ? "trophy.fill" : "flag.checkered",
+                tint: challenge.myRank == 1 && challenge.memberCount > 1 ? TideTone.gold : Tide.text2
+            )
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(challenge.title)
+                    .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                Text(result).font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: Tide.hit + Tide.s3)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Most XP · 4 days left".
+    private func subtitle(_ challenge: ArenaChallengeDTO) -> String {
+        let what = challenge.metricKind?.title ?? "Challenge"
+        return "\(what) · \(challenge.timeLine())"
+    }
+
+    // MARK: - Actions
+
+    private func run(_ id: String, _ work: @escaping () async throws -> Void) {
+        guard !busyIDs.contains(id) else {
+            return
+        }
+        busyIDs.insert(id)
+        Task {
+            defer { busyIDs.remove(id) }
+            do {
+                try await work()
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
-        .tideCard()
-        .accessibilityElement(children: .combine)
     }
 }
 
-// MARK: - ChallengeTab
+// MARK: - ChallengeTemplate
 
-enum ChallengeTab: String, CaseIterable {
-    case active
-    case pending
-    case completed
+/// A starting point for a new challenge: only goals the app really measures.
+struct ChallengeTemplate: Identifiable, Equatable {
+    let title: String
+    let metric: ArenaChallengeMetric
+    let days: Int
 
-    var label: String {
-        switch self {
-        case .active: "Active"
-        case .pending: "Pending"
-        case .completed: "Completed"
-        }
+    var id: String {
+        title
     }
+
+    static let all: [ChallengeTemplate] = [
+        ChallengeTemplate(title: "XP race", metric: .xpTotal, days: 7),
+        ChallengeTemplate(title: "Gym week", metric: .workoutCount, days: 7),
+        ChallengeTemplate(title: "Focus week", metric: .studyMinutes, days: 7),
+    ]
+
+    static let durations = [3, 7, 14, 30]
 }
 
 // MARK: - ChallengeCreationSheet
 
-// Per WIREFRAMES.md Screen 38 — Step-by-step creation.
-
 struct ChallengeCreationSheet: View {
-    @Environment(\.modelContext)
-    private var modelContext
+    @Environment(ArenaService.self)
+    private var arena
+    @Environment(\.dismiss)
+    private var dismiss
     @Environment(\.tideMood)
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
-    @Binding
-    var isPresented: Bool
-    @State
-    private var step = 1
-    @State
-    private var selectedMetric: String?
-    @State
-    private var selectedDuration: Int = 7
-    @State
-    private var selectedFriends: Set<String> = []
-    @State
-    private var isSoloChallenge: Bool = false
 
-    /// Mock friends list — will be replaced with real friend data
     @State
-    private var availableFriends: [FriendDisplayItem] = [
-        FriendDisplayItem(userID: "demo1", username: "alex_fit", displayName: "Alex", level: 8, weeklyXP: 320, isOnline: true),
-        FriendDisplayItem(userID: "demo2", username: "maria_run", displayName: "Maria", level: 12, weeklyXP: 580, isOnline: true),
-        FriendDisplayItem(userID: "demo3", username: "jake_gym", displayName: "Jake", level: 5, weeklyXP: 150, isOnline: false),
-    ]
+    private var title = ChallengeTemplate.all[0].title
+    @State
+    private var metric = ChallengeTemplate.all[0].metric
+    @State
+    private var days = ChallengeTemplate.all[0].days
+    @State
+    private var invited: Set<String> = []
+    @State
+    private var isCreating = false
+    @State
+    private var errorMessage: String?
 
-    private let metrics = [
-        ("book.fill", "Most Study Hours", "study_minutes"),
-        ("dumbbell.fill", "Most Workouts", "workout_count"),
-        ("figure.walk", "Most Steps", "steps"),
-        ("star.fill", "Highest XP", "xp_total"),
-        ("flame.fill", "Longest Streak", "streak_maintain"),
-    ]
+    private var trimmedTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
-    private let durations = [3, 7, 14, 30]
-
-    private let totalSteps = 3
+    /// The server needs 3 to 100 characters.
+    private var canCreate: Bool {
+        (3 ... 100).contains(trimmedTitle.count) && !isCreating
+    }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s5) {
-                    VStack(alignment: .leading, spacing: Tide.s2) {
-                        Text("Step \(step) of \(totalSteps)").tideLabel()
-                        TideLevelBar(progress: Double(step) / Double(totalSteps), height: Tide.barSlim)
-                    }
-
-                    Group {
-                        if step == 1 {
-                            metricSelection
-                        } else if step == 2 {
-                            friendSelection
-                        } else {
-                            durationSelection
-                        }
-                    }
-                    .transition(.opacity)
+            TideScrollPage {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Challenge").tideLabel()
+                    Text("New challenge")
+                        .font(Tide.title)
+                        .foregroundStyle(Tide.text)
+                        .accessibilityAddTraits(.isHeader)
                 }
-                .padding(.horizontal, Tide.edge)
-                .padding(.top, Tide.s2)
-                .padding(.bottom, Tide.s6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Tide.s4)
+
+                templates
+
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("Name").tideLabel()
+                    TextField("Name your challenge", text: $title)
+                        .tideField()
+                        .submitLabel(.done)
+                        .accessibilityIdentifier("arena.challengeTitle")
+                }
+
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("Who wins").tideLabel()
+                    TidePillPicker(
+                        options: ArenaChallengeMetric.allCases, selection: $metric,
+                        title: \.shortTitle, label: "What counts"
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("For how long").tideLabel()
+                    TidePillPicker(
+                        options: ChallengeTemplate.durations, selection: $days,
+                        title: { ArenaText.count($0, "day") }, label: "Duration"
+                    )
+                }
+
+                friendsSection
+
+                if let errorMessage {
+                    Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("arena.challengeError")
+                }
             }
-            .scrollIndicators(.hidden)
-            .scrollEdgeEffectStyle(.soft, for: .all)
-            .tidePage()
-            // The next step is always in reach, on glass over the field.
-            .safeAreaInset(edge: .bottom) {
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 Button {
-                    if step < totalSteps {
-                        withAnimation(Tide.snap) { step += 1 }
-                    } else {
-                        createChallenge()
-                        isPresented = false
-                    }
+                    Task { await create() }
                 } label: {
-                    Text(step < totalSteps ? "Next" : "Create challenge")
+                    Label(isCreating ? "Starting" : "Start challenge", systemImage: "flag.2.crossed.fill")
                 }
                 .buttonStyle(.tidePrimary)
-                .disabled(!canProceed)
+                .disabled(!canCreate)
                 .padding(.horizontal, Tide.edge)
                 .padding(.bottom, Tide.s2)
-                .sensoryFeedback(.selection, trigger: step)
+                .accessibilityIdentifier("arena.challengeCreate")
             }
-            .navigationTitle("Start a challenge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if step > 1 {
-                        Button {
-                            withAnimation(Tide.snap) { step -= 1 }
-                        } label: {
-                            Image(systemName: "chevron.left")
-                        }
-                        .accessibilityLabel("Back")
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .accessibilityIdentifier("arena.challengeSheet")
+    }
+
+    // MARK: - Templates
+
+    private var templates: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Tide.s2) {
+                ForEach(ChallengeTemplate.all) { template in
+                    TideFilterChip(
+                        title: template.title,
+                        isSelected: title == template.title && metric == template.metric && days == template.days
+                    ) {
+                        title = template.title
+                        metric = template.metric
+                        days = template.days
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    TideCloseButton { isPresented = false }
+            }
+            .padding(.horizontal, Tide.edge)
+        }
+        .scrollIndicators(.hidden)
+        // Chips run to the screen edge; the page's own padding is undone.
+        .padding(.horizontal, -Tide.edge)
+    }
+
+    // MARK: - Friends
+
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Invite friends").tideLabel()
+            if arena.friends.isEmpty {
+                Text(
+                    "No friends yet, so this one is just you against the clock. Add friends from the Friends page and invite them to the next one."
+                )
+                .font(Tide.body).foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(arena.friends.enumerated()), id: \.element.id) { index, friend in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        friendRow(friend)
+                    }
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
         }
     }
 
-    private var canProceed: Bool {
-        switch step {
-        case 1: selectedMetric != nil
-        case 2: !selectedFriends.isEmpty || isSoloChallenge
-        case 3: true
-        default: false
-        }
-    }
-
-    // MARK: - Create Challenge
-
-    private func createChallenge() {
-        guard let metricKey = selectedMetric else {
-            return
-        }
-        let metricName = metrics.first(where: { $0.2 == metricKey })?.1 ?? metricKey
-
-        let participantCount = isSoloChallenge ? 1 : selectedFriends.count + 1
-
-        let challenge = ChallengeLocal(
-            name: metricName,
-            metric: metricKey,
-            startDate: Date(),
-            endDate: Calendar.current.date(byAdding: .day, value: selectedDuration, to: Date()) ?? Date(),
-            myScore: 0,
-            isActive: true,
-            participantCount: participantCount
-        )
-        modelContext.insert(challenge)
-        try? modelContext.save()
-    }
-
-    // MARK: - Option row
-
-    /// One choice: a glass row that gets a mood-coloured outline when picked.
-    private func optionRow(selected: Bool, action: @escaping () -> Void, @ViewBuilder content: () -> some View) -> some View {
-        Button(action: action) {
+    private func friendRow(_ friend: ArenaFriendDTO) -> some View {
+        let selected = invited.contains(friend.userId)
+        return Button {
+            if selected {
+                invited.remove(friend.userId)
+            } else {
+                invited.insert(friend.userId)
+            }
+        } label: {
             HStack(spacing: Tide.s3) {
-                content()
-                Spacer(minLength: Tide.s2)
+                TideInitialAvatar(name: friend.displayName, size: Tide.avatar - Tide.s1)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(friend.displayName)
+                        .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                        .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                    Text("Level \(friend.level)").font(Tide.caption).foregroundStyle(Tide.text2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(Tide.headline)
                     .foregroundStyle(selected ? mood.accent : Tide.text3)
                     .accessibilityHidden(true)
             }
-            .frame(minHeight: Tide.hit)
-            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-            .overlay {
-                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
-                    .strokeBorder(selected ? mood.accent : .clear, lineWidth: Tide.hair)
-            }
-            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+            .frame(minHeight: Tide.hit + Tide.s2)
+            .contentShape(.rect)
         }
-        .buttonStyle(TideCardPressStyle())
-        .animation(Tide.snap, value: selected)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    // MARK: - Step 1: Metric Selection
-
-    private var metricSelection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("What are you competing on?")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            ForEach(metrics, id: \.2) { iconName, title, key in
-                optionRow(selected: selectedMetric == key) {
-                    selectedMetric = key
-                } content: {
-                    TideAreaIconTile(systemName: iconName, tint: mood.accent)
-                    Text(title)
-                        .font(Tide.bodyStrong)
-                        .foregroundStyle(Tide.text)
-                }
-            }
-        }
-    }
-
-    // MARK: - Step 3: Duration Selection
-
-    private var durationSelection: some View {
-        VStack(alignment: .leading, spacing: Tide.s4) {
-            Text("How long?")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            TidePillPicker(
-                options: durations,
-                selection: $selectedDuration,
-                title: { "\($0)d" },
-                label: "Duration"
-            )
-
-            // Duration label
-            Text(durationLabel(selectedDuration))
-                .font(Tide.headline)
-                .foregroundStyle(mood.accent)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .contentTransition(.opacity)
-                .animation(Tide.snap, value: selectedDuration)
-
-            summaryCard
-        }
-    }
-
-    // MARK: - Summary
-
-    /// What is about to start, in the order it was chosen.
-    private var summaryCard: some View {
-        let metricName = metrics.first(where: { $0.2 == selectedMetric })?.1 ?? "-"
-        let who = isSoloChallenge
-            ? "Just you"
-            : availableFriends.filter { selectedFriends.contains($0.userID) }.map(\.displayName).joined(separator: ", ")
-        let ends = Calendar.current.date(byAdding: .day, value: selectedDuration, to: Date()) ?? Date()
-        return VStack(spacing: 0) {
-            summaryRow("Competing on", metricName)
-            TideDivider()
-            summaryRow("With", who.isEmpty ? "-" : who)
-            TideDivider()
-            summaryRow("Ends", ends.formatted(date: .abbreviated, time: .omitted))
-        }
-        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityHint(selected ? "Double tap to uninvite" : "Double tap to invite")
+        .accessibilityIdentifier("arena.challengeFriend")
     }
 
-    private func summaryRow(_ label: String, _ value: String) -> some View {
-        let layout = typeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
-        return layout {
-            Text(label).tideLabel()
-            if !typeSize.isAccessibilitySize {
-                Spacer(minLength: Tide.s2)
-            }
-            Text(value)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
-                .multilineTextAlignment(typeSize.isAccessibilitySize ? .leading : .trailing)
+    // MARK: - Create
+
+    private func create() async {
+        guard canCreate else {
+            return
         }
-        .padding(.vertical, Tide.s3)
-        .frame(minHeight: Tide.hit)
-    }
-
-    // MARK: - Step 2: Friend Selection
-
-    private var friendSelection: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Who are you challenging?")
-                .font(Tide.title2)
-                .foregroundStyle(Tide.text)
-
-            // Solo option
-            optionRow(selected: isSoloChallenge) {
-                isSoloChallenge.toggle()
-                if isSoloChallenge {
-                    selectedFriends.removeAll()
-                }
-            } content: {
-                TideAreaIconTile(systemName: "person.fill", tint: mood.accent)
-                Text("Solo challenge")
-                    .font(Tide.bodyStrong)
-                    .foregroundStyle(Tide.text)
-            }
-
-            if !availableFriends.isEmpty {
-                Text("Or challenge friends").tideLabel()
-                    .padding(.top, Tide.s2)
-
-                ForEach(availableFriends) { friend in
-                    optionRow(selected: selectedFriends.contains(friend.userID)) {
-                        isSoloChallenge = false
-                        if selectedFriends.contains(friend.userID) {
-                            selectedFriends.remove(friend.userID)
-                        } else {
-                            selectedFriends.insert(friend.userID)
-                        }
-                    } content: {
-                        TideInitialAvatar(name: friend.displayName)
-                            .overlay(alignment: .bottomTrailing) {
-                                Circle()
-                                    .fill(friend.isOnline ? TideTone.mint : Tide.text3)
-                                    .frame(width: Tide.s3, height: Tide.s3)
-                                    .overlay(Circle().strokeBorder(Tide.ink, lineWidth: Tide.hair))
-                            }
-                        VStack(alignment: .leading, spacing: Tide.hair) {
-                            Text(friend.displayName)
-                                .font(Tide.bodyStrong)
-                                .foregroundStyle(Tide.text)
-                            Text("Level \(friend.level)")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
-                        }
-                    }
-                }
-            }
-
-            if availableFriends.isEmpty {
-                TideEmptyPanel(
-                    systemImage: "person.2",
-                    title: "No friends yet",
-                    message: "Add friends from the Arena to challenge them."
-                )
-            }
-        }
-    }
-
-    private func durationLabel(_ days: Int) -> String {
-        switch days {
-        case 3: "Weekend Warrior"
-        case 7: "Weekly War"
-        case 14: "Fortnight Fight"
-        case 30: "Monthly Marathon"
-        default: "\(days) days"
+        isCreating = true
+        errorMessage = nil
+        defer { isCreating = false }
+        let body = ArenaChallengeCreateDTO(
+            title: trimmedTitle, description: nil, metric: metric.rawValue, durationDays: days,
+            startsOn: nil, maxParticipants: nil, inviteUserIds: Array(invited)
+        )
+        do {
+            try await arena.createChallenge(body)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }

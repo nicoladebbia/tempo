@@ -15,13 +15,17 @@ import SwiftUI
 enum ArenaLoadState {
     case loading
     case loaded
-    case error(String)
 }
 
 // MARK: - ArenaViewModel
 
-// Per MODULE_ARENA.md Sections 5-12 and BUILD_PLAN.md Step 14.3.
-// Enhanced with level names, XP earning categories, and weekly recap.
+// The numbers on the Arena home, all read from the one place each lives:
+//   - XP and level: the XPEvent rows the ArenaXPLedger keeps in line with the
+//     user's own records (also mirrored onto UserProfile for Settings)
+//   - streak: the overall Streak row (ArenaXPLedger.streakDays)
+//   - weeks: ISO weeks, Monday to Sunday (ArenaCalendar), the same cut as the
+//     friends leaderboard
+// Nothing here is invented: a number nothing produces is not on the page.
 
 @Observable
 @MainActor
@@ -31,61 +35,43 @@ final class ArenaViewModel {
     var loadState: ArenaLoadState = .loading
 
     // XP / Level
-    var todayXP: Int = 0
-    var totalXP: Int = 0
-    var level: Int = 1
-    var levelTitle: String = "Recruit"
-    var xpProgress: Double = 0
-    var xpForNextLevel: Int = 100
-    var streakDays: Int = 0
-    var streakMultiplier: Double = 1.0
+    var todayXP = 0
+    var totalXP = 0
+    var level = 1
+    var levelTitle = "Recruit"
+    var nextLevelTitle = "Recruit II"
+    var xpProgress = 0.0
+    var xpForNextLevel = 100
+    var streakDays = 0
 
     // XP gain animation
-    var showXPGain: Bool = false
-    var lastXPGainAmount: Int = 0
+    var showXPGain = false
+    var lastXPGainAmount = 0
 
     // Daily XP goal
-    var dailyXPGoal: Int = 100
-    var dailyXPProgress: Double = 0
+    var dailyXPGoal = 100
+    var dailyXPProgress = 0.0
 
-    /// League
-    var currentLeague: League = .bronze
+    /// Streak freeze
+    var freezesAvailable = 0
 
-    // Streak freeze
-    var freezesAvailable: Int = 0
-    var freezesUsed: Int = 0
-    var showFreezeSaved: Bool = false
-
-    /// XP Breakdown
+    /// XP by source, today.
     var xpBreakdown: [XPBreakdownRow] = []
 
-    // Leaderboard
-    var leaderboardPreview: [LeaderboardEntry] = []
-    var myRank: Int = 0
-    var gapToFirst: Int = 0
-
-    // Friends
-    var friendCount: Int = 0
-    var pendingRequestCount: Int = 0
-
-    /// Challenges
-    var activeChallenges: [ChallengeLocal] = []
-
-    // Achievements
+    // Achievements and activity (the one "earned" story)
     var recentAchievements: [Achievement] = []
-    var totalEarned: Int = 0
+    var totalEarned = 0
+    var totalTracked = 0
+    var recentDays: [ArenaXPDay] = []
 
-    /// Detail sheet
-    var showXPDetail: Bool = false
-
-    // Weekly recap
-    var weeklyXPEarned: Int = 0
-    var weeklyAchievementsUnlocked: Int = 0
-    var weeklyRankChange: Int = 0
-    var weeklyPersonalBests: Int = 0
-
-    /// Activity feed
-    var recentActivityEvents: [ActivityEvent] = []
+    // This week and last week
+    var weekXP = 0
+    var weekWorkouts = 0
+    var weekStudyMinutes = 0
+    var lastWeekXP = 0
+    var lastWeekWorkouts = 0
+    var lastWeekStudyMinutes = 0
+    var lastWeekAchievements = 0
 
     // MARK: - Dependencies
 
@@ -97,89 +83,107 @@ final class ArenaViewModel {
 
     // MARK: - Load
 
+    /// Reads fresh from the store, so it always sees what the ledger just wrote.
     func load(
-        xpEvents: [XPEvent],
-        achievements: [Achievement],
-        challenges: [ChallengeLocal],
-        userTotalXP: Int,
-        userStreakDays: Int,
-        settings: UserSettings? = nil,
-        streak: Streak? = nil,
-        activityEvents: [ActivityEvent] = []
+        in context: ModelContext,
+        summary: ArenaXPLedger.Summary,
+        now: Date = Date(),
+        calendar: Calendar = ArenaCalendar.calendar()
     ) {
-        // XP calculations
-        let today = Calendar.current.startOfDay(for: Date())
-        let todayEvents = xpEvents.filter { Calendar.current.isDate($0.date, inSameDayAs: today) }
+        let events = (try? context.fetch(FetchDescriptor<XPEvent>(sortBy: [SortDescriptor(\.date, order: .reverse)]))) ?? []
+        let achievements = (try? context.fetch(FetchDescriptor<Achievement>())) ?? []
+        let settings = (try? context.fetch(FetchDescriptor<UserSettings>()))?.first
+        let streak = ArenaXPLedger.overallStreak(in: context)
+        apply(
+            events: events, achievements: achievements, settings: settings, streak: streak,
+            summary: summary, now: now, calendar: calendar
+        )
+    }
+
+    func apply(
+        events: [XPEvent],
+        achievements: [Achievement],
+        settings: UserSettings?,
+        streak: Streak?,
+        summary: ArenaXPLedger.Summary,
+        now: Date,
+        calendar: Calendar = ArenaCalendar.calendar()
+    ) {
+        let todayKey = ArenaCalendar.dayKey(now, calendar: calendar)
+        let todayEvents = events.filter { ArenaCalendar.dayKey($0.date, calendar: calendar) == todayKey }
 
         let previousTodayXP = todayXP
         let newTodayXP = todayEvents.reduce(0) { $0 + $1.amount }
         todayXP = newTodayXP
-        totalXP = userTotalXP
 
-        // Use new level system
-        let currentLevel = xpEngine.currentLevel(totalXP: userTotalXP)
-        level = currentLevel
-        levelTitle = xpEngine.levelName(for: currentLevel)
-        xpForNextLevel = xpEngine.xpToNextLevel(totalXP: userTotalXP)
-        streakDays = userStreakDays
-        streakMultiplier = 1.0 + min(0.50, Double(userStreakDays) * 0.02)
+        // One total, one level: the rows the ledger keeps.
+        let total = events.reduce(0) { $0 + $1.amount }
+        totalXP = total
+        let current = xpEngine.currentLevel(totalXP: total)
+        level = current
+        levelTitle = LevelSystem.displayTitle(for: current)
+        nextLevelTitle = LevelSystem.displayTitle(for: min(current + 1, LevelSystem.definitions.count))
+        xpForNextLevel = xpEngine.xpToNextLevel(totalXP: total)
+        streakDays = streak?.currentCount ?? 0
 
-        // XP progress bar (using LevelSystem thresholds)
-        let currentLevelXP = xpEngine.xpForLevel(currentLevel)
-        let nextLevel = currentLevel + 1
-        let nextLevelXP = nextLevel <= LevelSystem.definitions.count
-            ? xpEngine.xpForLevel(nextLevel)
+        let currentLevelXP = xpEngine.xpForLevel(current)
+        let nextLevelXP = current < LevelSystem.definitions.count
+            ? xpEngine.xpForLevel(current + 1)
             : currentLevelXP + 10000
-        let range = max(1, nextLevelXP - currentLevelXP)
-        xpProgress = Double(userTotalXP - currentLevelXP) / Double(range)
+        xpProgress = min(max(Double(total - currentLevelXP) / Double(max(1, nextLevelXP - currentLevelXP)), 0), 1)
 
-        // XP breakdown by source
-        let grouped = Dictionary(grouping: todayEvents, by: { $0.source })
-        xpBreakdown = XPSource.allCases.map { source in
-            let events = grouped[source] ?? []
-            let total = events.reduce(0) { $0 + $1.amount }
-            return XPBreakdownRow(source: source, xp: total, count: events.count)
-        }.filter { $0.xp != 0 }
+        // Today, by source.
+        let grouped = Dictionary(grouping: todayEvents, by: \.sourceRaw)
+        xpBreakdown = XPSource.allCases.compactMap { source in
+            guard let rows = grouped[source.rawValue], !rows.isEmpty else {
+                return nil
+            }
+            let amount = rows.reduce(0) { $0 + $1.amount }
+            return amount == 0 ? nil : XPBreakdownRow(source: source, xp: amount, count: rows.count)
+        }
 
-        // Challenges
-        activeChallenges = challenges.filter { $0.isActive && !$0.hasEnded }
-
-        // Achievements
-        recentAchievements = achievements
+        // Achievements the app can really measure.
+        let tracked = achievements.filter { ArenaAchievementTracker.isTracked($0.badgeID) }
+        totalTracked = tracked.count
+        totalEarned = tracked.count(where: \.isEarned)
+        recentAchievements = tracked
             .filter(\.isEarned)
             .sorted { ($0.earnedAt ?? .distantPast) > ($1.earnedAt ?? .distantPast) }
             .prefix(3)
             .map(\.self)
-        totalEarned = achievements.count(where: { $0.isEarned })
 
-        // Daily XP goal
+        // Daily goal.
         if let settings {
             dailyXPGoal = settings.dailyXPGoal.rawValue
-            currentLeague = settings.league
         }
         dailyXPProgress = dailyXPGoal > 0 ? min(Double(todayXP) / Double(dailyXPGoal), 1.0) : 0
 
-        // Streak freeze
         if let streak {
             freezesAvailable = max(0, streak.freezesAvailable - streak.freezesUsed)
-            freezesUsed = streak.freezesUsed
         }
 
-        // Weekly recap calculations
-        let calendar = Calendar.current
-        let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today))!
-        let weekEvents = xpEvents.filter { $0.date >= weekStart }
-        weeklyXPEarned = weekEvents.reduce(0) { $0 + $1.amount }
-        weeklyAchievementsUnlocked = achievements
-            .count(where: { $0.isEarned && ($0.earnedAt ?? .distantPast) >= weekStart })
+        // Weeks, Monday to Sunday.
+        let thisWeek = ArenaCalendar.weekStart(containing: now, calendar: calendar)
+        let lastWeek = ArenaCalendar.previousWeekStart(before: now, calendar: calendar)
+        let thisStats = ArenaWeekStats(summary: summary, weekStart: thisWeek, calendar: calendar)
+        let lastStats = ArenaWeekStats(summary: summary, weekStart: lastWeek, calendar: calendar)
+        weekXP = thisStats.xp
+        weekWorkouts = thisStats.workouts
+        weekStudyMinutes = thisStats.studyMinutes
+        lastWeekXP = lastStats.xp
+        lastWeekWorkouts = lastStats.workouts
+        lastWeekStudyMinutes = lastStats.studyMinutes
+        lastWeekAchievements = tracked.count {
+            guard let earned = $0.earnedAt else {
+                return false
+            }
+            return earned >= lastWeek && earned < thisWeek
+        }
 
-        // Activity feed
-        recentActivityEvents = activityEvents
-            .sorted { $0.timestamp > $1.timestamp }
-            .prefix(20)
-            .map(\.self)
+        // What earned XP lately, a day at a time.
+        recentDays = Self.days(from: events, calendar: calendar)
 
-        // XP gain animation -- trigger when todayXP increases
+        // The "+N XP" overlay only for XP earned while looking, never for a first load.
         let isInitialLoad = if case .loading = loadState {
             true
         } else {
@@ -189,34 +193,76 @@ final class ArenaViewModel {
             lastXPGainAmount = newTodayXP - previousTodayXP
             showXPGain = true
         }
-
         loadState = .loaded
+    }
+
+    /// The latest days with XP in them, newest first, each with its rows.
+    static func days(from events: [XPEvent], limit: Int = 14, calendar: Calendar) -> [ArenaXPDay] {
+        let byDay = Dictionary(grouping: events.filter { $0.amount != 0 }) { ArenaCalendar.dayKey($0.date, calendar: calendar) }
+        return byDay.keys.sorted(by: >).prefix(limit).compactMap { key in
+            guard let date = ArenaCalendar.date(forKey: key, calendar: calendar), let rows = byDay[key] else {
+                return nil
+            }
+            let items = rows
+                .sorted { $0.amount > $1.amount }
+                .map { ArenaXPDay.Item(id: $0.id, source: $0.source, text: $0.eventDescription, xp: $0.amount) }
+            return ArenaXPDay(id: key, date: date, items: items)
+        }
+    }
+}
+
+// MARK: - ArenaWeekStats
+
+/// One ISO week (Monday to Sunday) of what the user did, from the same
+/// per-day totals that are pushed to friends.
+struct ArenaWeekStats: Equatable {
+    var xp = 0
+    var workouts = 0
+    var studyMinutes = 0
+
+    init() {}
+
+    init(summary: ArenaXPLedger.Summary, weekStart: Date, calendar: Calendar = ArenaCalendar.calendar()) {
+        let keys = Set((0 ..< 7).map {
+            ArenaCalendar.dayKey(ArenaCalendar.addingDays($0, to: weekStart, calendar: calendar), calendar: calendar)
+        })
+        xp = summary.xp(in: weekStart, calendar: calendar)
+        for day in summary.days where keys.contains(day.day) {
+            workouts += day.workouts
+            studyMinutes += day.studyMinutes
+        }
+    }
+}
+
+// MARK: - ArenaXPDay
+
+/// One day of XP: what earned it.
+struct ArenaXPDay: Identifiable, Equatable {
+    struct Item: Identifiable, Equatable {
+        let id: UUID
+        let source: XPSource
+        let text: String
+        let xp: Int
+    }
+
+    let id: String
+    let date: Date
+    let items: [Item]
+
+    var total: Int {
+        items.reduce(0) { $0 + $1.xp }
     }
 }
 
 // MARK: - XPBreakdownRow
 
 struct XPBreakdownRow: Identifiable {
-    let id = UUID()
     let source: XPSource
     let xp: Int
     let count: Int
 
-    var emoji: String {
-        switch source {
-        case .workout: "🏋️"
-        case .study: "📖"
-        case .meal: "🍴"
-        case .sleep: "🌙"
-        case .steps: "🦶"
-        case .nonNegotiable: "✓"
-        case .streak: "🔥"
-        case .challenge: "⚔️"
-        case .achievement: "🏅"
-        case .perfectDay: "⭐"
-        case .penalty: "⚠️"
-        case .earlyBird: "🌅"
-        }
+    var id: String {
+        source.rawValue
     }
 
     var label: String {
@@ -229,30 +275,10 @@ struct XPBreakdownRow: Identifiable {
         case .nonNegotiable: "Tasks"
         case .streak: "Streak"
         case .challenge: "Challenge"
-        case .achievement: "Achievement"
-        case .perfectDay: "Perfect Day"
+        case .achievement: "Achievements"
+        case .perfectDay: "Perfect day"
         case .penalty: "Penalty"
-        case .earlyBird: "Early Bird"
+        case .earlyBird: "Early bird"
         }
-    }
-}
-
-// MARK: - LeaderboardEntry
-
-struct LeaderboardEntry: Identifiable {
-    let id = UUID()
-    let rank: Int
-    let username: String
-    let displayName: String
-    let xp: Int
-    let level: Int
-    let isMe: Bool
-}
-
-// MARK: - Collection Safe Access
-
-private extension Collection {
-    subscript(safe index: Index) -> Element? {
-        indices.contains(index) ? self[index] : nil
     }
 }
