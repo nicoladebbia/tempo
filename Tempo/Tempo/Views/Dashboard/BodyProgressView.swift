@@ -76,6 +76,9 @@ struct BodyProgressView: View {
 
     var body: some View {
         TideScrollPage {
+            if activeGoals.hasActive(of: [.bodyWeight]) {
+                GoalProgressChip(kinds: [.bodyWeight])
+            }
             metricTiles
             trendSection
             photosSection
@@ -162,6 +165,8 @@ struct BodyProgressView: View {
     private var snapshots: [BodyComposition]
     @Query
     private var settings: [UserSettings]
+    @Query(filter: #Predicate<Goal> { $0.isActive == true })
+    private var activeGoals: [Goal]
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)

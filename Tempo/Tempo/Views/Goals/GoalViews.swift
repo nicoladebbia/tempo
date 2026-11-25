@@ -120,6 +120,14 @@ struct GoalProgressChip: View {
     }
 }
 
+extension Sequence<Goal> {
+    /// True when one of these is an active goal of one of `kinds`. A screen with a
+    /// spaced stack asks this first, so a chip that would draw nothing leaves no gap.
+    func hasActive(of kinds: Set<GoalKind>) -> Bool {
+        contains { $0.isActive && kinds.contains($0.kind) }
+    }
+}
+
 // MARK: - TodayGoalCard
 
 /// The goal on Today: the target, how far along, and whether the line is kept.
