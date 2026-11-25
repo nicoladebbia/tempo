@@ -46,7 +46,9 @@ extension WidgetSnapshot {
 // MARK: - TodayNextAction
 
 extension TodayNextAction {
-    /// The widget's copy of the Today hero: same choice, same words.
+    /// The widget's copy of the Today hero: the same choice and the same titles.
+    /// Two detail lines (first meal, all done) drop their first sentence to fit
+    /// a small widget; the rest are word for word. Keep both in step.
     func widgetNext(for snapshot: TodaySnapshot) -> WidgetSnapshot.Next {
         switch self {
         case let .workout(name, resume):
