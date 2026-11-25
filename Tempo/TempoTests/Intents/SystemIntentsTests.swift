@@ -299,7 +299,7 @@ final class SystemIntentsTests: XCTestCase {
         let summary = NextUpSummary(
             session: nil, meal: nil, tasksLeft: 2, tasksTotal: 3, firstTask: "Read", next: next
         )
-        XCTAssertEqual(summary.spoken, "Next: 2 tasks left.")
+        XCTAssertEqual(summary.spoken, "Next: 2 tasks left. Start with Read.")
     }
 
     func testAMealLeadKeepsTheOtherFacts() {
@@ -314,6 +314,13 @@ final class SystemIntentsTests: XCTestCase {
         XCTAssertEqual(
             summary.spoken, "Next: Lunch at 13:00. Next session: Push. 1 task left, starting with Read."
         )
+    }
+
+    func testWithoutTodaysSavedCopyTheFactsAreListedAsBefore() throws {
+        try insertOpenTask(named: "Stretch")
+        let summary = NextUpReader.read(in: context, now: noon(), cache: StubCache(snapshot: nil))
+        XCTAssertNil(summary.next, "no saved Today to run the engine on: never guess 'log your first meal'")
+        XCTAssertEqual(summary.spoken, "1 task left, starting with Stretch.")
     }
 
     func testAnEmptyDayStillSaysNothingIsPlanned() {

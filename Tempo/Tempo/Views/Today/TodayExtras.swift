@@ -417,7 +417,24 @@ struct WeekReviewView: View {
     @Environment(\.modelContext)
     private var modelContext
 
+    private var hasReview: Bool {
+        model.week.map { !$0.thisWeek.isEmpty } ?? false
+    }
+
     var body: some View {
+        // The tip only makes sense when there are numbers to tap: on the empty page it
+        // would be spent (it shows once) before it could help.
+        Group {
+            if hasReview {
+                page.firstTip("today.weekReview", "Tap any number to see how it is worked out.", systemImage: "chart.bar.fill")
+            } else {
+                page
+            }
+        }
+        .task { await reload() }
+    }
+
+    private var page: some View {
         TideScrollPage(spacing: Tide.s4, spacer: Tide.s2) {
             if let review = model.week, !review.thisWeek.isEmpty {
                 Text(WeekReviewFormat.range(of: review))
@@ -465,8 +482,6 @@ struct WeekReviewView: View {
         }
         .navigationTitle("Week in review")
         .navigationBarTitleDisplayMode(.inline)
-        .firstTip("today.weekReview", "Tap any number to see how it is worked out.", systemImage: "chart.bar.fill")
-        .task { await reload() }
         .accessibilityIdentifier("weekReview.page")
     }
 

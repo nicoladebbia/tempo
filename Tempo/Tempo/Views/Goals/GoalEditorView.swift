@@ -295,6 +295,9 @@ struct GoalEditorView: View {
                 loaded = false
                 load()
                 reading = readCurrent()
+            } else {
+                // Another goal was set in the meantime: say so rather than do nothing.
+                toast = ToastData(message: "Can't bring that goal back: you set another.", style: .info)
             }
         }
     }

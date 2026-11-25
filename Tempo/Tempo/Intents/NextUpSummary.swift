@@ -75,10 +75,17 @@ struct NextUpSummary: Equatable, Sendable {
         if let meal, !saysMeal {
             sentences.append("Next meal: \(meal.name) at \(meal.time).")
         }
-        if tasksLeft > 0, !saysTasks {
-            let count = tasksLeft == 1 ? "1 task left" : "\(tasksLeft) tasks left"
-            sentences.append(firstTask.map { "\(count), starting with \($0)." } ?? "\(count).")
-        } else if tasksTotal > 0, tasksLeft == 0 {
+        if tasksLeft > 0 {
+            if saysTasks {
+                // "Next: 3 tasks left." already gave the count; name where to start.
+                if let firstTask {
+                    sentences.append("Start with \(firstTask).")
+                }
+            } else {
+                let count = tasksLeft == 1 ? "1 task left" : "\(tasksLeft) tasks left"
+                sentences.append(firstTask.map { "\(count), starting with \($0)." } ?? "\(count).")
+            }
+        } else if tasksTotal > 0 {
             sentences.append("All your tasks are done.")
         }
         if next == nil, session == nil, meal == nil, tasksLeft == 0 {
@@ -106,9 +113,11 @@ enum NextUpReader {
             tasksTotal: total,
             firstTask: first
         )
-        if !summary.isEmpty {
+        // Without Today's saved copy (recovery source, calories, study) the engine would guess
+        // "log your first meal" for someone who has eaten: then Siri lists the facts as before.
+        if !summary.isEmpty, let saved = cache.load(now: now, calendar: calendar) {
             summary.next = nextStep(
-                saved: cache.load(now: now, calendar: calendar), plan: plan, meal: upcoming, now: now, calendar: calendar,
+                saved: saved, plan: plan, meal: upcoming, now: now, calendar: calendar,
                 tasks: total > 0 ? openAndDone(in: context, now: now, calendar: calendar) : nil
             )
         }
@@ -119,20 +128,10 @@ enum NextUpReader {
     /// calories, study) with what the store says now put over it (the session, the next
     /// meal, the tasks), run through the same `NextStepEngine`.
     static func nextStep(
-        saved: TodaySnapshot?, plan: WorkoutPlan?, meal: PlannedMeal?, now: Date, calendar: Calendar,
+        saved: TodaySnapshot, plan: WorkoutPlan?, meal: PlannedMeal?, now: Date, calendar: Calendar,
         tasks: [TodaySnapshot.TaskItem]?
     ) -> NextStep? {
-        var snapshot = saved ?? TodaySnapshot(
-            day: calendar.startOfDay(for: now), firstName: nil, score: nil,
-            workout: .init(status: .none, name: nil, inProgress: false, durationMinutes: nil),
-            recovery: .init(score: nil, sleepHours: nil, sleepPerformance: nil, hrv: nil, restingHR: nil, hasSource: false),
-            fuel: .init(
-                calories: nil, calorieTarget: nil, protein: nil, proteinTarget: nil, carbs: nil, carbsTarget: nil,
-                fat: nil, fatTarget: nil, waterMl: 0, waterTargetMl: 0
-            ),
-            tasks: [], study: .init(minutes: 0, targetMinutes: 0, nextExam: nil), streakDays: 0, steps: nil,
-            stepsTarget: 0, moveConnected: false, nextMeal: nil
-        )
+        var snapshot = saved
         if let plan {
             snapshot.workout = .init(
                 status: TodaySnapshot.workoutStatus(DashboardViewModel.dashboardWorkoutStatus(for: plan)),

@@ -46,6 +46,8 @@ struct CoachChatView: View {
     private var dismiss
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.scenePhase)
+    private var scenePhase
     @State
     private var inputText: String = ""
     /// "Chat cleared" with Undo, shown over the transcript, never over the input.
@@ -121,7 +123,19 @@ struct CoachChatView: View {
                 viewModel.commitPendingEnd()
             }
         }
-        // So does leaving the chat: there is no toast left to undo from.
+        // The clear became final some other way (you wrote in the new chat): the toast's
+        // Undo would do nothing, so it goes too.
+        .onChange(of: viewModel.pendingEnd == nil) { _, isFinal in
+            if isFinal {
+                toast = nil
+            }
+        }
+        // So does leaving the chat, or the app: there is no toast left to undo from.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                viewModel.commitPendingEnd()
+            }
+        }
         .onDisappear { viewModel.commitPendingEnd() }
     }
 
@@ -168,6 +182,8 @@ struct CoachChatView: View {
                             .accessibilityLabel(Text("End chat"))
                     }
                     .buttonStyle(.tideCoachCircle)
+                    // An answer still on its way would land in the chat that was just cleared.
+                    .disabled(viewModel.isThinking)
                 }
             }
         }

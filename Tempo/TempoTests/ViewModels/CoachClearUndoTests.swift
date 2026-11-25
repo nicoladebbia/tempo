@@ -158,6 +158,15 @@ final class CoachClearUndoTests: XCTestCase {
         XCTAssertFalse(vm.undoEnd())
     }
 
+    func testUndoBringsBackTheRetryBannerTheChatWasShowing() throws {
+        _ = try startChat()
+        vm.pendingError = "Coach had nothing to say. Try again."
+        vm.endConversationWithUndo(context: context)
+        XCTAssertNil(vm.pendingError, "the fresh chat starts clean")
+        XCTAssertTrue(vm.undoEnd())
+        XCTAssertEqual(vm.pendingError, "Coach had nothing to say. Try again.")
+    }
+
     func testClearingAnEmptyChatDoesNothingAndAsksTheScreenToClose() throws {
         vm.loadOrStartConversation(context: context)
         let id = vm.activeConversation?.id

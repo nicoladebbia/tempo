@@ -43,7 +43,7 @@ extension Explainer {
     /// is holding the score down.
     static func dayScore(weakest: ScorePart?) -> Explainer {
         let action: LocalizedStringResource = switch weakest {
-        case .recovery: "Recovery is your lowest part. It follows your sleep, so plan an early night."
+        case .recovery: "Recovery is your lowest part. Keep today's session lighter and plan an early night."
         case .food: "Food is your lowest part. Log your next meal to lift it."
         case .study: "Study is your lowest part. Start a focus session to lift it."
         case .movement: "Movement is your lowest part. Take a walk or finish today's session to lift it."
@@ -90,7 +90,7 @@ extension Explainer {
     static func studyPart(minutesLeft: Int?) -> Explainer {
         let action: LocalizedStringResource = switch minutesLeft {
         case let left? where left > 0: "Start a focus session. \(left) min gets you to today's target."
-        case nil: "Set a study target in your Study task if you want this part to count."
+        case nil: "With no study target this part always counts as full. Set one in your Study task to make it count."
         default: "You have reached today's study target."
         }
         return Explainer(
@@ -128,9 +128,11 @@ extension Explainer {
 extension Explainer {
     /// The flame in the Today header. `tasksLeft` is today's open daily tasks.
     static func streak(tasksLeft: Int) -> Explainer {
-        let action: LocalizedStringResource = tasksLeft > 0
-            ? "You have \(tasksLeft) tasks left today. Finish them all to add a day."
-            : "Every task is done today. The day is added when it ends."
+        let action: LocalizedStringResource = switch tasksLeft {
+        case 1: "You have 1 task left today. Finish it to add a day."
+        case 2...: "You have \(tasksLeft) tasks left today. Finish them all to add a day."
+        default: "Every task is done today. The day is added when it ends."
+        }
         return Explainer(
             id: "streak",
             title: "Day streak",
@@ -199,7 +201,7 @@ extension Explainer {
             id: "goal-pace",
             title: "Goal pace",
             what: "Whether your latest reading is ahead of, on, or behind the straight line from where you started to your target on your date.",
-            how: "Tempo draws that line from your first reading. A reading within a tenth of the whole distance of the line is on track; further along is ahead, further back is behind.",
+            how: "Tempo draws that line from your reading on the day you saved the goal, or from your first reading if you had none. A reading within a tenth of the whole distance of the line is on track; further along is ahead, further back is behind.",
             action: action,
             systemImage: "target"
         )
@@ -215,7 +217,7 @@ extension Explainer {
         return Explainer(
             id: "goal-reading",
             title: "Your reading now",
-            what: "Where you stand today on this goal. Your first reading after you set the goal becomes its starting point.",
+            what: "Where you stand today on this goal. Saving the goal starts its line from this reading.",
             how: how,
             action: "Log a new reading when you have one, so the pace stays current.",
             systemImage: "scope"

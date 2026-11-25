@@ -250,6 +250,9 @@ final class CoachViewModel {
         let freshID: UUID?
         let transcript: CoachTranscript
         let context: ModelContext
+        /// What the cleared chat was showing, so Undo brings back its Retry banner too.
+        let error: String?
+        let blocker: AIBlocker?
     }
 
     private(set) var pendingEnd: PendingEnd?
@@ -267,6 +270,7 @@ final class CoachViewModel {
         }
         conv.isActive = false
         let transcript = Self.transcript(from: conv)
+        let shownError = pendingError, shownBlocker = blocker
         try? context.save()
         activeConversation = nil
         messages = []
@@ -276,7 +280,8 @@ final class CoachViewModel {
         blocker = nil
         loadOrStartConversation(context: context)
         pendingEnd = PendingEnd(
-            endedID: conv.id, freshID: activeConversation?.id, transcript: transcript, context: context
+            endedID: conv.id, freshID: activeConversation?.id, transcript: transcript, context: context,
+            error: shownError, blocker: shownBlocker
         )
         return true
     }
@@ -303,6 +308,8 @@ final class CoachViewModel {
         ended.isActive = true
         try? pending.context.save()
         activeConversation = ended
+        pendingError = pending.error
+        blocker = pending.blocker
         refreshMirror()
         refreshUndoLabel()
         return true

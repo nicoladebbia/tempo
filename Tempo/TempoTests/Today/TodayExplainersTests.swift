@@ -137,6 +137,8 @@ final class TodayExplainersTests: XCTestCase {
 
     func testTheStreakActionCountsTheTasksLeft() {
         XCTAssertTrue(text(Explainer.streak(tasksLeft: 3).action).contains("3 tasks left"))
+        XCTAssertTrue(text(Explainer.streak(tasksLeft: 1).action).contains("1 task left"))
+        XCTAssertFalse(text(Explainer.streak(tasksLeft: 1).action).contains("1 tasks"))
         XCTAssertTrue(text(Explainer.streak(tasksLeft: 0).action).contains("done"))
     }
 

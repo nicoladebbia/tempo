@@ -69,11 +69,16 @@ struct NotificationInboxView: View {
         .firstTip("notifications.inbox", "Reminders from Tempo collect here for the day. Tap one to open what it is about.", systemImage: "bell")
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
+            switch phase {
+            case .active:
                 Task { await inbox.refresh() }
-            } else {
+            case .background:
                 // Leaving the app makes a clear final: there is no toast left to undo from.
+                // (Pulling down the shade only makes the app inactive: the toast stays.)
                 inbox.commitPendingClear()
+                toast = nil
+            default:
+                break
             }
         }
         // A toast that ran out (or was swiped away) without Undo makes the clear final.
