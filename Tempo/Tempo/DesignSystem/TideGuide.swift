@@ -218,6 +218,10 @@ private struct FirstTipModifier: ViewModifier {
         }
         .padding(.leading, Tide.s4)
         .padding(.vertical, Tide.s2)
+        // A tip is a hint, not the page: at the largest text sizes it would fill half the
+        // screen and cover the very button it explains. Cap it at a large normal size
+        // (the page itself keeps growing, and the dismiss button stays a full tap target).
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .glassEffect(.regular, in: .rect(cornerRadius: Tide.tileRadius, style: .continuous))
         .padding(.horizontal, Tide.edge)
         .padding(.bottom, Tide.s2)
