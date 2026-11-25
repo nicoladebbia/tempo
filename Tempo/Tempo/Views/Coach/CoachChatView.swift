@@ -191,10 +191,15 @@ struct CoachChatView: View {
 
     // MARK: - Transcript
 
+    /// "Ask Coach anything", and "Ask Tempo anything" for a screen already titled "Ask Tempo".
+    private var emptyHeading: String {
+        title.hasPrefix("Ask ") ? "\(title) anything" : "Ask \(title) anything"
+    }
+
     @ViewBuilder
     private var transcript: some View {
         if viewModel.messages.isEmpty, !viewModel.isThinking, pendingBubbleText == nil {
-            CoachEmptyState(seeds: emptyStateSeeds, heading: "Ask \(title) anything") { seed in
+            CoachEmptyState(seeds: emptyStateSeeds, heading: emptyHeading) { seed in
                 inputText = seed
                 send()
             }

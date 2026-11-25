@@ -24,11 +24,13 @@ final class CoachViewModelTests: XCTestCase {
         return try ModelContainer(for: schema, configurations: [config])
     }
 
-    // Reuse the scripted stubs from CoachServiceTests-style fixtures.
+    /// Reuse the scripted stubs from CoachServiceTests-style fixtures.
     final class ScriptedAIClient: CoachChatAIClient, @unchecked Sendable {
         var scripted: [CoachChatResponse] = []
         func sendChat(request _: CoachChatRequest) async throws -> CoachChatResponse {
-            guard !scripted.isEmpty else { throw NSError(domain: "test", code: 503) }
+            guard !scripted.isEmpty else {
+                throw NSError(domain: "test", code: 503)
+            }
             return scripted.removeFirst()
         }
     }
@@ -128,12 +130,32 @@ final class CoachViewModelTests: XCTestCase {
         XCTAssertNil(vm.pendingError)
     }
 
+    func testSendMessage_emptyReplyIsDroppedAndOffersRetry() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let ai = ScriptedAIClient()
+        ai.scripted = [CoachChatResponse(content: [], stopReason: .endTurn)]
+        let service = CoachService(
+            aiClient: ai,
+            summarizerClient: NoopSummarizer(),
+            toolDispatcher: NoopDispatcher()
+        )
+        let vm = CoachViewModel(service: service)
+        vm.loadOrStartConversation(context: context)
+
+        await vm.sendMessage("soccer at 7pm", systemPrompt: "sys", context: context)
+
+        XCTAssertEqual(vm.messages.map(\.role), ["user"])
+        XCTAssertNotNil(vm.pendingError)
+        XCTAssertTrue(vm.canRetry)
+    }
+
     func testSendMessage_capReachedSetsPendingError() async throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let ai = ScriptedAIClient()
         // 8 tool_use responses → cap fires.
-        for i in 0..<8 {
+        for i in 0 ..< 8 {
             ai.scripted.append(CoachChatResponse(
                 content: [.toolUse(id: "t-\(i)", name: "moveMeal", input: Data())],
                 stopReason: .toolUse
@@ -187,7 +209,7 @@ final class CoachViewModelTests: XCTestCase {
 
     // MARK: - endConversation
 
-    func testEndConversation_marksInactiveAndClearsState() async throws {
+    func testEndConversation_marksInactiveAndClearsState() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let vm = CoachViewModel(service: makeService())
@@ -210,7 +232,10 @@ final class CoachViewModelTests: XCTestCase {
     final class FlakyAI: CoachChatAIClient, @unchecked Sendable {
         var failures: Int
         private(set) var requests: [CoachChatRequest] = []
-        init(failures: Int) { self.failures = failures }
+        init(failures: Int) {
+            self.failures = failures
+        }
+
         func sendChat(request: CoachChatRequest) async throws -> CoachChatResponse {
             requests.append(request)
             if failures > 0 {

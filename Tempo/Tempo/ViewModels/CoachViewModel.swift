@@ -135,6 +135,7 @@ final class CoachViewModel {
                 context: context,
                 appendUserMessage: appendUserMessage
             )
+            dropEmptyAnswer(reportCapped: report.capReached != nil)
             refreshMirror()
             refreshUndoLabel()
             switch report.capReached {
@@ -167,6 +168,24 @@ final class CoachViewModel {
 
     /// True when the last turn went unanswered: the conversation ends on the
     /// user's own message (or a tool result) and an error is showing, so
+    /// A reply with no text and no tool call (the model came back empty) would
+    /// show as nothing at all, and an empty turn in the history is refused by
+    /// the API on the next send. Drop it and say so; Retry then resends the
+    /// user's message.
+    private func dropEmptyAnswer(reportCapped: Bool) {
+        guard !reportCapped,
+              let conversation = activeConversation,
+              let last = conversation.messages.last,
+              last.role == "assistant",
+              last.text?.isEmpty ?? true,
+              last.toolCalls?.isEmpty ?? true
+        else {
+            return
+        }
+        conversation.messages = Array(conversation.messages.dropLast())
+        pendingError = "Coach had nothing to say. Try again."
+    }
+
     /// "Retry" has something to resend.
     var canRetry: Bool {
         (pendingError != nil || blocker != nil) && !isThinking
