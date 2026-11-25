@@ -26,7 +26,7 @@ struct ChallengesView: View {
     @State
     private var showCreate = false
     @State
-    private var challengeToLeave: ArenaChallengeDTO?
+    private var undoToast: ToastData?
     @State
     private var errorMessage: String?
     @State
@@ -78,24 +78,14 @@ struct ChallengesView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog(
-            "Leave \(challengeToLeave?.title ?? "this challenge")?",
-            isPresented: Binding(get: { challengeToLeave != nil }, set: {
-                if !$0 {
-                    challengeToLeave = nil
-                }
-            }),
-            titleVisibility: .visible
-        ) {
-            Button("Leave challenge", role: .destructive) {
-                if let challenge = challengeToLeave {
-                    run(challenge.id) { try await arena.leave(challenge) }
-                }
-            }
-            Button("Stay in", role: .cancel) {}
-        } message: {
-            Text("Your score leaves the board for this challenge.")
-        }
+        // Leaving a challenge or declining an invitation can be taken back for a few
+        // seconds: the server is only asked when the Undo toast ends.
+        .arenaUndoToast($undoToast)
+        .firstTip(
+            "arena.challenges",
+            "Pick a goal, invite friends or go solo. The bar shows time passed, not score.",
+            systemImage: "flag.2.crossed.fill"
+        )
     }
 
     // MARK: - Empty
@@ -192,7 +182,10 @@ struct ChallengesView: View {
             }
             HStack(spacing: Tide.s2) {
                 Button("Decline") {
-                    run(challenge.id) { try await arena.leave(challenge) }
+                    undoToast = arena.removalToast(
+                        ArenaRemoval(kind: .challenge, id: challenge.id),
+                        message: "Invitation declined."
+                    )
                 }
                 .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("arena.challengeDecline")
@@ -230,7 +223,10 @@ struct ChallengesView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Menu {
                     Button("Leave challenge", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                        challengeToLeave = challenge
+                        undoToast = arena.removalToast(
+                            ArenaRemoval(kind: .challenge, id: challenge.id),
+                            message: "You left \(challenge.title)."
+                        )
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -246,16 +242,20 @@ struct ChallengesView: View {
             let layout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
                 : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s3))
-            layout {
-                TideNumber(parts.value, unit: parts.unit, size: Tide.numeralL, color: mood.accent)
-                if let rank = challenge.myRank, challenge.memberCount > 1 {
-                    Text(ArenaText.rank(rank, of: challenge.memberCount))
-                        .font(Tide.bodyStrong).foregroundStyle(Tide.text2)
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                layout {
+                    TideNumber(parts.value, unit: parts.unit, size: Tide.numeralL, color: mood.accent)
+                    if let rank = challenge.myRank, challenge.memberCount > 1 {
+                        Text(ArenaText.rank(rank, of: challenge.memberCount))
+                            .font(Tide.bodyStrong).foregroundStyle(Tide.text2)
+                    }
                 }
-            }
-            .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .combine)
 
-            TideLevelBar(progress: challenge.timelineProgress(), height: Tide.barSlim)
+                TideLevelBar(progress: challenge.timelineProgress(), height: Tide.barSlim)
+            }
+            .contentShape(.rect)
+            .explains(Explainer.challengeScore.showing("\(parts.value) \(parts.unit)"))
 
             if joined.count > 1 {
                 VStack(spacing: 0) {

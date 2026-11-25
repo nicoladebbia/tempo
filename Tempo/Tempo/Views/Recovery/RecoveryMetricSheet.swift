@@ -61,6 +61,7 @@ struct MetricTrendSheet: View {
                         .foregroundStyle(Tide.text2)
                 }
                 Spacer(minLength: Tide.s2)
+                TideInfoButton(explainer: .vital(metric))
                 TideCloseButton { dismiss() }
             }
             .accessibilityElement(children: .contain)

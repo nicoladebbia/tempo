@@ -473,6 +473,25 @@ struct TideCloseButton: View {
     }
 }
 
+// MARK: - TideInfoButton
+
+/// A small "i" that opens an explainer sheet. For a number that sits inside
+/// something that already does something when tapped (a tile that opens a chart,
+/// a row that navigates), where wrapping the number itself would nest buttons.
+struct TideInfoButton: View {
+    let explainer: Explainer
+
+    var body: some View {
+        Image(systemName: "info.circle")
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text2)
+            .frame(width: Tide.hit, height: Tide.hit)
+            .contentShape(.circle)
+            .explains(explainer)
+            .accessibilityLabel(Text(explainer.title))
+    }
+}
+
 // MARK: - TideTimerDial
 
 /// The focus timer's dial: the same shader-lit ring and 60-tick scale as the

@@ -4,7 +4,8 @@
 //
 // Pure builder for the WatchSnapshot the phone pushes to the watch, from the
 // Dashboard's already-loaded data (score, recovery, non-negotiables, streak,
-// XP, next meal). No leaderboard rank: there is no real leaderboard yet.
+// XP, next meal). The Arena leaderboard is real now, but the phone does not pass
+// the watch a rank yet, so the watch gets none rather than a guess.
 //
 
 import Foundation
@@ -25,11 +26,9 @@ enum WatchSnapshotBuilder {
         /// or unknown. Never negative (callers clamp).
         let timeToLeisureUnlock: TimeInterval?
         let currentStreak: Int
-        /// Sum of today's real XPEvent amounts. There is currently no real
-        /// leaderboard data source anywhere in the app (LeaderboardView's
-        /// rankings are an explicitly-labeled mock pending backend sync —
-        /// see LeaderboardView.loadMockData) — so `leaderboardPosition`
-        /// must stay `nil` rather than inventing a rank.
+        /// The sum of every stored XPEvent amount (the lifetime total the Arena
+        /// shows). `leaderboardPosition` stays `nil` until the phone sends the
+        /// watch the real rank from the Arena service; never an invented one.
         let totalXP: Int
         let leaderboardPosition: Int?
         let nextMeal: WatchNextMeal?

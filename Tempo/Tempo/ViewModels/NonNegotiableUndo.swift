@@ -52,16 +52,20 @@ struct NonNegotiableUndo {
 
     /// Puts the task, the unlock and the streak back as they were.
     func apply(modelContext: ModelContext) {
+        // The task may have been deleted while the toast was up: there is nothing to put back.
+        guard !progress.isDeleted, progress.modelContext != nil else {
+            return
+        }
         progress.currentValue = currentValue
         progress.isCompleted = isCompleted
         progress.completedAt = completedAt
         progress.wasSkipped = wasSkipped
 
-        if let accountability {
+        if let accountability, !accountability.isDeleted, accountability.modelContext != nil {
             accountability.leisureUnlocked = leisureUnlocked
             accountability.unlockedAt = unlockedAt
         }
-        if let streak {
+        if let streak, !streak.isDeleted, streak.modelContext != nil {
             streak.currentCount = streakCurrent
             streak.longestCount = streakLongest
             streak.lastCompletedDate = streakLastCompleted

@@ -81,6 +81,11 @@ struct ArenaMainView: View {
         .sheet(isPresented: $showInvite) {
             FriendInviteSheet()
         }
+        .firstTip(
+            "arena.home",
+            "Tap the level ring or XP to see how it is worked out.",
+            systemImage: "trophy.fill"
+        )
     }
 
     // MARK: - Page
@@ -152,9 +157,11 @@ struct ArenaMainView: View {
                 if vm.freezesAvailable > 0 {
                     chip(symbol: "snowflake", value: vm.freezesAvailable, tint: TideTone.sky)
                         .accessibilityLabel(ArenaText.count(vm.freezesAvailable, "streak freeze"))
+                        .explains(Explainer.streakFreezes.showing("\(vm.freezesAvailable) left"))
                 }
                 chip(symbol: "flame.fill", value: vm.streakDays, tint: Tide.streak)
                     .accessibilityLabel("\(ArenaText.count(vm.streakDays, "day")) streak")
+                    .explains(Explainer.arenaStreak.showing(ArenaText.count(vm.streakDays, "day")))
                 NavigationLink(value: ArenaDestination.friends) {
                     Image(systemName: "person.2.fill")
                         .font(Tide.bodyStrong)
@@ -200,6 +207,7 @@ struct ArenaMainView: View {
                     TideNumber("\(vm.level)", size: Tide.numeralL, relativeTo: .title)
                 }
             }
+            .explains(Explainer.arenaLevel.showing("Level \(vm.level)"))
         } side: {
             Text(vm.levelTitle)
                 .font(Tide.title2)
@@ -353,6 +361,8 @@ struct ArenaMainView: View {
                         .font(Tide.caption).foregroundStyle(Tide.text2)
                 }
             }
+            .contentShape(.rect)
+            .explains(Explainer.arenaDailyGoal.showing("\(vm.todayXP.formatted()) of \(vm.dailyXPGoal.formatted()) XP"))
 
             if vm.xpBreakdown.isEmpty {
                 waysToEarn

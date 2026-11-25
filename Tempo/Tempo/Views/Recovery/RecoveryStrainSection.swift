@@ -69,6 +69,8 @@ struct RecoveryStrainSection: View {
         .accessibilityLabel(
             "Strain \(strain.map { String(format: "%.1f", $0) } ?? "none") out of 21, \(strainClassification)"
         )
+        // The whole card, not just the gauge: the card reads as one element above.
+        .explains(Explainer.recoveryStrain.showing(strain.map { "\(String(format: "%.1f", $0)) of 21" }))
     }
 
     // MARK: - Heart rate
@@ -91,6 +93,7 @@ struct RecoveryStrainSection: View {
                         tint: Tide.text,
                         systemImage: "heart.fill"
                     )
+                    .explains(.dayHeartRate)
                     TideMetricTile(
                         label: "Max HR",
                         value: viewModel.todayRecovery?.maxHR.map { "\(Int($0))" } ?? "--",
@@ -98,6 +101,7 @@ struct RecoveryStrainSection: View {
                         tint: Tide.text,
                         systemImage: "heart.circle.fill"
                     )
+                    .explains(.dayHeartRate)
                 }
 
                 // RHR comparison

@@ -29,6 +29,7 @@ struct MorningCheckInCard: View {
     /// A check-in that was already logged when the page opened folds to one
     /// line; Edit opens it again. While answering, the card stays open.
     @State private var editing = true
+    @State private var explainer: Explainer?
 
     var body: some View {
         // The task MUST host on an always-present concrete view. A `Group` whose
@@ -45,6 +46,7 @@ struct MorningCheckInCard: View {
             }
         }
         .task { loadOrCreate() }
+        .explainerSheet($explainer)
     }
 
     // MARK: - Logged
@@ -97,6 +99,20 @@ struct MorningCheckInCard: View {
                     TideStatusPill(text: "Logged", tint: TideTone.mint, systemImage: "checkmark")
                         .transition(.opacity)
                 }
+                Button {
+                    explainer = .morningCheckIn
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("About the morning check-in")
+                .accessibilityIdentifier("explain.recovery-check-in")
+                // The info target is 44pt; the row stays slim.
+                .padding(.vertical, -Tide.s3)
                 Spacer(minLength: Tide.s2)
                 Button {
                     withAnimation(Tide.snap) { dismissed = true }

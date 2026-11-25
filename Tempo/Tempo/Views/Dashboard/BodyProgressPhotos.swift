@@ -48,8 +48,8 @@ struct ProgressPhotoThumbnail: View {
 
 // MARK: - ProgressPhotoViewer
 
-/// One photo at full size, with the way to delete it. Deleting asks first:
-/// the file is only on this phone, so it cannot be brought back.
+/// One photo at full size, with the way to delete it. Deleting does not ask: the page
+/// behind hides the photo and offers Undo, and the file is only erased when that ends.
 struct ProgressPhotoViewer: View {
     let photo: ProgressPhoto
     let store: ProgressPhotoStore
@@ -59,8 +59,6 @@ struct ProgressPhotoViewer: View {
     private var dismiss
     @State
     private var image: UIImage?
-    @State
-    private var confirmDelete = false
 
     var body: some View {
         NavigationStack {
@@ -91,18 +89,11 @@ struct ProgressPhotoViewer: View {
                 }
                 ToolbarItem(placement: .destructiveAction) {
                     Button("Delete photo", systemImage: "trash", role: .destructive) {
-                        confirmDelete = true
+                        onDelete(photo)
+                        dismiss()
                     }
                     .accessibilityIdentifier("progress-photo-delete")
                 }
-            }
-            .confirmationDialog("Delete this photo?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Delete photo", role: .destructive) {
-                    onDelete(photo)
-                    dismiss()
-                }
-            } message: {
-                Text("It is only on this phone, so it can't be brought back.")
             }
             .task {
                 let store = store

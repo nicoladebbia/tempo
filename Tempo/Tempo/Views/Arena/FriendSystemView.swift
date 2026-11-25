@@ -26,7 +26,7 @@ struct FriendSystemView: View {
     @State
     private var showInvite = false
     @State
-    private var friendToRemove: ArenaFriendDTO?
+    private var undoToast: ToastData?
     @State
     private var errorMessage: String?
     @State
@@ -77,24 +77,14 @@ struct FriendSystemView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog(
-            "Remove \(friendToRemove?.displayName ?? "this friend")?",
-            isPresented: Binding(get: { friendToRemove != nil }, set: {
-                if !$0 {
-                    friendToRemove = nil
-                }
-            }),
-            titleVisibility: .visible
-        ) {
-            Button("Remove friend", role: .destructive) {
-                if let friend = friendToRemove {
-                    run(friend.id) { try await arena.remove(friend) }
-                }
-            }
-            Button("Keep friend", role: .cancel) {}
-        } message: {
-            Text("You will both disappear from each other's leaderboard. You can add each other again with a link.")
-        }
+        // Removing a friend or declining a request can be taken back for a few seconds:
+        // the server is only asked when the Undo toast ends.
+        .arenaUndoToast($undoToast)
+        .firstTip(
+            "arena.friends",
+            "Invite a friend with your link. They only see your name, level and XP.",
+            systemImage: "person.2.fill"
+        )
     }
 
     // MARK: - Empty
@@ -192,9 +182,14 @@ struct FriendSystemView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .explains(Explainer.friendWeeklyXP.showing("\(friend.weeklyXP.formatted()) XP this week"))
             Menu {
                 Button("Remove friend", systemImage: "person.badge.minus", role: .destructive) {
-                    friendToRemove = friend
+                    undoToast = arena.removalToast(
+                        ArenaRemoval(kind: .friend, id: friend.id),
+                        message: "\(friend.displayName) removed."
+                    )
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -234,7 +229,10 @@ struct FriendSystemView: View {
             }
             HStack(spacing: Tide.s2) {
                 Button {
-                    run(request.id) { try await arena.decline(request) }
+                    undoToast = arena.removalToast(
+                        ArenaRemoval(kind: .request, id: request.id),
+                        message: "Request from \(request.displayName) declined."
+                    )
                 } label: {
                     Image(systemName: "xmark")
                         .font(Tide.bodyStrong)

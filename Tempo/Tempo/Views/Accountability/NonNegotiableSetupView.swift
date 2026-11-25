@@ -87,7 +87,11 @@ struct NonNegotiableSetupView: View {
                 "Delete Non-Negotiable?",
                 isPresented: Binding(
                     get: { confirmDeleteItem != nil },
-                    set: { if !$0 { confirmDeleteItem = nil } }
+                    set: {
+                        if !$0 {
+                            confirmDeleteItem = nil
+                        }
+                    }
                 ),
                 titleVisibility: .visible
             ) {
@@ -113,7 +117,10 @@ struct NonNegotiableSetupView: View {
                 }
             }
             // Leaving the page makes it final too: there is no toast left to undo from.
-            .onDisappear { commitPendingDeletion() }
+            .onDisappear {
+                commitPendingDeletion()
+                toast = nil
+            }
         }
     }
 
@@ -332,6 +339,19 @@ struct NonNegotiableSetupView: View {
         nn.order = nonNegotiables.count
         modelContext.insert(nn)
         try? modelContext.save()
+        offerAddUndo(ids: [nn.id], message: "\(nn.name) added.")
+    }
+
+    /// The tasks are in at once; Undo takes back exactly these.
+    private func offerAddUndo(ids: [UUID], message: String) {
+        // A removal still waiting on its own Undo becomes final first.
+        commitPendingDeletion()
+        toast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+            withAnimation(Tide.snap) {
+                _ = NonNegotiableAddUndo.remove(ids: ids, from: modelContext)
+            }
+            NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        }
     }
 
     /// An item that has recorded days takes them with it, so it asks first. One
@@ -396,6 +416,7 @@ struct NonNegotiableSetupView: View {
             ("Sleep", .sleep, "moon.fill", 7, .autoHealthkit),
         ]
 
+        var addedIDs: [UUID] = []
         for (index, t) in templates.enumerated() {
             let existing = nonNegotiables.contains { $0.type == t.1 }
             guard !existing else {
@@ -411,8 +432,15 @@ struct NonNegotiableSetupView: View {
                 order: nonNegotiables.count + index
             )
             modelContext.insert(nn)
+            addedIDs.append(nn.id)
         }
         try? modelContext.save()
+        if !addedIDs.isEmpty {
+            offerAddUndo(
+                ids: addedIDs,
+                message: addedIDs.count == 1 ? "1 task added." : "\(addedIDs.count) tasks added."
+            )
+        }
     }
 }
 

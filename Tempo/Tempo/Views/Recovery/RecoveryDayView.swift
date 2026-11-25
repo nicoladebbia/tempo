@@ -177,6 +177,10 @@ struct RecoveryDayView: View {
                 caption: "Recovery",
                 diameter: Tide.dialHero
             )
+            .explains(
+                Explainer.recoveryScore(zone: viewModel.todayRecovery == nil ? nil : viewModel.recoveryZone)
+                    .showing(viewModel.todayRecovery.map { "\(Int($0.recoveryScore.rounded())) percent" })
+            )
         } side: {
             // Date label — ticks via TimelineView so it survives midnight rollover.
             TimelineView(.everyMinute) { context in
@@ -359,7 +363,8 @@ struct RecoveryDayView: View {
                         unit: "ms",
                         delta: hrvDelta,
                         baselineValue: "\(Int(baseline))",
-                        isHigherBetter: true
+                        isHigherBetter: true,
+                        explainer: .hrv
                     )
                 }
                 if let rhrDelta = viewModel.rhrDelta, let baseline = viewModel.rhrBaseline30d {
@@ -370,7 +375,8 @@ struct RecoveryDayView: View {
                         unit: "bpm",
                         delta: rhrDelta,
                         baselineValue: "\(Int(baseline))",
-                        isHigherBetter: false
+                        isHigherBetter: false,
+                        explainer: .restingHeartRate
                     )
                 }
                 if let sleepDelta = viewModel.sleepDelta {
@@ -381,7 +387,8 @@ struct RecoveryDayView: View {
                         unit: "",
                         delta: sleepDelta,
                         baselineValue: viewModel.sleepNeededHours.map { "\(String(format: "%.1f", $0))h" } ?? "--",
-                        isHigherBetter: true
+                        isHigherBetter: true,
+                        explainer: .sleepAgainstNeed
                     )
                 }
                 if !hasRows {
@@ -401,7 +408,8 @@ struct RecoveryDayView: View {
         unit: String,
         delta: Double,
         baselineValue: String,
-        isHigherBetter: Bool
+        isHigherBetter: Bool,
+        explainer: Explainer
     ) -> some View {
         // A change that rounds to nothing is "on average", not an arrow with "-0".
         let rounded = delta.rounded()
@@ -421,7 +429,7 @@ struct RecoveryDayView: View {
         let average = Text("avg \(baselineValue)")
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)
-        return Group {
+        let row = Group {
             if typeSize.isAccessibilitySize {
                 // At large text the four parts no longer share a row: name and
                 // value on top, change and average underneath.
@@ -452,6 +460,7 @@ struct RecoveryDayView: View {
         .accessibilityLabel(
             "\(label) \(todayValue) \(unit), \(isFlat ? "right at" : (isPositive ? "better than" : "worse than")) your average of \(baselineValue)"
         )
+        return row.explains(explainer.showing("\(todayValue) \(unit)".trimmingCharacters(in: .whitespaces)))
     }
 
     // MARK: - Baseline Indicator Helper

@@ -165,6 +165,11 @@ struct LockdownMainView: View {
                     viewModel.loadToday(modelContext: modelContext)
                 }
         }
+        .firstTip(
+            "lockdown.home",
+            "Tap a task to finish or skip it. All done unlocks the day.",
+            systemImage: "lock.open.fill"
+        )
     }
 
     // MARK: - Date Header
@@ -186,6 +191,7 @@ struct LockdownMainView: View {
 
         return RecoveryHero {
             TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
+                .explains(Explainer.lockdownProgress.showing("\(percent) percent"))
         } side: {
             HStack(spacing: Tide.s2) {
                 Image(systemName: heroIcon)
@@ -350,6 +356,7 @@ struct LockdownMainView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
+                .explains(Explainer.lockdownPace.showing(prediction.onTrack ? "On pace" : "Behind"))
             }
         }
     }
@@ -449,7 +456,8 @@ struct LockdownMainView: View {
                 offerUndo("\(progress.nonNegotiable?.name ?? "Task") skipped.", undo)
             },
             onUpdateValue: { value in
-                viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
+                let undo = viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") updated.", undo)
             },
             onStartTimer: focusTimerEnabled ? {
                 viewModel.configureFocusTimer()
@@ -636,6 +644,9 @@ struct NonNegotiableCardView: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    /// The card is one VoiceOver element, so the streak explainer is also reachable as an action.
+    @State
+    private var streakExplainer: Explainer?
 
     private var nn: NonNegotiable? {
         progress.nonNegotiable
@@ -678,6 +689,14 @@ struct NonNegotiableCardView: View {
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(progress.isCompleted ? "" : (isExpanded ? "Hides actions" : "Shows actions"))
+        .accessibilityActions {
+            if habitStreakCount > 0 {
+                Button("How the streak works") {
+                    streakExplainer = Explainer.habitStreak.showing("\(habitStreakCount) days")
+                }
+            }
+        }
+        .explainerSheet($streakExplainer)
     }
 
     // MARK: - Header Row
@@ -709,6 +728,11 @@ struct NonNegotiableCardView: View {
                                 .font(Tide.numeral(Tide.numeralS - Tide.s2, .bold))
                         }
                         .foregroundStyle(Tide.streak)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
+                        .explains(Explainer.habitStreak.showing("\(habitStreakCount) days"))
+                        // The tap target is 44pt; the row stays slim.
+                        .padding(.vertical, -Tide.s3)
                     }
                 }
 

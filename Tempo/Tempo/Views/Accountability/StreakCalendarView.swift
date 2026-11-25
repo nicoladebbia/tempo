@@ -91,6 +91,7 @@ struct StreakCalendarView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Current streak, \(count) \(dayWord)")
+            .explains(Explainer.currentStreak.showing("\(count) \(dayWord)"))
         } side: {
             Text("Current streak").tideLabel()
 
@@ -198,6 +199,7 @@ struct StreakCalendarView: View {
 
             TideHeatmap(data: heatmapData)
                 .tideCard(padding: Tide.s4)
+                .explains(.streakHistory)
         }
     }
 
@@ -239,16 +241,17 @@ struct StreakCalendarView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("\(remaining) freezes remaining")
+                    Text(remaining == 1 ? "1 freeze remaining" : "\(remaining) freezes remaining")
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
-                    Text("Freezes protect your streak on missed days. Resets monthly.")
+                    Text("Freezes protect your streak on missed days.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
             }
             .tideCard(padding: Tide.s4)
             .accessibilityElement(children: .combine)
+            .explains(.streakFreezes)
         }
     }
 
@@ -266,6 +269,7 @@ struct StreakCalendarView: View {
                 }
             }
             .tideCard(padding: Tide.s4)
+            .explains(.streakMilestones)
         }
     }
 
