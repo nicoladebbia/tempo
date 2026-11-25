@@ -48,8 +48,9 @@ struct CoachChatView: View {
     private var reduceMotion
     @State
     private var inputText: String = ""
+    /// "Chat cleared" with Undo, shown over the transcript, never over the input.
     @State
-    private var endChatConfirm = false
+    private var toast: ToastData?
     /// Snapshot of the last partial transcript pushed into the field so
     /// the user can still type alongside the live mic stream without
     /// having the field overwritten on every partial tick.
@@ -95,6 +96,10 @@ struct CoachChatView: View {
                 budgetBanner(state)
             }
             transcript
+                // Top of the transcript: under the title bar, clear of the input bar.
+                .tempoToast($toast, placement: .top)
+                // On the transcript, so it rests above the input bar instead of under it.
+                .firstTip("coach.chat", "Ask a question, or tell me something to remember, like \"I never eat before 11am\".", systemImage: "sparkles")
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
@@ -107,17 +112,30 @@ struct CoachChatView: View {
             }
         }
         .tidePage()
-        .alert("End this chat?", isPresented: $endChatConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("End", role: .destructive) {
-                viewModel.endConversation(context: modelContext)
-                dismiss()
-            }
-        } message: {
-            Text("I'll save what we discussed and start fresh next time.")
-        }
         .onAppear {
             viewModel.loadOrStartConversation(context: modelContext)
+        }
+        // A toast that ran out (or was swiped away) without Undo makes the clear final.
+        .onChange(of: toast) { _, newValue in
+            if newValue == nil {
+                viewModel.commitPendingEnd()
+            }
+        }
+        // So does leaving the chat: there is no toast left to undo from.
+        .onDisappear { viewModel.commitPendingEnd() }
+    }
+
+    /// Clears the chat at once; the toast brings it back. An empty chat has
+    /// nothing to bring back, so the button just closes it.
+    private func endChat() {
+        if viewModel.endConversationWithUndo(context: modelContext) {
+            // The message you were waiting on is in the transcript; what you were typing stays.
+            pendingText = nil
+            toast = ToastData(message: "Chat cleared.", style: .info, actionTitle: "Undo") {
+                viewModel.undoEnd()
+            }
+        } else {
+            dismiss()
         }
     }
 
@@ -144,7 +162,7 @@ struct CoachChatView: View {
                         .buttonStyle(.tideCoachCircle)
                     }
                     Button(role: .destructive) {
-                        endChatConfirm = true
+                        endChat()
                     } label: {
                         Image(systemName: "xmark")
                             .accessibilityLabel(Text("End chat"))

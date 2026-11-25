@@ -261,6 +261,81 @@ struct NotificationInboxModelTests {
         #expect(Set(cleared.ids) == ["a", "b"])
     }
 
+    // MARK: Clear with Undo
+
+    @Test
+    func clearingWithUndoEmptiesTheListButLeavesNotificationCentreAlone() async {
+        let cleared = ClearedBox()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults())
+        await model.refresh()
+        #expect(model.clearTodayWithUndo() != nil)
+        #expect(model.items.isEmpty)
+        #expect(cleared.ids.isEmpty, "what cannot be taken back waits for the end of the toast")
+    }
+
+    @Test
+    func undoPutsTheSameListBackWithItsReadMarks() async throws {
+        let store = defaults()
+        let cleared = ClearedBox()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: store)
+        await model.refresh()
+        model.markRead(try #require(model.items.first { $0.requestID == "b" }))
+        cleared.ids = []
+        let before = model.items
+        model.clearTodayWithUndo()
+        model.undoClearToday()
+        #expect(model.items == before)
+        #expect(model.unreadCount == 1)
+        #expect(cleared.ids.isEmpty)
+        // And it is really back in the saved list, not only on screen.
+        #expect(self.model(delivered: [], defaults: store).items == before)
+        model.commitPendingClear()
+        #expect(cleared.ids.isEmpty, "nothing left to finish after Undo")
+    }
+
+    @Test
+    func finishingTheClearTakesThemOutOfNotificationCentreOnce() async {
+        let cleared = ClearedBox()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults())
+        await model.refresh()
+        model.clearTodayWithUndo()
+        model.commitPendingClear()
+        model.commitPendingClear()
+        #expect(Set(cleared.ids) == ["a", "b"])
+        #expect(cleared.ids.count == 2)
+        model.undoClearToday()
+        #expect(model.items.isEmpty, "too late once it is final")
+    }
+
+    @Test
+    func aRefreshDuringTheUndoWindowDoesNotBringThemBack() async {
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], defaults: defaults())
+        await model.refresh()
+        model.clearTodayWithUndo()
+        await model.refresh()
+        #expect(model.items.isEmpty, "iOS still lists them until the clear is final")
+        model.undoClearToday()
+        #expect(model.items.count == 2)
+    }
+
+    @Test
+    func clearingAnEmptyListOffersNothingToUndo() {
+        let model = model(defaults: defaults())
+        #expect(model.clearTodayWithUndo() == nil)
+        #expect(model.pendingClear == nil)
+    }
+
+    @Test
+    func aSecondClearMakesTheFirstFinal() async {
+        let cleared = ClearedBox()
+        let model = model(delivered: [row("a", minutesAgo: 30)], cleared: cleared, defaults: defaults())
+        await model.refresh()
+        model.clearTodayWithUndo()
+        #expect(model.clearTodayWithUndo() == nil)
+        #expect(cleared.ids == ["a"])
+        #expect(model.pendingClear == nil)
+    }
+
     @Test
     func signingOutForgetsTheListEvenAfterARelaunch() async {
         let store = defaults()

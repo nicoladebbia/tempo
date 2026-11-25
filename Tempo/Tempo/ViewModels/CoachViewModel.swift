@@ -119,6 +119,8 @@ final class CoachViewModel {
         context: ModelContext,
         appendUserMessage: Bool
     ) async {
+        // Writing in the fresh chat makes the clear final: its Undo is over.
+        commitPendingEnd()
         guard let conversation = activeConversation else {
             pendingError = "No active conversation."
             return
@@ -234,18 +236,102 @@ final class CoachViewModel {
         activeConversation = nil
         messages = []
         undoLabel = nil
+        runExtractor(on: transcript, context: context)
+    }
 
-        if let extractorClient {
-            // Silent fire-and-forget per the Phase 4c spec ("silent log +
-            // skip, don't retry"). RunReport is logged for debugging but
-            // not surfaced to UI — Phase 8 PostHog logs the count.
-            Task { [extractorClient] in
-                _ = try? await PreferenceExtractor.extract(
-                    from: transcript,
-                    using: extractorClient,
-                    context: context
-                )
-            }
+    // MARK: - Clear with Undo
+
+    /// A chat that was just cleared and can still be brought back. Nothing that
+    /// cannot be taken back has happened yet: the extractor (which sends the
+    /// transcript to the server) and the agent's own undo list wait for
+    /// `commitPendingEnd`.
+    struct PendingEnd {
+        let endedID: UUID
+        let freshID: UUID?
+        let transcript: CoachTranscript
+        let context: ModelContext
+    }
+
+    private(set) var pendingEnd: PendingEnd?
+
+    /// Clears the chat at once and starts a fresh one in its place, but keeps the
+    /// cleared chat so `undoEnd` can bring it back. False when there is nothing
+    /// to clear (no conversation, or nobody has said anything), so the caller can
+    /// simply close the screen.
+    @discardableResult
+    func endConversationWithUndo(context: ModelContext) -> Bool {
+        // A second clear makes the first one final.
+        commitPendingEnd()
+        guard let conv = activeConversation, !conv.messages.isEmpty else {
+            return false
+        }
+        conv.isActive = false
+        let transcript = Self.transcript(from: conv)
+        try? context.save()
+        activeConversation = nil
+        messages = []
+        undoLabel = nil
+        // The fresh chat starts without the old one's error banner.
+        pendingError = nil
+        blocker = nil
+        loadOrStartConversation(context: context)
+        pendingEnd = PendingEnd(
+            endedID: conv.id, freshID: activeConversation?.id, transcript: transcript, context: context
+        )
+        return true
+    }
+
+    /// Brings the cleared chat back exactly as it was and drops the empty one that
+    /// replaced it. False when it is too late (someone wrote in the new chat, or
+    /// the old one is gone); the clear is then final.
+    @discardableResult
+    func undoEnd() -> Bool {
+        guard let pending = pendingEnd else {
+            return false
+        }
+        let endedID = pending.endedID
+        var descriptor = FetchDescriptor<CoachConversation>(predicate: #Predicate<CoachConversation> { $0.id == endedID })
+        descriptor.fetchLimit = 1
+        guard let ended = (try? pending.context.fetch(descriptor))?.first,
+              let fresh = activeConversation, fresh.id == pending.freshID, fresh.messages.isEmpty
+        else {
+            commitPendingEnd()
+            return false
+        }
+        pendingEnd = nil
+        pending.context.delete(fresh)
+        ended.isActive = true
+        try? pending.context.save()
+        activeConversation = ended
+        refreshMirror()
+        refreshUndoLabel()
+        return true
+    }
+
+    /// Makes the clear final: the agent's undo list goes and the preference
+    /// extractor reads the transcript. Safe to call when nothing is pending.
+    func commitPendingEnd() {
+        guard let pending = pendingEnd else {
+            return
+        }
+        pendingEnd = nil
+        service.clearUndoStack()
+        runExtractor(on: pending.transcript, context: pending.context)
+    }
+
+    private func runExtractor(on transcript: CoachTranscript, context: ModelContext) {
+        guard let extractorClient else {
+            return
+        }
+        // Silent fire-and-forget per the Phase 4c spec ("silent log +
+        // skip, don't retry"). RunReport is logged for debugging but
+        // not surfaced to UI — Phase 8 PostHog logs the count.
+        Task { [extractorClient] in
+            _ = try? await PreferenceExtractor.extract(
+                from: transcript,
+                using: extractorClient,
+                context: context
+            )
         }
     }
 

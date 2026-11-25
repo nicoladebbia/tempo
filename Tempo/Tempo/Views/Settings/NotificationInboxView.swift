@@ -24,8 +24,9 @@ struct NotificationInboxView: View {
     @Environment(\.scenePhase)
     private var scenePhase
 
+    /// "Cleared", with Undo.
     @State
-    private var confirmClear = false
+    private var toast: ToastData?
 
     private let inbox = NotificationInbox.shared
 
@@ -50,9 +51,7 @@ struct NotificationInboxView: View {
                             Label("Mark all as read", systemImage: "checkmark.circle")
                         }
                         .disabled(inbox.unreadCount == 0)
-                        Button(role: .destructive) {
-                            confirmClear = true
-                        } label: {
+                        Button(role: .destructive, action: clearToday) {
                             Label("Clear today", systemImage: "trash")
                         }
                     } label: {
@@ -65,17 +64,34 @@ struct NotificationInboxView: View {
                 }
             }
         }
-        .confirmationDialog("Clear today's notifications?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Clear today", role: .destructive) { inbox.clearToday() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They also leave Notification Centre.")
-        }
+        // At the bottom, clear of the toolbar menu that cleared the list.
+        .tempoToast($toast, placement: .bottom)
+        .firstTip("notifications.inbox", "Reminders from Tempo collect here for the day. Tap one to open what it is about.", systemImage: "bell")
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await inbox.refresh() }
+            } else {
+                // Leaving the app makes a clear final: there is no toast left to undo from.
+                inbox.commitPendingClear()
             }
+        }
+        // A toast that ran out (or was swiped away) without Undo makes the clear final.
+        .onChange(of: toast) { _, newValue in
+            if newValue == nil {
+                inbox.commitPendingClear()
+            }
+        }
+        .onDisappear { inbox.commitPendingClear() }
+    }
+
+    /// Clears today's list at once. They leave Notification Centre when the toast is over.
+    private func clearToday() {
+        guard inbox.clearTodayWithUndo() != nil else {
+            return
+        }
+        toast = ToastData(message: "Today's notifications cleared.", style: .info, actionTitle: "Undo") {
+            inbox.undoClearToday()
         }
     }
 
