@@ -98,7 +98,7 @@ struct GroceryStoreModeView: View {
             // Before the bottom bar, so the toast rests above "Done shopping", not on it, and
             // takes its own room: a floating toast sits on the big rows, and a tap on its Undo
             // would tick the row under it.
-            .kitchenToast($toast)
+            .tempoToast($toast)
             .kitchenBottomBar {
                 doneShoppingButton
             }

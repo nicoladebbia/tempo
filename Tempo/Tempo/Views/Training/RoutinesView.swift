@@ -104,7 +104,7 @@ struct RoutinesView: View {
             "A routine is a saved workout: build one here or save today's from the Training tab, and Tempo still sets the weights.",
             systemImage: "list.bullet.rectangle"
         )
-        .tempoToast($toast, placement: .bottom)
+        .tempoToast($toast)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -256,7 +256,7 @@ struct RoutineEditorView: View {
 
     var body: some View {
         editorBody
-            .tempoToast($toast, placement: .bottom)
+            .tempoToast($toast)
             .persistenceAlert()
     }
 

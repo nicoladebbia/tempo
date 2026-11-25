@@ -65,7 +65,7 @@ struct NotificationInboxView: View {
             }
         }
         // At the bottom, clear of the toolbar menu that cleared the list.
-        .tempoToast($toast, placement: .bottom)
+        .tempoToast($toast)
         .firstTip("notifications.inbox", "Reminders from Tempo collect here for the day. Tap one to open what it is about.", systemImage: "bell")
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in

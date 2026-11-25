@@ -112,7 +112,7 @@ struct CaptureSheet: View {
             reloadWater()
         }
         .sensoryFeedback(.success, trigger: waterTaps)
-        .tempoToast($toast, placement: .bottom)
+        .tempoToast($toast)
         .firstTip("capture.sheet", "Tap +250 ml for a glass of water, or pick what you want to log.", systemImage: "plus.circle")
     }
 

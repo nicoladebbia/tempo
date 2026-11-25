@@ -10,11 +10,11 @@ import SwiftUI
 
 // MARK: - TempoToast
 
-// A glass capsule that rises from the bottom (or drops from the top): symbol, one
-// or two lines, and an optional action ("Undo"). The ink tint keeps white text
-// readable over any page. At accessibility sizes the action sits under the
-// message, so neither has to squeeze the other, and the message stops at
-// `accessibilityLineLimit` lines so a toast never takes over the screen.
+// A glass capsule: symbol, one or two lines, and an optional action ("Undo"). The ink
+// tint keeps white text readable over any page. At accessibility sizes the action sits
+// under the message, so neither has to squeeze the other, and the message stops at
+// `accessibilityLineLimit` lines so a toast never takes over the screen. It is shown
+// by `.tempoToast`, which gives it its own room (see `ToastModifier`).
 
 struct TempoToast: View {
     let message: String
@@ -113,107 +113,193 @@ struct TempoToast: View {
             in: typeSize.isAccessibilitySize ? AnyShape(.rect(cornerRadius: Tide.tileRadius)) : AnyShape(.capsule)
         )
         .padding(.horizontal, Tide.edge)
+        // The whole footprint is one solid hit shape, so a tap beside the button never reaches the page.
+        .contentShape(.rect)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("toast")
     }
 }
 
-// MARK: - ToastPlacement
+// MARK: - ToastPresence
 
-/// Where a toast sits. `.top` is the original place and the default, so a screen that
-/// does nothing keeps what it had. `.bottom` never covers a navigation bar (Cancel, Save),
-/// a page title or the workout timer: use it on pages with no bottom bar of their own.
-/// `.aboveTabBar` is for a toast hosted outside the tabs (the app shell), so it rests
-/// above the floating tab bar instead of on it.
-enum ToastPlacement {
-    case top
-    case bottom
-    case aboveTabBar
+/// Whether any toast is up (or still holding its room). A first-time tip waits while one is,
+/// so the two never share the bottom edge and a tip's close button is never under the toast.
+@MainActor
+@Observable
+final class ToastPresence {
+    static let shared = ToastPresence()
 
-    var alignment: Alignment {
-        self == .top ? .top : .bottom
+    private(set) var count = 0
+
+    var isUp: Bool {
+        count > 0
     }
 
-    var edge: Edge {
-        self == .top ? .top : .bottom
+    func enter() {
+        count += 1
     }
 
-    /// Space kept between the toast and the edge it sits on.
-    var inset: CGFloat {
-        switch self {
-        case .top, .bottom: Tide.s2
-        case .aboveTabBar: Tide.s2 + Tide.tabBarClearance
-        }
+    func leave() {
+        count = max(0, count - 1)
     }
+}
+
+// MARK: - ToastSlot
+
+enum ToastSlot {
+    /// How long a toast's room stays, empty and not tappable, after the toast is gone.
+    static let shield: Duration = .milliseconds(600)
 }
 
 // MARK: - ToastModifier
 
-// Attach with `.tempoToast($toast)`. Setting the binding shows the toast;
-// it clears itself after `ToastData.duration`, or on a swipe back the way it came.
+// Attach with `.tempoToast($toast)`. Setting the binding shows the toast; it clears itself after
+// `ToastData.duration`, or on a swipe down.
+//
+// The toast takes its own room at the bottom edge (a bottom `safeAreaInset`) instead of floating
+// over the page. Floating was the bug: it slid in over rows, bars and tips, and while it moved a
+// tap on its Undo reached whatever it was passing over. Now it never overlaps the page, it does not
+// travel (it fades and grows a little where it rests), and its whole footprint is solid, so a tap
+// next to the button is absorbed too. It rests above the tab bar or a bottom bar that is in the
+// safe area, and never on a navigation bar (Cancel, Save) or a timer.
+//
+// When the toast goes, its room stays for `ToastSlot.shield` as an empty gap that swallows taps,
+// then closes. A late tap on where Undo was lands on nothing, not on the delete button or the row
+// the page shows there a moment later.
 
 struct ToastModifier: ViewModifier {
     @Binding
     var toast: ToastData?
-    var placement: ToastPlacement = .top
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    /// The last toast shown: drawn (invisible, not tappable) while its room is held after `toast` clears.
+    @State
+    private var last: ToastData?
+
+    private var displayed: ToastData? {
+        toast ?? last
+    }
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: placement.alignment) {
-                if let toast {
-                    TempoToast(
-                        message: toast.message,
-                        style: toast.style,
-                        actionTitle: toast.actionTitle,
-                        action: toast.action.map { run in
-                            {
-                                // Clear first: run() may set its own (error) toast.
-                                withAnimation(Tide.snap) {
-                                    self.toast = nil
-                                }
-                                run()
-                            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                slot
+            }
+            .animation(reduceMotion ? nil : Tide.snap, value: displayed?.id)
+            .task(id: toast?.id) {
+                await follow()
+            }
+            .modifier(ToastPresenceMark(isUp: displayed != nil))
+    }
+
+    @ViewBuilder
+    private var slot: some View {
+        if let shown = displayed {
+            let live = toast?.id == shown.id
+            TempoToast(
+                message: shown.message,
+                style: shown.style,
+                actionTitle: shown.actionTitle,
+                action: shown.action.map { run in
+                    {
+                        // A tap on a toast that is already gone does nothing.
+                        guard self.toast?.id == shown.id else {
+                            return
                         }
-                    )
-                    .padding(placement == .top ? .top : .bottom, placement.inset)
-                    // Per-toast identity so a replacement re-runs onAppear
-                    // (haptic + its own auto-dismiss timer).
-                    .id(toast.id)
-                    .transition(reduceMotion ? .opacity : .move(edge: placement.edge).combined(with: .opacity))
-                    .onAppear {
-                        HapticManager.notification(toast.style.haptic)
-                        // A toast is not focused, so VoiceOver would never read it.
-                        AccessibilityNotification.Announcement(toast.spokenText).post()
-                        // A toast with an action stays long enough to use it;
-                        // a newer toast must not be dismissed by an older timer.
-                        let shownID = toast.id
-                        DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration) {
-                            guard self.toast?.id == shownID else {
-                                return
-                            }
+                        // Clear first: run() may set its own (error) toast.
+                        withAnimation(Tide.snap) {
+                            self.toast = nil
+                        }
+                        run()
+                    }
+                }
+            )
+            .opacity(live ? 1 : 0)
+            .animation(reduceMotion ? nil : Tide.snap, value: live)
+            .allowsHitTesting(live)
+            .accessibilityHidden(!live)
+            .overlay {
+                if !live {
+                    Color.clear
+                        .contentShape(.rect)
+                        .onTapGesture {}
+                }
+            }
+            .padding(.vertical, Tide.s2)
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onEnded { value in
+                        // Swipe it back down, the way a bottom bar goes.
+                        if value.translation.height > 10 {
                             withAnimation(Tide.snap) {
                                 self.toast = nil
                             }
                         }
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: 10)
-                            .onEnded { value in
-                                // Swipe it away the way it came in.
-                                let away = placement == .top ? value.translation.height < -10 : value.translation.height > 10
-                                if away {
-                                    withAnimation(Tide.snap) {
-                                        self.toast = nil
-                                    }
-                                }
-                            }
-                    )
-                }
+                    },
+                isEnabled: live
+            )
+            // Per-toast identity so a replacement is a new toast (its own transition).
+            .id(shown.id)
+            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.97, anchor: .bottom)))
+        }
+    }
+
+    /// Runs for each toast (and once when it clears): feedback, the auto-dismiss timer, then the room.
+    private func follow() async {
+        guard let current = toast else {
+            guard last != nil else {
+                return
             }
-            .animation(Tide.lively, value: toast?.id)
+            try? await Task.sleep(for: ToastSlot.shield)
+            guard !Task.isCancelled else {
+                return
+            }
+            withAnimation(reduceMotion ? nil : Tide.snap) {
+                last = nil
+            }
+            return
+        }
+        last = current
+        HapticManager.notification(current.style.haptic)
+        // A toast is not focused, so VoiceOver would never read it.
+        AccessibilityNotification.Announcement(current.spokenText).post()
+        // A toast with an action stays long enough to use it. A newer toast is never
+        // dismissed by an older timer: this task is cancelled when the id changes.
+        try? await Task.sleep(for: .seconds(current.duration))
+        guard !Task.isCancelled, toast?.id == current.id else {
+            return
+        }
+        withAnimation(Tide.snap) {
+            toast = nil
+        }
+    }
+}
+
+// MARK: - ToastPresenceMark
+
+/// Counts this toast slot in `ToastPresence` while it is up.
+private struct ToastPresenceMark: ViewModifier {
+    let isUp: Bool
+    @State
+    private var counted = false
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { sync(isUp) }
+            .onChange(of: isUp) { _, now in sync(now) }
+            .onDisappear { sync(false) }
+    }
+
+    private func sync(_ up: Bool) {
+        if up, !counted {
+            counted = true
+            ToastPresence.shared.enter()
+        } else if !up, counted {
+            counted = false
+            ToastPresence.shared.leave()
+        }
     }
 }
 
@@ -246,7 +332,8 @@ struct ToastData: Identifiable, Equatable {
 }
 
 extension View {
-    func tempoToast(_ toast: Binding<ToastData?>, placement: ToastPlacement = .top) -> some View {
-        modifier(ToastModifier(toast: toast, placement: placement))
+    /// Shows `toast` in its own room at the bottom of this view (see `ToastModifier`).
+    func tempoToast(_ toast: Binding<ToastData?>) -> some View {
+        modifier(ToastModifier(toast: toast))
     }
 }

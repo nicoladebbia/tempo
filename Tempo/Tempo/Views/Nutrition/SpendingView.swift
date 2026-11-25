@@ -89,7 +89,7 @@ struct SpendingView: View {
         }
         .tidePage()
         // Before the bottom bar, so the toast rests above "Scan a receipt", not on it.
-        .kitchenToast($toast)
+        .tempoToast($toast)
         .kitchenBottomBar {
             if canScan {
                 Button {

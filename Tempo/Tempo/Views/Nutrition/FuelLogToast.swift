@@ -17,6 +17,8 @@ extension EnvironmentValues {
     /// True below a view that already shows Fuel log toasts, so a log screen
     /// knows it can close at once and leave the toast to that host.
     @Entry var fuelLogToastHosted: Bool = false
+    /// The shell's toast, for the tab on screen to show (see `shellToastSlot`).
+    @Entry var shellToast: Binding<ToastData?>?
 }
 
 // MARK: - FuelLogToast
@@ -61,7 +63,9 @@ enum FuelLogToast {
 // MARK: - FuelLogToastHost
 
 struct FuelLogToastHost: ViewModifier {
-    var placement: ToastPlacement = .top
+    /// False on the app shell: it keeps the toast but cannot show it (a slot outside the tab bar
+    /// would sit under it), so each tab shows it with `shellToastSlot` instead.
+    var showsSlot: Bool = true
 
     @Environment(\.fuelLogToastHosted)
     private var alreadyHosted
@@ -71,17 +75,24 @@ struct FuelLogToastHost: ViewModifier {
     func body(content: Content) -> some View {
         if alreadyHosted {
             content
+        } else if showsSlot {
+            hosted(content)
+                .tempoToast($toast)
         } else {
-            content
-                .environment(\.fuelLogToastHosted, true)
-                .tempoToast($toast, placement: placement)
-                .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
-                    if let next = FuelLogToast.toast(from: note) {
-                        toast = next
-                        dismissLater(next)
-                    }
-                }
+            hosted(content)
+                .environment(\.shellToast, $toast)
         }
+    }
+
+    private func hosted(_ content: Content) -> some View {
+        content
+            .environment(\.fuelLogToastHosted, true)
+            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
+                if let next = FuelLogToast.toast(from: note) {
+                    toast = next
+                    dismissLater(next)
+                }
+            }
     }
 
     /// The toast's own timer does not run for one posted from inside another toast's
@@ -103,8 +114,31 @@ extension View {
     /// Shows the toasts Fuel logs post (with Undo) on top of this screen. A
     /// second host inside a first one does nothing, so the Fuel tab and the app
     /// shell can both use it without double toasts.
-    func fuelLogToastHost(placement: ToastPlacement = .top) -> some View {
-        modifier(FuelLogToastHost(placement: placement))
+    func fuelLogToastHost(showsSlot: Bool = true) -> some View {
+        modifier(FuelLogToastHost(showsSlot: showsSlot))
+    }
+
+    /// Shows the app shell's toast in this tab's own room above the tab bar. Put it on a tab's
+    /// root; `active` is whether that tab is the one on screen, so only one slot shows it.
+    func shellToastSlot(active: Bool) -> some View {
+        modifier(ShellToastSlot(active: active))
+    }
+}
+
+// MARK: - ShellToastSlot
+
+private struct ShellToastSlot: ViewModifier {
+    let active: Bool
+    @Environment(\.shellToast)
+    private var shellToast
+
+    func body(content: Content) -> some View {
+        content.tempoToast(
+            Binding(
+                get: { active ? shellToast?.wrappedValue : nil },
+                set: { shellToast?.wrappedValue = $0 }
+            )
+        )
     }
 }
 

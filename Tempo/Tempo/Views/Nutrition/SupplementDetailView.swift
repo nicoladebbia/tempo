@@ -70,7 +70,7 @@ struct SupplementDetailView: View {
         }
         .kitchenPage()
         // Before the bottom bar, so the toast rests above "Took it", not on it.
-        .kitchenToast($toast)
+        .tempoToast($toast)
         .kitchenBottomBar {
             tookItBar(takenToday: takenToday, dose: dose)
         }
