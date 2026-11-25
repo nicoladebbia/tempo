@@ -42,6 +42,11 @@ final class APIContractTests: XCTestCase {
         "push-meal_plan_ready", "push-recovery_morning", "push-general",
         "coach-sessions-recent", "coach-recovery", "coach-recovery-needs-weigh-in", "push-post_workout_weighin",
         "integrations-whoop-token-put",
+        "arena-stats-put", "leaderboards-friends",
+        "friends-get", "friends-delete", "friends-requests-get", "friends-requests-post",
+        "friends-requests-accept", "friends-requests-decline",
+        "friends-invite-post", "friends-invite-preview", "friends-invite-accept", "friends-invite-revoke",
+        "challenges-get", "challenges-detail", "challenges-post", "challenges-join", "challenges-leave",
     ]
 
     private func goldenData(_ slug: String, file: StaticString = #filePath, line: UInt = #line) throws -> Data {
@@ -349,6 +354,139 @@ final class APIContractTests: XCTestCase {
         XCTAssertEqual(json["drank_liters"] as? Double, 0.5)
         XCTAssertNil(json["urine_liters"])
         XCTAssertEqual((json["weigh_ins"] as? [[String: Any]])?.first?["source"] as? String, "withings")
+    }
+
+    // MARK: - Arena: friends, leaderboard, challenges
+
+    func testArenaStatsPut() throws {
+        let r: ArenaStatsResponseDTO = try decode("arena-stats-put")
+        XCTAssertEqual(r.daysSaved, 1)
+    }
+
+    func testArenaStatsRequestEncodesSnakeCase() throws {
+        let req = ArenaStatsRequestDTO(
+            displayName: "Nic", level: 4, xpTotal: 1200, streakDays: 9,
+            days: [ArenaStatsDayDTO(day: "2026-11-24", xp: 150, workouts: 1, studyMinutes: 50)]
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(req)) as? [String: Any])
+        XCTAssertEqual(json["display_name"] as? String, "Nic")
+        XCTAssertEqual(json["xp_total"] as? Int, 1200)
+        XCTAssertEqual(json["streak_days"] as? Int, 9)
+        let day = try XCTUnwrap((json["days"] as? [[String: Any]])?.first)
+        XCTAssertEqual(day["day"] as? String, "2026-11-24")
+        XCTAssertEqual(day["study_minutes"] as? Int, 50)
+        XCTAssertNil(json["displayName"])
+        XCTAssertNil(day["studyMinutes"])
+    }
+
+    func testFriendsGet() throws {
+        let friends: [ArenaFriendDTO] = try decode("friends-get")
+        let bob = try XCTUnwrap(friends.first)
+        XCTAssertEqual(bob.displayName, "Bob")
+        XCTAssertEqual(bob.level, 3)
+        XCTAssertEqual(bob.weeklyXP, 240)
+        XCTAssertEqual(bob.userId, "usr_000000000000000000000001")
+        XCTAssertEqual(bob.id, bob.friendshipId)
+        XCTAssertEqual(bob.friendsSince, try date())
+    }
+
+    func testFriendRequestsGet() throws {
+        let requests: [ArenaFriendRequestDTO] = try decode("friends-requests-get")
+        let first = try XCTUnwrap(requests.first)
+        XCTAssertTrue(first.isIncoming)
+        XCTAssertEqual(first.status, "pending")
+        XCTAssertEqual(first.level, 2)
+        XCTAssertFalse(first.displayName.isEmpty)
+    }
+
+    func testFriendRequestsPostAndBodyEncoding() throws {
+        let sent: ArenaFriendRequestDTO = try decode("friends-requests-post")
+        XCTAssertFalse(sent.isIncoming)
+        let body = ArenaSendRequestBodyDTO(userId: "usr_1")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as? [String: Any])
+        XCTAssertEqual(json["user_id"] as? String, "usr_1")
+    }
+
+    func testFriendAnswersDecode() throws {
+        let accepted: ArenaFriendDTO = try decode("friends-requests-accept")
+        XCTAssertEqual(accepted.weeklyXP, 180)
+        XCTAssertEqual(accepted.level, 2)
+        let viaLink: ArenaFriendDTO = try decode("friends-invite-accept")
+        XCTAssertEqual(viaLink.weeklyXP, 0)
+        for slug in ["friends-requests-decline", "friends-delete", "friends-invite-revoke"] {
+            try assertEnvelopeOK(slug)
+        }
+    }
+
+    func testFriendInviteLink() throws {
+        let invite: ArenaInviteDTO = try decode("friends-invite-post")
+        XCTAssertEqual(invite.token, "a1b2c3d4e5f6g7h8")
+        XCTAssertTrue(invite.url.hasSuffix("/i/\(invite.token)"))
+        XCTAssertFalse(invite.displayName.isEmpty)
+        // The app opens this very link: the token must survive the round trip.
+        XCTAssertEqual(ArenaInviteLink.token(from: try XCTUnwrap(URL(string: invite.url))), invite.token)
+    }
+
+    func testFriendInvitePreview() throws {
+        let preview: ArenaInvitePreviewDTO = try decode("friends-invite-preview")
+        XCTAssertFalse(preview.isOwn)
+        XCTAssertFalse(preview.alreadyFriends)
+        XCTAssertEqual(preview.level, 1)
+        XCTAssertFalse(preview.displayName.isEmpty)
+    }
+
+    func testFriendsLeaderboard() throws {
+        let board: ArenaLeaderboardDTO = try decode("leaderboards-friends")
+        XCTAssertEqual(board.period, "weekly")
+        XCTAssertEqual(board.weekStart, try date())
+        XCTAssertEqual(board.myRank, 2)
+        XCTAssertEqual(board.myXP, 180)
+        XCTAssertEqual(board.rankings.count, 2)
+        XCTAssertEqual(board.rankings.first?.user.displayName, "Bob")
+        XCTAssertEqual(board.rankings.first?.xp, 240)
+        XCTAssertEqual(board.rankings.filter(\.isMe).count, 1)
+    }
+
+    func testChallengesGet() throws {
+        let list: [ArenaChallengeDTO] = try decode("challenges-get")
+        let invitation = try XCTUnwrap(list.first)
+        XCTAssertTrue(invitation.isInvitation)
+        XCTAssertFalse(invitation.isJoined)
+        XCTAssertEqual(invitation.metricKind, .xpTotal)
+        XCTAssertEqual(invitation.startDay, "2026-01-01")
+        XCTAssertEqual(invitation.endDay, "2026-01-07")
+        XCTAssertNil(invitation.myRank)
+        XCTAssertEqual(invitation.participants.count, 3)
+        // An invited person has no rank.
+        XCTAssertNil(invitation.participants.first(where: { $0.isMe })?.rank)
+        XCTAssertEqual(invitation.participants.first?.rank, 1)
+    }
+
+    func testChallengeCreateAndDetail() throws {
+        let created: ArenaChallengeDTO = try decode("challenges-post")
+        XCTAssertTrue(created.isCreator)
+        XCTAssertTrue(created.isJoined)
+        XCTAssertEqual(created.myRank, 1)
+        XCTAssertEqual(created.myScore, 180)
+        let detail: ArenaChallengeDTO = try decode("challenges-detail")
+        XCTAssertEqual(detail.myRank, 2)
+        XCTAssertEqual(detail.memberCount, 2)
+        for slug in ["challenges-join", "challenges-leave"] {
+            try assertEnvelopeOK(slug)
+        }
+    }
+
+    func testChallengeCreateBodyEncodesSnakeCase() throws {
+        let body = ArenaChallengeCreateDTO(
+            title: "Gym week", description: nil, metric: "workout_count", durationDays: 7,
+            startsOn: nil, maxParticipants: nil, inviteUserIds: ["usr_1", "usr_2"]
+        )
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as? [String: Any])
+        XCTAssertEqual(json["title"] as? String, "Gym week")
+        XCTAssertEqual(json["metric"] as? String, "workout_count")
+        XCTAssertEqual(json["duration_days"] as? Int, 7)
+        XCTAssertEqual(json["invite_user_ids"] as? [String], ["usr_1", "usr_2"])
+        XCTAssertNil(json["durationDays"])
     }
 
     func testCoachPushPayload() throws {

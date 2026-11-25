@@ -327,68 +327,93 @@ final class XPEngine: XPEngineProtocol, @unchecked Sendable {
 
     // MARK: - XP Earning Categories
 
+    /// Exactly what `dayAwards(for:)` pays, so the "How XP works" sheet never
+    /// promises XP the app does not give.
     static var xpEarningCategories: [XPEarningCategory] {
         [
             XPEarningCategory(
                 emoji: "🏋️", name: "Workout",
-                description: "Complete a workout",
-                xpRange: "50 base + 10/exercise"
+                description: "Finish a workout",
+                xpRange: "50 + 10 per exercise"
             ),
             XPEarningCategory(
-                emoji: "🌅", name: "Early Bird Workout",
-                description: "Workout before 8am",
-                xpRange: "+25 bonus"
+                emoji: "🌅", name: "Early bird workout",
+                description: "Start a workout before 8am",
+                xpRange: "+25"
             ),
             XPEarningCategory(
-                emoji: "📖", name: "Study (Pomodoro)",
-                description: "Complete a 25-min pomodoro",
-                xpRange: "25 per pomodoro"
+                emoji: "📖", name: "Study",
+                description: "Every 25 minutes of focus time",
+                xpRange: "25 per 25 min, +10 first of the day"
             ),
             XPEarningCategory(
-                emoji: "🌅", name: "Early Bird Study",
-                description: "Study before 8am",
-                xpRange: "+25 bonus"
+                emoji: "🌅", name: "Early bird study",
+                description: "Start studying before 8am",
+                xpRange: "+25"
             ),
             XPEarningCategory(
                 emoji: "🍴", name: "Meals",
-                description: "Log meals throughout the day",
-                xpRange: "5/meal + 40 all logged"
+                description: "Log breakfast, lunch, dinner and snacks",
+                xpRange: "5 per meal, +40 for all three main meals"
             ),
             XPEarningCategory(
-                emoji: "✓", name: "Non-Negotiables",
-                description: "Complete all daily non-negotiables",
-                xpRange: "+100 bonus"
+                emoji: "✓", name: "Tasks",
+                description: "Finish every daily task",
+                xpRange: "+100"
             ),
             XPEarningCategory(
-                emoji: "🌙", name: "Sleep",
-                description: "Sleep score >= 85%",
-                xpRange: "+10"
-            ),
-            XPEarningCategory(
-                emoji: "🦶", name: "Steps",
-                description: "8,000+ steps",
-                xpRange: "+10"
-            ),
-            XPEarningCategory(
-                emoji: "⭐", name: "Perfect Day",
-                description: "All 5 quadrants green",
-                xpRange: "+150"
-            ),
-            XPEarningCategory(
-                emoji: "🔥", name: "Streak Daily",
-                description: "Daily bonus for active streak",
-                xpRange: "+25 (7d) / +50 (30d+)"
-            ),
-            XPEarningCategory(
-                emoji: "🏆", name: "Streak Milestone",
-                description: "Hit 7/14/30/60/100 day streaks",
-                xpRange: "200 - 5,000"
-            ),
-            XPEarningCategory(
-                emoji: "🏅", name: "Achievement",
-                description: "Unlock achievements for XP",
-                xpRange: "Varies by rarity"
+                emoji: "🏅", name: "Achievements",
+                description: "Unlock an achievement",
+                xpRange: "Set by its rarity"
             ),
         ]
+    }
+}
+
+// MARK: - Day awards
+
+extension XPEngine {
+    /// The XP one day of real activity is worth. No penalties: a day with
+    /// nothing in it is worth nothing, never less than nothing.
+    func dayAwards(for day: XPDayActivity) -> [XPAward] {
+        var awards: [XPAward] = []
+
+        if day.workouts > 0 {
+            var amount = xpWorkoutBase * day.workouts
+                + xpPerExercise * max(0, day.exercisesPerformed)
+                + xpFirstWorkoutOfDay
+            if let hour = day.earliestWorkoutHour, hour < 8 {
+                amount += xpEarlyBirdWorkout
+            }
+            awards.append(XPAward(
+                source: .workout, amount: amount,
+                reason: day.workouts == 1 ? "Finished a workout" : "Finished \(day.workouts) workouts"
+            ))
+        }
+
+        if day.mealSlotsLogged > 0 {
+            var amount = xpMealEach * day.mealSlotsLogged
+            if day.mainMealsAllLogged {
+                amount += xpAllMeals
+            }
+            awards.append(XPAward(
+                source: .meal, amount: amount,
+                reason: day.mainMealsAllLogged ? "Every main meal logged" : "Logged meals"
+            ))
+        }
+
+        let pomodoros = day.studyMinutes / 25
+        if pomodoros > 0 {
+            var amount = xpPerPomodoro * pomodoros + xpFirstStudyOfDay
+            if let hour = day.earliestStudyHour, hour < 8 {
+                amount += xpEarlyBirdStudy
+            }
+            awards.append(XPAward(source: .study, amount: amount, reason: "\(day.studyMinutes) minutes of focus"))
+        }
+
+        if day.allNonNegotiablesDone {
+            awards.append(XPAward(source: .nonNegotiable, amount: xpAllNonNeg, reason: "Every daily task done"))
+        }
+        return awards
     }
 }

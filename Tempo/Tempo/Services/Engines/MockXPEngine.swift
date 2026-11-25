@@ -47,6 +47,10 @@ final class MockXPEngine: XPEngineProtocol, @unchecked Sendable {
         LevelSystem.xpRequired(for: level)
     }
 
+    func dayAwards(for activity: XPDayActivity) -> [XPAward] {
+        XPEngine().dayAwards(for: activity)
+    }
+
     static var xpEarningCategories: [XPEarningCategory] {
         XPEngine.xpEarningCategories
     }
