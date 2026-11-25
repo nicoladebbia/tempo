@@ -55,47 +55,47 @@ extension TodayNextAction {
             WidgetSnapshot.Next(
                 kind: .workout,
                 title: name,
-                detail: resume ? "You started this session. Pick it up where you left off." : "Today's session is ready.",
-                trailing: snapshot.workout.durationMinutes.map { "\($0) min" },
+                detail: resume ? String(localized: "You started this session. Pick it up where you left off.") : String(localized: "Today's session is ready."),
+                trailing: snapshot.workout.durationMinutes.map { String(localized: "\($0) min") },
                 destination: .train
             )
         case let .meal(meal):
             WidgetSnapshot.Next(
                 kind: .meal,
                 title: meal.name,
-                detail: "\(meal.calories.formatted()) kcal · \(meal.protein) g protein",
+                detail: String(localized: "\(meal.calories.formatted()) kcal · \(meal.protein) g protein"),
                 trailing: meal.time,
                 destination: .fuel
             )
         case .rest:
             WidgetSnapshot.Next(
-                kind: .rest, title: "Rest day",
-                detail: "No session today. Recovery sets up tomorrow.", trailing: nil, destination: .today
+                kind: .rest, title: String(localized: "Rest day"),
+                detail: String(localized: "No session today. Recovery sets up tomorrow."), trailing: nil, destination: .today
             )
         case .firstMeal:
             WidgetSnapshot.Next(
-                kind: .firstMeal, title: "Log today's first meal",
-                detail: "One meal starts your score and your targets.", trailing: nil, destination: .fuel
+                kind: .firstMeal, title: String(localized: "Log today's first meal"),
+                detail: String(localized: "One meal starts your score and your targets."), trailing: nil, destination: .fuel
             )
         case let .focus(left):
             WidgetSnapshot.Next(
-                kind: .focus, title: "Study block",
-                detail: "\(left) min left to reach today's study target.", trailing: nil, destination: .today
+                kind: .focus, title: String(localized: "Study block"),
+                detail: String(localized: "\(left) min left to reach today's study target."), trailing: nil, destination: .today
             )
         case let .tasks(left):
             WidgetSnapshot.Next(
-                kind: .tasks, title: left == 1 ? "1 task left" : "\(left) tasks left",
-                detail: "Finish them to unlock the day.", trailing: nil, destination: .today
+                kind: .tasks, title: left == 1 ? String(localized: "1 task left") : String(localized: "\(left) tasks left"),
+                detail: String(localized: "Finish them to unlock the day."), trailing: nil, destination: .today
             )
         case .setUpTasks:
             WidgetSnapshot.Next(
-                kind: .setUpTasks, title: "Set your daily tasks",
-                detail: "Pick the few things you do every day, no matter what.", trailing: nil, destination: .today
+                kind: .setUpTasks, title: String(localized: "Set your daily tasks"),
+                detail: String(localized: "Pick the few things you do every day, no matter what."), trailing: nil, destination: .today
             )
         case .allDone:
             WidgetSnapshot.Next(
-                kind: .allDone, title: "Day complete",
-                detail: "Session, tasks and study are all done.", trailing: nil, destination: .today
+                kind: .allDone, title: String(localized: "Day complete"),
+                detail: String(localized: "Session, tasks and study are all done."), trailing: nil, destination: .today
             )
         }
     }

@@ -21,52 +21,52 @@ enum PS5Countdown {
             return nil
         }
         let hours = minutes / 60
-        return hours > 0 ? "\(hours)h \(minutes % 60)m" : "\(minutes)m"
+        return hours > 0 ? String(localized: "\(hours)h \(minutes % 60)m") : String(localized: "\(minutes)m")
     }
 
     /// A short "less than" line for the last stretch. Whole minutes round up,
     /// so 11m 30s left reads "Less than 12m", never the untrue "Less than 11m".
     static func lessThan(_ seconds: TimeInterval) -> String {
         if seconds <= 0 {
-            return "PS5 time has passed."
+            return String(localized: "PS5 time has passed.")
         }
         if seconds < 60 {
-            return "Less than a minute until PS5 time."
+            return String(localized: "Less than a minute until PS5 time.")
         }
         let minutes = Int((seconds / 60).rounded(.up))
-        return "Less than \(minutes)m until PS5 time."
+        return String(localized: "Less than \(minutes)m until PS5 time.")
     }
 
     /// "Only 12m until PS5 time." for the title of a recommendation.
     static func only(_ seconds: TimeInterval) -> String {
         if seconds <= 0 {
-            return "PS5 time has passed."
+            return String(localized: "PS5 time has passed.")
         }
         if seconds < 60 {
-            return "Under a minute until PS5 time."
+            return String(localized: "Under a minute until PS5 time.")
         }
         let minutes = Int((seconds / 60).rounded(.up))
-        return "Only \(minutes)m until PS5 time."
+        return String(localized: "Only \(minutes)m until PS5 time.")
     }
 
     /// The status line under the dial while tasks are still open.
     static func statusLine(seconds: TimeInterval) -> String {
         if seconds <= 0 {
-            return "PS5 time is here. Handle your business."
+            return String(localized: "PS5 time is here. Handle your business.")
         }
         guard let left = remaining(seconds) else {
-            return "Under a minute. Move."
+            return String(localized: "Under a minute. Move.")
         }
         if seconds < 30 * 60 {
-            return "\(left). Move."
+            return String(localized: "\(left). Move.")
         }
         if seconds < 60 * 60 {
-            return "\(left). Clock's ticking."
+            return String(localized: "\(left). Clock's ticking.")
         }
         if seconds < 2 * 3600 {
-            return "\(left) left. Focus up."
+            return String(localized: "\(left) left. Focus up.")
         }
-        return "\(left) until your usual PS5 time"
+        return String(localized: "\(left) until your usual PS5 time")
     }
 }
 
@@ -147,16 +147,16 @@ enum LockdownPace {
         switch reading {
         case let .passed(remaining):
             remaining == 1
-                ? "PS5 time has passed. 1 task still incomplete."
-                : "PS5 time has passed. \(remaining) tasks still incomplete."
+                ? String(localized: "PS5 time has passed. 1 task still incomplete.")
+                : String(localized: "PS5 time has passed. \(remaining) tasks still incomplete.")
         case let .studyBehind(minutes):
-            "You're \(minutes)min short on study before PS5 time. Open the timer."
+            String(localized: "You're \(minutes)min short on study before PS5 time. Open the timer.")
         case .wontFinish:
-            "WARNING: At current pace, you won't finish in time. Accelerate."
+            String(localized: "WARNING: At current pace, you won't finish in time. Accelerate.")
         case let .onPace(finish, ahead):
             ahead
-                ? "On pace to finish by \(finishFormat(finish)). Ahead of schedule."
-                : "At this pace, you'll finish by \(finishFormat(finish)). Stay focused."
+                ? String(localized: "On pace to finish by \(finishFormat(finish)). Ahead of schedule.")
+                : String(localized: "At this pace, you'll finish by \(finishFormat(finish)). Stay focused.")
         }
     }
 }
@@ -166,16 +166,23 @@ enum LockdownPace {
 enum Plural {
     /// "1 day", "2 days", "0 days".
     static func count(_ n: Int, _ singular: String, _ plural: String? = nil) -> String {
-        "\(n) \(n == 1 ? singular : (plural ?? singular + "s"))"
+        if plural == nil {
+            switch singular {
+            case "day": return String(localized: "\(n) days")
+            case "session": return String(localized: "\(n) sessions")
+            default: break
+            }
+        }
+        return "\(n) \(n == 1 ? singular : (plural ?? singular + "s"))"
     }
 
     /// Days left until a date, the way an exam countdown is written.
     static func daysLeft(_ days: Int) -> String {
         switch days {
-        case ..<0: "Passed"
-        case 0: "Today"
-        case 1: "Tomorrow"
-        default: "\(days) days left"
+        case ..<0: String(localized: "Passed")
+        case 0: String(localized: "Today")
+        case 1: String(localized: "Tomorrow")
+        default: String(localized: "\(days) days left")
         }
     }
 }
@@ -207,8 +214,8 @@ enum WeeklyDays {
 
     static func phrase(_ tally: Tally) -> String {
         guard tally.tracked > 0 else {
-            return "No days tracked yet"
+            return String(localized: "No days tracked yet")
         }
-        return "\(tally.completed) of \(Plural.count(tally.tracked, "day")) completed"
+        return String(localized: "\(tally.completed) of \(Plural.count(tally.tracked, "day")) completed")
     }
 }

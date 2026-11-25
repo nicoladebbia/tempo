@@ -237,7 +237,7 @@ struct ToastData: Identifiable, Equatable {
         guard let actionTitle else {
             return message
         }
-        return "\(message) \(actionTitle) is available."
+        return String(localized: "\(message) \(actionTitle) is available.")
     }
 
     static func == (lhs: ToastData, rhs: ToastData) -> Bool {

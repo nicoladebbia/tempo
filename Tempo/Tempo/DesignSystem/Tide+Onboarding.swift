@@ -20,7 +20,7 @@ struct OnboardingScaffold<Content: View>: View {
     var primaryTitle: String?
     var primaryEnabled = true
     var primaryAction: (() -> Void)?
-    var skipTitle = "SKIP"
+    var skipTitle = String(localized: "SKIP")
     var skipAction: (() -> Void)?
     var skipEnabled = true
     /// A failure to show right above the buttons, where it is never below the fold.

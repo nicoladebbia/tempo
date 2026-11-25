@@ -19,21 +19,21 @@ enum PrimaryGoal: String, CaseIterable, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .buildMuscle: "Build muscle"
-        case .loseFat: "Lose fat"
-        case .performance: "Improve performance"
-        case .stayHealthy: "Stay healthy"
-        case .allAround: "All-around"
+        case .buildMuscle: String(localized: "Build muscle")
+        case .loseFat: String(localized: "Lose fat")
+        case .performance: String(localized: "Improve performance")
+        case .stayHealthy: String(localized: "Stay healthy")
+        case .allAround: String(localized: "All-around")
         }
     }
 
     var detail: String {
         switch self {
-        case .buildMuscle: "Gain size and strength"
-        case .loseFat: "Cut while keeping muscle"
-        case .performance: "Sport-specific gains"
-        case .stayHealthy: "Maintain and prevent"
-        case .allAround: "Balance everything"
+        case .buildMuscle: String(localized: "Gain size and strength")
+        case .loseFat: String(localized: "Cut while keeping muscle")
+        case .performance: String(localized: "Sport-specific gains")
+        case .stayHealthy: String(localized: "Maintain and prevent")
+        case .allAround: String(localized: "Balance everything")
         }
     }
 

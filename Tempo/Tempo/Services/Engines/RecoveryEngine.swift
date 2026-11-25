@@ -55,26 +55,26 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
         // Rule 2: Low recovery — protein emphasis
         if score < 50 {
-            nutritionRecs.append("Prioritize protein today — your recovery is low and muscles need repair.")
+            nutritionRecs.append(String(localized: "Prioritize protein today — your recovery is low and muscles need repair."))
         }
 
         // Rule 3: Poor sleep — magnesium-rich foods
         if (recovery.sleepScore ?? 100) < 70 || sleepHours < 6.0 {
-            nutritionRecs.append("Include magnesium-rich foods: dark leafy greens, almonds, pumpkin seeds.")
+            nutritionRecs.append(String(localized: "Include magnesium-rich foods: dark leafy greens, almonds, pumpkin seeds."))
         }
 
         // Rule 1: High expected strain
         if Self.hasPlannedTraining(schedule) {
-            nutritionRecs.append("Eat carbs 1-2h before training. Aim for 30-50g carbs and 15-20g protein.")
+            nutritionRecs.append(String(localized: "Eat carbs 1-2h before training. Aim for 30-50g carbs and 15-20g protein."))
         }
 
         // Rule 6: Football day
         if hasFootballToday(schedule) {
-            nutritionRecs.insert("High-carb meal 3-4h before kickoff. Include rice, pasta, or bread with lean protein.", at: 0)
+            nutritionRecs.insert(String(localized: "High-carb meal 3-4h before kickoff. Include rice, pasta, or bread with lean protein."), at: 0)
         }
 
         if nutritionRecs.isEmpty {
-            nutritionRecs.append("Eat balanced meals today. Focus on whole foods and adequate protein.")
+            nutritionRecs.append(String(localized: "Eat balanced meals today. Focus on whole foods and adequate protein."))
         }
 
         // --- Sleep Prescription ---
@@ -102,20 +102,20 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
 
         // Warning: Sleep debt > 4h
         if sleepDebt > 4.0 {
-            warnings.append("Significant sleep debt (\(String(format: "%.1f", sleepDebt))h). Prioritize early bedtime tonight.")
+            warnings.append(String(localized: "Significant sleep debt (\(sleepDebt.tempoDecimal(1))h). Prioritize early bedtime tonight."))
         }
 
         // Warning: High strain with poor recovery
         if strain > 18, score < 67 {
             warnings
-                .append("Yesterday's strain was very high (\(String(format: "%.1f", strain))) with below-average recovery. Take it easy.")
+                .append(String(localized: "Yesterday's strain was very high (\(strain.tempoDecimal(1))) with below-average recovery. Take it easy."))
         }
 
         // Warning: Very low recovery
         if score < 34 {
             warnings
                 .append(
-                    "Recovery is in the red zone. If you experience persistent low recovery for 7+ days, consider consulting a healthcare professional."
+                    String(localized: "Recovery is in the red zone. If you experience persistent low recovery for 7+ days, consider consulting a healthcare professional.")
                 )
         }
 
@@ -261,47 +261,47 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
         // Step 4: Generate output per zone with specific prescriptions
         // Per MODULE_RECOVERY.md Training Zone Outputs table
         let sleepContext = sleepHours < 6 ?
-            " Your sleep was short (\(String(format: "%.1f", sleepHours))h) — factor that into your effort." : ""
-        let debtContext = sleepDebt > 2 ? " You're carrying \(String(format: "%.1f", sleepDebt))h of sleep debt." : ""
+            " " + String(localized: "Your sleep was short (\(sleepHours.tempoDecimal(1))h) — factor that into your effort.") : ""
+        let debtContext = sleepDebt > 2 ? " " + String(localized: "You're carrying \(sleepDebt.tempoDecimal(1))h of sleep debt.") : ""
         let strainContext = yesterdayStrain > 14 ?
-            " Yesterday's strain was high (\(String(format: "%.1f", yesterdayStrain))) — your nervous system may still be fatigued." : ""
+            " " + String(localized: "Yesterday's strain was high (\(yesterdayStrain.tempoDecimal(1))) — your nervous system may still be fatigued.") : ""
 
         switch zoneLevel {
         case 5:
             return TrainingResult(
                 zone: "peakGreen",
-                headline: "Peak state — target strain 14-18 today",
-                body: "HRV is elevated and recovery is excellent. This is the day for PRs, heavy compound lifts (4-5 working sets), or your hardest interval session. Target strain 14-18. Go for progressive overload — add 2.5-5kg to your main lifts or increase rep ranges.\(sleepContext)"
+                headline: String(localized: "Peak state — target strain 14-18 today"),
+                body: String(localized: "HRV is elevated and recovery is excellent. This is the day for PRs, heavy compound lifts (4-5 working sets), or your hardest interval session. Target strain 14-18. Go for progressive overload — add 2.5-5kg to your main lifts or increase rep ranges.") + sleepContext
             )
         case 4:
             return TrainingResult(
                 zone: "green",
-                headline: "Full send — target strain 12-16 today",
-                body: "Recovery supports high-volume training. Hit your planned workout at full intensity with 4 working sets per exercise. Target strain 12-16. Compound movements first, then accessories. You can push close to failure on the last set.\(sleepContext)"
+                headline: String(localized: "Full send — target strain 12-16 today"),
+                body: String(localized: "Recovery supports high-volume training. Hit your planned workout at full intensity with 4 working sets per exercise. Target strain 12-16. Compound movements first, then accessories. You can push close to failure on the last set.") + sleepContext
             )
         case 3:
             return TrainingResult(
                 zone: "upperYellow",
-                headline: "Moderate day — reduce working sets from 4 to 3",
-                body: "Solid recovery but not peak. Keep your planned weights but reduce working sets from 4 to 3. Drop weight 10% on accessories. Target strain 10-13. Focus on quality reps with controlled eccentrics.\(strainContext)\(debtContext)"
+                headline: String(localized: "Moderate day — reduce working sets from 4 to 3"),
+                body: String(localized: "Solid recovery but not peak. Keep your planned weights but reduce working sets from 4 to 3. Drop weight 10% on accessories. Target strain 10-13. Focus on quality reps with controlled eccentrics.") + strainContext + debtContext
             )
         case 2:
             return TrainingResult(
                 zone: "lowerYellow",
-                headline: "Light session — drop weight 10%, cut sets to 3",
-                body: "Recovery is below average. Reduce working weight by 10% and cap at 3 sets per exercise. Skip isolation accessories entirely. Target strain 8-11. Keep RPE at 6-7 max — no sets to failure.\(strainContext)\(debtContext)"
+                headline: String(localized: "Light session — drop weight 10%, cut sets to 3"),
+                body: String(localized: "Recovery is below average. Reduce working weight by 10% and cap at 3 sets per exercise. Skip isolation accessories entirely. Target strain 8-11. Keep RPE at 6-7 max — no sets to failure.") + strainContext + debtContext
             )
         case 1:
             return TrainingResult(
                 zone: "upperRed",
-                headline: "Active recovery only — 20-minute walk, yoga, or light stretching",
-                body: "Your body needs recovery. Choose ONE: a 20-minute easy walk (HR below 120bpm), a 15-minute yoga flow, or 20 minutes of light stretching and foam rolling. No resistance training. Target strain under 6.\(strainContext)\(sleepContext)"
+                headline: String(localized: "Active recovery only — 20-minute walk, yoga, or light stretching"),
+                body: String(localized: "Your body needs recovery. Choose ONE: a 20-minute easy walk (HR below 120bpm), a 15-minute yoga flow, or 20 minutes of light stretching and foam rolling. No resistance training. Target strain under 6.") + strainContext + sleepContext
             )
         default:
             return TrainingResult(
                 zone: "red",
-                headline: "Full rest day — zero structured training",
-                body: "Recovery is very low. Take a complete rest day. If you must move, limit to a casual 10-15 minute walk. Focus entirely on sleep (aim for 9+ hours tonight), nutrition (extra protein and whole foods), and hydration (3+ liters). Your body is telling you to stop.\(strainContext)\(sleepContext)\(debtContext)"
+                headline: String(localized: "Full rest day — zero structured training"),
+                body: String(localized: "Recovery is very low. Take a complete rest day. If you must move, limit to a casual 10-15 minute walk. Focus entirely on sleep (aim for 9+ hours tonight), nutrition (extra protein and whole foods), and hydration (3+ liters). Your body is telling you to stop.") + strainContext + sleepContext + debtContext
             )
         }
     }
@@ -457,8 +457,8 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
         return RecoveryInsight(
             date: Date(),
             type: .pattern,
-            title: "HRV Declining",
-            body: "Your HRV has dropped \(Int(dropPercent))% over the last \(consecutiveDeclines + 1) days. Consider a deload or extra rest day.",
+            title: String(localized: "HRV Declining"),
+            body: String(localized: "Your HRV has dropped \(Int(dropPercent))% over the last \(consecutiveDeclines + 1) days. Consider a deload or extra rest day."),
             dataPointsJSON: encodeDataPoints(recent.enumerated().map { ["day": $0.offset + 1, "hrv": Int($0.element)] }),
             confidence: min(0.6 + Double(consecutiveDeclines) * 0.1, 0.95)
         )
@@ -484,12 +484,15 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
             return nil
         }
 
-        let direction = changePercent > 0 ? "improving" : "declining"
+        let improving = changePercent > 0
+        let changeText = Int(abs(changePercent))
         return RecoveryInsight(
             date: Date(),
             type: .pattern,
-            title: "Recovery \(direction.capitalized)",
-            body: "Your average recovery has \(direction) by \(Int(abs(changePercent)))% over this period. \(changePercent > 0 ? "Keep up the good work." : "Review your sleep and training load.")",
+            title: improving ? String(localized: "Recovery Improving") : String(localized: "Recovery Declining"),
+            body: improving
+                ? String(localized: "Your average recovery has improving by \(changeText)% over this period. Keep up the good work.")
+                : String(localized: "Your average recovery has declining by \(changeText)% over this period. Review your sleep and training load."),
             confidence: min(0.5 + abs(changePercent) / 100, 0.9)
         )
     }
@@ -512,8 +515,8 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
         return RecoveryInsight(
             date: Date(),
             type: .recommendation,
-            title: "Inconsistent Sleep",
-            body: "Your sleep duration varies by over an hour night to night (avg \(String(format: "%.1f", avg))h ± \(String(format: "%.1f", stdDev))h). Consistent sleep timing improves recovery.",
+            title: String(localized: "Inconsistent Sleep"),
+            body: String(localized: "Your sleep duration varies by over an hour night to night (avg \(avg.tempoDecimal(1))h ± \(stdDev.tempoDecimal(1))h). Consistent sleep timing improves recovery."),
             confidence: min(0.5 + stdDev * 0.2, 0.85)
         )
     }
@@ -539,8 +542,8 @@ final class RecoveryEngine: RecoveryEngineProtocol, @unchecked Sendable {
         return RecoveryInsight(
             date: Date(),
             type: .correlation,
-            title: "High Strain Impact",
-            body: "You've had \(highStrainLowRecovery.count) days with high strain (>14) and low recovery (<50%). Consider spacing out intense sessions.",
+            title: String(localized: "High Strain Impact"),
+            body: String(localized: "You've had \(highStrainLowRecovery.count) days with high strain (>14) and low recovery (<50%). Consider spacing out intense sessions."),
             confidence: Double(highStrainLowRecovery.count) / Double(paired.count)
         )
     }

@@ -55,9 +55,9 @@ final class StudySession {
         let hours = durationMinutes / 60
         let mins = durationMinutes % 60
         if hours > 0 {
-            return "\(hours)h \(mins)m"
+            return String(localized: "\(hours)h \(mins)m")
         }
-        return "\(mins)m"
+        return String(localized: "\(mins)m")
     }
 
     @Transient

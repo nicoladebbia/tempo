@@ -576,10 +576,10 @@ extension UserSettings {
 
         var errorDescription: String? {
             switch self {
-            case .invalidNotificationIntensity: "Notification intensity must be 1-4 (Gentle, Firm, Drill Sergeant, Savage)."
-            case .invalidPomodoroDuration: "Pomodoro duration must be 5-120 minutes."
-            case .invalidBreakDuration: "Break duration must be 1-60 minutes."
-            case .invalidTimeOfDay: "Time of day must be 0-1439 (minutes from midnight)."
+            case .invalidNotificationIntensity: String(localized: "Notification intensity must be 1-4 (Gentle, Firm, Drill Sergeant, Savage).")
+            case .invalidPomodoroDuration: String(localized: "Pomodoro duration must be 5-120 minutes.")
+            case .invalidBreakDuration: String(localized: "Break duration must be 1-60 minutes.")
+            case .invalidTimeOfDay: String(localized: "Time of day must be 0-1439 (minutes from midnight).")
             }
         }
     }

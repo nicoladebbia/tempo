@@ -154,7 +154,10 @@ enum BodyHistory {
         if rounded == 0 {
             return "0\(unit)"
         }
-        return String(format: "%+.\(decimals)f", rounded) + unit
+        let number = rounded.formatted(
+            .number.precision(.fractionLength(decimals)).sign(strategy: .always()).grouping(.never)
+        )
+        return number + unit
     }
 }
 
@@ -189,8 +192,8 @@ struct SleepStageMinutes: Equatable {
         let hours = minutes / 60
         let rest = minutes % 60
         if hours > 0, rest > 0 {
-            return "\(hours)h \(rest)m"
+            return String(localized: "\(hours)h \(rest)m")
         }
-        return hours > 0 ? "\(hours)h" : "\(rest)m"
+        return hours > 0 ? String(localized: "\(hours)h") : String(localized: "\(rest)m")
     }
 }

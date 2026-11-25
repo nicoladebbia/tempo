@@ -514,14 +514,14 @@ enum StreakMilestone: Int, CaseIterable {
 
     var title: String {
         switch self {
-        case .threeDay: "3-Day Streak"
-        case .fiveDay: "5-Day Streak"
-        case .oneWeek: "Perfect Week"
-        case .twoWeek: "Two-Week Streak"
-        case .threeWeek: "21-Day Milestone"
-        case .oneMonth: "Monthly Champion"
-        case .elite: "Elite"
-        case .century: "Century"
+        case .threeDay: String(localized: "3-Day Streak")
+        case .fiveDay: String(localized: "5-Day Streak")
+        case .oneWeek: String(localized: "Perfect Week")
+        case .twoWeek: String(localized: "Two-Week Streak")
+        case .threeWeek: String(localized: "21-Day Milestone")
+        case .oneMonth: String(localized: "Monthly Champion")
+        case .elite: String(localized: "Elite")
+        case .century: String(localized: "Century")
         }
     }
 

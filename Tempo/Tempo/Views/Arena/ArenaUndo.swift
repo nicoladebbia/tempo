@@ -14,7 +14,7 @@ extension ArenaService {
     /// Hides `removal` now and returns the toast that offers Undo for about 5 seconds.
     func removalToast(_ removal: ArenaRemoval, message: String) -> ToastData {
         beginRemoval(removal)
-        return ToastData(message: message, style: .info, actionTitle: "Undo") { [self] in
+        return ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) { [self] in
             undoRemoval()
         }
     }

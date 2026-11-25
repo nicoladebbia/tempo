@@ -105,8 +105,8 @@ struct FriendInviteSheet: View {
 
         case let .failed(message):
             TideEmptyPanel(
-                systemImage: "wifi.exclamationmark", title: "Could not make your link", message: message,
-                actionTitle: "Try again"
+                systemImage: "wifi.exclamationmark", title: String(localized: "Could not make your link"), message: message,
+                actionTitle: String(localized: "Try again")
             ) { Task { await load() } }
                 .tideCard()
         }
@@ -147,7 +147,7 @@ struct FriendInviteSheet: View {
                         UIPasteboard.general.string = invite.url
                         copied = true
                     } label: {
-                        Label(copied ? "Copied" : "Copy link", systemImage: copied ? "checkmark" : "doc.on.doc")
+                        Label(copied ? String(localized: "Copied") : String(localized: "Copy link"), systemImage: copied ? "checkmark" : "doc.on.doc")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.tideGlass)

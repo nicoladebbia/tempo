@@ -23,6 +23,20 @@ struct MorningCheckInCard: View {
     /// storage (JSON) means this list can change with zero schema cost.
     private static let bodyParts = ["Quads", "Hamstrings", "Calves", "Glutes", "Lower back", "Shoulders", "Knees"]
 
+    /// The name shown for a stored body part. The stored name stays English (it is the key).
+    private static func bodyPartName(_ part: String) -> String {
+        switch part {
+        case "Quads": String(localized: "Quads")
+        case "Hamstrings": String(localized: "Hamstrings")
+        case "Calves": String(localized: "Calves")
+        case "Glutes": String(localized: "Glutes")
+        case "Lower back": String(localized: "Lower back")
+        case "Shoulders": String(localized: "Shoulders")
+        case "Knees": String(localized: "Knees")
+        default: part
+        }
+    }
+
     @State private var checkIn: MorningCheckIn?
     @State private var dismissed = false
     @State private var expandedSoreness = false
@@ -84,8 +98,8 @@ struct MorningCheckInCard: View {
     }
 
     private func loggedSummary(_ checkIn: MorningCheckIn) -> String {
-        let energy = checkIn.mood.map { "Energy \($0)/5" } ?? ""
-        let stress = checkIn.stress.map { "Stress \($0)/10" } ?? ""
+        let energy = checkIn.mood.map { String(localized: "Energy \($0)/5") } ?? ""
+        let stress = checkIn.stress.map { String(localized: "Stress \($0)/10") } ?? ""
         return [energy, stress].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
@@ -96,7 +110,7 @@ struct MorningCheckInCard: View {
             HStack {
                 Text("Morning check-in").tideLabel()
                 if checkIn.mood != nil, checkIn.stress != nil {
-                    TideStatusPill(text: "Logged", tint: TideTone.mint, systemImage: "checkmark")
+                    TideStatusPill(text: String(localized: "Logged"), tint: TideTone.mint, systemImage: "checkmark")
                         .transition(.opacity)
                 }
                 Button {
@@ -131,13 +145,13 @@ struct MorningCheckInCard: View {
             }
 
             // Mood 1–5
-            scaleRow(title: "Energy / mood", value: checkIn.mood, range: 1 ... 5) { v in
+            scaleRow(title: String(localized: "Energy / mood"), value: checkIn.mood, range: 1 ... 5) { v in
                 checkIn.mood = v
                 persist()
             }
 
             // Stress 1–10
-            scaleRow(title: "Stress", value: checkIn.stress, range: 1 ... 10) { v in
+            scaleRow(title: String(localized: "Stress"), value: checkIn.stress, range: 1 ... 10) { v in
                 checkIn.stress = v
                 persist()
             }
@@ -161,7 +175,7 @@ struct MorningCheckInCard: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityHint(expandedSoreness ? "Hides body parts" : "Shows body parts")
+            .accessibilityHint(expandedSoreness ? String(localized: "Hides body parts") : String(localized: "Shows body parts"))
 
             if expandedSoreness {
                 VStack(spacing: Tide.s2) {
@@ -191,7 +205,7 @@ struct MorningCheckInCard: View {
                     .foregroundStyle(Tide.text)
                 Spacer(minLength: Tide.s2)
                 // The chosen value, read out as it changes.
-                Text(value.map { "\($0) / \(range.upperBound)" } ?? "Tap to set")
+                Text(value.map { "\($0) / \(range.upperBound)" } ?? String(localized: "Tap to set"))
                     .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
                     .foregroundStyle(value == nil ? Tide.text3 : mood.accent)
                     .contentTransition(.numericText())
@@ -231,7 +245,7 @@ struct MorningCheckInCard: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
             : AnyLayout(HStackLayout(spacing: Tide.s3))
         layout {
-            Text(part)
+            Text(Self.bodyPartName(part))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .lineLimit(1)
@@ -257,7 +271,7 @@ struct MorningCheckInCard: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(part) soreness \(level)")
+                    .accessibilityLabel("\(Self.bodyPartName(part)) soreness \(level)")
                 }
             }
         }
@@ -274,13 +288,13 @@ struct MorningCheckInCard: View {
     private func sorenessSummary(_ checkIn: MorningCheckIn) -> String {
         let sore = checkIn.soreness
         if sore.isEmpty {
-            return "Any soreness? Tap to add"
+            return String(localized: "Any soreness? Tap to add")
         }
         let flags = checkIn.snapshot.painFlags
         if !flags.isEmpty {
-            return "Sore: \(flags.joined(separator: ", ")) (pain)"
+            return String(localized: "Sore: \(flags.map(Self.bodyPartName).joined(separator: ", ")) (pain)")
         }
-        return "Soreness logged (\(sore.count))"
+        return String(localized: "Soreness logged (\(sore.count))")
     }
 
     // MARK: - Persistence

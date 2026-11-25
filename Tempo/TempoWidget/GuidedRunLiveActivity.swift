@@ -27,7 +27,7 @@ struct GuidedRunLiveActivity: Widget {
                     HStack(spacing: Tide.s1) {
                         Image(systemName: state.isRest ? "hourglass" : "figure.run")
                             .foregroundStyle(tone)
-                        WidgetLabel(state.isRest ? "Rest" : "Run", color: tone)
+                        WidgetLabel(state.isRest ? String(localized: "Rest") : String(localized: "Run"), color: tone)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -100,12 +100,12 @@ private struct GuidedRunReadout: View {
 
     private var label: String {
         if state.isPaused {
-            return "Paused"
+            return String(localized: "Paused")
         }
         if state.isRest {
-            return "Rest"
+            return String(localized: "Rest")
         }
-        return state.countsDown ? "Left" : "Time"
+        return state.countsDown ? String(localized: "Left") : String(localized: "Time")
     }
 }
 

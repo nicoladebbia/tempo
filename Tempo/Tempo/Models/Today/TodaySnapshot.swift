@@ -167,10 +167,10 @@ enum TodayGreeting {
 
     static func text(hour: Int, name: String?) -> String {
         let part = switch hour {
-        case 5 ..< 12: "Good morning"
-        case 12 ..< 18: "Good afternoon"
-        case 18 ..< 23: "Good evening"
-        default: "Still up"
+        case 5 ..< 12: String(localized: "Good morning")
+        case 12 ..< 18: String(localized: "Good afternoon")
+        case 18 ..< 23: String(localized: "Good evening")
+        default: String(localized: "Still up")
         }
         guard let first = firstName(from: name) else {
             return part
@@ -199,37 +199,42 @@ enum TodayStatus {
     static func line(for snapshot: TodaySnapshot) -> String {
         var left: [String] = []
         if snapshot.workout.status == .planned {
-            let name = snapshot.workout.name ?? "Your session"
-            left.append(snapshot.workout.inProgress ? "\(name) in progress" : "\(name) session")
+            let name = snapshot.workout.name ?? String(localized: "Your session")
+            left.append(snapshot.workout.inProgress ? String(localized: "\(name) in progress") : String(localized: "\(name) session"))
         }
         if snapshot.tasksLeft > 0 {
-            left.append(snapshot.tasksLeft == 1 ? "1 task" : "\(snapshot.tasksLeft) tasks")
+            left.append(snapshot.tasksLeft == 1 ? String(localized: "1 task") : String(localized: "\(snapshot.tasksLeft) tasks"))
         }
         if snapshot.studyLeft > 0 {
-            left.append("\(snapshot.studyLeft) min of study")
+            left.append(String(localized: "\(snapshot.studyLeft) min of study"))
         }
 
         if let recovery = snapshot.recovery.score, recovery < lowRecovery, snapshot.workout.status == .planned {
-            return "Recovery is low at \(recovery)%. Go lighter today."
+            return String(localized: "Recovery is low at \(recovery)%. Go lighter today.")
         }
         guard snapshot.score != nil else {
             return left.isEmpty
-                ? "Log a meal or a session and your score appears here."
-                : "Still to do: \(joined(left))."
+                ? String(localized: "Log a meal or a session and your score appears here.")
+                : String(localized: "Still to do: \(joined(left)).")
         }
         if left.isEmpty {
             return snapshot.workout.status == .rest
-                ? "Rest day, list cleared. Eat and sleep well."
-                : "Everything on the list is done."
+                ? String(localized: "Rest day, list cleared. Eat and sleep well.")
+                : String(localized: "Everything on the list is done.")
         }
-        return "Still to do: \(joined(left))."
+        return String(localized: "Still to do: \(joined(left)).")
     }
 
     private static func joined(_ parts: [String]) -> String {
         switch parts.count {
-        case 0: ""
-        case 1: parts[0]
-        default: parts.dropLast().joined(separator: ", ") + " and " + (parts.last ?? "")
+        case 0:
+            return ""
+        case 1:
+            return parts[0]
+        default:
+            let head = parts.dropLast().joined(separator: ", ")
+            let last = parts.last ?? ""
+            return String(localized: "\(head) and \(last)")
         }
     }
 }

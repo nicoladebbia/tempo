@@ -23,9 +23,9 @@ enum ArenaChallengeMetric: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .xpTotal: "Most XP"
-        case .workoutCount: "Most workouts"
-        case .studyMinutes: "Most focus time"
+        case .xpTotal: String(localized: "Most XP")
+        case .workoutCount: String(localized: "Most workouts")
+        case .studyMinutes: String(localized: "Most focus time")
         }
     }
 
@@ -33,8 +33,8 @@ enum ArenaChallengeMetric: String, CaseIterable, Identifiable {
     var shortTitle: String {
         switch self {
         case .xpTotal: "XP"
-        case .workoutCount: "Workouts"
-        case .studyMinutes: "Focus"
+        case .workoutCount: String(localized: "Workouts")
+        case .studyMinutes: String(localized: "Focus")
         }
     }
 
@@ -52,9 +52,9 @@ enum ArenaChallengeMetric: String, CaseIterable, Identifiable {
         case .xpTotal:
             "\(score.formatted()) XP"
         case .workoutCount:
-            ArenaText.count(score, "workout")
+            ArenaText.workouts(score)
         case .studyMinutes:
-            score >= 60 ? "\(score / 60)h \(score % 60)m" : "\(score) min"
+            score >= 60 ? String(localized: "\(score / 60)h \(score % 60)m") : String(localized: "\(score) min")
         }
     }
 
@@ -62,8 +62,8 @@ enum ArenaChallengeMetric: String, CaseIterable, Identifiable {
     func parts(_ score: Int) -> (value: String, unit: String) {
         switch self {
         case .xpTotal: (score.formatted(), "XP")
-        case .workoutCount: (score.formatted(), score == 1 ? "workout" : "workouts")
-        case .studyMinutes: (score.formatted(), "min")
+        case .workoutCount: (score.formatted(), score == 1 ? String(localized: "workout") : String(localized: "workouts"))
+        case .studyMinutes: (score.formatted(), String(localized: "min"))
         }
     }
 }
@@ -110,7 +110,7 @@ extension ArenaChallengeDTO {
     /// The line under the title: when it starts, how long is left, or that it ended.
     func timeLine(now: Date = Date(), calendar: Calendar = ArenaCalendar.calendar()) -> String {
         if isFinished {
-            return "Finished"
+            return String(localized: "Finished")
         }
         let untilStart = daysUntilStart(now: now, calendar: calendar)
         if untilStart > 0 {

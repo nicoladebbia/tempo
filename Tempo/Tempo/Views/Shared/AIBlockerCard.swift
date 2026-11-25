@@ -62,7 +62,7 @@ struct AIBlockerCard: View {
             Button {
                 act()
             } label: {
-                Text(isWorking ? "Working…" : blocker.actionTitle)
+                Text(isWorking ? String(localized: "Working…") : blocker.actionTitle)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.tidePrimary)
@@ -89,7 +89,7 @@ struct AIBlockerCard: View {
                     onConsentGranted?()
                 } catch {
                     Logger.nutrition.error("AI consent failed: \(error.localizedDescription, privacy: .public)")
-                    consentError = "Couldn't turn on AI features. Try again."
+                    consentError = String(localized: "Couldn't turn on AI features. Try again.")
                 }
                 isWorking = false
             }

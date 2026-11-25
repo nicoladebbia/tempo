@@ -68,7 +68,7 @@ enum StudyHistory {
     static func subjectTotals(_ entries: [StudyEntry], since: Date) -> [SubjectTotal] {
         var totals = [String: Int]()
         for entry in entries where entry.startTime >= since {
-            let name = entry.subject.flatMap { $0.isEmpty ? nil : $0 } ?? "Untagged"
+            let name = entry.subject.flatMap { $0.isEmpty ? nil : $0 } ?? String(localized: "Untagged")
             totals[name, default: 0] += entry.durationMinutes
         }
         return totals
@@ -100,9 +100,9 @@ enum StudyHistory {
         let hours = minutes / 60
         let rest = minutes % 60
         if hours > 0, rest > 0 {
-            return "\(hours)h \(rest)m"
+            return String(localized: "\(hours)h \(rest)m")
         }
-        return hours > 0 ? "\(hours)h" : "\(rest)m"
+        return hours > 0 ? String(localized: "\(hours)h") : String(localized: "\(rest)m")
     }
 }
 

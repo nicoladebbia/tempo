@@ -29,10 +29,10 @@ enum CoachQuickAnswerAction: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .nothing: "Nothing"
-        case .halfBottle: "Half a bottle"
-        case .oneBottle: "One bottle"
-        case .twoBottles: "Two bottles"
+        case .nothing: String(localized: "Nothing")
+        case .halfBottle: String(localized: "Half a bottle")
+        case .oneBottle: String(localized: "One bottle")
+        case .twoBottles: String(localized: "Two bottles")
         }
     }
 }
@@ -74,31 +74,33 @@ enum RecoverySessionPicker {
 
 enum RecoveryCoachFormat {
     static func liters(_ value: Double) -> String {
-        String(format: "%.1f L", value)
+        "\(value.tempoDecimal(1)) L"
     }
 
     /// Under a litre in mL, otherwise litres with up to 2 decimals: "375 mL", "1.5 L", "1.25 L".
     static func fluid(_ liters: Double) -> String {
-        if liters < 1 { return "\(Int((liters * 1000).rounded())) mL" }
+        if liters < 1 { return String(localized: "\(Int((liters * 1000).rounded())) mL") }
         var text = String(format: "%.2f", liters)
         while text.hasSuffix("0") { text.removeLast() }
         if text.hasSuffix(".") { text.removeLast() }
-        return "\(text) L"
+        // `text` only decides how many decimals are left; the number itself follows the user's format.
+        let digits = text.split(separator: ".").dropFirst().first?.count ?? 0
+        return "\(liters.tempoDecimal(digits)) L"
     }
 
     /// "1.5 to 1.6 L" (or "1.5 L" when both round the same).
     static func litersRange(low: Double, high: Double) -> String {
-        let a = String(format: "%.1f", low), b = String(format: "%.1f", high)
-        return a == b ? "\(a) L" : "\(a) to \(b) L"
+        let a = low.tempoDecimal(1), b = high.tempoDecimal(1)
+        return a == b ? "\(a) L" : String(localized: "\(a) to \(b) L")
     }
 
     /// Round to 10 mg: no false precision on a range this wide.
     static func sodium(_ mg: Double) -> String {
-        "\(Int((mg / 10).rounded()) * 10) mg"
+        String(localized: "\(Int((mg / 10).rounded()) * 10) mg")
     }
 
     static func sodiumRange(low: Double, high: Double) -> String {
-        "\(Int((low / 10).rounded()) * 10) to \(Int((high / 10).rounded()) * 10) mg"
+        String(localized: "\(Int((low / 10).rounded()) * 10) to \(Int((high / 10).rounded()) * 10) mg")
     }
 
     /// "+/- 11%" from the server's margin; never claims 5%.

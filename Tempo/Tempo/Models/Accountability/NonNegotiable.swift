@@ -69,7 +69,7 @@ final class NonNegotiable {
         switch trackingMethod {
         case .autoWhoop: "WHOOP"
         case .autoHealthkit: "HEALTHKIT"
-        case .timer: "TIMER"
+        case .timer: String(localized: "TIMER")
         case .manual: nil
         }
     }

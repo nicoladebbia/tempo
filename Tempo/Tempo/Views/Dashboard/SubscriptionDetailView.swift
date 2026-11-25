@@ -37,10 +37,10 @@ struct SubscriptionDetailView: View {
 
     /// What Pro gives, in the words the paywall uses.
     private static let benefits: [(icon: String, text: String)] = [
-        ("sparkles", "Recovery insights from Whoop & wearables"),
-        ("brain.head.profile", "AI-powered workout programming"),
-        ("fork.knife", "AI nutrition coaching & meal plans"),
-        ("chart.line.uptrend.xyaxis", "Progress charts & weekly reports"),
+        ("sparkles", String(localized: "Recovery insights from Whoop & wearables")),
+        ("brain.head.profile", String(localized: "AI-powered workout programming")),
+        ("fork.knife", String(localized: "AI nutrition coaching & meal plans")),
+        ("chart.line.uptrend.xyaxis", String(localized: "Progress charts & weekly reports")),
     ]
 
     /// States where the next step is the one thing to do here, so it sits under the thumb.
@@ -86,7 +86,7 @@ struct SubscriptionDetailView: View {
 
             SettingsFormCard(footnote: restoreError, footnoteColor: Tide.danger) {
                 Button { Task { await restore() } } label: {
-                    SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: Tide.text)
+                    SettingsActionRow(icon: "arrow.clockwise", title: String(localized: "Restore Purchases"), tint: Tide.text)
                 }
                 .buttonStyle(.tideSettingsRow)
                 .disabled(isRestoring)
@@ -136,7 +136,7 @@ struct SubscriptionDetailView: View {
                     size: Tide.settingsBigTile
                 )
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    TideLabel("Your plan")
+                    TideLabel(String(localized: "Your plan"))
                     Text(status.title)
                         .font(Tide.title)
                         .foregroundStyle(Tide.text)
@@ -222,7 +222,7 @@ struct SubscriptionDetailView: View {
 
     /// What Pro unlocks: locked on the free plan, ticked on Pro.
     private func benefitsCard(_ status: PlanStatus) -> some View {
-        TideSettingsSection(title: status.isPro ? "Your Pro includes" : "What Pro unlocks") {
+        TideSettingsSection(title: status.isPro ? String(localized: "Your Pro includes") : String(localized: "What Pro unlocks")) {
             ForEach(Array(Self.benefits.enumerated()), id: \.offset) { index, benefit in
                 if index > 0 {
                     SettingsRowDivider()
@@ -231,7 +231,7 @@ struct SubscriptionDetailView: View {
                     .padding(.horizontal, Tide.s4)
                     .padding(.vertical, Tide.s3)
                     .accessibilityElement(children: .combine)
-                    .accessibilityValue(status.isPro ? "Included" : "Locked")
+                    .accessibilityValue(status.isPro ? String(localized: "Included") : String(localized: "Locked"))
             }
         }
     }
@@ -256,7 +256,7 @@ struct SubscriptionDetailView: View {
                     text
                     HStack(spacing: Tide.s2) {
                         stateIcon
-                        Text(isPro ? "Included" : "Locked")
+                        Text(isPro ? String(localized: "Included") : String(localized: "Locked"))
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
                     }
@@ -276,9 +276,9 @@ struct SubscriptionDetailView: View {
     }
 
     private func detailsCard(_ status: PlanStatus) -> some View {
-        SettingsFormCard(title: "Details") {
+        SettingsFormCard(title: String(localized: "Details")) {
             SettingsInfoRow(
-                label: "Status",
+                label: String(localized: "Status"),
                 value: status.title,
                 icon: "checkmark.seal.fill",
                 iconTint: status.isPro ? mood.accent : Tide.text3,
@@ -290,12 +290,12 @@ struct SubscriptionDetailView: View {
             }
             if let product = status.productName {
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Plan", value: product, icon: "tag.fill")
+                SettingsInfoRow(label: String(localized: "Plan"), value: product, icon: "tag.fill")
             }
             if status.action == .manageInAppStore, !isPinned(status) {
                 SettingsRowDivider()
                 Button { showManage = true } label: {
-                    SettingsActionRow(icon: "gearshape.fill", title: status.actionTitle ?? "Manage subscription", tint: Tide.text)
+                    SettingsActionRow(icon: "gearshape.fill", title: status.actionTitle ?? String(localized: "Manage subscription"), tint: Tide.text)
                 }
                 .buttonStyle(.tideSettingsRow)
                 .accessibilityIdentifier("subscriptionManage")

@@ -23,9 +23,9 @@ private extension WorkoutActivityAttributes.ContentState {
     /// The second line: where in the exercise, or what the pause is.
     var detail: String {
         if isPaused {
-            return "Paused"
+            return String(localized: "Paused")
         }
-        return isResting ? "Resting · \(setText)" : setText
+        return isResting ? String(localized: "Resting · \(setText)") : setText
     }
 
     var progress: Double? {
@@ -34,7 +34,7 @@ private extension WorkoutActivityAttributes.ContentState {
 
     /// "12 of 20 sets"
     var progressText: String {
-        "\(completedSets) of \(totalSets) sets"
+        String(localized: "\(completedSets) of \(totalSets) sets")
     }
 }
 
@@ -60,7 +60,7 @@ struct WorkoutLiveActivity: Widget {
                     WorkoutReadout(state: state)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(state.isResting ? "Rest · next: \(state.exerciseName)" : state.exerciseName)
+                    Text(state.isResting ? String(localized: "Rest · next: \(state.exerciseName)") : state.exerciseName)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                         .lineLimit(1)
@@ -141,15 +141,15 @@ private struct WorkoutReadout: View {
 
     var body: some View {
         if state.isPaused {
-            ActivityReadout(label: "Session") { Text("Paused").font(Tide.headline) }
+            ActivityReadout(label: String(localized: "Session")) { Text("Paused").font(Tide.headline) }
         } else if state.isResting, let end = state.restEndsAt {
-            ActivityReadout(label: "Rest", tone: ActivityTone.workout) {
+            ActivityReadout(label: String(localized: "Rest"), tone: ActivityTone.workout) {
                 Text.countdown(to: end)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)
             }
         } else {
-            ActivityReadout(label: "Sets") {
+            ActivityReadout(label: String(localized: "Sets")) {
                 Text("\(state.completedSets)/\(state.totalSets)")
             }
         }

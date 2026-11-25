@@ -121,7 +121,7 @@ struct TodayHeader: View {
             .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(snapshot.streakDays) day streak")
-            .explains(Explainer.streak(tasksLeft: snapshot.tasksLeft).showing("\(snapshot.streakDays) days"))
+            .explains(Explainer.streak(tasksLeft: snapshot.tasksLeft).showing(String(localized: "\(snapshot.streakDays) days")))
             .accessibilityIdentifier("today.streak")
         }
     }
@@ -170,15 +170,15 @@ struct TodayHero: View {
             : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s5))
         layout {
             Button(action: actions.openScore) {
-                TideDial(score: snapshot.score, caption: "Day score", diameter: Tide.dialHero)
+                TideDial(score: snapshot.score, caption: String(localized: "Day score"), diameter: Tide.dialHero)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(snapshot.score.map { "Day score \($0) of 100" } ?? "Day score, not enough data yet")
+            .accessibilityLabel(snapshot.score.map { String(localized: "Day score \($0) of 100") } ?? String(localized: "Day score, not enough data yet"))
             .accessibilityHint("Shows what the score is made of")
             .accessibilityIdentifier("today.score")
 
             VStack(alignment: .leading, spacing: Tide.s2) {
-                Text(snapshot.score == nil ? "No score yet" : mood.word)
+                Text(snapshot.score == nil ? String(localized: "No score yet") : mood.word)
                     .font(Tide.title2)
                     .foregroundStyle(mood.accent)
                 Text(TodayStatus.line(for: snapshot))
@@ -213,7 +213,7 @@ struct TodayNextCard: View {
     var body: some View {
         let step = step
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Next up", trailing: trailing)
+            TideSectionLabel(title: String(localized: "Next up"), trailing: trailing)
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(step.title)
                     .font(Tide.title)
@@ -245,7 +245,7 @@ struct TodayNextCard: View {
         switch action {
         case let .meal(meal): meal.time
         case .workout:
-            snapshot.workout.durationMinutes.map { "\($0) min" }
+            snapshot.workout.durationMinutes.map { String(localized: "\($0) min") }
         default: nil
         }
     }
@@ -298,15 +298,15 @@ struct TodayBodyRow: View {
     @ViewBuilder
     private var recovery: some View {
         let data = snapshot.recovery
-        TodayTile(label: "Recovery", identifier: "today.shortcut.recovery", action: { actions.open(.recovery) }) {
+        TodayTile(label: String(localized: "Recovery"), identifier: "today.shortcut.recovery", action: { actions.open(.recovery) }) {
             if let score = data.score {
                 TideNumber("\(score)", unit: "%", size: Tide.numeralM)
                 TideLevelBar(progress: Double(score) / 100, height: Tide.barSlim)
                 Text(vitals(data)).font(Tide.caption).foregroundStyle(Tide.text2)
             } else {
-                Text(data.hasSource ? "Waiting for today" : "No reading yet")
+                Text(data.hasSource ? String(localized: "Waiting for today") : String(localized: "No reading yet"))
                     .font(Tide.headline).foregroundStyle(Tide.text)
-                Text(data.hasSource ? "Your tracker has not synced yet." : "Needs a tracker like Whoop.")
+                Text(data.hasSource ? String(localized: "Your tracker has not synced yet.") : String(localized: "Needs a tracker like Whoop."))
                     .font(Tide.caption).foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -317,19 +317,19 @@ struct TodayBodyRow: View {
 
     private var sleep: some View {
         let data = snapshot.recovery
-        return TodayTile(label: "Sleep", identifier: "today.sleep", action: { actions.open(.body) }) {
+        return TodayTile(label: String(localized: "Sleep"), identifier: "today.sleep", action: { actions.open(.body) }) {
             if let hours = data.sleepHours {
                 let whole = Int(hours), minutes = Int(((hours - Double(whole)) * 60).rounded())
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    TideNumber("\(whole)", unit: "h", size: Tide.numeralM)
-                    TideNumber(String(format: "%02d", minutes), unit: "m", size: Tide.numeralM)
+                    TideNumber("\(whole)", unit: String(localized: "h"), size: Tide.numeralM)
+                    TideNumber(String(format: "%02d", minutes), unit: String(localized: "m"), size: Tide.numeralM)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(whole) hours \(minutes) minutes")
                 if let performance = data.sleepPerformance {
                     TideLevelBar(progress: Double(performance) / 100, color: Tide.fat, height: Tide.barSlim)
                 }
-                Text(data.sleepPerformance.map { "\($0)% of what you needed" } ?? "Last night")
+                Text(data.sleepPerformance.map { String(localized: "\($0)% of what you needed") } ?? String(localized: "Last night"))
                     .font(Tide.caption).foregroundStyle(Tide.text2)
             } else {
                 Text("No sleep data").font(Tide.headline).foregroundStyle(Tide.text)
@@ -340,8 +340,8 @@ struct TodayBodyRow: View {
     }
 
     private func vitals(_ data: TodaySnapshot.Recovery) -> String {
-        let parts = [data.hrv.map { "HRV \($0)" }, data.restingHR.map { "RHR \($0)" }].compactMap(\.self)
-        return parts.isEmpty ? "Open recovery" : parts.joined(separator: " · ")
+        let parts = [data.hrv.map { String(localized: "HRV \($0)") }, data.restingHR.map { String(localized: "RHR \($0)") }].compactMap(\.self)
+        return parts.isEmpty ? String(localized: "Open recovery") : parts.joined(separator: " · ")
     }
 }
 
@@ -403,7 +403,7 @@ struct TodayFuelCard: View {
                 actions.openTab(.fuel)
             } label: {
                 VStack(alignment: .leading, spacing: Tide.s4) {
-                    TideSectionLabel(title: "Fuel", trailing: caloriesLeft)
+                    TideSectionLabel(title: String(localized: "Fuel"), trailing: caloriesLeft)
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         // The figure and "of 3,130 kcal" go on two lines when one would wrap.
                         let calorieLayout = typeSize.isAccessibilitySize
@@ -411,7 +411,7 @@ struct TodayFuelCard: View {
                             : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: Tide.s2))
                         calorieLayout {
                             TideNumber((fuel.calories ?? 0).formatted(), size: Tide.numeralL)
-                            Text(fuel.calorieTarget.map { "of \($0.formatted()) kcal" } ?? "kcal")
+                            Text(fuel.calorieTarget.map { String(localized: "of \($0.formatted()) kcal") } ?? String(localized: "kcal"))
                                 .font(Tide.body).foregroundStyle(Tide.text2)
                         }
                         .accessibilityElement(children: .combine)
@@ -443,7 +443,7 @@ struct TodayFuelCard: View {
             return nil
         }
         let left = target - (fuel.calories ?? 0)
-        return left >= 0 ? "\(left.formatted()) left" : "\((-left).formatted()) over"
+        return left >= 0 ? String(localized: "\(left.formatted()) left") : String(localized: "\((-left).formatted()) over")
     }
 
     private var macros: some View {
@@ -451,9 +451,9 @@ struct TodayFuelCard: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
         return layout {
-            macro("Protein", fuel.protein, fuel.proteinTarget, Tide.protein)
-            macro("Carbs", fuel.carbs, fuel.carbsTarget, Tide.carbs)
-            macro("Fat", fuel.fat, fuel.fatTarget, Tide.fat)
+            macro(String(localized: "Protein"), fuel.protein, fuel.proteinTarget, Tide.protein)
+            macro(String(localized: "Carbs"), fuel.carbs, fuel.carbsTarget, Tide.carbs)
+            macro(String(localized: "Fat"), fuel.fat, fuel.fatTarget, Tide.fat)
         }
     }
 
@@ -478,7 +478,7 @@ struct TodayFuelCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "drop.fill").font(Tide.caption).foregroundStyle(Tide.water)
                         .accessibilityHidden(true)
-                    TideLabel("Water")
+                    TideLabel(String(localized: "Water"))
                 }
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber(fuel.waterMl.formatted(), size: Tide.numeralS, relativeTo: .headline)
@@ -488,7 +488,7 @@ struct TodayFuelCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "drop.fill").font(Tide.caption).foregroundStyle(Tide.water)
                         .accessibilityHidden(true)
-                    TideLabel("Water")
+                    TideLabel(String(localized: "Water"))
                     Spacer(minLength: Tide.s2)
                     TideNumber(fuel.waterMl.formatted(), size: Tide.numeralS, relativeTo: .headline)
                     Text("/ \(fuel.waterTargetMl.formatted()) ml").font(Tide.caption).foregroundStyle(Tide.text2)
@@ -527,7 +527,7 @@ struct TodayTasksCard: View {
                 } label: {
                     VStack(alignment: .leading, spacing: Tide.s3) {
                         HStack {
-                            TideLabel("Daily tasks")
+                            TideLabel(String(localized: "Daily tasks"))
                             Spacer(minLength: Tide.s1)
                             Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
                                 .accessibilityHidden(true)
@@ -556,8 +556,8 @@ struct TodayTasksCard: View {
             } label: {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     TideSectionLabel(
-                        title: snapshot.tasksLeft == 0 ? "Day unlocked" : "Tasks to unlock",
-                        trailing: "\(snapshot.tasksDone) of \(snapshot.tasks.count)"
+                        title: snapshot.tasksLeft == 0 ? String(localized: "Day unlocked") : String(localized: "Tasks to unlock"),
+                        trailing: String(localized: "\(snapshot.tasksDone) of \(snapshot.tasks.count)")
                     )
                     TideLevelBar(
                         progress: Double(snapshot.tasksDone) / Double(snapshot.tasks.count),
@@ -631,8 +631,8 @@ struct TodayMindMoveRow: View {
 
     private var study: some View {
         let data = snapshot.study
-        return TodayTile(label: "Study", identifier: "today.study", action: { actions.open(.mind) }) {
-            TideNumber("\(data.minutes)", unit: "min", size: Tide.numeralM)
+        return TodayTile(label: String(localized: "Study"), identifier: "today.study", action: { actions.open(.mind) }) {
+            TideNumber("\(data.minutes)", unit: String(localized: "min"), size: Tide.numeralM)
             if data.targetMinutes > 0 {
                 TideLevelBar(
                     progress: min(Double(data.minutes) / Double(data.targetMinutes), 1),
@@ -649,15 +649,15 @@ struct TodayMindMoveRow: View {
         if let exam = data.nextExam {
             return exam
         }
-        return data.targetMinutes > 0 ? "of \(data.targetMinutes) min today" : "No target set"
+        return data.targetMinutes > 0 ? String(localized: "of \(data.targetMinutes) min today") : String(localized: "No target set")
     }
 
     @ViewBuilder
     private var move: some View {
         if snapshot.moveConnected {
-            TodayTile(label: "Move", identifier: "today.move", action: { actions.open(.move) }) {
+            TodayTile(label: String(localized: "Move"), identifier: "today.move", action: { actions.open(.move) }) {
                 if let steps = snapshot.steps {
-                    TideNumber(steps.formatted(), unit: "steps", size: Tide.numeralM)
+                    TideNumber(steps.formatted(), unit: String(localized: "steps"), size: Tide.numeralM)
                     TideLevelBar(
                         progress: min(Double(steps) / Double(max(snapshot.stepsTarget, 1)), 1),
                         color: Tide.water, height: Tide.barSlim
@@ -673,7 +673,7 @@ struct TodayMindMoveRow: View {
                 Button("Open training", systemImage: "dumbbell.fill") { actions.openTab(.train) }
             }
         } else {
-            TodayTile(label: "Move", identifier: "today.health", action: actions.allowHealth) {
+            TodayTile(label: String(localized: "Move"), identifier: "today.health", action: actions.allowHealth) {
                 Text("Allow Health").font(Tide.headline).foregroundStyle(Tide.text)
                 Text("Steps and workouts come from the Health app.")
                     .font(Tide.caption).foregroundStyle(Tide.text2)
@@ -686,11 +686,13 @@ struct TodayMindMoveRow: View {
         let workout = snapshot.workout
         switch workout.status {
         case .completed:
-            let name = workout.name ?? "Session"
-            return workout.durationMinutes.map { "\(name) done · \($0) min" } ?? "\(name) done"
-        case .planned: return "\(workout.name ?? "Session") planned"
-        case .rest: return "Rest day"
-        case .none: return "No session planned"
+            let name = workout.name ?? String(localized: "Session")
+            return workout.durationMinutes.map { String(localized: "\(name) done · \($0) min") } ?? String(localized: "\(name) done")
+        case .planned:
+            let plannedName = workout.name ?? String(localized: "Session")
+            return String(localized: "\(plannedName) planned")
+        case .rest: return String(localized: "Rest day")
+        case .none: return String(localized: "No session planned")
         }
     }
 }

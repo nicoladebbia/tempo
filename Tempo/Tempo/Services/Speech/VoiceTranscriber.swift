@@ -80,12 +80,12 @@ final class VoiceTranscriber {
         currentSegment = ""
 
         guard await requestPermissions() else {
-            error = "Speech recognition not authorized."
+            error = String(localized: "Speech recognition not authorized.")
             return
         }
 
         guard let recognizer, recognizer.isAvailable else {
-            error = "Speech recognition unavailable."
+            error = String(localized: "Speech recognition unavailable.")
             return
         }
 

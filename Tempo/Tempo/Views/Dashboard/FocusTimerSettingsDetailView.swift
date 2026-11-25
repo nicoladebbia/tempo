@@ -35,10 +35,10 @@ struct FocusTimerSettingsDetailView: View {
             cyclePreviewCard
 
             SettingsFormCard(
-                title: "Durations",
-                footnote: "A focus block runs, then a short break; after a few blocks you earn a long break."
+                title: String(localized: "Durations"),
+                footnote: String(localized: "A focus block runs, then a short break; after a few blocks you earn a long break.")
             ) {
-                SettingsControlRow(label: "Focus block", icon: "timer") {
+                SettingsControlRow(label: String(localized: "Focus block"), icon: "timer") {
                     Stepper("\(pomodoroDuration) min", value: $pomodoroDuration, in: 10 ... 60, step: 5)
                         .font(Tide.bodyStrong)
                         .monospacedDigit()
@@ -52,7 +52,7 @@ struct FocusTimerSettingsDetailView: View {
 
                 SettingsRowDivider()
 
-                SettingsControlRow(label: "Short break", icon: "cup.and.saucer.fill") {
+                SettingsControlRow(label: String(localized: "Short break"), icon: "cup.and.saucer.fill") {
                     Stepper("\(breakDuration) min", value: $breakDuration, in: 3 ... 15)
                         .font(Tide.bodyStrong)
                         .monospacedDigit()
@@ -66,7 +66,7 @@ struct FocusTimerSettingsDetailView: View {
 
                 SettingsRowDivider()
 
-                SettingsControlRow(label: "Long break", icon: "cup.and.saucer") {
+                SettingsControlRow(label: String(localized: "Long break"), icon: "cup.and.saucer") {
                     Stepper("\(longBreakDuration) min", value: $longBreakDuration, in: 10 ... 30, step: 5)
                         .font(Tide.bodyStrong)
                         .monospacedDigit()
@@ -96,15 +96,15 @@ struct FocusTimerSettingsDetailView: View {
     /// with the steppers below.
     private var cyclePreviewCard: some View {
         TideSettingsHero {
-            TideLabel("One round")
+            TideLabel(String(localized: "One round"))
             SettingsRingHero {
                 SettingsRing(arcs: cycleArcs) {
                     VStack(spacing: Tide.hair) {
                         HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                             if cycleMinutes >= 60 {
-                                TideNumber("\(cycleMinutes / 60)", unit: "h", size: Tide.numeralS, relativeTo: .title2)
+                                TideNumber("\(cycleMinutes / 60)", unit: String(localized: "h", comment: "Hours unit, one letter"), size: Tide.numeralS, relativeTo: .title2)
                             }
-                            TideNumber("\(cycleMinutes % 60)", unit: "m", size: Tide.numeralS, relativeTo: .title2)
+                            TideNumber("\(cycleMinutes % 60)", unit: String(localized: "m", comment: "Minutes unit, one letter"), size: Tide.numeralS, relativeTo: .title2)
                         }
                         .lineLimit(1)
                         .minimumScaleFactor(Tide.labelShrink)
@@ -114,9 +114,9 @@ struct FocusTimerSettingsDetailView: View {
                     .accessibilityLabel("A round of four focus blocks takes \(cycleMinutes) minutes")
                 }
             } key: {
-                SettingsLegendRow(color: mood.accent, title: "Focus block", value: "\(pomodoroDuration) min")
-                SettingsLegendRow(color: Tide.water, title: "Short break", value: "\(breakDuration) min")
-                SettingsLegendRow(color: Tide.streak, title: "Long break", value: "\(longBreakDuration) min")
+                SettingsLegendRow(color: mood.accent, title: String(localized: "Focus block"), value: String(localized: "\(pomodoroDuration) min"))
+                SettingsLegendRow(color: Tide.water, title: String(localized: "Short break"), value: String(localized: "\(breakDuration) min"))
+                SettingsLegendRow(color: Tide.streak, title: String(localized: "Long break"), value: String(localized: "\(longBreakDuration) min"))
             }
         }
     }

@@ -48,24 +48,24 @@ struct OnboardingAuthView: View {
 
     var body: some View {
         OnboardingScaffold(
-            title: "CREATE YOUR\nACCOUNT.",
+            title: String(localized: "CREATE YOUR\nACCOUNT."),
             subtitle: signedIn
-                ? "You are signed in with Apple. One more thing before we start."
-                : "Sign in with Apple. Tempo never sees your Apple password."
+                ? String(localized: "You are signed in with Apple. One more thing before we start.")
+                : String(localized: "Sign in with Apple. Tempo never sees your Apple password.")
         ) {
             // The two documents, side by side (stacked at large text sizes).
             let layout = typeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(spacing: Tide.s3))
                 : AnyLayout(HStackLayout(spacing: Tide.s3))
             layout {
-                legalLink(destination: termsURL, icon: "scroll", title: "Terms of Service")
-                legalLink(destination: privacyURL, icon: "lock.shield", title: "Privacy Policy")
+                legalLink(destination: termsURL, icon: "scroll", title: String(localized: "Terms of Service"))
+                legalLink(destination: privacyURL, icon: "lock.shield", title: String(localized: "Privacy Policy"))
             }
 
             agreeToggle
 
             if signedIn {
-                OnboardingNote("Signed in with Apple.", systemImage: "checkmark.seal.fill")
+                OnboardingNote(String(localized: "Signed in with Apple."), systemImage: "checkmark.seal.fill")
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -140,7 +140,7 @@ struct OnboardingAuthView: View {
 
             if signedIn {
                 // Signed in already: only the terms are left.
-                Button(viewModel.tosAcceptError == nil ? "CONTINUE" : "TRY AGAIN") {
+                Button(viewModel.tosAcceptError == nil ? String(localized: "CONTINUE") : String(localized: "TRY AGAIN")) {
                     Task { await submitTerms() }
                 }
                 .buttonStyle(.tidePrimary)
@@ -178,7 +178,7 @@ struct OnboardingAuthView: View {
                 .opacity(viewModel.tosAccepted ? 1 : 0.4)
                 .animation(Tide.snap, value: viewModel.tosAccepted)
                 .accessibilityLabel("Sign in with Apple")
-                .accessibilityHint(viewModel.tosAccepted ? "" : "Agree to the terms first")
+                .accessibilityHint(viewModel.tosAccepted ? "" : String(localized: "Agree to the terms first"))
 
                 if !viewModel.tosAccepted {
                     Text("Agree to the terms to sign in.")
@@ -226,7 +226,7 @@ struct OnboardingAuthView: View {
         switch result {
         case let .success(authorization):
             guard let nonce = pendingNonce else {
-                errorMessage = "Sign in failed. Please try again."
+                errorMessage = String(localized: "Sign in failed. Please try again.")
                 return
             }
             do {
@@ -235,7 +235,7 @@ struct OnboardingAuthView: View {
                     nonce: nonce
                 )
             } catch {
-                errorMessage = "Sign in failed. Please try again."
+                errorMessage = String(localized: "Sign in failed. Please try again.")
                 return
             }
             signedIn = true
@@ -249,7 +249,7 @@ struct OnboardingAuthView: View {
             if (error as? ASAuthorizationError)?.code == .canceled {
                 errorMessage = nil
             } else {
-                errorMessage = "Sign in failed. Please try again."
+                errorMessage = String(localized: "Sign in failed. Please try again.")
             }
         }
     }

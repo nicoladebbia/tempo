@@ -279,11 +279,11 @@ enum Chronotype: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .definitelyMorning: "Definitely a morning person"
-        case .moderatelyMorning: "Morning-leaning"
-        case .neutral: "Neither"
-        case .moderatelyEvening: "Evening-leaning"
-        case .definitelyEvening: "Definitely a night owl"
+        case .definitelyMorning: String(localized: "Definitely a morning person")
+        case .moderatelyMorning: String(localized: "Morning-leaning")
+        case .neutral: String(localized: "Neither")
+        case .moderatelyEvening: String(localized: "Evening-leaning")
+        case .definitelyEvening: String(localized: "Definitely a night owl")
         }
     }
 }
@@ -296,10 +296,10 @@ enum TrainingTimePreference: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .morning: "Morning"
-        case .midday: "Midday"
-        case .evening: "Evening"
-        case .anyFree: "Any free slot"
+        case .morning: String(localized: "Morning")
+        case .midday: String(localized: "Midday")
+        case .evening: String(localized: "Evening")
+        case .anyFree: String(localized: "Any free slot")
         }
     }
 }
@@ -312,10 +312,10 @@ enum EatingWindowPreset: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .sixteenEight: "16:8 (16h fast)"
+        case .sixteenEight: String(localized: "16:8 (16h fast)")
         case .fourteenTen: "14:10"
-        case .twelveTwelve: "12:12 (no restriction)"
-        case .custom: "Custom"
+        case .twelveTwelve: String(localized: "12:12 (no restriction)")
+        case .custom: String(localized: "Custom")
         }
     }
 
@@ -339,9 +339,9 @@ enum WeekendDifferential: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .sameAsWeekday: "Same as weekdays"
-        case .lateWake: "Late wake, looser schedule"
-        case .fullOff: "Full rest day"
+        case .sameAsWeekday: String(localized: "Same as weekdays")
+        case .lateWake: String(localized: "Late wake, looser schedule")
+        case .fullOff: String(localized: "Full rest day")
         }
     }
 }

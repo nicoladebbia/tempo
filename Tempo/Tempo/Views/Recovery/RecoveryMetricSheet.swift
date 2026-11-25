@@ -19,6 +19,16 @@ enum MetricType: String, Identifiable, CaseIterable {
         rawValue
     }
 
+    /// The name shown on screen. `rawValue` stays the stable English id.
+    var title: String {
+        switch self {
+        case .hrv: "HRV"
+        case .rhr: String(localized: "RHR")
+        case .spo2: "SpO2"
+        case .temp: String(localized: "Temp")
+        }
+    }
+
     var unit: String {
         switch self {
         case .hrv: "ms"
@@ -53,7 +63,7 @@ struct MetricTrendSheet: View {
             HStack(spacing: Tide.s3) {
                 TideAreaIconTile(systemName: metric.icon, tint: sparklineColor)
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(metric.rawValue)
+                    Text(metric.title)
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                     Text("Last 7 days")
@@ -73,7 +83,7 @@ struct MetricTrendSheet: View {
                         data: [
                             TempoLineChartData(
                                 id: metric.rawValue,
-                                label: metric.rawValue,
+                                label: metric.title,
                                 color: sparklineColor,
                                 points: trendData.map {
                                     TempoLineChartData<String>.DataPoint(date: $0.0, value: $0.1)
@@ -85,7 +95,7 @@ struct MetricTrendSheet: View {
                     )
                 } else {
                     RecoveryChartPlaceholder(
-                        message: "Need \(3 - trendData.count) more days of data to show trends."
+                        message: String(localized: "Need \(3 - trendData.count) more days of data to show trends.")
                     )
                 }
             }
@@ -94,9 +104,9 @@ struct MetricTrendSheet: View {
             // Summary stats
             if !trendData.isEmpty {
                 HStack(spacing: Tide.s3) {
-                    summaryItem(label: "Min", value: trendData.map(\.1).min())
-                    summaryItem(label: "Avg", value: trendData.map(\.1).reduce(0, +) / Double(trendData.count))
-                    summaryItem(label: "Max", value: trendData.map(\.1).max())
+                    summaryItem(label: String(localized: "Min"), value: trendData.map(\.1).min())
+                    summaryItem(label: String(localized: "Avg"), value: trendData.map(\.1).reduce(0, +) / Double(trendData.count))
+                    summaryItem(label: String(localized: "Max"), value: trendData.map(\.1).max())
                 }
             }
         }
@@ -106,7 +116,7 @@ struct MetricTrendSheet: View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             Text(label).tideLabel()
             TideNumber(
-                value.map { metric == .temp ? String(format: "%.1f", $0) : "\(Int($0))" } ?? "--",
+                value.map { metric == .temp ? $0.tempoDecimal(1) : "\(Int($0))" } ?? "--",
                 unit: metric.unit,
                 size: Tide.numeralS + Tide.s1,
                 relativeTo: .title3

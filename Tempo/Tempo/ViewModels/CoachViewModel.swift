@@ -122,7 +122,7 @@ final class CoachViewModel {
         // Writing in the fresh chat makes the clear final: its Undo is over.
         commitPendingEnd()
         guard let conversation = activeConversation else {
-            pendingError = "No active conversation."
+            pendingError = String(localized: "No active conversation.")
             return
         }
         pendingError = nil
@@ -143,7 +143,7 @@ final class CoachViewModel {
             switch report.capReached {
             case .turns,
                  .toolCalls:
-                pendingError = "I've hit my limit for this chat. End it to start fresh."
+                pendingError = String(localized: "I've hit my limit for this chat. End it to start fresh.")
             case nil:
                 break
             }
@@ -185,7 +185,7 @@ final class CoachViewModel {
             return
         }
         conversation.messages = Array(conversation.messages.dropLast())
-        pendingError = "Coach had nothing to say. Try again."
+        pendingError = String(localized: "Coach had nothing to say. Try again.")
     }
 
     /// "Retry" has something to resend.
@@ -375,9 +375,9 @@ final class CoachViewModel {
 
     private func mapError(_ error: Error) -> String {
         if Self.is503(error) {
-            return "Coach is at this month's limit — back in a few days."
+            return String(localized: "Coach is at this month's limit — back in a few days.")
         }
-        return "Couldn't reach Coach."
+        return String(localized: "Couldn't reach Coach.")
     }
 
     private static func is503(_ error: Error) -> Bool {

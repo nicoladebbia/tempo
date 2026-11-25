@@ -262,10 +262,10 @@ struct TideCoachDaySeparator: View {
     static func title(for date: Date, now: Date = Date()) -> String {
         let calendar = Calendar.current
         if calendar.isDate(date, inSameDayAs: now) {
-            return "Today"
+            return String(localized: "Today")
         }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
-            return "Yesterday"
+            return String(localized: "Yesterday")
         }
         return date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
     }

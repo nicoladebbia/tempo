@@ -155,7 +155,7 @@ struct TideNumber: View {
 struct TideDial: View {
     /// 0...100, nil when there is no score.
     let score: Int?
-    var caption: String = "Day score"
+    var caption: String = String(localized: "Day score")
     var diameter: CGFloat = 220
 
     @Environment(\.tideMood)
@@ -197,7 +197,7 @@ struct TideDial: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(caption)
-        .accessibilityValue(score.map { "\($0) out of 100" } ?? "No score yet")
+        .accessibilityValue(score.map { String(localized: "\($0) out of 100") } ?? String(localized: "No score yet"))
     }
 }
 

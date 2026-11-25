@@ -64,10 +64,10 @@ enum CoachNotifications {
     /// "Noted: one bottle." Plain wording of what was stored.
     static func confirmation(for answer: CoachQuickAnswerAction, bottleMl: Int) -> String {
         switch answer {
-        case .nothing: "Noted: you drank nothing."
-        case .halfBottle: "Noted: half a bottle (\(bottleMl / 2) mL)."
-        case .oneBottle: "Noted: one bottle (\(bottleMl) mL)."
-        case .twoBottles: "Noted: two bottles (\(bottleMl * 2) mL)."
+        case .nothing: String(localized: "Noted: you drank nothing.")
+        case .halfBottle: String(localized: "Noted: half a bottle (\(bottleMl / 2) mL).")
+        case .oneBottle: String(localized: "Noted: one bottle (\(bottleMl) mL).")
+        case .twoBottles: String(localized: "Noted: two bottles (\(bottleMl * 2) mL).")
         }
     }
 
@@ -75,7 +75,7 @@ enum CoachNotifications {
     static func postConfirmation(_ answer: CoachQuickAnswerAction, bottleMl: Int) async {
         let content = UNMutableNotificationContent()
         content.title = confirmation(for: answer, bottleMl: bottleMl)
-        content.body = "Open Tempo for what to drink and eat."
+        content.body = String(localized: "Open Tempo for what to drink and eat.")
         content.userInfo = [:]
         let request = UNNotificationRequest(
             identifier: "coach.answer.confirmation", content: content,

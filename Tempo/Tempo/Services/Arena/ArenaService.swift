@@ -367,26 +367,26 @@ final class ArenaService {
     /// Plain words for what went wrong.
     nonisolated static func message(for error: Error) -> String {
         guard let api = error as? APIError else {
-            return "Something went wrong. Try again."
+            return String(localized: "Something went wrong. Try again.")
         }
         switch api {
         case .networkError,
              .connectionRefused,
              .timeout,
              .noResponse:
-            return "No connection. Check your internet and try again."
+            return String(localized: "No connection. Check your internet and try again.")
         case .rateLimited:
-            return "Too many tries. Wait a minute and try again."
+            return String(localized: "Too many tries. Wait a minute and try again.")
         case .unauthorized:
-            return "You were signed out. Sign in again."
+            return String(localized: "You were signed out. Sign in again.")
         case .notFound:
-            return "That link or person is no longer available."
+            return String(localized: "That link or person is no longer available.")
         case .forbidden:
-            return "You can only do that with friends."
+            return String(localized: "You can only do that with friends.")
         case .conflict:
-            return "That is already done."
+            return String(localized: "That is already done.")
         default:
-            return "Something went wrong. Try again."
+            return String(localized: "Something went wrong. Try again.")
         }
     }
 }

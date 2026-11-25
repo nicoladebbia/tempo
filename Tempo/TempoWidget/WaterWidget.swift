@@ -96,7 +96,7 @@ struct WaterWidgetView: View {
         if snapshot == nil {
             // The button still works: logging creates today's numbers.
             VStack(spacing: Tide.s2) {
-                WidgetEmptyState(symbol: "drop.fill", title: "No water yet", hint: "Add a glass.", compact: true)
+                WidgetEmptyState(symbol: "drop.fill", title: String(localized: "No water yet"), hint: String(localized: "Add a glass."), compact: true)
                 addButton
             }
             .padding(Tide.s3)
@@ -116,12 +116,12 @@ struct WaterWidgetView: View {
             ring
                 .aspectRatio(1, contentMode: .fit)
             VStack(alignment: .leading, spacing: Tide.s2) {
-                WidgetLabel("Water today")
+                WidgetLabel(String(localized: "Water today"))
                 if let target {
-                    WidgetFigure(value: total.formatted(), unit: "of \(target.formatted()) ml", size: Tide.numeralM)
+                    WidgetFigure(value: total.formatted(), unit: String(localized: "of \(target.formatted()) ml"), size: Tide.numeralM)
                     WidgetBar(progress: snapshot?.waterFraction, color: Tide.water)
                 } else {
-                    WidgetFigure(value: total.formatted(), unit: "ml", size: Tide.numeralM)
+                    WidgetFigure(value: total.formatted(), unit: String(localized: "ml"), size: Tide.numeralM)
                     Text("Open Tempo to set today's target.")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
@@ -144,13 +144,13 @@ struct WaterWidgetView: View {
         }
         .gaugeStyle(.accessoryCircular)
         .accessibilityLabel("Water")
-        .accessibilityValue(target.map { "\(total) of \($0) millilitres" } ?? "\(total) millilitres")
+        .accessibilityValue(target.map { String(localized: "\(total) of \($0) millilitres") } ?? String(localized: "\(total) millilitres"))
     }
 
     private var rectangular: some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             Label {
-                Text(target.map { "\(total.formatted()) of \($0.formatted()) ml" } ?? "\(total.formatted()) ml")
+                Text(target.map { String(localized: "\(total.formatted()) of \($0.formatted()) ml") } ?? String(localized: "\(total.formatted()) ml"))
             } icon: {
                 Image(systemName: "drop.fill")
             }
@@ -168,7 +168,7 @@ struct WaterWidgetView: View {
 
     private var inline: some View {
         Label(
-            target.map { "Water \(total.formatted()) of \($0.formatted()) ml" } ?? "Water \(total.formatted()) ml",
+            target.map { String(localized: "Water \(total.formatted()) of \($0.formatted()) ml") } ?? String(localized: "Water \(total.formatted()) ml"),
             systemImage: "drop.fill"
         )
     }

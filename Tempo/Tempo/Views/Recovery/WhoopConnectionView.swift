@@ -122,7 +122,7 @@ struct WhoopConnectionView: View {
 
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Whoop integration")
+            TideSectionLabel(title: String(localized: "Whoop integration"))
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 // Connection status: the state in the colour of the state
@@ -150,14 +150,14 @@ struct WhoopConnectionView: View {
                     Spacer(minLength: Tide.s2)
 
                     if whoop.isDemoMode, isConnected, !typeSize.isAccessibilitySize {
-                        TideStatusPill(text: "Demo", tint: TideTone.amber)
+                        TideStatusPill(text: String(localized: "Demo"), tint: TideTone.amber)
                     }
                 }
                 .accessibilityElement(children: .combine)
 
                 // At the largest text sizes the pill drops under the status instead of squeezing it.
                 if whoop.isDemoMode, isConnected, typeSize.isAccessibilitySize {
-                    TideStatusPill(text: "Demo", tint: TideTone.amber)
+                    TideStatusPill(text: String(localized: "Demo"), tint: TideTone.amber)
                 }
 
                 if isConnected {
@@ -188,20 +188,20 @@ struct WhoopConnectionView: View {
 
     private var dataPreviewSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Latest data")
+            TideSectionLabel(title: String(localized: "Latest data"))
 
             VStack(spacing: 0) {
-                dataRow(icon: "heart.fill", label: "Recovery", value: "Available")
+                dataRow(icon: "heart.fill", label: String(localized: "Recovery"), value: String(localized: "Available"))
                 TideDivider()
-                dataRow(icon: "bed.double.fill", label: "Sleep", value: "Available")
+                dataRow(icon: "bed.double.fill", label: String(localized: "Sleep"), value: String(localized: "Available"))
                 TideDivider()
-                dataRow(icon: "flame.fill", label: "Strain", value: "Available")
+                dataRow(icon: "flame.fill", label: String(localized: "Strain"), value: String(localized: "Available"))
                 TideDivider()
-                dataRow(icon: "waveform.path.ecg", label: "HRV", value: "Available")
+                dataRow(icon: "waveform.path.ecg", label: String(localized: "HRV"), value: String(localized: "Available"))
                 TideDivider()
-                dataRow(icon: "drop.fill", label: "SpO2", value: "Available")
+                dataRow(icon: "drop.fill", label: "SpO2", value: String(localized: "Available"))
                 TideDivider()
-                dataRow(icon: "thermometer.medium", label: "Skin Temp", value: "Available")
+                dataRow(icon: "thermometer.medium", label: String(localized: "Skin Temp"), value: String(localized: "Available"))
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
@@ -269,10 +269,10 @@ struct WhoopConnectionView: View {
 
             // Instructions
             VStack(alignment: .leading, spacing: Tide.s3) {
-                instructionRow(number: "1", text: "Go to developer.whoop.com")
-                instructionRow(number: "2", text: "Create an application")
-                instructionRow(number: "3", text: "Set redirect URI to:\ntempo://whoop/callback")
-                instructionRow(number: "4", text: "Copy the Client ID and Client Secret below")
+                instructionRow(number: "1", text: String(localized: "Go to developer.whoop.com"))
+                instructionRow(number: "2", text: String(localized: "Create an application"))
+                instructionRow(number: "3", text: String(localized: "Set redirect URI to:\ntempo://whoop/callback"))
+                instructionRow(number: "4", text: String(localized: "Copy the Client ID and Client Secret below"))
             }
             .tideCard()
 
@@ -342,7 +342,7 @@ struct WhoopConnectionView: View {
             showCredentialSetup = false
             errorMessage = nil
         } catch {
-            errorMessage = "Failed to save credentials."
+            errorMessage = String(localized: "Failed to save credentials.")
         }
     }
 
@@ -411,7 +411,7 @@ struct WhoopConnectionView: View {
                             ProgressView()
                                 .tint(Tide.ink)
                         }
-                        Text(isConnecting ? "Connecting..." : "Connect Whoop")
+                        Text(isConnecting ? String(localized: "Connecting...") : String(localized: "Connect Whoop"))
                     }
                 }
                 .buttonStyle(.tidePrimary)
@@ -428,7 +428,7 @@ struct WhoopConnectionView: View {
     // MARK: - Sync Button
 
     private var syncButton: some View {
-        Button(isSyncing ? "Syncing..." : "Sync now") {
+        Button(isSyncing ? String(localized: "Syncing...") : String(localized: "Sync now")) {
             Task {
                 isSyncing = true
                 try? await whoop.syncAll()
@@ -445,7 +445,7 @@ struct WhoopConnectionView: View {
         Button(role: .destructive) {
             showDisconnectConfirmation = true
         } label: {
-            Text(isDisconnecting ? "Disconnecting..." : "Disconnect Whoop")
+            Text(isDisconnecting ? String(localized: "Disconnecting...") : String(localized: "Disconnect Whoop"))
                 .foregroundStyle(Tide.danger)
                 .frame(maxWidth: .infinity)
         }
@@ -468,7 +468,7 @@ struct WhoopConnectionView: View {
             case WhoopError.noCredentials:
                 showCredentialSetup = true
             default:
-                errorMessage = "Connection failed: \(error.localizedDescription)"
+                errorMessage = String(localized: "Connection failed: \(error.localizedDescription)")
             }
         }
         isConnecting = false
@@ -480,7 +480,7 @@ struct WhoopConnectionView: View {
         do {
             try await whoop.disconnect()
         } catch {
-            errorMessage = "Disconnect failed. Please try again."
+            errorMessage = String(localized: "Disconnect failed. Please try again.")
         }
         isDisconnecting = false
     }
@@ -498,7 +498,7 @@ struct WhoopConnectionView: View {
 
     private var lastSyncText: String {
         guard let syncDate = whoop.lastSyncDate else {
-            return "Never"
+            return String(localized: "Never")
         }
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
@@ -507,10 +507,10 @@ struct WhoopConnectionView: View {
 
     private var statusText: String {
         switch whoop.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .disconnected: "Not Connected"
-        case let .error(msg): "Error: \(msg)"
+        case .connected: String(localized: "Connected")
+        case .connecting: String(localized: "Connecting...")
+        case .disconnected: String(localized: "Not Connected")
+        case let .error(msg): String(localized: "Error: \(msg)")
         }
     }
 }

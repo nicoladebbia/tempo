@@ -63,8 +63,8 @@ struct MoveQuadrantDetailView: View {
                 } else {
                     TrainEmptyCard(
                         systemImage: "heart.text.square",
-                        title: "Health Access Required",
-                        message: "Allow HealthKit access to track steps, calories, and workout data."
+                        title: String(localized: "Health Access Required"),
+                        message: String(localized: "Allow HealthKit access to track steps, calories, and workout data.")
                     )
                     Button {
                         Task {
@@ -150,7 +150,7 @@ struct MoveQuadrantDetailView: View {
                         .font(Tide.headline)
                         .foregroundStyle(TideTrain.positive)
                         .accessibilityHidden(true)
-                    Text(data.workoutName ?? "Workout")
+                    Text(data.workoutName ?? String(localized: "Workout"))
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
@@ -168,7 +168,7 @@ struct MoveQuadrantDetailView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
             case .planned:
-                Text(data.workoutName ?? "Workout")
+                Text(data.workoutName ?? String(localized: "Workout"))
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -222,9 +222,9 @@ struct MoveQuadrantDetailView: View {
     private var todayActivitySection: some View {
         let stepsSubtitle = "/\(NumberFormatter.localizedString(from: NSNumber(value: data.stepsTarget), number: .decimal))"
         let stats = Group {
-            activityCard(value: data.formattedSteps, label: "Steps", subtitle: stepsSubtitle)
-            activityCard(value: data.formattedActiveCalories, label: "Active Cal", subtitle: nil)
-            activityCard(value: data.formattedStrain, label: "Strain", subtitle: nil)
+            activityCard(value: data.formattedSteps, label: String(localized: "Steps"), subtitle: stepsSubtitle)
+            activityCard(value: data.formattedActiveCalories, label: String(localized: "Active Cal"), subtitle: nil)
+            activityCard(value: data.formattedStrain, label: String(localized: "Strain"), subtitle: nil)
         }
         return VStack(spacing: Tide.s3) {
             // Three stat cards; one per row once the text gets large.
@@ -294,7 +294,7 @@ struct MoveQuadrantDetailView: View {
 
     private var heartRateSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Heart rate")
+            TideSectionLabel(title: String(localized: "Heart rate"))
 
             switch lastSessionAvgHR {
             case .none:
@@ -330,7 +330,7 @@ struct MoveQuadrantDetailView: View {
 
     private var workoutHistorySection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Workout history")
+            TideSectionLabel(title: String(localized: "Workout history"))
 
             let recent = Array(completedWorkouts.prefix(5))
             if recent.isEmpty {
@@ -388,7 +388,7 @@ struct MoveQuadrantDetailView: View {
     static func volumeHistoryLabel(durationMinutes: Int?, volumeKg: Double, unit: WeightUnit) -> String {
         var parts: [String] = []
         if let dur = durationMinutes {
-            parts.append("\(dur)m")
+            parts.append(String(localized: "\(dur)m"))
         }
         if volumeKg > 0 {
             parts.append(WeightFormat.volumeText(kg: volumeKg, unit: unit))
@@ -408,7 +408,7 @@ struct MoveQuadrantDetailView: View {
         let workoutDays = trend.count(where: { $0.volume > 0 })
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Weekly volume")
+            TideSectionLabel(title: String(localized: "Weekly volume"))
 
             if totalVol == 0 {
                 Text("No completed sets this week.")
@@ -441,8 +441,10 @@ struct MoveQuadrantDetailView: View {
                 }
                 .frame(height: typeSize.isAccessibilitySize ? TideTrain.chartHeight : TideTrain.barsHeight)
 
+                let volumeText = NumberFormatter.localizedString(from: NSNumber(value: Int(totalVol)), number: .decimal)
+                let sessionsText = String(localized: "\(workoutDays) sessions")
                 Text(
-                    "Total: \(NumberFormatter.localizedString(from: NSNumber(value: Int(totalVol)), number: .decimal)) \(unit) · \(workoutDays) \(workoutDays == 1 ? "session" : "sessions")"
+                    "Total: \(volumeText) \(unit) · \(sessionsText)"
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
@@ -475,10 +477,10 @@ struct MoveQuadrantDetailView: View {
 
     private var workoutQuip: String {
         [
-            "Solid session. Now recover.",
-            "Done and dusted.",
-            "Checked off. Next one's waiting.",
-            "Work in the bank.",
+            String(localized: "Solid session. Now recover."),
+            String(localized: "Done and dusted."),
+            String(localized: "Checked off. Next one's waiting."),
+            String(localized: "Work in the bank."),
         ].randomElement() ?? ""
     }
 
@@ -490,11 +492,12 @@ struct MoveQuadrantDetailView: View {
         let hour = calendar.component(.hour, from: now)
 
         guard hour >= 8, hoursElapsed >= 1, let steps = data.steps else {
-            return "Too early to project"
+            return String(localized: "Too early to project")
         }
 
         let projected = Int(Double(steps) / hoursElapsed * 16)
-        return "Step pace: On track for \(NumberFormatter.localizedString(from: NSNumber(value: projected), number: .decimal))"
+        let projectedText = NumberFormatter.localizedString(from: NSNumber(value: projected), number: .decimal)
+        return String(localized: "Step pace: On track for \(projectedText)")
     }
 
     private var stepPaceColor: Color {

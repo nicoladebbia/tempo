@@ -19,7 +19,12 @@ enum AppTab: String, CaseIterable {
     case arena
 
     var title: String {
-        rawValue.capitalized
+        switch self {
+        case .today: String(localized: "Today")
+        case .train: String(localized: "Train")
+        case .fuel: String(localized: "Fuel")
+        case .arena: String(localized: "Arena")
+        }
     }
 
     var icon: String {

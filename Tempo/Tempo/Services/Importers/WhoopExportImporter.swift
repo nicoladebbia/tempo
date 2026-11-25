@@ -26,8 +26,8 @@ enum WhoopExportImporter {
         var filesIgnored = 0
 
         var label: String {
-            "\(cyclesImported) days + \(workoutsImported) workouts imported"
-                + " (\(cyclesSkipped + workoutsSkipped) already present)"
+            let alreadyPresent = cyclesSkipped + workoutsSkipped
+            return String(localized: "\(cyclesImported) days + \(workoutsImported) workouts imported (\(alreadyPresent) already present)")
         }
     }
 

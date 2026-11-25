@@ -77,9 +77,9 @@ enum SubscriptionProduct: String, CaseIterable {
     var displayName: String {
         switch self {
         case .monthly,
-             .studentMonthly: "Monthly"
+             .studentMonthly: String(localized: "Monthly")
         case .annual,
-             .studentAnnual: "Annual"
+             .studentAnnual: String(localized: "Annual")
         }
     }
 

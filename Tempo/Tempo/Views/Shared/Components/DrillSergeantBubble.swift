@@ -63,10 +63,10 @@ enum DrillSergeantIntensity {
 
     var label: String {
         switch self {
-        case .encouraging: "ORDERS"
-        case .standard: "ORDERS"
-        case .urgent: "WARNING"
-        case .critical: "FINAL WARNING"
+        case .encouraging: String(localized: "ORDERS")
+        case .standard: String(localized: "ORDERS")
+        case .urgent: String(localized: "WARNING")
+        case .critical: String(localized: "FINAL WARNING")
         }
     }
 
@@ -135,7 +135,7 @@ enum DrillSergeantMessageGenerator {
         case .unlocked:
             nil // No drill sergeant when unlocked
         case .overrideActive:
-            ("Rest day active. Recovery is part of the process. Don't make it a habit.", .encouraging)
+            (String(localized: "Rest day active. Recovery is part of the process. Don't make it a habit."), .encouraging)
         case .review:
             nil
         }
@@ -145,15 +145,15 @@ enum DrillSergeantMessageGenerator {
 
     private static func morningMessage(context: DrillSergeantContext) -> String {
         if context.streakCount > 7 {
-            return "Day \(context.streakCount + 1) starts now. You didn't build a \(context.streakCount)-day streak to quit today. Set your non-negotiables."
+            return String(localized: "Day \(context.streakCount + 1) starts now. You didn't build a \(context.streakCount)-day streak to quit today. Set your non-negotiables.")
         }
         if context.isWeekend {
-            return "Weekend doesn't mean day off. Set your non-negotiables and earn your free time."
+            return String(localized: "Weekend doesn't mean day off. Set your non-negotiables and earn your free time.")
         }
         let messages = [
-            "New day, new chance to not be mediocre. Set your non-negotiables.",
-            "Yesterday is gone. Today is what matters. Set up and get moving.",
-            "The alarm went off for a reason. Set your tasks and handle your business.",
+            String(localized: "New day, new chance to not be mediocre. Set your non-negotiables."),
+            String(localized: "Yesterday is gone. Today is what matters. Set up and get moving."),
+            String(localized: "The alarm went off for a reason. Set your tasks and handle your business."),
         ]
         return messages[abs(Calendar.current.component(.day, from: Date())) % messages.count]
     }
@@ -164,31 +164,31 @@ enum DrillSergeantMessageGenerator {
         // Zero progress
         if context.completedCount == 0 {
             if context.hoursToPS5 < 4 {
-                return ("Zero done. \(formatTime(context.timeToPS5)) until lockdown. You haven't started. Move.", .urgent)
+                return (String(localized: "Zero done. \(formatTime(context.timeToPS5)) until lockdown. You haven't started. Move."), .urgent)
             }
             if context.hourOfDay > 12 {
-                return ("It's past noon and you haven't done a single thing. The day won't wait for you.", .urgent)
+                return (String(localized: "It's past noon and you haven't done a single thing. The day won't wait for you."), .urgent)
             }
-            return ("Zero progress. The day isn't going to handle itself.", .standard)
+            return (String(localized: "Zero progress. The day isn't going to handle itself."), .standard)
         }
 
         // Study-specific pressure
         if context.studyRemaining > 0, context.totalStudyMinutes == 0, context.hourOfDay > 14 {
-            return ("You usually skip study on days like this. Not today. \(context.studyTargetMinutes)min target. Start now.", .urgent)
+            return (String(localized: "You usually skip study on days like this. Not today. \(context.studyTargetMinutes)min target. Start now."), .urgent)
         }
 
         // Almost done
         if context.remainingCount == 1 {
             if context.streakCount > 0 {
-                return ("One left. \(context.streakCount)-day streak on the line. Finish it.", .standard)
+                return (String(localized: "One left. \(context.streakCount)-day streak on the line. Finish it."), .standard)
             }
-            return ("Just 1 more. You're right there. Don't quit this close to the finish.", .encouraging)
+            return (String(localized: "Just 1 more. You're right there. Don't quit this close to the finish."), .encouraging)
         }
 
         // Low recovery context
         if let recovery = context.recoveryScore, recovery < 40 {
             return (
-                "Recovery is \(Int(recovery))%. Your body's asking for rest, but your mind needs work. \(context.completedCount)/\(context.totalCount) done. Keep pushing smart.",
+                String(localized: "Recovery is \(Int(recovery))%. Your body's asking for rest, but your mind needs work. \(context.completedCount)/\(context.totalCount) done. Keep pushing smart."),
                 .standard
             )
         }
@@ -196,7 +196,7 @@ enum DrillSergeantMessageGenerator {
         // Streak pressure
         if context.streakCount >= 10 {
             return (
-                "\(context.completedCount)/\(context.totalCount) done. \(context.streakCount)-day streak. Don't be the reason it ends.",
+                String(localized: "\(context.completedCount)/\(context.totalCount) done. \(context.streakCount)-day streak. Don't be the reason it ends."),
                 .standard
             )
         }
@@ -204,7 +204,7 @@ enum DrillSergeantMessageGenerator {
         // Study progress
         if context.studyRemaining > 30, context.hoursToPS5 < 3 {
             return (
-                "\(context.studyRemaining)min of study left and only \(formatTime(context.timeToPS5)) remaining. Open the timer. Now.",
+                String(localized: "\(context.studyRemaining)min of study left and only \(formatTime(context.timeToPS5)) remaining. Open the timer. Now."),
                 .urgent
             )
         }
@@ -212,7 +212,7 @@ enum DrillSergeantMessageGenerator {
         // General progress with time context
         if context.hoursToPS5 < 2 {
             return (
-                "\(context.completedCount)/\(context.totalCount) done. \(formatTime(context.timeToPS5)) left. No more procrastinating.",
+                String(localized: "\(context.completedCount)/\(context.totalCount) done. \(formatTime(context.timeToPS5)) left. No more procrastinating."),
                 .urgent
             )
         }
@@ -221,51 +221,51 @@ enum DrillSergeantMessageGenerator {
         let remaining = context.remainingCount
         if context.completionPercentage >= 0.5 {
             return (
-                "Over halfway. \(context.completedCount)/\(context.totalCount) done. Momentum is on your side. Don't stop.",
+                String(localized: "Over halfway. \(context.completedCount)/\(context.totalCount) done. Momentum is on your side. Don't stop."),
                 .encouraging
             )
         }
 
-        return ("\(context.completedCount)/\(context.totalCount) done. \(remaining) to go. Keep moving.", .standard)
+        return (String(localized: "\(context.completedCount)/\(context.totalCount) done. \(remaining) to go. Keep moving."), .standard)
     }
 
     // MARK: - Approaching Deadline Messages
 
     private static func approachingMessage(context: DrillSergeantContext) -> String {
         if context.studyRemaining > 60 {
-            return "\(formatTime(context.timeToPS5)) left and \(context.studyRemaining)min of study remaining. You're behind. Every minute counts."
+            return String(localized: "\(formatTime(context.timeToPS5)) left and \(context.studyRemaining)min of study remaining. You're behind. Every minute counts.")
         }
         if context.remainingCount > 2 {
-            return "\(context.remainingCount) tasks still open with \(formatTime(context.timeToPS5)) left. Clock's ticking. You know what to do."
+            return String(localized: "\(context.remainingCount) tasks still open with \(formatTime(context.timeToPS5)) left. Clock's ticking. You know what to do.")
         }
         if context.streakCount > 5 {
-            return "Your \(context.streakCount)-day streak doesn't care about your excuses. \(formatTime(context.timeToPS5)) remaining. GO."
+            return String(localized: "Your \(context.streakCount)-day streak doesn't care about your excuses. \(formatTime(context.timeToPS5)) remaining. GO.")
         }
-        return "Clock's ticking. \(formatTime(context.timeToPS5)) to PS5 time. \(context.remainingCount) tasks left. You're running out of daylight."
+        return String(localized: "Clock's ticking. \(formatTime(context.timeToPS5)) to PS5 time. \(context.remainingCount) tasks left. You're running out of daylight.")
     }
 
     // MARK: - Final Warning Messages
 
     private static func finalWarningMessage(context: DrillSergeantContext) -> String {
         if context.streakCount > 0 {
-            return "\(formatTime(context.timeToPS5)) left. \(context.streakCount)-day streak DIES if you don't finish. This is it."
+            return String(localized: "\(formatTime(context.timeToPS5)) left. \(context.streakCount)-day streak DIES if you don't finish. This is it.")
         }
         if context.remainingCount == 1 {
-            return "Last chance. \(formatTime(context.timeToPS5)). ONE task between you and freedom. Do it NOW."
+            return String(localized: "Last chance. \(formatTime(context.timeToPS5)). ONE task between you and freedom. Do it NOW.")
         }
-        return "Last chance. PS5 time is almost here and you're not done. \(context.remainingCount) tasks. \(formatTime(context.timeToPS5)). No excuses."
+        return String(localized: "Last chance. PS5 time is almost here and you're not done. \(context.remainingCount) tasks. \(formatTime(context.timeToPS5)). No excuses.")
     }
 
     // MARK: - Day Failed Messages
 
     private static func failedMessage(context: DrillSergeantContext) -> String {
         if context.streakCount > 0 {
-            return "PS5 time came and went. Your \(context.streakCount)-day streak just died. Remember this feeling tomorrow."
+            return String(localized: "PS5 time came and went. Your \(context.streakCount)-day streak just died. Remember this feeling tomorrow.")
         }
         if context.completedCount == 0 {
-            return "Not a single task done. PS5 time passed. Today was a waste. Tomorrow, be different."
+            return String(localized: "Not a single task done. PS5 time passed. Today was a waste. Tomorrow, be different.")
         }
-        return "PS5 time came and went. \(context.completedCount)/\(context.totalCount) done. Close but not good enough. No excuses tomorrow."
+        return String(localized: "PS5 time came and went. \(context.completedCount)/\(context.totalCount) done. Close but not good enough. No excuses tomorrow.")
     }
 
     // MARK: - Helpers
@@ -274,8 +274,8 @@ enum DrillSergeantMessageGenerator {
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         if hours > 0 {
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 }

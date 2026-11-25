@@ -47,16 +47,16 @@ struct ProfileSetupView: View {
             return
         }
         if username.count < 3 {
-            usernameError = "At least 3 characters"
+            usernameError = String(localized: "At least 3 characters")
             return
         }
         if username.count > 30 {
-            usernameError = "Max 30 characters"
+            usernameError = String(localized: "Max 30 characters")
             return
         }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
         if !username.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
-            usernameError = "Letters, numbers, and underscores only"
+            usernameError = String(localized: "Letters, numbers, and underscores only")
             return
         }
 
@@ -65,20 +65,20 @@ struct ProfileSetupView: View {
         )
         descriptor.fetchLimit = 1
         let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        usernameError = count > 0 ? "Username already taken" : nil
+        usernameError = count > 0 ? String(localized: "Username already taken") : nil
     }
 
     var body: some View {
         OnboardingScaffold(
-            title: "ABOUT YOU.",
-            primaryTitle: "CONTINUE",
+            title: String(localized: "ABOUT YOU."),
+            primaryTitle: String(localized: "CONTINUE"),
             primaryEnabled: viewModel.canContinue && usernameError == nil,
             primaryAction: { viewModel.advance() }
         ) {
             profileCard
 
             VStack(alignment: .leading, spacing: Tide.s2) {
-                OnboardingSectionLabel("Display Name")
+                OnboardingSectionLabel(String(localized: "Display Name"))
 
                 TextField("", text: $viewModel.displayName, prompt: Text("Your name").foregroundStyle(Tide.text3))
                     .font(Tide.headline.weight(.regular))
@@ -91,7 +91,7 @@ struct ProfileSetupView: View {
             }
 
             VStack(alignment: .leading, spacing: Tide.s2) {
-                OnboardingSectionLabel("Username")
+                OnboardingSectionLabel(String(localized: "Username"))
 
                 TextField("", text: usernameBinding, prompt: Text("@username").foregroundStyle(Tide.text3))
                     .font(Tide.headline.weight(.regular))
@@ -147,16 +147,16 @@ struct ProfileSetupView: View {
     /// "What best describes you?" as one menu: 20 options do not need a page of their own.
     private var identityMenu: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            OnboardingSectionLabel("What best describes you?")
+            OnboardingSectionLabel(String(localized: "What best describes you?"))
             Menu {
                 Picker("What best describes you?", selection: $viewModel.identityLabel) {
                     ForEach(OnboardingViewModel.identityLabels, id: \.self) { label in
-                        Text(label).tag(label)
+                        Text(OnboardingViewModel.identityDisplayName(label)).tag(label)
                     }
                 }
             } label: {
                 HStack(spacing: Tide.s2) {
-                    Text(viewModel.identityLabel)
+                    Text(OnboardingViewModel.identityDisplayName(viewModel.identityLabel))
                         .font(Tide.headline.weight(.regular))
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
@@ -172,7 +172,7 @@ struct ProfileSetupView: View {
             }
             .accessibilityIdentifier("onboardingIdentityMenu")
             .accessibilityLabel("What best describes you")
-            .accessibilityValue(viewModel.identityLabel)
+            .accessibilityValue(OnboardingViewModel.identityDisplayName(viewModel.identityLabel))
         }
     }
 
@@ -191,13 +191,13 @@ struct ProfileSetupView: View {
         HStack(spacing: Tide.s4) {
             avatar
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(trimmedName.isEmpty ? "Your name" : trimmedName)
+                Text(trimmedName.isEmpty ? String(localized: "Your name") : trimmedName)
                     .font(Tide.title2)
                     .foregroundStyle(trimmedName.isEmpty ? Tide.text3 : Tide.text)
                     .lineLimit(2)
                     .minimumScaleFactor(Tide.labelShrink)
                     .contentTransition(.interpolate)
-                Text(trimmedUsername.isEmpty ? "@username" : "@\(trimmedUsername)")
+                Text(trimmedUsername.isEmpty ? String(localized: "@username") : "@\(trimmedUsername)")
                     .font(Tide.body)
                     .foregroundStyle(trimmedUsername.isEmpty ? Tide.text3 : Tide.text2)
                     .lineLimit(1)

@@ -49,7 +49,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             return WorkoutPlan(
                 date: date,
                 type: .football,
-                notes: "Match day — pre-match prep only"
+                notes: String(localized: "Match day — pre-match prep only")
             )
         }
 
@@ -79,7 +79,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 date: date,
                 type: .mobility,
                 recoveryAdjustment: 0.0,
-                notes: "Recovery is low — 25-min mobility session"
+                notes: String(localized: "Recovery is low — 25-min mobility session")
             )
         }
 
@@ -124,7 +124,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             date: date,
             type: workoutType,
             recoveryAdjustment: recoveryAdjustment,
-            notes: zone == .yellow ? "Recovery-adjusted workout" : nil
+            notes: zone == .yellow ? String(localized: "Recovery-adjusted workout") : nil
         )
     }
 
@@ -611,7 +611,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 plans.append(WorkoutPlan(
                     date: meta.date,
                     type: .football,
-                    notes: isDatedMatch ? "Match day" : "Football day"
+                    notes: isDatedMatch ? String(localized: "Match day") : String(localized: "Football day")
                 ))
                 continue
             }
@@ -646,7 +646,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     date: meta.date,
                     type: .mobility,
                     recoveryAdjustment: 0.0,
-                    notes: "Recovery is low"
+                    notes: String(localized: "Recovery is low")
                 ))
                 continue
             }
@@ -671,7 +671,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         date: meta.date,
                         type: workoutType,
                         recoveryAdjustment: adjustment,
-                        notes: zone == .yellow ? "Recovery-adjusted" : nil
+                        notes: zone == .yellow ? String(localized: "Recovery-adjusted") : nil
                     )
                     // §21 (b) — a custom-split gym day earns a two-a-day on the
                     // SAME eligibility as the standard path (this branch used to
@@ -705,7 +705,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                     date: meta.date,
                     type: workoutType,
                     recoveryAdjustment: adjustment,
-                    notes: zone == .yellow ? "Recovery-adjusted" : nil
+                    notes: zone == .yellow ? String(localized: "Recovery-adjusted") : nil
                 )
 
                 // §21 requirement (b) — a gym day can carry an easy cardio SECOND
@@ -758,7 +758,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         date: meta.date,
                         type: .conditioning,
                         durationMinutes: 30,
-                        notes: "Cross-training — conditioning"
+                        notes: String(localized: "Cross-training — conditioning")
                     ))
                 } else if meta.isTMinus1 {
                     // Pre-match: pool only — no leg-loading impact before a game.
@@ -766,7 +766,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         date: meta.date,
                         type: .pool,
                         durationMinutes: 20,
-                        notes: "Pool — pre-match easy"
+                        notes: String(localized: "Pool — pre-match easy")
                     ))
                 } else {
                     // Easy recovery cross-training; cycle the modality by a
@@ -781,7 +781,7 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                         date: meta.date,
                         type: easy,
                         durationMinutes: easy == .pool ? 45 : 30,
-                        notes: easy == .pool ? "Pool — easy recovery" : "Easy run — Zone 2"
+                        notes: easy == .pool ? String(localized: "Pool — easy recovery") : String(localized: "Easy run — Zone 2")
                     ))
                 }
             }
@@ -1080,28 +1080,28 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
             return (WorkoutPlan(
                 date: date,
                 type: .rest,
-                notes: "Rest — T+1 after football"
+                notes: String(localized: "Rest — T+1 after football")
             ), false)
         case .yellow:
             if (score ?? 50) < 50 {
                 return (WorkoutPlan(
                     date: date,
                     type: .mobility,
-                    notes: "Mobility — T+1 after football"
+                    notes: String(localized: "Mobility — T+1 after football")
                 ), false)
             }
             if let easy = customEasyT1 {
                 return (WorkoutPlan(
                     date: date,
                     type: easy,
-                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                    notes: easy == .rest ? nil : String(localized: "Easy day — T+1 after football")
                 ), false)
             }
             return (WorkoutPlan(
                 date: date,
                 type: customUpperT1 ?? preferredUpperType(for: date, split: split),
                 recoveryAdjustment: 0.8,
-                notes: "Reduced upper body — T+1"
+                notes: String(localized: "Reduced upper body — T+1")
             ), true)
         case .green:
             // Upper body only even with green (neuromuscular impairment)
@@ -1109,13 +1109,13 @@ final class TrainingEngine: TrainingEngineProtocol, @unchecked Sendable {
                 return (WorkoutPlan(
                     date: date,
                     type: easy,
-                    notes: easy == .rest ? nil : "Easy day — T+1 after football"
+                    notes: easy == .rest ? nil : String(localized: "Easy day — T+1 after football")
                 ), false)
             }
             return (WorkoutPlan(
                 date: date,
                 type: customUpperT1 ?? preferredUpperType(for: date, split: split),
-                notes: "Upper body only — T+1 after football"
+                notes: String(localized: "Upper body only — T+1 after football")
             ), true)
         }
     }

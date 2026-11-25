@@ -43,29 +43,29 @@ struct AccountDetailView: View {
                 SettingsSignInCard()
             }
 
-            SettingsFormCard(title: "Identity") {
+            SettingsFormCard(title: String(localized: "Identity")) {
                 SettingsInfoRow(
-                    label: "Sign-in",
-                    value: isSignedIn ? "Apple" : "Not signed in",
+                    label: String(localized: "Sign-in"),
+                    value: isSignedIn ? String(localized: "Apple") : String(localized: "Not signed in"),
                     icon: "applelogo",
                     iconTint: Tide.text
                 )
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Member since", value: memberSince, icon: "calendar")
+                SettingsInfoRow(label: String(localized: "Member since"), value: memberSince, icon: "calendar")
                 if let id = userIDShort {
                     SettingsRowDivider()
-                    SettingsInfoRow(label: "User ID", value: id, icon: "number")
+                    SettingsInfoRow(label: String(localized: "User ID"), value: id, icon: "number")
                 }
             }
 
             // The destructive group sits alone at the bottom, apart from the rest.
             TideSettingsSection(
-                title: "Danger zone",
-                footnote: "Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone.",
+                title: String(localized: "Danger zone"),
+                footnote: String(localized: "Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone."),
                 isDanger: true
             ) {
                 Button { showDeleteConfirm = true } label: {
-                    SettingsActionRow(icon: "trash", title: "Delete Account", tint: Tide.danger)
+                    SettingsActionRow(icon: "trash", title: String(localized: "Delete Account"), tint: Tide.danger)
                 }
                 .buttonStyle(.tideSettingsRow)
                 .disabled(isDeleting)
@@ -96,7 +96,7 @@ struct AccountDetailView: View {
 
     /// Who this is and whether the data is backed up, before the details.
     private var identityHero: some View {
-        let name = profile?.displayName.isEmpty == false ? (profile?.displayName ?? "Athlete") : "Athlete"
+        let name = profile?.displayName.isEmpty == false ? (profile?.displayName ?? String(localized: "Athlete")) : String(localized: "Athlete")
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
             : AnyLayout(HStackLayout(spacing: Tide.s4))
@@ -114,7 +114,7 @@ struct AccountDetailView: View {
                             .frame(width: Tide.s2, height: Tide.s2)
                             .shadow(color: isSignedIn ? mood.accent : .clear, radius: Tide.s1)
                             .accessibilityHidden(true)
-                        Text(isSignedIn ? "Backed up to your account" : "Only on this phone")
+                        Text(isSignedIn ? String(localized: "Backed up to your account") : String(localized: "Only on this phone"))
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -127,7 +127,7 @@ struct AccountDetailView: View {
                 TideSettingsHairline(inset: 0)
                     .padding(.vertical, Tide.s1)
                 TideNumber(
-                    "\(days)", unit: days == 1 ? "day with Tempo" : "days with Tempo",
+                    "\(days)", unit: days == 1 ? String(localized: "day with Tempo") : String(localized: "days with Tempo"),
                     size: Tide.numeralM, relativeTo: .title
                 )
                 .accessibilityElement(children: .combine)

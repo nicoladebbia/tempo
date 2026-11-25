@@ -28,21 +28,21 @@ enum SetupStep: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .health: "Allow Apple Health"
-        case .whoop: "Connect Whoop"
-        case .food: "Set up your food"
-        case .training: "Set up training"
-        case .tasks: "Choose daily tasks"
+        case .health: String(localized: "Allow Apple Health")
+        case .whoop: String(localized: "Connect Whoop")
+        case .food: String(localized: "Set up your food")
+        case .training: String(localized: "Set up training")
+        case .tasks: String(localized: "Choose daily tasks")
         }
     }
 
     var detail: String {
         switch self {
-        case .health: "Steps, heart rate and sleep, read for you."
-        case .whoop: "Recovery, sleep and strain from your band."
-        case .food: "Your goal, diet and eating window set the targets."
-        case .training: "Your level, split and training days."
-        case .tasks: "The few things you do every day."
+        case .health: String(localized: "Steps, heart rate and sleep, read for you.")
+        case .whoop: String(localized: "Recovery, sleep and strain from your band.")
+        case .food: String(localized: "Your goal, diet and eating window set the targets.")
+        case .training: String(localized: "Your level, split and training days.")
+        case .tasks: String(localized: "The few things you do every day.")
         }
     }
 

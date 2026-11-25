@@ -438,7 +438,7 @@ final class RecoveryViewModel {
         guard let temp = todayRecovery?.skinTemp else {
             return "--"
         }
-        return String(format: "%.1f", temp)
+        return temp.tempoDecimal(1)
     }
 
     var formattedSleepHours: String {
@@ -461,7 +461,7 @@ final class RecoveryViewModel {
         guard let strain = todayRecovery?.strain else {
             return "--"
         }
-        return String(format: "%.1f", strain)
+        return strain.tempoDecimal(1)
     }
 
     var formattedCalories: String {
@@ -479,7 +479,7 @@ final class RecoveryViewModel {
             return "--"
         }
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return formatter.string(from: bedtime)
     }
 
@@ -492,7 +492,7 @@ final class RecoveryViewModel {
             return "--"
         }
         let liters = Double(ml) / 1000.0
-        return String(format: "%.1fL", liters)
+        return "\(liters.tempoDecimal(1))L"
     }
 
     // MARK: - Sleep Need (Task 1)
@@ -693,16 +693,16 @@ final class RecoveryViewModel {
         guard let score = todayRecovery?.recoveryScore,
               let avg = avg30dRecovery
         else {
-            return "Your first recovery day!"
+            return String(localized: "Your first recovery day!")
         }
         let diff = score - avg
         let percent = abs(diff / avg * 100)
         if abs(diff) < 1 {
-            return "Right at your average"
+            return String(localized: "Right at your average")
         } else if diff > 0 {
-            return "↑ \(Int(percent))% above your average"
+            return String(localized: "↑ \(Int(percent))% above your average")
         } else {
-            return "↓ \(Int(percent))% below your average"
+            return String(localized: "↓ \(Int(percent))% below your average")
         }
     }
 
@@ -729,7 +729,7 @@ final class RecoveryViewModel {
 
     var recoveryExplanation: String {
         guard let recovery = todayRecovery else {
-            return "Waiting for recovery data to generate insights."
+            return String(localized: "Waiting for recovery data to generate insights.")
         }
 
         let zone = RecoveryZone(score: recovery.recoveryScore)
@@ -739,11 +739,11 @@ final class RecoveryViewModel {
         if let hrvDelta, let baseline = hrvBaseline30d {
             let absD = abs(Int(hrvDelta))
             if hrvDelta < -5 {
-                factors.append("Your HRV dropped \(absD)ms below your \(Int(baseline))ms baseline")
+                factors.append(String(localized: "Your HRV dropped \(absD)ms below your \(Int(baseline))ms baseline"))
             } else if hrvDelta > 5 {
-                factors.append("Your HRV is \(absD)ms above your \(Int(baseline))ms baseline")
+                factors.append(String(localized: "Your HRV is \(absD)ms above your \(Int(baseline))ms baseline"))
             } else {
-                factors.append("Your HRV is right at your \(Int(baseline))ms baseline")
+                factors.append(String(localized: "Your HRV is right at your \(Int(baseline))ms baseline"))
             }
         }
 
@@ -751,9 +751,9 @@ final class RecoveryViewModel {
         if let rhrDelta, let baseline = rhrBaseline30d {
             let absD = abs(Int(rhrDelta))
             if rhrDelta > 3 {
-                factors.append("your RHR is elevated \(absD)bpm above your \(Int(baseline))bpm average")
+                factors.append(String(localized: "your RHR is elevated \(absD)bpm above your \(Int(baseline))bpm average"))
             } else if rhrDelta < -3 {
-                factors.append("your RHR is \(absD)bpm below your \(Int(baseline))bpm average (good sign)")
+                factors.append(String(localized: "your RHR is \(absD)bpm below your \(Int(baseline))bpm average (good sign)"))
             }
         }
 
@@ -764,56 +764,58 @@ final class RecoveryViewModel {
                 let extra = sleepHours - needed
                 factors
                     .append(
-                        "you got \(String(format: "%.1f", sleepHours))h of sleep (\(String(format: "+%.1f", extra))h vs your \(String(format: "%.1f", needed))h target)"
+                        String(localized: "you got \(sleepHours.tempoDecimal(1))h of sleep (+\(extra.tempoDecimal(1))h vs your \(needed.tempoDecimal(1))h target)")
                     )
             } else {
                 let deficit = needed - sleepHours
                 factors
                     .append(
-                        "you only got \(String(format: "%.1f", sleepHours))h of sleep (\(String(format: "%.1f", deficit))h short of your \(String(format: "%.1f", needed))h target)"
+                        String(localized: "you only got \(sleepHours.tempoDecimal(1))h of sleep (\(deficit.tempoDecimal(1))h short of your \(needed.tempoDecimal(1))h target)")
                     )
             }
         }
 
         // Strain context from yesterday
         if let strain = recovery.strain, strain > 14 {
-            factors.append("your body is still recovering from yesterday's high strain (\(String(format: "%.1f", strain)))")
+            factors.append(String(localized: "your body is still recovering from yesterday's high strain (\(strain.tempoDecimal(1)))"))
         }
 
         // SpO2 warning
         if let spo2 = recovery.spo2, spo2 < 95 {
-            factors.append("your SpO2 is low at \(Int(spo2))%")
+            factors.append(String(localized: "your SpO2 is low at \(Int(spo2))%"))
         }
 
         // Skin temp warning
         if let skinDelta = skinTempDelta, abs(skinDelta) > 0.5 {
             factors
                 .append(
-                    "your skin temperature is \(String(format: "%.1f", abs(skinDelta)))°C \(skinDelta > 0 ? "above" : "below") baseline"
+                    skinDelta > 0
+                        ? String(localized: "your skin temperature is \(abs(skinDelta).tempoDecimal(1))°C above baseline")
+                        : String(localized: "your skin temperature is \(abs(skinDelta).tempoDecimal(1))°C below baseline")
                 )
         }
 
         // Sleep debt
         if let debt = recovery.sleepDebt, debt > 2 {
-            factors.append("you're carrying \(String(format: "%.1f", debt))h of sleep debt")
+            factors.append(String(localized: "you're carrying \(debt.tempoDecimal(1))h of sleep debt"))
         }
 
         // Build the explanation sentence
         guard !factors.isEmpty else {
             switch zone {
-            case .green: return "Good recovery. Your biometrics are within normal range."
-            case .yellow: return "Moderate recovery. Monitor your metrics and adjust training accordingly."
-            case .red: return "Low recovery. Prioritize rest and sleep today."
+            case .green: return String(localized: "Good recovery. Your biometrics are within normal range.")
+            case .yellow: return String(localized: "Moderate recovery. Monitor your metrics and adjust training accordingly.")
+            case .red: return String(localized: "Low recovery. Prioritize rest and sleep today.")
             }
         }
 
         let prefix = switch zone {
         case .green:
-            "Excellent recovery."
+            String(localized: "Excellent recovery.")
         case .yellow:
-            "Moderate recovery."
+            String(localized: "Moderate recovery.")
         case .red:
-            "Your body needs recovery."
+            String(localized: "Your body needs recovery.")
         }
 
         // Capitalize first factor, join the rest with commas
@@ -856,8 +858,8 @@ final class RecoveryViewModel {
             if dropPercent > 20 {
                 anomalies.append(AnomalyWarning(
                     icon: "waveform.path.ecg",
-                    title: "HRV Significantly Below Average",
-                    detail: "Your HRV (\(Int(todayHRV))ms) is \(Int(dropPercent))% below your 7-day average (\(Int(avg7d))ms). This may indicate stress, illness, or overtraining.",
+                    title: String(localized: "HRV Significantly Below Average"),
+                    detail: String(localized: "Your HRV (\(Int(todayHRV))ms) is \(Int(dropPercent))% below your 7-day average (\(Int(avg7d))ms). This may indicate stress, illness, or overtraining."),
                     severity: dropPercent > 30 ? .critical : .warning
                 ))
             }
@@ -869,8 +871,8 @@ final class RecoveryViewModel {
             if risePercent > 10 {
                 anomalies.append(AnomalyWarning(
                     icon: "heart.fill",
-                    title: "Resting Heart Rate Elevated",
-                    detail: "Your RHR (\(Int(todayRHR))bpm) is \(Int(risePercent))% above your 7-day average (\(Int(avg7d))bpm). Elevated RHR can signal stress, dehydration, or oncoming illness.",
+                    title: String(localized: "Resting Heart Rate Elevated"),
+                    detail: String(localized: "Your RHR (\(Int(todayRHR))bpm) is \(Int(risePercent))% above your 7-day average (\(Int(avg7d))bpm). Elevated RHR can signal stress, dehydration, or oncoming illness."),
                     severity: risePercent > 20 ? .critical : .warning
                 ))
             }
@@ -880,8 +882,8 @@ final class RecoveryViewModel {
         if let spo2 = recovery.spo2, spo2 < 95 {
             anomalies.append(AnomalyWarning(
                 icon: "lungs.fill",
-                title: "Low Blood Oxygen",
-                detail: "Your SpO2 (\(Int(spo2))%) is below the normal range (95-100%). If this persists, consult a healthcare professional.",
+                title: String(localized: "Low Blood Oxygen"),
+                detail: String(localized: "Your SpO2 (\(Int(spo2))%) is below the normal range (95-100%). If this persists, consult a healthcare professional."),
                 severity: spo2 < 92 ? .critical : .warning
             ))
         }
@@ -890,8 +892,8 @@ final class RecoveryViewModel {
         if let skinDelta = skinTempDelta, skinDelta > 0.5 {
             anomalies.append(AnomalyWarning(
                 icon: "thermometer.high",
-                title: "Elevated Skin Temperature",
-                detail: "Your skin temperature is \(String(format: "+%.1f", skinDelta))°C above your baseline. This may indicate inflammation, fever, or oncoming illness.",
+                title: String(localized: "Elevated Skin Temperature"),
+                detail: String(localized: "Your skin temperature is +\(skinDelta.tempoDecimal(1))°C above your baseline. This may indicate inflammation, fever, or oncoming illness."),
                 severity: skinDelta > 1.0 ? .critical : .warning
             ))
         }
@@ -958,6 +960,16 @@ final class RecoveryViewModel {
         case moderate = "Moderate"
         case significant = "Significant"
         case critical = "Critical"
+
+        /// The word shown on screen. `rawValue` stays the stable English value.
+        var title: String {
+            switch self {
+            case .minimal: String(localized: "Minimal")
+            case .moderate: String(localized: "Moderate")
+            case .significant: String(localized: "Significant")
+            case .critical: String(localized: "Critical")
+            }
+        }
     }
 
     var sleepDebtPaybackPlan: String? {
@@ -971,11 +983,11 @@ final class RecoveryViewModel {
         let extraPerNight = min(debt / Double(min(nightsNeeded, 3)), 1.0)
 
         if debt < 2 {
-            return "Add \(Int(extraPerNight * 60)) extra minutes tonight to recover your \(String(format: "%.1f", debt))h deficit."
+            return String(localized: "Add \(Int(extraPerNight * 60)) extra minutes tonight to recover your \(debt.tempoDecimal(1))h deficit.")
         } else if debt < 5 {
-            return "You need about \(String(format: "%.0f", extraPerNight * 60)) extra minutes each night over the next \(min(nightsNeeded, 3)) nights to recover your \(String(format: "%.1f", debt))h deficit."
+            return String(localized: "You need about \((extraPerNight * 60).tempoDecimal(0)) extra minutes each night over the next \(min(nightsNeeded, 3)) nights to recover your \(debt.tempoDecimal(1))h deficit.")
         } else {
-            return "Significant debt of \(String(format: "%.1f", debt))h. Aim for 1 extra hour per night for the next \(min(nightsNeeded, 7)) nights. Prioritize early bedtimes and sleep hygiene."
+            return String(localized: "Significant debt of \(debt.tempoDecimal(1))h. Aim for 1 extra hour per night for the next \(min(nightsNeeded, 7)) nights. Prioritize early bedtimes and sleep hygiene.")
         }
     }
 
@@ -989,7 +1001,7 @@ final class RecoveryViewModel {
         }
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         let bedtimeStr = formatter.string(from: bedtime)
 
         let sleepNeeded = sleepNeededHours ?? 8.0
@@ -997,29 +1009,29 @@ final class RecoveryViewModel {
         let m = Int((sleepNeeded - Double(h)) * 60)
         let sleepStr = m > 0 ? "\(h)h \(m)m" : "\(h)h"
 
-        var explanation = "Get to bed by \(bedtimeStr) to hit your \(sleepStr) target"
+        var explanation = String(localized: "Get to bed by \(bedtimeStr) to hit your \(sleepStr) target")
 
         // Explain components
         var components: [String] = []
 
         // Base need
         let baseline = todayRecovery?.sleepNeededBaseline ?? 8.0
-        components.append("\(String(format: "%.1f", baseline))h base need")
+        components.append(String(localized: "\(baseline.tempoDecimal(1))h base need"))
 
         // Strain adjustment
         if let strain = todayRecovery?.strain, strain >= 10 {
             let adj = strain >= 14 ? "1h" : "30m"
-            components.append("+\(adj) for yesterday's strain")
+            components.append(String(localized: "+\(adj) for yesterday's strain"))
         }
 
         // Sleep debt adjustment
         let debt = calculatedSleepDebt
         if debt > 2 {
-            components.append("+30m to pay down \(String(format: "%.1f", debt))h sleep debt")
+            components.append(String(localized: "+30m to pay down \(debt.tempoDecimal(1))h sleep debt"))
         }
 
         // Fall-asleep buffer
-        components.append("15m fall-asleep buffer")
+        components.append(String(localized: "15m fall-asleep buffer"))
 
         explanation += " (\(components.joined(separator: ", ")))."
 

@@ -367,19 +367,19 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
                 tokenResponse = try await postTokenRequest(body: body)
             } catch {
                 logger.error("Whoop refresh retry failed: \(error.localizedDescription)")
-                connectionState = .error("Network error — tap to reconnect")
+                connectionState = .error(String(localized: "Network error — tap to reconnect"))
                 throw WhoopError.notConnected
             }
         } catch let httpError as WhoopError {
             // Terminal HTTP error (e.g. 401): refresh token is dead. Clear and surface.
             logger.error("Whoop refresh terminal error — clearing tokens: \(httpError.localizedDescription)")
             try? clearTokens()
-            connectionState = .error("Whoop session expired — tap to reconnect")
+            connectionState = .error(String(localized: "Whoop session expired — tap to reconnect"))
             throw WhoopError.notConnected
         } catch {
             // Unknown error — be safe: surface but DON'T clear tokens.
             logger.error("Whoop refresh unknown error: \(error.localizedDescription)")
-            connectionState = .error("Refresh failed — tap to reconnect")
+            connectionState = .error(String(localized: "Refresh failed — tap to reconnect"))
             throw WhoopError.notConnected
         }
 

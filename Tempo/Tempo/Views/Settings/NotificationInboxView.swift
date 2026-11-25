@@ -95,7 +95,7 @@ struct NotificationInboxView: View {
         guard inbox.clearTodayWithUndo() != nil else {
             return
         }
-        toast = ToastData(message: "Today's notifications cleared.", style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "Today's notifications cleared."), style: .info, actionTitle: String(localized: "Undo")) {
             inbox.undoClearToday()
         }
     }
@@ -165,12 +165,12 @@ struct NotificationInboxView: View {
 
     private var summaryCard: some View {
         TideSettingsHero {
-            TideLabel("Today")
+            TideLabel(String(localized: "Today"))
             TideNumber(
-                "\(inbox.items.count)", unit: inbox.items.count == 1 ? "notification" : "notifications",
+                "\(inbox.items.count)", unit: inbox.items.count == 1 ? String(localized: "notification") : String(localized: "notifications"),
                 size: Tide.numeralL, relativeTo: .largeTitle
             )
-            Text(inbox.unreadCount == 0 ? "All read." : "\(inbox.unreadCount) not opened yet.")
+            Text(inbox.unreadCount == 0 ? String(localized: "All read.") : String(localized: "\(inbox.unreadCount) not opened yet."))
                 .font(Tide.body)
                 .foregroundStyle(inbox.unreadCount == 0 ? Tide.text2 : mood.accent)
                 .fixedSize(horizontal: false, vertical: true)
@@ -180,7 +180,7 @@ struct NotificationInboxView: View {
 
     private var list: some View {
         TideSettingsSection(
-            footnote: "Today only. A notification you cleared from the lock screen before opening Tempo may be missing."
+            footnote: String(localized: "Today only. A notification you cleared from the lock screen before opening Tempo may be missing.")
         ) {
             ForEach(Array(inbox.items.enumerated()), id: \.element.id) { index, item in
                 if index > 0 {
@@ -239,7 +239,7 @@ struct NotificationInboxView: View {
         .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(item.isRead ? "" : "Not opened")
+        .accessibilityValue(item.isRead ? "" : String(localized: "Not opened"))
     }
 
     // MARK: Actions
@@ -290,7 +290,7 @@ struct NotificationBell: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(inbox.unreadCount > 0 ? "Notifications, \(inbox.unreadCount) not opened" : "Notifications")
+        .accessibilityLabel(inbox.unreadCount > 0 ? String(localized: "Notifications, \(inbox.unreadCount) not opened") : String(localized: "Notifications"))
         .accessibilityIdentifier("notificationBell")
         .sheet(isPresented: $showInbox) {
             NavigationStack {

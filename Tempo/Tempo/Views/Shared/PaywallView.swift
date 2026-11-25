@@ -135,27 +135,30 @@ struct PaywallView: View {
         }
     }
 
-    private func period(for product: SubscriptionProduct) -> String {
-        product == .monthly || product == .studentMonthly ? "month" : "year"
+    private func isMonthly(_ product: SubscriptionProduct) -> Bool {
+        product == .monthly || product == .studentMonthly
     }
 
     /// The trial and the price that follows it, in one line: the line the
     /// button below is agreeing to.
     private var trialTerms: String {
-        let plan = "\(price(for: effectiveProduct)) per \(period(for: effectiveProduct))"
+        let planPrice = price(for: effectiveProduct)
+        let plan = isMonthly(effectiveProduct)
+            ? String(localized: "\(planPrice) per month")
+            : String(localized: "\(planPrice) per year")
         guard let trialDays else {
-            return "Billed \(plan). Cancel anytime."
+            return String(localized: "Billed \(plan). Cancel anytime.")
         }
-        return "\(trialDays)-day free trial, then \(plan)"
+        return String(localized: "\(trialDays)-day free trial, then \(plan)")
     }
 
     private var priceHero: some View {
         VStack(spacing: Tide.s2) {
-            Text(trialDays.map { "\($0) DAYS FREE, THEN" } ?? "PRO FOR")
+            Text(trialDays.map { String(localized: "\($0) DAYS FREE, THEN") } ?? String(localized: "PRO FOR"))
                 .tideLabel(mood.accent)
             TideNumber(
                 price(for: effectiveProduct),
-                unit: "/\(period(for: effectiveProduct))",
+                unit: isMonthly(effectiveProduct) ? String(localized: "/month") : String(localized: "/year"),
                 size: Tide.numeralL,
                 relativeTo: .largeTitle
             )
@@ -178,10 +181,10 @@ struct PaywallView: View {
     private var featureList: some View {
         // Rows that run to several lines at large text need air between them.
         VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? Tide.s3 : Tide.s1) {
-            featureRow(icon: "sparkles", text: "Recovery insights from Whoop & wearables")
-            featureRow(icon: "brain.head.profile", text: "AI-powered workout programming")
-            featureRow(icon: "fork.knife", text: "AI nutrition coaching & meal plans")
-            featureRow(icon: "chart.line.uptrend.xyaxis", text: "Progress charts & weekly reports")
+            featureRow(icon: "sparkles", text: String(localized: "Recovery insights from Whoop & wearables"))
+            featureRow(icon: "brain.head.profile", text: String(localized: "AI-powered workout programming"))
+            featureRow(icon: "fork.knife", text: String(localized: "AI nutrition coaching & meal plans"))
+            featureRow(icon: "chart.line.uptrend.xyaxis", text: String(localized: "Progress charts & weekly reports"))
         }
         .tideCard(padding: Tide.s4)
     }
@@ -222,7 +225,7 @@ struct PaywallView: View {
                 planCard(
                     product: isStudentMode ? .studentAnnual : .annual,
                     isSelected: selectedProduct.standardVariant == .annual,
-                    badge: "BEST VALUE"
+                    badge: String(localized: "BEST VALUE")
                 )
 
                 // Monthly plan
@@ -267,7 +270,7 @@ struct PaywallView: View {
                         }
 
                         if product.isStudent {
-                            planTag("40% OFF", color: Tide.success)
+                            planTag(String(localized: "40% OFF"), color: Tide.success)
                         }
                     }
 
@@ -310,9 +313,18 @@ struct PaywallView: View {
         .animation(Tide.snap, value: isSelected)
         .sensoryFeedback(.selection, trigger: isSelected)
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityLabel(
-            "\(product.displayName) plan\(badge != nil ? ", \(badge!)" : "")\(product.isStudent ? ", student pricing" : "")"
-        )
+        .accessibilityLabel(planAccessibilityLabel(product: product, badge: badge))
+    }
+
+    /// "Annual plan, BEST VALUE, student pricing", with the parts that apply.
+    private func planAccessibilityLabel(product: SubscriptionProduct, badge: String?) -> String {
+        let name = product.displayName
+        switch (badge, product.isStudent) {
+        case let (badge?, true): return String(localized: "\(name) plan, \(badge), student pricing")
+        case let (badge?, false): return String(localized: "\(name) plan, \(badge)")
+        case (nil, true): return String(localized: "\(name) plan, student pricing")
+        case (nil, false): return String(localized: "\(name) plan")
+        }
     }
 
     private func planTag(_ text: String, color: Color) -> some View {
@@ -440,7 +452,7 @@ struct PaywallView: View {
         } label: {
             ZStack {
                 // Per MONETIZATION_STRATEGY.md — "Start Free Trial" CTA
-                Text(trialDays == nil ? "Subscribe" : "Start Free Trial")
+                Text(trialDays == nil ? String(localized: "Subscribe") : String(localized: "Start Free Trial"))
                     .opacity(isPurchasing ? 0 : 1)
                 if isPurchasing {
                     ProgressView()
@@ -450,7 +462,7 @@ struct PaywallView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(isPurchasing)
-        .accessibilityLabel(trialDays == nil ? "Subscribe" : "Start free trial")
+        .accessibilityLabel(trialDays == nil ? String(localized: "Subscribe") : String(localized: "Start free trial"))
     }
 
     private var footerActions: some View {
@@ -485,10 +497,15 @@ struct PaywallView: View {
     }
 
     /// Per APP_STORE_COMPLIANCE.md Section 5.2, 5.5 — Required subscription disclosure.
+    private var legalCopy: String {
+        if let trialDays {
+            return String(localized: "\(trialDays)-day free trial, then auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period.")
+        }
+        return String(localized: "Auto-renews. Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period.")
+    }
+
     private var legalText: some View {
-        Text(
-            "\(trialDays.map { "\($0)-day free trial, then auto-renews." } ?? "Auto-renews.") Payment will be charged to your Apple ID account at the confirmation of purchase. Subscription automatically renews unless it is canceled at least 24 hours before the end of the current period."
-        )
+        Text(legalCopy)
         .font(Tide.label.weight(.regular))
         .foregroundStyle(Tide.text3)
         .multilineTextAlignment(.center)

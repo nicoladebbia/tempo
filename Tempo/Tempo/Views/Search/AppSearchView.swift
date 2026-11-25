@@ -47,15 +47,15 @@ struct AppSearchView: View {
             if shown.isEmpty {
                 TideEmptyPanel(
                     systemImage: "magnifyingglass",
-                    title: "Nothing found",
-                    message: "Try another word: a screen, a setting, an exercise, a saved meal or a pantry item."
+                    title: String(localized: "Nothing found"),
+                    message: String(localized: "Try another word: a screen, a setting, an exercise, a saved meal or a pantry item.")
                 )
                 .accessibilityIdentifier("search.empty")
             } else {
                 ForEach(AppSearchEntry.Section.allCases, id: \.self) { section in
                     let rows = shown.filter { $0.section == section }
                     if !rows.isEmpty {
-                        TideSettingsSection(title: isSearching ? section.title : "Go to") {
+                        TideSettingsSection(title: isSearching ? section.title : String(localized: "Go to")) {
                             ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
                                 if index > 0 {
                                     TideSettingsHairline(inset: Tide.s4 + Tide.icon + Tide.s3)
@@ -78,7 +78,11 @@ struct AppSearchView: View {
                 .padding(.bottom, Tide.s2)
         }
         .scrollDismissesKeyboard(.interactively)
-        .firstTip("search.sheet", "Type a word, then tap a result to jump straight to that screen or setting.", systemImage: "magnifyingglass")
+        .firstTip(
+            "search.sheet",
+            "Type a word, then tap a result to jump straight to that screen or setting.",
+            systemImage: "magnifyingglass"
+        )
         .onAppear {
             entries = AppSearchLoader.entries(in: modelContext)
             focused = true

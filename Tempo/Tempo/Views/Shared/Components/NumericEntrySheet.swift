@@ -91,6 +91,14 @@ struct NumericEntrySheet: View {
     enum Mode: String, CaseIterable {
         case type = "Type"
         case wheel = "Wheel"
+
+        /// What the segmented picker shows.
+        var title: String {
+            switch self {
+            case .type: String(localized: "Type")
+            case .wheel: String(localized: "Wheel")
+            }
+        }
     }
 
     /// A key on the pad.
@@ -150,7 +158,7 @@ struct NumericEntrySheet: View {
                 VStack(spacing: Tide.s4) {
                     Picker("Input method", selection: $mode) {
                         ForEach(Mode.allCases, id: \.self) { m in
-                            Text(m.rawValue).tag(m)
+                            Text(m.title).tag(m)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -243,7 +251,7 @@ struct NumericEntrySheet: View {
         .tideFieldSurface(focused: true, invalid: isInvalid)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityValue(text.isEmpty ? "Empty" : "\(text) \(unit)")
+        .accessibilityValue(text.isEmpty ? String(localized: "Empty") : "\(text) \(unit)")
         .accessibilityAddTraits(.updatesFrequently)
     }
 
@@ -257,11 +265,11 @@ struct NumericEntrySheet: View {
     @ViewBuilder
     private var hint: some View {
         if let parsed = parsedValue {
-            Text("Snaps to \(String(format: displayFormat, parsed)) \(unit)")
+            Text("Snaps to \(String(format: displayFormat, locale: Locale.current, parsed)) \(unit)")
                 .foregroundStyle(Tide.text2)
         } else if isInvalid {
             Text(
-                "Enter a number between \(String(format: displayFormat, range.lowerBound)) and \(String(format: displayFormat, range.upperBound))"
+                "Enter a number between \(String(format: displayFormat, locale: Locale.current, range.lowerBound)) and \(String(format: displayFormat, locale: Locale.current, range.upperBound))"
             )
             .foregroundStyle(Tide.carbs)
         } else {
@@ -364,8 +372,8 @@ struct NumericEntrySheet: View {
     private func keyName(_ key: Key) -> String {
         switch key {
         case let .digit(character): String(character)
-        case .dot: "Decimal point"
-        case .delete: "Delete"
+        case .dot: String(localized: "Decimal point")
+        case .delete: String(localized: "Delete")
         }
     }
 
@@ -407,7 +415,7 @@ struct NumericEntrySheet: View {
     private var wheelContent: some View {
         Picker(title, selection: $wheelSelection) {
             ForEach(wheelValues, id: \.self) { value in
-                Text("\(String(format: displayFormat, value)) \(unit)")
+                Text("\(String(format: displayFormat, locale: Locale.current, value)) \(unit)")
                     // A wheel row has a fixed height: past this the digits overlap.
                     .font(Tide.numeral(min(keySize, Tide.numeralWheelMax), .semibold))
                     .tag(value)

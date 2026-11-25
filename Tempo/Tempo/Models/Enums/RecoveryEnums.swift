@@ -32,7 +32,11 @@ enum RecoveryZone: String, Codable, CaseIterable {
     }
 
     var displayName: String {
-        rawValue.capitalized
+        switch self {
+        case .green: String(localized: "Green")
+        case .yellow: String(localized: "Yellow")
+        case .red: String(localized: "Red")
+        }
     }
 }
 

@@ -72,7 +72,7 @@ struct ProgressReportView: View {
     private var consistencySection: some View {
         let pct = stats.daysActive * 100 / max(1, windowDays)
         return RecoveryHero {
-            TideDial(score: min(pct, 100), caption: "of 100", diameter: Tide.dialHero)
+            TideDial(score: min(pct, 100), caption: String(localized: "of 100"), diameter: Tide.dialHero)
                 .environment(\.tideMood, consistencyMood(pct: pct))
         } side: {
             Text("Consistency").tideLabel()
@@ -93,18 +93,18 @@ struct ProgressReportView: View {
             : [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)]
         return GlassEffectContainer(spacing: Tide.s3) {
             LazyVGrid(columns: columns, spacing: Tide.s3) {
-                statCard(value: "\(stats.workoutsCompleted)", label: "Workouts", icon: "dumbbell.fill")
-                statCard(value: "\(stats.mealsLogged)", label: "Meals logged", icon: "fork.knife")
+                statCard(value: "\(stats.workoutsCompleted)", label: String(localized: "Workouts"), icon: "dumbbell.fill")
+                statCard(value: "\(stats.mealsLogged)", label: String(localized: "Meals logged"), icon: "fork.knife")
                 statCard(
-                    value: "\(stats.streakBest)", unit: "days", label: "Best streak",
+                    value: "\(stats.streakBest)", unit: String(localized: "days"), label: String(localized: "Best streak"),
                     icon: "flame.fill", color: Tide.streak
                 )
-                statCard(value: stats.totalXP.formatted(), label: "XP earned", icon: "star.fill")
+                statCard(value: stats.totalXP.formatted(), label: String(localized: "XP earned"), icon: "star.fill")
                 statCard(
-                    value: sleepValue, unit: sleepUnit, label: "Avg sleep", icon: "moon.fill"
+                    value: sleepValue, unit: sleepUnit, label: String(localized: "Avg sleep"), icon: "moon.fill"
                 )
                 statCard(
-                    value: "\(stats.daysActive)", unit: "/\(windowDays)", label: "Days active",
+                    value: "\(stats.daysActive)", unit: "/\(windowDays)", label: String(localized: "Days active"),
                     icon: "calendar"
                 )
             }
@@ -154,15 +154,15 @@ struct ProgressReportView: View {
 
     private func consistencyMessage(pct: Int) -> String {
         if pct >= 90 {
-            return "Elite discipline. Top 5% of Tempo users show up like this. Keep it up."
+            return String(localized: "Elite discipline. Top 5% of Tempo users show up like this. Keep it up.")
         }
         if pct >= 75 {
-            return "Strong consistency. You're building real habits. The results will follow."
+            return String(localized: "Strong consistency. You're building real habits. The results will follow.")
         }
         if pct >= 50 {
-            return "Solid start. You're showing up more days than not. Push for 80% next month."
+            return String(localized: "Solid start. You're showing up more days than not. Push for 80% next month.")
         }
-        return "Room to grow. But you're here, reading this. That counts. Show up more next month."
+        return String(localized: "Room to grow. But you're here, reading this. That counts. Show up more next month.")
     }
 
     // MARK: - Data Loading

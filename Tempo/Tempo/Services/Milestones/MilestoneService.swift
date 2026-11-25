@@ -23,19 +23,19 @@ enum MilestoneService {
 
         var title: String {
             switch self {
-            case .day7: "FIRST WEEK DOWN"
-            case .day14: "TWO WEEKS STRONG"
-            case .day21: "HABIT FORMED"
-            case .day30: "ONE MONTH IN"
+            case .day7: String(localized: "FIRST WEEK DOWN")
+            case .day14: String(localized: "TWO WEEKS STRONG")
+            case .day21: String(localized: "HABIT FORMED")
+            case .day30: String(localized: "ONE MONTH IN")
             }
         }
 
         var message: String {
             switch self {
-            case .day7: "Most people quit by now. You didn't. That's the difference between talkers and doers."
-            case .day14: "Two weeks of showing up. The foundation is set. Now we build."
-            case .day21: "Science says 21 days makes a habit. You're officially a Tempo athlete. This is who you are now."
-            case .day30: "30 days. One month of discipline. Check your progress report — the data doesn't lie."
+            case .day7: String(localized: "Most people quit by now. You didn't. That's the difference between talkers and doers.")
+            case .day14: String(localized: "Two weeks of showing up. The foundation is set. Now we build.")
+            case .day21: String(localized: "Science says 21 days makes a habit. You're officially a Tempo athlete. This is who you are now.")
+            case .day30: String(localized: "30 days. One month of discipline. Check your progress report — the data doesn't lie.")
             }
         }
 

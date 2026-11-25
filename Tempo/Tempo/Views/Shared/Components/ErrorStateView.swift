@@ -23,11 +23,11 @@ struct ErrorStateView: View {
     let retryTitle: String
 
     init(
-        title: String = "Something went wrong.",
-        message: String = "Check your connection and try again.",
+        title: String = String(localized: "Something went wrong."),
+        message: String = String(localized: "Check your connection and try again."),
         retryAction: (() -> Void)? = nil,
         backAction: (() -> Void)? = nil,
-        retryTitle: String = "Retry"
+        retryTitle: String = String(localized: "Retry")
     ) {
         self.title = title
         self.message = message

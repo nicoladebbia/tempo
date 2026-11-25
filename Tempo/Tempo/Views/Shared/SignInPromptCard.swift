@@ -39,9 +39,9 @@ struct SignInPromptCard: View {
     @State
     private var pendingNonce: String?
 
-    private static let title = "Sign in to unlock your AI coach"
+    private static let title = String(localized: "Sign in to unlock your AI coach")
     private static let detail =
-        "Trainer imports, meal ideas and coaching need an account. Everything on this phone stays put."
+        String(localized: "Trainer imports, meal ideas and coaching need an account. Everything on this phone stays put.")
 
     var body: some View {
         switch style {
@@ -150,18 +150,18 @@ struct SignInPromptCard: View {
         switch result {
         case let .success(authorization):
             guard let nonce = pendingNonce else {
-                errorMessage = "Sign in failed. Try again."
+                errorMessage = String(localized: "Sign in failed. Try again.")
                 return
             }
             do {
                 try await services.authService.completeAppleSignIn(authorization: authorization, nonce: nonce)
                 HapticManager.notification(.success)
             } catch {
-                errorMessage = "Sign in failed. Try again."
+                errorMessage = String(localized: "Sign in failed. Try again.")
             }
         case let .failure(error):
             if (error as? ASAuthorizationError)?.code != .canceled {
-                errorMessage = "Sign in failed. Try again."
+                errorMessage = String(localized: "Sign in failed. Try again.")
             }
         }
     }

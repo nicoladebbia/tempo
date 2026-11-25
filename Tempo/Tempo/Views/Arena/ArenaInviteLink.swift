@@ -197,18 +197,18 @@ struct ArenaInviteSheet: View {
 
     private var headline: String {
         switch stage {
-        case .loading: "Opening the invite"
+        case .loading: String(localized: "Opening the invite")
         case let .ready(preview),
              let .adding(preview):
             if preview.isOwn {
-                "This is your own link"
+                String(localized: "This is your own link")
             } else if preview.alreadyFriends {
-                "You are already friends"
+                String(localized: "You are already friends")
             } else {
-                "\(preview.displayName) wants to race you"
+                String(localized: "\(preview.displayName) wants to race you")
             }
-        case let .joined(friend): "You and \(friend.displayName) are friends"
-        case .failed: "That invite did not work"
+        case let .joined(friend): String(localized: "You and \(friend.displayName) are friends")
+        case .failed: String(localized: "That invite did not work")
         }
     }
 
@@ -230,7 +230,7 @@ struct ArenaInviteSheet: View {
                         Text(preview.displayName)
                             .font(Tide.headline).foregroundStyle(Tide.text)
                             .lineLimit(2)
-                        TideStatusPill(text: "Level \(preview.level)", tint: mood.accent)
+                        TideStatusPill(text: String(localized: "Level \(preview.level)"), tint: mood.accent)
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -253,18 +253,18 @@ struct ArenaInviteSheet: View {
             .tideCard()
 
         case let .failed(message):
-            TideEmptyPanel(systemImage: "link.badge.plus", title: "Could not open it", message: message)
+            TideEmptyPanel(systemImage: "link.badge.plus", title: String(localized: "Could not open it"), message: message)
                 .tideCard()
         }
     }
 
     private func explanation(_ preview: ArenaInvitePreviewDTO) -> String {
         if preview.isOwn {
-            "Send this link to a friend. Opening it on your own phone does nothing."
+            String(localized: "Send this link to a friend. Opening it on your own phone does nothing.")
         } else if preview.alreadyFriends {
-            "You can already see each other on the leaderboard."
+            String(localized: "You can already see each other on the leaderboard.")
         } else {
-            "Friends see each other's name, level and XP for the week. Nothing else."
+            String(localized: "Friends see each other's name, level and XP for the week. Nothing else.")
         }
     }
 

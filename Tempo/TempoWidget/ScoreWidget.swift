@@ -66,11 +66,11 @@ struct ScoreWidgetView: View {
     @ViewBuilder
     private var small: some View {
         if snapshot == nil {
-            WidgetEmptyState(symbol: "sun.horizon.fill", title: "No score yet")
+            WidgetEmptyState(symbol: "sun.horizon.fill", title: String(localized: "No score yet"))
                 .padding(Tide.s4)
         } else {
             VStack(alignment: .leading, spacing: Tide.s2) {
-                WidgetLabel("Day score")
+                WidgetLabel(String(localized: "Day score"))
                 ZStack {
                     WidgetDial(progress: score.map { Double($0) / 100 }, accent: entry.mood.accent)
                     WidgetFigure(value: scoreText, size: Tide.numeralL)
@@ -96,7 +96,7 @@ struct ScoreWidgetView: View {
                     WidgetDial(progress: score.map { Double($0) / 100 }, accent: entry.mood.accent, tick: 6)
                     VStack(spacing: 0) {
                         WidgetFigure(value: scoreText, size: Tide.numeralL)
-                        WidgetLabel("Day score")
+                        WidgetLabel(String(localized: "Day score"))
                     }
                     .padding(.horizontal, Tide.s6)
                 }
@@ -108,20 +108,20 @@ struct ScoreWidgetView: View {
                         .widgetAccentable()
                     VStack(spacing: Tide.s2) {
                         statRow(
-                            "Tasks",
-                            value: snapshot.tasksTotal > 0 ? "\(snapshot.tasksDone) of \(snapshot.tasksTotal)" : "--",
+                            String(localized: "Tasks"),
+                            value: snapshot.tasksTotal > 0 ? String(localized: "\(snapshot.tasksDone) of \(snapshot.tasksTotal)") : "--",
                             progress: WidgetSnapshot.fraction(snapshot.tasksDone, of: snapshot.tasksTotal),
                             color: entry.mood.accent
                         )
                         statRow(
-                            "Fuel",
-                            value: snapshot.calories.map { "\($0.formatted()) kcal" } ?? "--",
+                            String(localized: "Fuel"),
+                            value: snapshot.calories.map { String(localized: "\($0.formatted()) kcal") } ?? "--",
                             progress: WidgetSnapshot.fraction(snapshot.calories, of: snapshot.calorieTarget),
                             color: Tide.carbs
                         )
                         statRow(
-                            "Water",
-                            value: snapshot.waterTargetMl == nil && snapshot.waterMl == 0 ? "--" : "\(snapshot.waterMl.formatted()) ml",
+                            String(localized: "Water"),
+                            value: snapshot.waterTargetMl == nil && snapshot.waterMl == 0 ? "--" : String(localized: "\(snapshot.waterMl.formatted()) ml"),
                             progress: snapshot.waterFraction,
                             color: Tide.water
                         )
@@ -130,7 +130,7 @@ struct ScoreWidgetView: View {
             }
             .padding(Tide.s4)
         } else {
-            WidgetEmptyState(symbol: "sun.horizon.fill", title: "No score yet")
+            WidgetEmptyState(symbol: "sun.horizon.fill", title: String(localized: "No score yet"))
                 .padding(Tide.s4)
         }
     }
@@ -162,7 +162,7 @@ struct ScoreWidgetView: View {
         }
         .gaugeStyle(.accessoryCircular)
         .accessibilityLabel("Day score")
-        .accessibilityValue(score.map { "\($0) out of 100" } ?? "No score yet")
+        .accessibilityValue(score.map { String(localized: "\($0) out of 100") } ?? String(localized: "No score yet"))
     }
 
     private var rectangular: some View {
@@ -171,7 +171,7 @@ struct ScoreWidgetView: View {
                 Text(scoreText)
                     .font(Tide.numeral(Tide.numeralS))
                     .widgetAccentable()
-                Text(score == nil ? "No score yet" : entry.mood.word)
+                Text(score == nil ? String(localized: "No score yet") : entry.mood.word)
                     .font(Tide.bodyStrong)
             }
             Gauge(value: Double(score ?? 0), in: 0 ... 100) { EmptyView() }

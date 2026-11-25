@@ -30,9 +30,9 @@ struct WaterLogOutcome: Equatable, Sendable {
     /// The spoken and shown confirmation: "250 ml added. 1,250 of 2,900 ml today."
     var sentence: String {
         if let targetMl, targetMl > 0 {
-            return "\(addedMl) ml added. \(totalMl.formatted()) of \(targetMl.formatted()) ml today."
+            return String(localized: "\(addedMl) ml added. \(totalMl.formatted()) of \(targetMl.formatted()) ml today.")
         }
-        return "\(addedMl) ml added. \(totalMl.formatted()) ml today."
+        return String(localized: "\(addedMl) ml added. \(totalMl.formatted()) ml today.")
     }
 }
 

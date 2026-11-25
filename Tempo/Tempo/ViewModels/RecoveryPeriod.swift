@@ -17,6 +17,15 @@ enum RecoveryRange: String, CaseIterable {
     case day = "Day"
     case week = "Week"
     case month = "Month"
+
+    /// The name shown on the switch. `rawValue` stays the stable English value.
+    var title: String {
+        switch self {
+        case .day: String(localized: "Day")
+        case .week: String(localized: "Week")
+        case .month: String(localized: "Month")
+        }
+    }
 }
 
 // MARK: - RecoveryDayReading
@@ -182,10 +191,10 @@ enum RecoveryLoadResolver {
         saveFailed: Bool
     ) -> RecoveryLoadState {
         if saveFailed {
-            return .error("Couldn't save today's recovery. Pull down to try again.")
+            return .error(String(localized: "Couldn't save today's recovery. Pull down to try again."))
         }
         if isConnectedToRealData, !fetchedAnything, !todayHasReadings {
-            return .error("Couldn't reach WHOOP. Check your connection and try again.")
+            return .error(String(localized: "Couldn't reach WHOOP. Check your connection and try again."))
         }
         return .loaded
     }
@@ -197,15 +206,15 @@ enum RecoveryLoadResolver {
 enum RecoveryBalance {
     static func assessment(avgRecovery: Double, avgStrain: Double) -> String {
         if avgRecovery >= 67, avgStrain >= 12 {
-            return "Great balance. You're training hard and recovering well. Keep this rhythm."
+            return String(localized: "Great balance. You're training hard and recovering well. Keep this rhythm.")
         } else if avgRecovery < 50, avgStrain >= 14 {
-            return "Your strain is outpacing your recovery. Consider reducing training volume or adding an extra rest day."
+            return String(localized: "Your strain is outpacing your recovery. Consider reducing training volume or adding an extra rest day.")
         } else if avgRecovery >= 67, avgStrain < 10 {
-            return "You have room to push harder. Your recovery supports more training stimulus."
+            return String(localized: "You have room to push harder. Your recovery supports more training stimulus.")
         } else if avgRecovery < 50, avgStrain < 10 {
-            return "Both strain and recovery are low. Focus on sleep quality and nutrition to build your recovery back up."
+            return String(localized: "Both strain and recovery are low. Focus on sleep quality and nutrition to build your recovery back up.")
         }
-        return "Moderate balance. Monitor how you feel and adjust training intensity day-by-day."
+        return String(localized: "Moderate balance. Monitor how you feel and adjust training intensity day-by-day.")
     }
 }
 
@@ -237,11 +246,11 @@ enum StrainLevel: Equatable {
 
     var name: String {
         switch self {
-        case .light: "Light"
-        case .low: "Low"
-        case .moderate: "Moderate"
-        case .moderateHigh: "Moderate-High"
-        case .overreaching: "Overreaching"
+        case .light: String(localized: "Light")
+        case .low: String(localized: "Low")
+        case .moderate: String(localized: "Moderate")
+        case .moderateHigh: String(localized: "Moderate-High")
+        case .overreaching: String(localized: "Overreaching")
         }
     }
 
@@ -251,8 +260,8 @@ enum StrainLevel: Equatable {
             return nil
         }
         if recovery >= 80 {
-            return "Push it"
+            return String(localized: "Push it")
         }
-        return recovery >= 50 ? "Moderate" : "Take it easy"
+        return recovery >= 50 ? String(localized: "Moderate") : String(localized: "Take it easy")
     }
 }

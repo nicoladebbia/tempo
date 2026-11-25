@@ -49,7 +49,7 @@ struct NextUpSummary: Equatable, Sendable {
     /// One short paragraph, spoken and shown by Siri.
     var spoken: String {
         if isEmpty {
-            return "Nothing is planned yet today. Open Tempo to set up your day."
+            return String(localized: "Nothing is planned yet today. Open Tempo to set up your day.")
         }
         var sentences: [String] = []
         // The lead already says one of the three facts: do not say it twice.
@@ -69,27 +69,32 @@ struct NextUpSummary: Equatable, Sendable {
         }
         if let session, !saysSession {
             sentences.append(session.inProgress
-                ? "\(session.name) is in progress."
-                : "Next session: \(session.name).")
+                ? String(localized: "\(session.name) is in progress.")
+                : String(localized: "Next session: \(session.name)."))
         }
         if let meal, !saysMeal {
-            sentences.append("Next meal: \(meal.name) at \(meal.time).")
+            sentences.append(String(localized: "Next meal: \(meal.name) at \(meal.time)."))
         }
         if tasksLeft > 0 {
             if saysTasks {
                 // "Next: 3 tasks left." already gave the count; name where to start.
                 if let firstTask {
-                    sentences.append("Start with \(firstTask).")
+                    sentences.append(String(localized: "Start with \(firstTask)."))
                 }
             } else {
-                let count = tasksLeft == 1 ? "1 task left" : "\(tasksLeft) tasks left"
-                sentences.append(firstTask.map { "\(count), starting with \($0)." } ?? "\(count).")
+                if let firstTask {
+                    sentences.append(tasksLeft == 1
+                        ? String(localized: "1 task left, starting with \(firstTask).")
+                        : String(localized: "\(tasksLeft) tasks left, starting with \(firstTask)."))
+                } else {
+                    sentences.append(tasksLeft == 1 ? String(localized: "1 task left.") : String(localized: "\(tasksLeft) tasks left."))
+                }
             }
         } else if tasksTotal > 0 {
-            sentences.append("All your tasks are done.")
+            sentences.append(String(localized: "All your tasks are done."))
         }
         if next == nil, session == nil, meal == nil, tasksLeft == 0 {
-            sentences.append("Nothing else is due.")
+            sentences.append(String(localized: "Nothing else is due."))
         }
         return sentences.joined(separator: " ")
     }

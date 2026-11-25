@@ -213,7 +213,7 @@ struct ConnectionsView: View {
                 break
             }
         } catch {
-            errors[kind] = "Couldn't ask for access. Try again, or open Settings."
+            errors[kind] = String(localized: "Couldn't ask for access. Try again, or open Settings.")
         }
     }
 }

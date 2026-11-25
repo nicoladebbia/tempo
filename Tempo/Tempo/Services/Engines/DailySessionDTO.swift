@@ -29,6 +29,17 @@ enum SessionIntensity: String, Codable, Sendable, CaseIterable {
     case moderate
     case hard
     case max
+
+    /// The word shown to the user; the raw value is the stable key for storage and the AI.
+    var displayName: String {
+        switch self {
+        case .recovery: String(localized: "Recovery")
+        case .easy: String(localized: "Easy")
+        case .moderate: String(localized: "Moderate")
+        case .hard: String(localized: "Hard")
+        case .max: String(localized: "Max")
+        }
+    }
 }
 
 // MARK: - BlockKind

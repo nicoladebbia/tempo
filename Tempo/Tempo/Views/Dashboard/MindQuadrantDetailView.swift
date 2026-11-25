@@ -184,10 +184,10 @@ struct MindQuadrantDetailView: View {
         let hero = shown
         let percent = Int((min(hero.studyProgress, 1.0) * 100).rounded())
         return RecoveryHero {
-            TideDial(score: percent, caption: "Target", diameter: Tide.dialHero)
+            TideDial(score: percent, caption: String(localized: "Target"), diameter: Tide.dialHero)
                 .accessibilityLabel("Study target")
                 .accessibilityValue("\(percent) percent")
-                .explains(Explainer.studyTarget.showing("\(percent) percent"))
+                .explains(Explainer.studyTarget.showing(String(localized: "\(percent) percent")))
         } side: {
             Text("Studied today").tideLabel()
             TideNumber(hero.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
@@ -205,11 +205,11 @@ struct MindQuadrantDetailView: View {
             // Streak badge
             if hero.currentStreakDays >= 2 {
                 TideStatusPill(
-                    text: "\(hero.currentStreakDays)-day streak",
+                    text: String(localized: "\(hero.currentStreakDays)-day streak"),
                     tint: hero.currentStreakDays >= 7 ? Tide.streak : Tide.text2,
                     systemImage: "flame.fill"
                 )
-                .explains(Explainer.studyStreak.showing("\(hero.currentStreakDays) days"))
+                .explains(Explainer.studyStreak.showing(String(localized: "\(hero.currentStreakDays) days")))
             }
         }
         .accessibilityIdentifier("study-hero")
@@ -221,7 +221,7 @@ struct MindQuadrantDetailView: View {
 
     private var todaySessionsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Today's sessions")
+            TideSectionLabel(title: String(localized: "Today's sessions"))
 
             let today = todaysSessions
             if let empty = StudyTodayList.empty(minutesToday: minutesToday, sessionCount: today.count) {
@@ -229,15 +229,15 @@ struct MindQuadrantDetailView: View {
                 case .nothingYet:
                     TideEmptyPanel(
                         systemImage: "book.closed",
-                        title: "No study sessions yet",
-                        message: "Start one below and it lands here."
+                        title: String(localized: "No study sessions yet"),
+                        message: String(localized: "Start one below and it lands here.")
                     )
                     .tideCard()
                 case .minutesWithoutSessions:
                     TideEmptyPanel(
                         systemImage: "book.closed",
-                        title: "No session to list",
-                        message: "Today's study time was counted without the focus timer."
+                        title: String(localized: "No session to list"),
+                        message: String(localized: "Today's study time was counted without the focus timer.")
                     )
                     .tideCard()
                 }
@@ -263,7 +263,7 @@ struct MindQuadrantDetailView: View {
                 "\(session.effectiveFocusScore)", unit: "%", size: Tide.numeralS, relativeTo: .headline,
                 weight: .semibold, color: focusScoreColor(session.effectiveFocusScore)
             )
-            .explains(Explainer.focusScore.showing("\(session.effectiveFocusScore) percent"))
+            .explains(Explainer.focusScore.showing(String(localized: "\(session.effectiveFocusScore) percent")))
             : nil
 
         return HStack(alignment: stacks ? .top : .center, spacing: Tide.s3) {
@@ -272,7 +272,7 @@ struct MindQuadrantDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(session.subject ?? "Focus session")
+                Text(session.subject ?? String(localized: "Focus session"))
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .lineLimit(stacks ? 4 : 2)
@@ -313,7 +313,7 @@ struct MindQuadrantDetailView: View {
             : AnyLayout(HStackLayout(spacing: Tide.s3))
         layout {
             TideNumber(
-                "\(session.durationMinutes)", unit: "m", size: Tide.numeralS, relativeTo: .headline,
+                "\(session.durationMinutes)", unit: String(localized: "m", comment: "Minutes unit, one letter"), size: Tide.numeralS, relativeTo: .headline,
                 weight: .semibold
             )
             // Its own element, so the score's explainer can be reached on its own.
@@ -343,7 +343,7 @@ struct MindQuadrantDetailView: View {
 
     private func rangeText(_ session: StudySession) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         let start = formatter.string(from: session.startTime)
         guard let end = session.endTime else {
             return start
@@ -374,14 +374,14 @@ struct MindQuadrantDetailView: View {
 
     private var upcomingExamsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Upcoming exams")
+            TideSectionLabel(title: String(localized: "Upcoming exams"))
 
             if exams.isEmpty {
                 TideEmptyPanel(
                     systemImage: "calendar.badge.clock",
-                    title: "No upcoming exams",
-                    message: "Add one and the countdown shows up on Today.",
-                    actionTitle: "Add exam"
+                    title: String(localized: "No upcoming exams"),
+                    message: String(localized: "Add one and the countdown shows up on Today."),
+                    actionTitle: String(localized: "Add exam")
                 ) {
                     showAddExam = true
                 }
@@ -456,10 +456,10 @@ struct MindQuadrantDetailView: View {
                 label: TempoDateFormatters.shortDayOfWeek.string(from: $0.date), value: Double($0.minutes)
             )
         }
-        let series = TempoBarChartSeries(id: "study", label: "Study", color: mood.accent, bars: bars)
+        let series = TempoBarChartSeries(id: "study", label: String(localized: "Study"), color: mood.accent, bars: bars)
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Last 7 days", trailing: StudyHistory.formatMinutes(weekTotal))
+            TideSectionLabel(title: String(localized: "Last 7 days"), trailing: StudyHistory.formatMinutes(weekTotal))
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 TideBarChart(
@@ -492,7 +492,7 @@ struct MindQuadrantDetailView: View {
         let total = entries.reduce(0) { $0 + $1.durationMinutes }
         let average = averageFocusScore
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "All time")
+            TideSectionLabel(title: String(localized: "All time"))
 
             LazyVGrid(
                 // One tile per row at accessibility sizes, so the numbers keep their width.
@@ -503,22 +503,22 @@ struct MindQuadrantDetailView: View {
                 spacing: Tide.s3
             ) {
                 TideMetricTile(
-                    label: "Sessions", value: "\(sessions.count)", tint: Tide.text, systemImage: "clock.fill"
+                    label: String(localized: "Sessions"), value: "\(sessions.count)", tint: Tide.text, systemImage: "clock.fill"
                 )
                 TideMetricTile(
-                    label: "Total time", value: StudyHistory.formatMinutes(total), tint: Tide.text,
+                    label: String(localized: "Total time"), value: StudyHistory.formatMinutes(total), tint: Tide.text,
                     systemImage: "timer"
                 )
                 TideMetricTile(
-                    label: "Avg focus",
+                    label: String(localized: "Avg focus"),
                     value: average.map { "\($0)" } ?? "--",
                     unit: average == nil ? nil : "%",
                     tint: average.map(focusScoreColor) ?? Tide.text3,
                     systemImage: "brain.head.profile"
                 )
-                .explains(Explainer.averageFocus.showing(average.map { "\($0) percent" }))
+                .explains(Explainer.averageFocus.showing(average.map { String(localized: "\($0) percent") }))
                 TideMetricTile(
-                    label: "Best day",
+                    label: String(localized: "Best day"),
                     value: best.map { $0.date.formatted(.dateTime.weekday(.abbreviated)) } ?? "--",
                     detail: best.map { StudyHistory.formatMinutes($0.minutes) },
                     tint: TideTone.gold,
@@ -550,10 +550,10 @@ struct MindQuadrantDetailView: View {
         let totals = StudyHistory.subjectTotals(entries, since: weekStart)
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "By subject", trailing: "This week")
+            TideSectionLabel(title: String(localized: "By subject"), trailing: String(localized: "This week"))
 
             if totals.isEmpty {
-                TideEmptyPanel(systemImage: "books.vertical", title: "No subjects logged this week")
+                TideEmptyPanel(systemImage: "books.vertical", title: String(localized: "No subjects logged this week"))
                     .tideCard()
             } else {
                 VStack(spacing: Tide.s4) {
@@ -603,14 +603,18 @@ struct MindQuadrantDetailView: View {
         let hours = Array(StudyHistory.heatmapHours)
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Time of day", trailing: "Last 30 days")
+            TideSectionLabel(title: String(localized: "Time of day"), trailing: String(localized: "Last 30 days"))
 
             if hasData {
                 VStack(spacing: Tide.hair) {
                     // Day-of-week header
                     HStack(spacing: Tide.hair) {
                         Color.clear.frame(width: Tide.s6, height: Tide.rule)
-                        ForEach(Array(["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].enumerated()), id: \.offset) { _, day in
+                        ForEach(Array([
+                            String(localized: "Mo"), String(localized: "Tu"), String(localized: "We"),
+                            String(localized: "Th"), String(localized: "Fr"), String(localized: "Sa"),
+                            String(localized: "Su"),
+                        ].enumerated()), id: \.offset) { _, day in
                             Text(day)
                                 .font(Tide.label)
                                 .foregroundStyle(Tide.text3)
@@ -641,7 +645,7 @@ struct MindQuadrantDetailView: View {
                 .accessibilityValue("Busiest slot \(busiestSlot(grid))")
                 .explains(.studyHeatmap)
             } else {
-                TideEmptyPanel(systemImage: "clock", title: "No sessions in the last 30 days")
+                TideEmptyPanel(systemImage: "clock", title: String(localized: "No sessions in the last 30 days"))
                     .tideCard()
             }
         }
@@ -663,8 +667,13 @@ struct MindQuadrantDetailView: View {
                 best = (column, row, grid[column][row])
             }
         }
-        let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        return "\(names[best.column]) at \(best.row + StudyHistory.heatmapHours.lowerBound):00"
+        let names = [
+            String(localized: "Monday"), String(localized: "Tuesday"), String(localized: "Wednesday"),
+            String(localized: "Thursday"), String(localized: "Friday"), String(localized: "Saturday"),
+            String(localized: "Sunday"),
+        ]
+        let hour = best.row + StudyHistory.heatmapHours.lowerBound
+        return String(localized: "\(names[best.column]) at \(hour):00")
     }
 
     // MARK: - Earlier Sessions
@@ -674,7 +683,7 @@ struct MindQuadrantDetailView: View {
         let earlier = earlierSessions
         if !earlier.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Earlier sessions")
+                TideSectionLabel(title: String(localized: "Earlier sessions"))
 
                 VStack(spacing: 0) {
                     ForEach(Array(earlier.enumerated()), id: \.element.id) { index, session in
@@ -700,9 +709,9 @@ struct MindQuadrantDetailView: View {
             pendingDeleteID = id
         }
         toast = ToastData(
-            message: "Session deleted.",
+            message: String(localized: "Session deleted."),
             style: .info,
-            actionTitle: "Undo"
+            actionTitle: String(localized: "Undo")
         ) {
             withAnimation(Tide.snap) {
                 if pendingDeleteID == id {
@@ -731,11 +740,11 @@ struct MindQuadrantDetailView: View {
 
     private func studyQuip(progress: Double) -> String {
         switch progress {
-        case 0: "Zero minutes. The books miss you."
-        case ..<0.5: "Not done yet. Back to the desk."
-        case ..<1.0: "More than half. Keep going."
-        case 1.0: "Target hit. Respect."
-        default: "Going extra. That's elite."
+        case 0: String(localized: "Zero minutes. The books miss you.")
+        case ..<0.5: String(localized: "Not done yet. Back to the desk.")
+        case ..<1.0: String(localized: "More than half. Keep going.")
+        case 1.0: String(localized: "Target hit. Respect.")
+        default: String(localized: "Going extra. That's elite.")
         }
     }
 
@@ -829,7 +838,7 @@ struct AddExamSheet: View {
             if saved {
                 dismiss()
             } else {
-                saveError = "Calendar access is required to save exams. Enable it in Settings."
+                saveError = String(localized: "Calendar access is required to save exams. Enable it in Settings.")
             }
         } catch {
             saveError = error.localizedDescription

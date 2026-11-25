@@ -112,7 +112,7 @@ final class CoachService {
             if turnCount >= Self.maxTurnsPerConversation {
                 let cap = CoachMessage(
                     role: "assistant",
-                    text: "I've reached my turn limit. Want to start a fresh chat?",
+                    text: String(localized: "I've reached my turn limit. Want to start a fresh chat?"),
                     model: nil
                 )
                 conversation.append(cap)
@@ -178,7 +178,7 @@ final class CoachService {
             if toolCallCount + toolCalls.count > Self.maxToolCallsPerConversation {
                 let cap = CoachMessage(
                     role: "assistant",
-                    text: "I've hit the tool-call cap for this chat. End the chat to start fresh.",
+                    text: String(localized: "I've hit the tool-call cap for this chat. End the chat to start fresh."),
                     model: nil
                 )
                 conversation.append(cap)

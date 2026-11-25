@@ -56,26 +56,26 @@ struct PermissionsSetupView: View {
 
         var title: String {
             switch self {
-            case .health: "Apple Health"
-            case .notifications: "Notifications"
-            case .location: "Location"
+            case .health: String(localized: "Apple Health")
+            case .notifications: String(localized: "Notifications")
+            case .location: String(localized: "Location")
             }
         }
 
         var why: String {
             switch self {
-            case .health: "Steps, sleep and workouts, so your day starts with real numbers."
-            case .notifications: "Morning briefings, meal and training reminders, streak alerts."
-            case .location: "Weather tips, run pace and distance, and meals eaten out."
+            case .health: String(localized: "Steps, sleep and workouts, so your day starts with real numbers.")
+            case .notifications: String(localized: "Morning briefings, meal and training reminders, streak alerts.")
+            case .location: String(localized: "Weather tips, run pace and distance, and meals eaten out.")
             }
         }
     }
 
     var body: some View {
         OnboardingScaffold(
-            title: "WHAT CAN\nTEMPO USE?",
-            subtitle: "All optional. You can change any of them later in Settings.",
-            primaryTitle: "CONTINUE",
+            title: String(localized: "WHAT CAN\nTEMPO USE?"),
+            subtitle: String(localized: "All optional. You can change any of them later in Settings."),
+            primaryTitle: String(localized: "CONTINUE"),
             primaryAction: { viewModel.advance() }
         ) {
             VStack(spacing: Tide.s3) {
@@ -85,7 +85,7 @@ struct PermissionsSetupView: View {
                         title: kind.title,
                         why: kind.why,
                         access: access(for: kind),
-                        grantedText: kind == .health ? "Done" : "On",
+                        grantedText: kind == .health ? String(localized: "Done") : String(localized: "On"),
                         isBusy: busy == kind,
                         errorText: errors[kind],
                         identifier: kind.rawValue
@@ -96,7 +96,7 @@ struct PermissionsSetupView: View {
             }
 
             OnboardingNote(
-                "Your health data stays on your device. Tempo never uploads raw HealthKit data.",
+                String(localized: "Your health data stays on your device. Tempo never uploads raw HealthKit data."),
                 systemImage: "lock.fill"
             )
         }
@@ -173,7 +173,7 @@ struct PermissionsSetupView: View {
                 await locationAuthorizer.requestWhenInUseIfNeeded()
             }
         } catch {
-            errors[kind] = "Couldn't ask for access. Try again, or turn it on in Settings later."
+            errors[kind] = String(localized: "Couldn't ask for access. Try again, or turn it on in Settings later.")
         }
         await refresh()
     }

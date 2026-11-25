@@ -66,7 +66,7 @@ struct NextWidgetView: View {
     }
 
     private var empty: some View {
-        WidgetEmptyState(symbol: "arrow.forward.circle.fill", title: "Nothing queued yet")
+        WidgetEmptyState(symbol: "arrow.forward.circle.fill", title: String(localized: "Nothing queued yet"))
             .padding(Tide.s4)
     }
 
@@ -96,7 +96,7 @@ struct NextWidgetView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                WidgetLabel("Next up")
+                WidgetLabel(String(localized: "Next up"))
                 Text(next.title)
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
@@ -117,7 +117,7 @@ struct NextWidgetView: View {
                 icon(next, size: Tide.s10 + Tide.s2)
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     HStack(alignment: .firstTextBaseline) {
-                        WidgetLabel("Next up")
+                        WidgetLabel(String(localized: "Next up"))
                         Spacer(minLength: Tide.s2)
                         if let trailing = next.trailing {
                             Text(trailing)

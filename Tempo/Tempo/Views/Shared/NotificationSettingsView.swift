@@ -123,15 +123,15 @@ struct NotificationSettingsView: View {
             permissionHeader(
                 icon: "bell.badge.fill",
                 iconTint: mood.accent,
-                title: "Enable Notifications",
-                message: "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind."
+                title: String(localized: "Enable Notifications"),
+                message: String(localized: "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind.")
             )
 
             SettingsGroupCard {
-                notificationFeatureRow(icon: "sunrise.fill", text: "Morning briefing with your daily plan")
-                notificationFeatureRow(icon: "bolt.fill", text: "Accountability escalations")
-                notificationFeatureRow(icon: "flame.fill", text: "Streak warnings before you lose progress")
-                notificationFeatureRow(icon: "moon.fill", text: "Bedtime reminders for recovery")
+                notificationFeatureRow(icon: "sunrise.fill", text: String(localized: "Morning briefing with your daily plan"))
+                notificationFeatureRow(icon: "bolt.fill", text: String(localized: "Accountability escalations"))
+                notificationFeatureRow(icon: "flame.fill", text: String(localized: "Streak warnings before you lose progress"))
+                notificationFeatureRow(icon: "moon.fill", text: String(localized: "Bedtime reminders for recovery"))
             }
 
             VStack(spacing: Tide.s2) {
@@ -164,8 +164,8 @@ struct NotificationSettingsView: View {
             permissionHeader(
                 icon: "bell.slash.fill",
                 iconTint: Tide.text3,
-                title: "Notifications Disabled",
-                message: "Notifications are turned off in iOS Settings. Tempo needs notifications for accountability reminders, morning briefings, and streak warnings."
+                title: String(localized: "Notifications Disabled"),
+                message: String(localized: "Notifications are turned off in iOS Settings. Tempo needs notifications for accountability reminders, morning briefings, and streak warnings.")
             )
 
             Button {
@@ -223,14 +223,14 @@ struct NotificationSettingsView: View {
 
     private var summaryCard: some View {
         TideSettingsHero {
-            TideLabel("Reminders on")
+            TideLabel(String(localized: "Reminders on"))
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber(
-                    "\(remindersOn)", unit: "of \(remindersTotal)",
+                    "\(remindersOn)", unit: String(localized: "of \(remindersTotal)"),
                     size: Tide.numeralL, relativeTo: .largeTitle
                 )
                 Spacer(minLength: Tide.s2)
-                Text(level?.title ?? "Custom")
+                Text(level?.title ?? String(localized: "Custom"))
                     .tideLabel(mood.accent)
             }
             TideLevelBar(progress: Double(remindersOn) / Double(remindersTotal), height: Tide.bar)
@@ -289,7 +289,7 @@ struct NotificationSettingsView: View {
     /// How much Tempo may send: three presets over the switches under "Fine tune".
     private var levelSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSettingsSection(title: "What to send") {
+            TideSettingsSection(title: String(localized: "What to send")) {
                 ForEach(NotificationLevel.allCases) { option in
                     Button {
                         applyLevel(option)
@@ -311,8 +311,8 @@ struct NotificationSettingsView: View {
 
             Text(
                 level == nil
-                    ? "Custom: you turned individual reminders on or off under Fine tune. Pick a level to start over."
-                    : "Each level only changes which reminders are on. You can still change any of them under Fine tune."
+                    ? String(localized: "Custom: you turned individual reminders on or off under Fine tune. Pick a level to start over.")
+                    : String(localized: "Each level only changes which reminders are on. You can still change any of them under Fine tune.")
             )
             .font(Tide.caption)
             .foregroundStyle(level == nil ? Tide.settingsAttention : Tide.text2)
@@ -327,7 +327,7 @@ struct NotificationSettingsView: View {
     /// How hard the accountability reminders push. Tone, not volume: it sits beside the level, not in it.
     private var intensitySection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSettingsSection(title: "How hard it pushes") {
+            TideSettingsSection(title: String(localized: "How hard it pushes")) {
                 // Per UX_COPY_BIBLE.md — onb_notif_intensity_label
                 ForEach(IntensityOption.allCases) { option in
                     Button {
@@ -438,7 +438,7 @@ struct NotificationSettingsView: View {
                         }
                     } trailing: {
                         HStack(spacing: Tide.s2) {
-                            Text(level == nil ? "Custom" : "\(remindersOn) of \(remindersTotal) on")
+                            Text(level == nil ? String(localized: "Custom") : String(localized: "\(remindersOn) of \(remindersTotal) on"))
                                 .font(Tide.caption)
                                 .foregroundStyle(level == nil ? Tide.settingsAttention : Tide.text2)
                             Image(systemName: "chevron.down")
@@ -454,7 +454,7 @@ struct NotificationSettingsView: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(.tideSettingsRow)
-                .accessibilityValue(fineTuneOpen ? "Expanded" : "Collapsed")
+                .accessibilityValue(fineTuneOpen ? String(localized: "Expanded") : String(localized: "Collapsed"))
                 .accessibilityIdentifier("notificationFineTune")
             }
 
@@ -469,42 +469,42 @@ struct NotificationSettingsView: View {
     // MARK: - Daily Reminders Section
 
     private var dailyRemindersSection: some View {
-        SettingsFormCard(title: "Daily reminders") {
-            topicToggle("Morning Briefing", topic: .morningBriefing, icon: "sunrise.fill")
+        SettingsFormCard(title: String(localized: "Daily reminders")) {
+            topicToggle(String(localized: "Morning Briefing"), topic: .morningBriefing, icon: "sunrise.fill")
             SettingsRowDivider()
-            topicToggle("Recovery Updates", topic: .recovery, icon: "heart.fill")
+            topicToggle(String(localized: "Recovery Updates"), topic: .recovery, icon: "heart.fill")
             SettingsRowDivider()
-            topicToggle("Meal Reminders", topic: .meals, icon: "fork.knife")
+            topicToggle(String(localized: "Meal Reminders"), topic: .meals, icon: "fork.knife")
             SettingsRowDivider()
-            topicToggle("Bedtime Reminder", topic: .bedtime, icon: "moon.fill")
+            topicToggle(String(localized: "Bedtime Reminder"), topic: .bedtime, icon: "moon.fill")
             SettingsRowDivider()
-            topicToggle("Weekly Report", topic: .weeklyReport, icon: "chart.bar.fill")
+            topicToggle(String(localized: "Weekly Report"), topic: .weeklyReport, icon: "chart.bar.fill")
         }
     }
 
     // MARK: - Accountability Section
 
     private var accountabilitySection: some View {
-        SettingsFormCard(title: "Accountability") {
-            topicToggle("Accountability Reminders", topic: .accountability, icon: "bolt.fill")
+        SettingsFormCard(title: String(localized: "Accountability")) {
+            topicToggle(String(localized: "Accountability Reminders"), topic: .accountability, icon: "bolt.fill")
             SettingsRowDivider()
-            topicToggle("Streak Warnings", topic: .streak, icon: "flame.fill")
+            topicToggle(String(localized: "Streak Warnings"), topic: .streak, icon: "flame.fill")
             SettingsRowDivider()
-            topicToggle("Training Reminders", topic: .training, icon: "dumbbell.fill")
+            topicToggle(String(localized: "Training Reminders"), topic: .training, icon: "dumbbell.fill")
             SettingsRowDivider()
-            topicToggle("Trainer Sessions", topic: .trainerSession, icon: "figure.strengthtraining.traditional")
+            topicToggle(String(localized: "Trainer Sessions"), topic: .trainerSession, icon: "figure.strengthtraining.traditional")
             SettingsRowDivider()
-            topicToggle("New-Week Upload Reminder", topic: .weeklyUpload, icon: "calendar.badge.exclamationmark")
+            topicToggle(String(localized: "New-Week Upload Reminder"), topic: .weeklyUpload, icon: "calendar.badge.exclamationmark")
         }
     }
 
     // MARK: - Social Section
 
     private var socialSection: some View {
-        SettingsFormCard(title: "Social & sound") {
-            topicToggle("Arena Notifications", topic: .arena, icon: "trophy.fill")
+        SettingsFormCard(title: String(localized: "Social & sound")) {
+            topicToggle(String(localized: "Arena Notifications"), topic: .arena, icon: "trophy.fill")
             SettingsRowDivider()
-            SettingsControlRow(label: "Notification Sound", icon: "speaker.wave.2.fill") {
+            SettingsControlRow(label: String(localized: "Notification Sound"), icon: "speaker.wave.2.fill") {
                 Toggle("Notification Sound", isOn: $soundEnabled)
                     .labelsHidden()
                     .onChange(of: soundEnabled) { _, newValue in
@@ -519,10 +519,10 @@ struct NotificationSettingsView: View {
 
     private var quietHoursSection: some View {
         SettingsFormCard(
-            title: "Quiet hours",
-            footnote: "Inside this window, reminders Tempo schedules on this phone are skipped, not delayed. Escalating accountability warnings and defrost reminders still come through. Timers you start yourself are not affected."
+            title: String(localized: "Quiet hours"),
+            footnote: String(localized: "Inside this window, reminders Tempo schedules on this phone are skipped, not delayed. Escalating accountability warnings and defrost reminders still come through. Timers you start yourself are not affected.")
         ) {
-            SettingsControlRow(label: "Quiet Hours", icon: "moon.zzz.fill") {
+            SettingsControlRow(label: String(localized: "Quiet Hours"), icon: "moon.zzz.fill") {
                 Toggle("Quiet Hours", isOn: $quietHoursEnabled)
                     .labelsHidden()
                     .onChange(of: quietHoursEnabled) { _, newValue in
@@ -540,7 +540,7 @@ struct NotificationSettingsView: View {
 
             if quietHoursEnabled {
                 SettingsRowDivider()
-                SettingsControlRow(label: "From", icon: "sunset.fill") {
+                SettingsControlRow(label: String(localized: "From"), icon: "sunset.fill") {
                     DatePicker("From", selection: $quietHoursStart, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                         .onChange(of: quietHoursStart) { _, newValue in
@@ -549,7 +549,7 @@ struct NotificationSettingsView: View {
                 }
 
                 SettingsRowDivider()
-                SettingsControlRow(label: "Until", icon: "sunrise.fill") {
+                SettingsControlRow(label: String(localized: "Until"), icon: "sunrise.fill") {
                     DatePicker("Until", selection: $quietHoursEnd, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                         .onChange(of: quietHoursEnd) { _, newValue in
@@ -698,28 +698,28 @@ private enum IntensityOption: Int, CaseIterable, Identifiable {
     /// Per UX_COPY_BIBLE.md — Notification intensity option strings
     var title: String {
         switch self {
-        case .gentle: "Gentle Coach"
-        case .firm: "Firm Coach"
-        case .drillSergeant: "Drill Sergeant"
-        case .savage: "Savage Mode"
+        case .gentle: String(localized: "Gentle Coach")
+        case .firm: String(localized: "Firm Coach")
+        case .drillSergeant: String(localized: "Drill Sergeant")
+        case .savage: String(localized: "Savage Mode")
         }
     }
 
     var description: String {
         switch self {
-        case .gentle: "Supportive and encouraging. Reminders without the edge."
-        case .firm: "Direct and clear. No sugarcoating, but no yelling."
-        case .drillSergeant: "Tough love. Gets louder as the day goes on."
-        case .savage: "Maximum pressure. Not for the faint-hearted."
+        case .gentle: String(localized: "Supportive and encouraging. Reminders without the edge.")
+        case .firm: String(localized: "Direct and clear. No sugarcoating, but no yelling.")
+        case .drillSergeant: String(localized: "Tough love. Gets louder as the day goes on.")
+        case .savage: String(localized: "Maximum pressure. Not for the faint-hearted.")
         }
     }
 
     var preview: String {
         switch self {
-        case .gentle: "\"Hey! You've got 3 tasks left today. You can totally do this!\""
-        case .firm: "\"3 tasks remaining. 5 hours left. Time to focus.\""
-        case .drillSergeant: "\"3 non-negotiables left. Clock's ticking. Move.\""
-        case .savage: "\"3 tasks undone. Another wasted day incoming. Prove me wrong.\""
+        case .gentle: String(localized: "\"Hey! You've got 3 tasks left today. You can totally do this!\"")
+        case .firm: String(localized: "\"3 tasks remaining. 5 hours left. Time to focus.\"")
+        case .drillSergeant: String(localized: "\"3 non-negotiables left. Clock's ticking. Move.\"")
+        case .savage: String(localized: "\"3 tasks undone. Another wasted day incoming. Prove me wrong.\"")
         }
     }
 }

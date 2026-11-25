@@ -119,8 +119,8 @@ enum PreMatchWeighInScheduler {
                 continue
             }
             let content = UNMutableNotificationContent()
-            content.title = "Weigh yourself now"
-            content.body = "Before you drink. It takes a minute and makes your recovery numbers real."
+            content.title = String(localized: "Weigh yourself now")
+            content.body = String(localized: "Before you drink. It takes a minute and makes your recovery numbers real.")
             content.categoryIdentifier = CoachNotifications.preCategoryID
             content.sound = .default
             content.interruptionLevel = .timeSensitive

@@ -22,7 +22,7 @@ struct RecoverySleepSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Sleep")
+            TideSectionLabel(title: String(localized: "Sleep"))
 
             if hasSleep {
                 scoreCard
@@ -32,8 +32,8 @@ struct RecoverySleepSection: View {
             } else {
                 TideEmptyPanel(
                     systemImage: "moon.zzz",
-                    title: "No sleep recorded",
-                    message: "Last night's sleep shows up here once WHOOP has processed it."
+                    title: String(localized: "No sleep recorded"),
+                    message: String(localized: "Last night's sleep shows up here once WHOOP has processed it.")
                 )
                 .tideCard()
             }
@@ -49,22 +49,22 @@ struct RecoverySleepSection: View {
         RecoveryHero {
             TideDial(
                 score: viewModel.todayRecovery?.sleepScore.map { Int($0.rounded()) },
-                caption: "Sleep",
+                caption: String(localized: "Sleep"),
                 diameter: Tide.dialSheet
             )
             .explains(
                 Explainer.sleepScore.showing(
-                    viewModel.todayRecovery?.sleepScore.map { "\(Int($0.rounded())) percent" }
+                    viewModel.todayRecovery?.sleepScore.map { String(localized: "\(Int($0.rounded())) percent") }
                 )
             )
         } side: {
-            TideNumber(viewModel.formattedSleepHours, unit: "asleep", size: Tide.numeralM, relativeTo: .title2)
+            TideNumber(viewModel.formattedSleepHours, unit: String(localized: "asleep"), size: Tide.numeralM, relativeTo: .title2)
             if let efficiency = viewModel.todayRecovery?.sleepEfficiency {
                 TideStatusPill(
-                    text: "Efficiency \(String(format: "%.1f", efficiency))%",
+                    text: String(localized: "Efficiency \(efficiency.tempoDecimal(1))%"),
                     tint: efficiencyColor(efficiency)
                 )
-                .explains(Explainer.sleepEfficiency.showing("\(String(format: "%.1f", efficiency)) percent"))
+                .explains(Explainer.sleepEfficiency.showing(String(localized: "\(efficiency.tempoDecimal(1)) percent")))
             }
         }
         .accessibilityElement(children: .contain)
@@ -82,9 +82,9 @@ struct RecoverySleepSection: View {
                 stagesBar
 
                 LazyVGrid(columns: stageColumns, spacing: Tide.s3) {
-                    stageTile(name: "Awake", minutes: viewModel.awakeMinutes, color: TideSleepStage.awake)
-                    stageTile(name: "Light", minutes: viewModel.lightSleepMinutes, color: TideSleepStage.light)
-                    stageTile(name: "Deep", minutes: viewModel.deepSleepMinutes, color: TideSleepStage.deep)
+                    stageTile(name: String(localized: "Awake"), minutes: viewModel.awakeMinutes, color: TideSleepStage.awake)
+                    stageTile(name: String(localized: "Light"), minutes: viewModel.lightSleepMinutes, color: TideSleepStage.light)
+                    stageTile(name: String(localized: "Deep"), minutes: viewModel.deepSleepMinutes, color: TideSleepStage.deep)
                     stageTile(name: "REM", minutes: viewModel.remSleepMinutes, color: TideSleepStage.rem)
                 }
             } else {
@@ -115,8 +115,9 @@ struct RecoverySleepSection: View {
         RecoveryStagesBar(
             segments: stageMinutes,
             accessibilityValue:
-            "Awake \(formatMinutes(viewModel.awakeMinutes)), light \(formatMinutes(viewModel.lightSleepMinutes)), "
-                + "deep \(formatMinutes(viewModel.deepSleepMinutes)), REM \(formatMinutes(viewModel.remSleepMinutes))"
+            String(
+                localized: "Awake \(formatMinutes(viewModel.awakeMinutes)), light \(formatMinutes(viewModel.lightSleepMinutes)), deep \(formatMinutes(viewModel.deepSleepMinutes)), REM \(formatMinutes(viewModel.remSleepMinutes))"
+            )
         )
     }
 
@@ -158,7 +159,7 @@ struct RecoverySleepSection: View {
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     TideNumber(
-                        String(format: "%.1f", viewModel.calculatedSleepDebt), unit: "hours",
+                        viewModel.calculatedSleepDebt.tempoDecimal(1), unit: String(localized: "hours"),
                         size: Tide.numeralL, relativeTo: .largeTitle
                     )
                     Text("accumulated over 7 days")
@@ -171,7 +172,7 @@ struct RecoverySleepSection: View {
                     Spacer(minLength: Tide.s2)
                 }
 
-                TideStatusPill(text: viewModel.sleepDebtSeverity.rawValue, tint: debtSeverityColor)
+                TideStatusPill(text: viewModel.sleepDebtSeverity.title, tint: debtSeverityColor)
             }
 
             // Severity bar and its scale
@@ -216,7 +217,7 @@ struct RecoverySleepSection: View {
             }
         }
         .tideCard()
-        .explains(Explainer.sleepDebt.showing("\(String(format: "%.1f", viewModel.calculatedSleepDebt)) hours"))
+        .explains(Explainer.sleepDebt.showing(String(localized: "\(viewModel.calculatedSleepDebt.tempoDecimal(1)) hours")))
     }
 
     private func scaleLabel(_ text: String) -> some View {
@@ -254,16 +255,16 @@ struct RecoverySleepSection: View {
             spacing: Tide.s3
         ) {
             TideMetricTile(
-                label: "Consistency",
+                label: String(localized: "Consistency"),
                 value: viewModel.todayRecovery?.sleepConsistency.map { "\(Int($0))" } ?? "--",
                 unit: viewModel.todayRecovery?.sleepConsistency == nil ? nil : "%",
                 systemImage: "clock.arrow.2.circlepath"
             )
             .explains(.sleepConsistency)
             TideMetricTile(
-                label: "Respiratory rate",
-                value: viewModel.todayRecovery?.respiratoryRate.map { String(format: "%.1f", $0) } ?? "--",
-                unit: "br/min",
+                label: String(localized: "Respiratory rate"),
+                value: viewModel.todayRecovery?.respiratoryRate.map { $0.tempoDecimal(1) } ?? "--",
+                unit: String(localized: "br/min"),
                 systemImage: "lungs"
             )
             .explains(.respiratoryRate)
@@ -276,9 +277,9 @@ struct RecoverySleepSection: View {
         if minutes >= 60 {
             let h = minutes / 60
             let m = minutes % 60
-            return m > 0 ? "\(h)h \(m)m" : "\(h)h"
+            return m > 0 ? String(localized: "\(h)h \(m)m") : String(localized: "\(h)h")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     private func stagePercent(_ minutes: Int) -> Int {

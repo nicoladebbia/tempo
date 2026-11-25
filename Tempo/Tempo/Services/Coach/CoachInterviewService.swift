@@ -60,9 +60,15 @@ struct CoachInterviewAnswers: Equatable {
     /// True when at least one question received a non-empty answer.
     /// Drives the completed-vs-skipped flag on UserSettings.
     var hasAnyAnswer: Bool {
-        if tiredMode != nil { return true }
-        if tonePreference != nil { return true }
-        if !silentTrack.isEmpty { return true }
+        if tiredMode != nil {
+            return true
+        }
+        if tonePreference != nil {
+            return true
+        }
+        if !silentTrack.isEmpty {
+            return true
+        }
         if let s = failedHabit, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return true
         }
@@ -76,7 +82,7 @@ struct CoachInterviewAnswers: Equatable {
     }
 }
 
-// MARK: - Answer enums
+// MARK: - TiredMode
 
 enum TiredMode: String, Codable, CaseIterable, Sendable {
     case push
@@ -85,12 +91,14 @@ enum TiredMode: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .push: return "Push you anyway"
-        case .ease: return "Suggest easing off"
-        case .askFirst: return "Ask first"
+        case .push: String(localized: "Push you anyway")
+        case .ease: String(localized: "Suggest easing off")
+        case .askFirst: String(localized: "Ask first")
         }
     }
 }
+
+// MARK: - TonePreference
 
 enum TonePreference: String, Codable, CaseIterable, Sendable {
     case drillSergeant
@@ -100,13 +108,15 @@ enum TonePreference: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .drillSergeant: return "Drill-sergeant"
-        case .dataAnalyst: return "Data analyst"
-        case .supportive: return "Supportive friend"
-        case .noPreference: return "No preference"
+        case .drillSergeant: String(localized: "Drill-sergeant")
+        case .dataAnalyst: String(localized: "Data analyst")
+        case .supportive: String(localized: "Supportive friend")
+        case .noPreference: String(localized: "No preference")
         }
     }
 }
+
+// MARK: - SilentTrackOption
 
 enum SilentTrackOption: String, Codable, CaseIterable, Sendable {
     case meals
@@ -116,10 +126,37 @@ enum SilentTrackOption: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .meals: return "Meals"
-        case .sleep: return "Sleep"
-        case .trainingIntensity: return "Training intensity"
-        case .mood: return "Mood"
+        case .meals: String(localized: "Meals")
+        case .sleep: String(localized: "Sleep")
+        case .trainingIntensity: String(localized: "Training intensity")
+        case .mood: String(localized: "Mood")
+        }
+    }
+}
+
+// MARK: - English names for stored preference text
+
+// The preference sentences below are saved and sent to the AI, so they always
+// use the English names, whatever language the app UI is in.
+
+private extension TonePreference {
+    var englishName: String {
+        switch self {
+        case .drillSergeant: "Drill-sergeant"
+        case .dataAnalyst: "Data analyst"
+        case .supportive: "Supportive friend"
+        case .noPreference: "No preference"
+        }
+    }
+}
+
+private extension SilentTrackOption {
+    var englishName: String {
+        switch self {
+        case .meals: "Meals"
+        case .sleep: "Sleep"
+        case .trainingIntensity: "Training intensity"
+        case .mood: "Mood"
         }
     }
 }
@@ -134,8 +171,8 @@ enum CoachVoiceMode: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .tapToggle: return "Tap to toggle"
-        case .holdToRecord: return "Hold to record"
+        case .tapToggle: String(localized: "Tap to toggle")
+        case .holdToRecord: String(localized: "Hold to record")
         }
     }
 }
@@ -173,7 +210,7 @@ enum CoachInterviewService {
         // Q2 — tonePreference (skip when noPreference — nothing useful to learn)
         if let tone = answers.tonePreference, tone != .noPreference {
             let pref = LearnedPreference(
-                text: "user prefers Coach's tone to be \(tone.displayName.lowercased())",
+                text: "user prefers Coach's tone to be \(tone.englishName.lowercased())",
                 subject: "tone.style",
                 source: .userVerified,
                 polarity: .positive,
@@ -188,7 +225,7 @@ enum CoachInterviewService {
         if !answers.silentTrack.isEmpty {
             let labels = answers.silentTrack
                 .sorted { $0.rawValue < $1.rawValue }
-                .map(\.displayName)
+                .map(\.englishName)
                 .joined(separator: ", ")
             let pref = LearnedPreference(
                 text: "user wants Coach to silently track: \(labels)",
@@ -302,16 +339,16 @@ enum CoachInterviewService {
     static func tiredModeText(_ mode: TiredMode) -> String {
         switch mode {
         case .push:
-            return "when tired, user wants Coach to push them anyway"
+            "when tired, user wants Coach to push them anyway"
         case .ease:
-            return "when tired, user wants Coach to suggest easing off"
+            "when tired, user wants Coach to suggest easing off"
         case .askFirst:
-            return "when tired, user wants Coach to ask before pushing or easing"
+            "when tired, user wants Coach to ask before pushing or easing"
         }
     }
 }
 
-// MARK: - RunReport
+// MARK: CoachInterviewService.RunReport
 
 extension CoachInterviewService {
     struct RunReport: Equatable {

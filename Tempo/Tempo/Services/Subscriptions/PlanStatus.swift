@@ -91,8 +91,9 @@ struct PlanStatus: Equatable, Sendable {
             var status = fromDevice(device)
             if let server, !server.isPro {
                 status = status.withNotice(
-                    "We haven't confirmed this on our side yet, so some Pro features may stay locked. "
-                        + "Restore purchases, or try again in a few minutes."
+                    String(
+                        localized: "We haven't confirmed this on our side yet, so some Pro features may stay locked. Restore purchases, or try again in a few minutes."
+                    )
                 )
             }
             return status
@@ -109,44 +110,44 @@ struct PlanStatus: Equatable, Sendable {
             return free
         case let .trial(startDate, endDate):
             return PlanStatus(
-                kind: .trial, isPro: true, title: "Pro · Trial",
-                subtitle: "Full access while your trial runs.",
-                dateLabel: "Trial ends", date: endDate, startDate: startDate, productName: nil,
-                action: .manageInAppStore, actionTitle: "Manage subscription", notice: nil
+                kind: .trial, isPro: true, title: String(localized: "Pro · Trial"),
+                subtitle: String(localized: "Full access while your trial runs."),
+                dateLabel: String(localized: "Trial ends"), date: endDate, startDate: startDate, productName: nil,
+                action: .manageInAppStore, actionTitle: String(localized: "Manage subscription"), notice: nil
             )
         case let .active(productId, expirationDate, isAutoRenewing):
             if isAutoRenewing {
                 return PlanStatus(
-                    kind: .active, isPro: true, title: "Pro",
-                    subtitle: "You have full access to Tempo Pro.",
-                    dateLabel: "Renews", date: expirationDate, startDate: nil,
+                    kind: .active, isPro: true, title: String(localized: "Pro"),
+                    subtitle: String(localized: "You have full access to Tempo Pro."),
+                    dateLabel: String(localized: "Renews"), date: expirationDate, startDate: nil,
                     productName: productName(productId),
-                    action: .manageInAppStore, actionTitle: "Manage subscription", notice: nil
+                    action: .manageInAppStore, actionTitle: String(localized: "Manage subscription"), notice: nil
                 )
             }
             return PlanStatus(
-                kind: .cancelled, isPro: true, title: "Pro · Ends soon",
-                subtitle: "Renewal is off. You keep Pro until this period ends.",
-                dateLabel: "Ends", date: expirationDate, startDate: nil,
+                kind: .cancelled, isPro: true, title: String(localized: "Pro · Ends soon"),
+                subtitle: String(localized: "Renewal is off. You keep Pro until this period ends."),
+                dateLabel: String(localized: "Ends"), date: expirationDate, startDate: nil,
                 productName: productName(productId),
-                action: .manageInAppStore, actionTitle: "Turn renewal back on", notice: nil
+                action: .manageInAppStore, actionTitle: String(localized: "Turn renewal back on"), notice: nil
             )
         case let .gracePeriod(productId, graceEndDate):
             return PlanStatus(
-                kind: .grace, isPro: true, title: "Pro · Payment problem",
-                subtitle: "Apple couldn't take your payment. Pro stays on while it tries again.",
-                dateLabel: "Fix it by", date: graceEndDate, startDate: nil,
+                kind: .grace, isPro: true, title: String(localized: "Pro · Payment problem"),
+                subtitle: String(localized: "Apple couldn't take your payment. Pro stays on while it tries again."),
+                dateLabel: String(localized: "Fix it by"), date: graceEndDate, startDate: nil,
                 productName: productName(productId),
-                action: .manageInAppStore, actionTitle: "Update payment method", notice: nil
+                action: .manageInAppStore, actionTitle: String(localized: "Update payment method"), notice: nil
             )
         case let .expired(lastProductId, expiredAt),
              let .churned(lastProductId, expiredAt):
             return PlanStatus(
-                kind: .expired, isPro: false, title: "Expired",
-                subtitle: "Your Pro has ended. Subscribe again to get it back.",
-                dateLabel: "Ended", date: expiredAt, startDate: nil,
+                kind: .expired, isPro: false, title: String(localized: "Expired"),
+                subtitle: String(localized: "Your Pro has ended. Subscribe again to get it back."),
+                dateLabel: String(localized: "Ended"), date: expiredAt, startDate: nil,
                 productName: productName(lastProductId),
-                action: .showPaywall, actionTitle: "Subscribe again", notice: nil
+                action: .showPaywall, actionTitle: String(localized: "Subscribe again"), notice: nil
             )
         }
     }
@@ -156,28 +157,28 @@ struct PlanStatus: Equatable, Sendable {
     private static func fromServer(_ server: ServerPlan) -> PlanStatus {
         if let productId = server.productId, let expiresAt = server.expiresAt {
             return PlanStatus(
-                kind: .active, isPro: true, title: "Pro",
-                subtitle: "You have full access to Tempo Pro.",
+                kind: .active, isPro: true, title: String(localized: "Pro"),
+                subtitle: String(localized: "You have full access to Tempo Pro."),
                 dateLabel: activeUntilLabel, date: expiresAt, startDate: nil,
                 productName: productName(productId),
-                action: .manageInAppStore, actionTitle: "Manage subscription", notice: nil
+                action: .manageInAppStore, actionTitle: String(localized: "Manage subscription"), notice: nil
             )
         }
         return PlanStatus(
-            kind: .included, isPro: true, title: "Pro · Included",
-            subtitle: "Pro comes with your account. Nothing to pay.",
+            kind: .included, isPro: true, title: String(localized: "Pro · Included"),
+            subtitle: String(localized: "Pro comes with your account. Nothing to pay."),
             dateLabel: nil, date: nil, startDate: nil, productName: nil,
             action: nil, actionTitle: nil, notice: nil
         )
     }
 
-    private static let activeUntilLabel = "Active until"
+    private static let activeUntilLabel = String(localized: "Active until")
 
     private static let free = PlanStatus(
-        kind: .free, isPro: false, title: "Free",
-        subtitle: "Upgrade to unlock everything Tempo offers.",
+        kind: .free, isPro: false, title: String(localized: "Free"),
+        subtitle: String(localized: "Upgrade to unlock everything Tempo offers."),
         dateLabel: nil, date: nil, startDate: nil, productName: nil,
-        action: .showPaywall, actionTitle: "Subscribe to Pro", notice: nil
+        action: .showPaywall, actionTitle: String(localized: "Subscribe to Pro"), notice: nil
     )
 
     private static func productName(_ productId: String) -> String? {
@@ -206,15 +207,15 @@ struct PlanStatus: Equatable, Sendable {
     func countdownUnit(days: Int) -> String? {
         let one = days == 1
         switch kind {
-        case .trial: return one ? "day of trial left" : "days of trial left"
+        case .trial: return one ? String(localized: "day of trial left") : String(localized: "days of trial left")
         case .active:
             // The server alone can't say whether it renews, only when it ends.
             if dateLabel == Self.activeUntilLabel {
-                return one ? "day of Pro left" : "days of Pro left"
+                return one ? String(localized: "day of Pro left") : String(localized: "days of Pro left")
             }
-            return one ? "day to renewal" : "days to renewal"
-        case .cancelled: return one ? "day until it ends" : "days until it ends"
-        case .grace: return one ? "day to fix it" : "days to fix it"
+            return one ? String(localized: "day to renewal") : String(localized: "days to renewal")
+        case .cancelled: return one ? String(localized: "day until it ends") : String(localized: "days until it ends")
+        case .grace: return one ? String(localized: "day to fix it") : String(localized: "days to fix it")
         case .free,
              .expired,
              .included: return nil

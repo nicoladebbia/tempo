@@ -120,7 +120,7 @@ final class AccountabilityViewModel {
 
     var formattedPS5Time: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return formatter.string(from: ps5TimeToday)
     }
 
@@ -132,9 +132,9 @@ final class AccountabilityViewModel {
         let hours = Int(timeToPS5) / 3600
         let minutes = (Int(timeToPS5) % 3600) / 60
         if hours > 0 {
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     var formattedFocusTimer: String {
@@ -407,7 +407,7 @@ final class AccountabilityViewModel {
             FocusTimerActivityManager.shared.start(
                 sessionID: sessionID,
                 phaseEndsAt: phaseEndsAt,
-                phaseLabel: "FOCUS TIME",
+                phaseLabel: String(localized: "FOCUS TIME"),
                 progress: 0,
                 subject: subject,
                 sessionIndex: sessionIndex,
@@ -817,6 +817,7 @@ final class AccountabilityViewModel {
         }
 
         let remaining = totalCount - completedCount
+        let tasksText = String(localized: "\(remaining) tasks")
         let streakDays = overallStreak?.currentCount ?? 0
 
         // Calculate historical study start time (placeholder: default 2 PM)
@@ -836,9 +837,9 @@ final class AccountabilityViewModel {
             let nudgeTime = now.addingTimeInterval(30 * 60) // 30 min from now
             if nudgeTime < ps5Time {
                 let message = if streakDays > 5 {
-                    "You're behind on study today. \(studyRemainingMin)min target. Your \(streakDays)-day streak needs this."
+                    String(localized: "You're behind on study today. \(studyRemainingMin)min target. Your \(streakDays)-day streak needs this.")
                 } else {
-                    "You haven't started studying yet. \(studyRemainingMin)min left to hit your target. Open Tempo and start a timer."
+                    String(localized: "You haven't started studying yet. \(studyRemainingMin)min left to hit your target. Open Tempo and start a timer.")
                 }
                 notificationService.scheduleAccountabilityEscalation(
                     tier: .gentle,
@@ -856,7 +857,8 @@ final class AccountabilityViewModel {
         // Gentle reminder at 50% time remaining (if less than half done)
         let completionPct = Double(completedCount) / Double(totalCount)
         if completionPct < 0.5, halfwayPoint > now.addingTimeInterval(60) {
-            let body = "\(remaining) task\(remaining == 1 ? "" : "s") remaining. \(formatTimeInterval(timeToPS5 * 0.5)) left. You've got time, but don't waste it."
+            let timeLeft = formatTimeInterval(timeToPS5 * 0.5)
+            let body = String(localized: "\(tasksText) remaining. \(timeLeft) left. You've got time, but don't waste it.")
             notificationService.scheduleAccountabilityEscalation(
                 tier: .gentle,
                 time: halfwayPoint,
@@ -866,11 +868,12 @@ final class AccountabilityViewModel {
 
         // Firm at 25% time remaining
         if completionPct < 0.75, quarterPoint > now.addingTimeInterval(60) {
-            var body = "\(remaining) task\(remaining == 1 ? "" : "s") incomplete. \(formatTimeInterval(timeToPS5 * 0.25)) left."
+            let timeLeft = formatTimeInterval(timeToPS5 * 0.25)
+            var body = String(localized: "\(tasksText) incomplete. \(timeLeft) left.")
             if studyRemainingMin > 0 {
-                body += " Study: \(studyRemainingMin)min to go."
+                body += " " + String(localized: "Study: \(studyRemainingMin)min to go.")
             }
-            body += " Time is running."
+            body += " " + String(localized: "Time is running.")
             notificationService.scheduleAccountabilityEscalation(
                 tier: .firm,
                 time: quarterPoint,
@@ -880,10 +883,11 @@ final class AccountabilityViewModel {
 
         // Urgent at 10% time remaining
         if completionPct < 1.0, tenPercentPoint > now.addingTimeInterval(60) {
+            let timeLeft = formatTimeInterval(timeToPS5 * 0.1)
             let body = if streakDays > 3 {
-                "Your \(streakDays)-day streak dies in \(formatTimeInterval(timeToPS5 * 0.1)). \(remaining) task\(remaining == 1 ? "" : "s") left. DO IT NOW."
+                String(localized: "Your \(streakDays)-day streak dies in \(timeLeft). \(tasksText) left. DO IT NOW.")
             } else {
-                "\(formatTimeInterval(timeToPS5 * 0.1)) until PS5 time. \(remaining) task\(remaining == 1 ? "" : "s") undone. This is it."
+                String(localized: "\(timeLeft) until PS5 time. \(tasksText) undone. This is it.")
             }
             notificationService.scheduleAccountabilityEscalation(
                 tier: .urgent,
@@ -927,9 +931,9 @@ final class AccountabilityViewModel {
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         if hours > 0 {
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     // MARK: - End of Day
@@ -1059,17 +1063,17 @@ extension AccountabilityViewModel: LiveActivityParticipant {
     private func focusActivityPhaseLabel() -> String {
         switch focusState {
         case .onBreak:
-            "BREAK"
+            String(localized: "BREAK")
         case .longBreak:
-            "LONG BREAK"
+            String(localized: "LONG BREAK")
         case let .paused(previous):
             switch previous {
-            case .onBreak: "BREAK"
-            case .longBreak: "LONG BREAK"
-            case .focusing: "FOCUS TIME"
+            case .onBreak: String(localized: "BREAK")
+            case .longBreak: String(localized: "LONG BREAK")
+            case .focusing: String(localized: "FOCUS TIME")
             }
         default:
-            "FOCUS TIME"
+            String(localized: "FOCUS TIME")
         }
     }
 

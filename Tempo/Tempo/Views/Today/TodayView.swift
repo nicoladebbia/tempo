@@ -572,15 +572,15 @@ struct TodayView: View {
         )
         var links: [TodayQuietLinks.Link] = []
         if !later, !dayModel.items.isEmpty {
-            links.append(.init(id: "day", title: "Your day", icon: "list.bullet") { actions.open(.day) })
+            links.append(.init(id: "day", title: String(localized: "Your day"), icon: "list.bullet") { actions.open(.day) })
         }
         if quiet.weekReview {
-            links.append(.init(id: "weekReview", title: "Week in review", icon: "chart.bar.fill") {
+            links.append(.init(id: "weekReview", title: String(localized: "Week in review"), icon: "chart.bar.fill") {
                 actions.open(.weekReview)
             })
         }
         if quiet.setGoal {
-            links.append(.init(id: "goal", title: "Set a goal", icon: "target") {
+            links.append(.init(id: "goal", title: String(localized: "Set a goal"), icon: "target") {
                 services.appState.requestedSettings = SettingsRequest(page: .goal)
             })
         }
@@ -593,7 +593,7 @@ struct TodayView: View {
     private func notes(_ vm: DashboardViewModel) -> some View {
         let insight = vm.currentInsight
         TodayNoteCard(
-            label: "Insight",
+            label: String(localized: "Insight"),
             icon: insight.icon,
             text: insight.text,
             pageCount: vm.insights.count,
@@ -605,7 +605,7 @@ struct TodayView: View {
         .accessibilityIdentifier("today.insight")
         if let advice = vm.weather?.recommendation {
             TodayNoteCard(
-                label: "Weather",
+                label: String(localized: "Weather"),
                 icon: vm.weather?.conditionSymbol ?? "cloud.fill",
                 text: advice
             )

@@ -160,7 +160,7 @@ struct SupplementSearchHit: Codable, Sendable, Equatable, Identifiable {
             switch self {
             case .nih: "NIH"
             case .openFoodFacts: "Open Food Facts"
-            case .tempo: "Tempo users"
+            case .tempo: String(localized: "Tempo users")
             }
         }
     }

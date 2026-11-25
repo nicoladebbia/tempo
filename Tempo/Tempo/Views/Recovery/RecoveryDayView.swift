@@ -97,7 +97,7 @@ struct RecoveryDayView: View {
                 MorningCheckInCard()
             } else if viewModel.loadState == .loading {
                 // The page's own shape while the first read is on its way.
-                RecoverySkeleton(label: "Loading recovery")
+                RecoverySkeleton(label: String(localized: "Loading recovery"))
                     .padding(.horizontal, -Tide.edge)
             } else {
                 noDataSection
@@ -135,7 +135,7 @@ struct RecoveryDayView: View {
     private var noDataSection: some View {
         VStack(spacing: Tide.s4) {
             RecoveryHero {
-                TideDial(score: nil, caption: "Recovery", diameter: Tide.dialHero)
+                TideDial(score: nil, caption: String(localized: "Recovery"), diameter: Tide.dialHero)
             } side: {
                 TimelineView(.everyMinute) { context in
                     Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
@@ -148,8 +148,8 @@ struct RecoveryDayView: View {
 
                 Text(
                     whoopConnected
-                        ? "WHOOP is connected. Today's score lands once last night is processed. Pull down to refresh."
-                        : "Connect WHOOP, then pull down to refresh. Your first score lands after one night of data."
+                        ? String(localized: "WHOOP is connected. Today's score lands once last night is processed. Pull down to refresh.")
+                        : String(localized: "Connect WHOOP, then pull down to refresh. Your first score lands after one night of data.")
                 )
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
@@ -174,12 +174,12 @@ struct RecoveryDayView: View {
         RecoveryHero {
             TideDial(
                 score: viewModel.todayRecovery.map { Int($0.recoveryScore.rounded()) },
-                caption: "Recovery",
+                caption: String(localized: "Recovery"),
                 diameter: Tide.dialHero
             )
             .explains(
                 Explainer.recoveryScore(zone: viewModel.todayRecovery == nil ? nil : viewModel.recoveryZone)
-                    .showing(viewModel.todayRecovery.map { "\(Int($0.recoveryScore.rounded())) percent" })
+                    .showing(viewModel.todayRecovery.map { String(localized: "\(Int($0.recoveryScore.rounded())) percent") })
             )
         } side: {
             // Date label — ticks via TimelineView so it survives midnight rollover.
@@ -229,7 +229,7 @@ struct RecoveryDayView: View {
 
     private var anomalyWarningsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Health alerts")
+            TideSectionLabel(title: String(localized: "Health alerts"))
 
             ForEach(viewModel.activeAnomalies) { anomaly in
                 let tint = anomaly.severity == .critical ? Tide.danger : TideTone.amber
@@ -263,12 +263,12 @@ struct RecoveryDayView: View {
 
     private var metricsGrid: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Vitals")
+            TideSectionLabel(title: String(localized: "Vitals"))
             LazyVGrid(columns: metricColumns, spacing: Tide.s3) {
                 metricTile(label: "HRV", value: viewModel.formattedHRV, metric: .hrv)
-                metricTile(label: "Resting HR", value: viewModel.formattedRHR, metric: .rhr)
+                metricTile(label: String(localized: "Resting HR"), value: viewModel.formattedRHR, metric: .rhr)
                 metricTile(label: "SpO2", value: viewModel.formattedSpO2, metric: .spo2)
-                metricTile(label: "Skin temp", value: viewModel.formattedSkinTemp, metric: .temp)
+                metricTile(label: String(localized: "Skin temp"), value: viewModel.formattedSkinTemp, metric: .temp)
             }
         }
     }
@@ -299,7 +299,7 @@ struct RecoveryDayView: View {
                         Image(systemName: indicator.isRising ? "arrow.up.right" : "arrow.down.right")
                             .font(Tide.label)
                             .accessibilityHidden(true)
-                        Text(indicator.isRising ? "above avg" : "below avg").font(Tide.caption)
+                        Text(indicator.isRising ? String(localized: "above avg") : String(localized: "below avg")).font(Tide.caption)
                     }
                     .foregroundStyle(indicator.isPositive ? TideTone.mint : Tide.danger)
                 } else {
@@ -316,8 +316,11 @@ struct RecoveryDayView: View {
         .buttonStyle(TideCardPressStyle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(label) \(value) \(metric.unit)"
-                + (indicator.map { $0.isPositive ? ", better than your average" : ", worse than your average" } ?? "")
+            indicator.map {
+                $0.isPositive
+                    ? String(localized: "\(label) \(value) \(metric.unit), better than your average")
+                    : String(localized: "\(label) \(value) \(metric.unit), worse than your average")
+            } ?? "\(label) \(value) \(metric.unit)"
         )
         .accessibilityHint("Shows the last 7 days")
     }
@@ -353,7 +356,7 @@ struct RecoveryDayView: View {
     private var scoreBreakdownSection: some View {
         let hasRows = viewModel.hrvDelta != nil || viewModel.rhrDelta != nil || viewModel.sleepDelta != nil
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "What drove your score")
+            TideSectionLabel(title: String(localized: "What drove your score"))
 
             VStack(spacing: 0) {
                 if let hrvDelta = viewModel.hrvDelta, let baseline = viewModel.hrvBaseline30d {
@@ -370,7 +373,7 @@ struct RecoveryDayView: View {
                 if let rhrDelta = viewModel.rhrDelta, let baseline = viewModel.rhrBaseline30d {
                     TideDivider()
                     scoreDriverRow(
-                        label: "RHR",
+                        label: String(localized: "RHR"),
                         todayValue: viewModel.formattedRHR,
                         unit: "bpm",
                         delta: rhrDelta,
@@ -382,11 +385,11 @@ struct RecoveryDayView: View {
                 if let sleepDelta = viewModel.sleepDelta {
                     TideDivider()
                     scoreDriverRow(
-                        label: "Sleep",
+                        label: String(localized: "Sleep"),
                         todayValue: viewModel.formattedSleepHours,
                         unit: "",
                         delta: sleepDelta,
-                        baselineValue: viewModel.sleepNeededHours.map { "\(String(format: "%.1f", $0))h" } ?? "--",
+                        baselineValue: viewModel.sleepNeededHours.map { "\($0.tempoDecimal(1))h" } ?? "--",
                         isHigherBetter: true,
                         explainer: .sleepAgainstNeed
                     )
@@ -458,7 +461,11 @@ struct RecoveryDayView: View {
         .frame(minHeight: Tide.hit)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(label) \(todayValue) \(unit), \(isFlat ? "right at" : (isPositive ? "better than" : "worse than")) your average of \(baselineValue)"
+            isFlat
+                ? String(localized: "\(label) \(todayValue) \(unit), right at your average of \(baselineValue)")
+                : (isPositive
+                    ? String(localized: "\(label) \(todayValue) \(unit), better than your average of \(baselineValue)")
+                    : String(localized: "\(label) \(todayValue) \(unit), worse than your average of \(baselineValue)"))
         )
         return row.explains(explainer.showing("\(todayValue) \(unit)".trimmingCharacters(in: .whitespaces)))
     }

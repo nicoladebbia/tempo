@@ -172,7 +172,7 @@ enum DayPlanner {
                 kind: .sleep,
                 startMinuteOfDay: 0,
                 endMinuteOfDay: input.wakeMinute,
-                title: "Sleep"
+                title: String(localized: "Sleep")
             ))
         }
         if input.bedtimeMinute < 1440 {
@@ -180,7 +180,7 @@ enum DayPlanner {
                 kind: .sleep,
                 startMinuteOfDay: input.bedtimeMinute,
                 endMinuteOfDay: 1440,
-                title: "Sleep"
+                title: String(localized: "Sleep")
             ))
         }
 
@@ -196,7 +196,7 @@ enum DayPlanner {
                         kind: .free,
                         startMinuteOfDay: cursor,
                         endMinuteOfDay: block.startMinuteOfDay,
-                        title: "Free"
+                        title: String(localized: "Free")
                     ))
                 }
             }
@@ -207,7 +207,7 @@ enum DayPlanner {
                 kind: .free,
                 startMinuteOfDay: cursor,
                 endMinuteOfDay: input.bedtimeMinute,
-                title: "Free"
+                title: String(localized: "Free")
             ))
         }
 

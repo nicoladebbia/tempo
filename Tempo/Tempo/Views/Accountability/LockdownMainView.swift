@@ -190,8 +190,8 @@ struct LockdownMainView: View {
         let percent = Int((min(max(viewModel.completionPercentage, 0), 1) * 100).rounded())
 
         return RecoveryHero {
-            TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
-                .explains(Explainer.lockdownProgress.showing("\(percent) percent"))
+            TideDial(score: percent, caption: String(localized: "Done"), diameter: Tide.dialHero)
+                .explains(Explainer.lockdownProgress.showing(String(localized: "\(percent) percent")))
         } side: {
             HStack(spacing: Tide.s2) {
                 Image(systemName: heroIcon)
@@ -213,7 +213,7 @@ struct LockdownMainView: View {
 
             TideNumber(
                 "\(viewModel.completedCount)",
-                unit: "of \(viewModel.totalCount) done",
+                unit: String(localized: "of \(viewModel.totalCount) done"),
                 size: Tide.numeralM,
                 relativeTo: .title
             )
@@ -229,7 +229,7 @@ struct LockdownMainView: View {
         if let override = viewModel.activeOverride {
             return Self.overrideTitle(override)
         }
-        return viewModel.isLeisureUnlocked ? "Unlocked" : "Locked"
+        return viewModel.isLeisureUnlocked ? String(localized: "Unlocked") : String(localized: "Locked")
     }
 
     private var heroIcon: String {
@@ -241,12 +241,12 @@ struct LockdownMainView: View {
 
     private static func overrideTitle(_ type: AccountabilityOverrideType) -> String {
         switch type {
-        case .restDayFull: "Full rest day"
-        case .restDayReduced: "Reduced rest day"
-        case .sickDay: "Sick day"
-        case .mentalHealthDay: "Mental health day"
-        case .injuryMode: "Injury mode"
-        case .vacationMode: "Vacation mode"
+        case .restDayFull: String(localized: "Full rest day")
+        case .restDayReduced: String(localized: "Reduced rest day")
+        case .sickDay: String(localized: "Sick day")
+        case .mentalHealthDay: String(localized: "Mental health day")
+        case .injuryMode: String(localized: "Injury mode")
+        case .vacationMode: String(localized: "Vacation mode")
         }
     }
 
@@ -260,26 +260,26 @@ struct LockdownMainView: View {
     /// Per UX_COPY_BIBLE.md — time context strings
     private var statusTimeContext: String {
         if viewModel.activeOverride != nil {
-            return "Rest days don't count toward your streak."
+            return String(localized: "Rest days don't count toward your streak.")
         }
         if viewModel.isLeisureUnlocked {
             let hour = Calendar.current.component(.hour, from: Date())
             if hour < 12 {
-                return "All done by noon. Legend."
+                return String(localized: "All done by noon. Legend.")
             }
             if let early = PS5Countdown.remaining(viewModel.timeToPS5) {
-                return "Unlocked \(early) early. Ahead of schedule."
+                return String(localized: "Unlocked \(early) early. Ahead of schedule.")
             }
-            return "Unlocked. Better late than never."
+            return String(localized: "Unlocked. Better late than never.")
         }
 
         if viewModel.dailyState == .dayFailed {
-            return "PS5 time passed. Handle your business."
+            return String(localized: "PS5 time passed. Handle your business.")
         }
 
         let remaining = viewModel.totalCount - viewModel.completedCount
         if remaining == 1 {
-            return "Just 1 more. So close."
+            return String(localized: "Just 1 more. So close.")
         }
 
         return PS5Countdown.statusLine(seconds: viewModel.timeToPS5)
@@ -356,7 +356,7 @@ struct LockdownMainView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
-                .explains(Explainer.lockdownPace.showing(prediction.onTrack ? "On pace" : "Behind"))
+                .explains(Explainer.lockdownPace.showing(prediction.onTrack ? String(localized: "On pace") : String(localized: "Behind")))
             }
         }
     }
@@ -410,15 +410,18 @@ struct LockdownMainView: View {
         let finished = finishedItems
         return VStack(spacing: Tide.s4) {
             if !open.isEmpty {
-                TideSectionLabel(title: "To do", trailing: "\(open.count) left")
+                TideSectionLabel(title: String(localized: "To do"), trailing: String(localized: "\(open.count) left"))
                     .padding(.top, Tide.s2)
                 ForEach(open, id: \.persistentModelID) { progress in
                     card(for: progress)
                 }
             }
             if !finished.isEmpty {
-                TideSectionLabel(title: "Done", trailing: "\(finished.count) of \(viewModel.progressItems.count)")
-                    .padding(.top, open.isEmpty ? Tide.s2 : Tide.s1)
+                TideSectionLabel(
+                    title: String(localized: "Done"),
+                    trailing: String(localized: "\(finished.count) of \(viewModel.progressItems.count)")
+                )
+                .padding(.top, open.isEmpty ? Tide.s2 : Tide.s1)
                 ForEach(finished, id: \.persistentModelID) { progress in
                     card(for: progress)
                 }
@@ -430,7 +433,7 @@ struct LockdownMainView: View {
 
     /// A few seconds to take a tap back: the task, the unlock and the streak go back as they were.
     private func offerUndo(_ message: String, _ undo: NonNegotiableUndo) {
-        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             viewModel.undo(undo, modelContext: modelContext)
         }
     }
@@ -449,15 +452,15 @@ struct LockdownMainView: View {
             },
             onComplete: {
                 let undo = viewModel.completeItem(progress, modelContext: modelContext)
-                offerUndo("\(progress.nonNegotiable?.name ?? "Task") marked done.", undo)
+                offerUndo(String(localized: "\(progress.nonNegotiable?.name ?? String(localized: "Task")) marked done."), undo)
             },
             onSkip: {
                 let undo = viewModel.skipItem(progress, modelContext: modelContext)
-                offerUndo("\(progress.nonNegotiable?.name ?? "Task") skipped.", undo)
+                offerUndo(String(localized: "\(progress.nonNegotiable?.name ?? String(localized: "Task")) skipped."), undo)
             },
             onUpdateValue: { value in
                 let undo = viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
-                offerUndo("\(progress.nonNegotiable?.name ?? "Task") updated.", undo)
+                offerUndo(String(localized: "\(progress.nonNegotiable?.name ?? String(localized: "Task")) updated."), undo)
             },
             onStartTimer: focusTimerEnabled ? {
                 viewModel.configureFocusTimer()
@@ -486,10 +489,10 @@ struct LockdownMainView: View {
         let override = viewModel.activeOverride
         return TideEmptyPanel(
             systemImage: override == nil ? "lock.fill" : "bed.double.fill",
-            title: override.map(Self.overrideTitle) ?? "No non-negotiables set",
+            title: override.map(Self.overrideTitle) ?? String(localized: "No non-negotiables set"),
             message: override == nil
-                ? "Define what you MUST do each day before you earn your downtime."
-                : "Rest day. No non-negotiables active."
+                ? String(localized: "Define what you MUST do each day before you earn your downtime.")
+                : String(localized: "Rest day. No non-negotiables active.")
         )
         .tideCard()
     }
@@ -549,7 +552,7 @@ struct LockdownMainView: View {
         HStack(spacing: Tide.s2) {
             Image(systemName: "play.fill")
                 .accessibilityHidden(true)
-            Text(studyComplete ? "Start another session" : "Start study timer")
+            Text(studyComplete ? String(localized: "Start another session") : String(localized: "Start study timer"))
         }
         .frame(maxWidth: .infinity)
     }
@@ -688,11 +691,12 @@ struct NonNegotiableCardView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint(progress.isCompleted ? "" : (isExpanded ? "Hides actions" : "Shows actions"))
+        .accessibilityHint(progress
+            .isCompleted ? "" : (isExpanded ? String(localized: "Hides actions") : String(localized: "Shows actions")))
         .accessibilityActions {
             if habitStreakCount > 0 {
                 Button("How the streak works") {
-                    streakExplainer = Explainer.habitStreak.showing("\(habitStreakCount) days")
+                    streakExplainer = Explainer.habitStreak.showing(String(localized: "\(habitStreakCount) days"))
                 }
             }
         }
@@ -713,7 +717,7 @@ struct NonNegotiableCardView: View {
             VStack(alignment: .leading, spacing: Tide.hair) {
                 HStack(spacing: Tide.s2) {
                     // Name
-                    Text(nn?.name ?? "Task")
+                    Text(nn?.name ?? String(localized: "Task"))
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .strikethrough(cardState == .skipped)
@@ -730,7 +734,7 @@ struct NonNegotiableCardView: View {
                         .foregroundStyle(Tide.streak)
                         .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .leading)
                         .contentShape(.rect)
-                        .explains(Explainer.habitStreak.showing("\(habitStreakCount) days"))
+                        .explains(Explainer.habitStreak.showing(String(localized: "\(habitStreakCount) days")))
                         // The tap target is 44pt; the row stays slim.
                         .padding(.vertical, -Tide.s3)
                     }
@@ -769,7 +773,7 @@ struct NonNegotiableCardView: View {
     }
 
     private var finishedText: String {
-        cardState == .skipped ? "Skipped today" : supportingText
+        cardState == .skipped ? String(localized: "Skipped today") : supportingText
     }
 
     private var iconColor: Color {
@@ -868,11 +872,11 @@ struct NonNegotiableCardView: View {
             let badgeText = switch nn.type {
             case .train: "Whoop"
             case .meals: "NutriTrack"
-            case .study: "Manual"
+            case .study: String(localized: "Manual")
             case .sleep: "HealthKit"
             case .steps: "HealthKit"
-            case .hydration: "Manual"
-            case .custom: "Manual"
+            case .hydration: String(localized: "Manual")
+            case .custom: String(localized: "Manual")
             }
 
             Text(badgeText).tideLabel(Tide.text3)
@@ -908,56 +912,56 @@ struct NonNegotiableCardView: View {
         switch nn.type {
         case .study:
             if !progress.isCompleted, progress.currentValue == 0 {
-                return "Start a focus session to begin tracking"
+                return String(localized: "Start a focus session to begin tracking")
             }
             if progress.isCompleted {
-                return "\(Int(progress.currentValue))m total"
+                return String(localized: "\(Int(progress.currentValue))m total")
             }
-            return "In progress"
+            return String(localized: "In progress")
         case .train:
             if !progress.isCompleted {
-                return "Waiting for Whoop sync..."
+                return String(localized: "Waiting for Whoop sync...")
             }
-            return "Training recorded"
+            return String(localized: "Training recorded")
         case .meals:
             let logged = Int(progress.currentValue)
             let total = Int(progress.targetValue)
             if logged == 0 {
-                return "Next: Breakfast"
+                return String(localized: "Next: Breakfast")
             }
             if logged == 1 {
-                return "Next: Lunch"
+                return String(localized: "Next: Lunch")
             }
             if logged < total {
-                return "Next: Dinner before 8pm"
+                return String(localized: "Next: Dinner before 8pm")
             }
-            return "All meals logged today"
+            return String(localized: "All meals logged today")
         case .sleep:
             if !progress.isCompleted {
-                return "Syncs from HealthKit"
+                return String(localized: "Syncs from HealthKit")
             }
-            return "Sleep tracked"
+            return String(localized: "Sleep tracked")
         case .steps:
             if !progress.isCompleted {
-                return "Syncs from HealthKit"
+                return String(localized: "Syncs from HealthKit")
             }
-            return "Steps goal met"
+            return String(localized: "Steps goal met")
         case .hydration:
             if !progress.isCompleted, progress.currentValue == 0 {
-                return "Tap to log water intake"
+                return String(localized: "Tap to log water intake")
             }
             if progress.isCompleted {
-                return "Hydration goal met"
+                return String(localized: "Hydration goal met")
             }
-            return "In progress"
+            return String(localized: "In progress")
         case .custom:
             if !progress.isCompleted, progress.currentValue == 0 {
-                return "Tap to start tracking"
+                return String(localized: "Tap to start tracking")
             }
             if progress.isCompleted {
-                return "Completed"
+                return String(localized: "Completed")
             }
-            return "In progress"
+            return String(localized: "In progress")
         }
     }
 
@@ -968,20 +972,20 @@ struct NonNegotiableCardView: View {
             case .study:
                 if let onStartTimer {
                     if progress.isCompleted {
-                        pillButton(title: "Add more", style: .outline) { onStartTimer() }
+                        pillButton(title: String(localized: "Add more"), style: .outline) { onStartTimer() }
                     } else {
-                        pillButton(title: "Start timer", style: .filled) { onStartTimer() }
+                        pillButton(title: String(localized: "Start timer"), style: .filled) { onStartTimer() }
                     }
                 }
             case .train:
                 if !progress.isCompleted {
-                    pillButton(title: "Log manually", style: .filled) {
+                    pillButton(title: String(localized: "Log manually"), style: .filled) {
                         onComplete()
                     }
                 }
             case .meals:
                 if !progress.isCompleted {
-                    pillButton(title: "Log meal", style: .filled) { onLogMeal() }
+                    pillButton(title: String(localized: "Log meal"), style: .filled) { onLogMeal() }
                 }
             case .sleep,
                  .steps:
@@ -998,7 +1002,7 @@ struct NonNegotiableCardView: View {
                 switch nn.trackingMethod {
                 case .timer:
                     if let onStartTimer, !progress.isCompleted {
-                        pillButton(title: "Start timer", style: .filled) { onStartTimer() }
+                        pillButton(title: String(localized: "Start timer"), style: .filled) { onStartTimer() }
                     }
                 case .manual:
                     if !progress.isCompleted {
@@ -1170,17 +1174,17 @@ struct NonNegotiableCardView: View {
     // MARK: - Accessibility
 
     private var accessibilityDescription: String {
-        let name = nn?.name ?? "Task"
+        let name = nn?.name ?? String(localized: "Task")
         let state = cardState
         let pct = progress.targetValue > 0
             ? Int(progress.currentValue / progress.targetValue * 100)
             : 0
         switch state {
-        case .notStarted: return "\(name), not started"
-        case .inProgress: return "\(name), \(pct) percent complete"
-        case .completed: return "\(name), completed"
-        case .overdue: return "\(name), overdue"
-        case .skipped: return "\(name), skipped"
+        case .notStarted: return String(localized: "\(name), not started")
+        case .inProgress: return String(localized: "\(name), \(pct) percent complete")
+        case .completed: return String(localized: "\(name), completed")
+        case .overdue: return String(localized: "\(name), overdue")
+        case .skipped: return String(localized: "\(name), skipped")
         }
     }
 }

@@ -247,7 +247,7 @@ struct WidgetBar: View {
 struct WidgetEmptyState: View {
     let symbol: String
     let title: String
-    var hint: String = "Open Tempo to set up your day."
+    var hint: String = String(localized: "Open Tempo to set up your day.")
     var compact = false
 
     var body: some View {

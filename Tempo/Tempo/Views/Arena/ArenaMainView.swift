@@ -58,7 +58,7 @@ struct ArenaMainView: View {
                 page(vm)
             } else {
                 // The page's own shape, breathing, instead of a bare spinner.
-                RecoverySkeleton(label: "Loading Arena")
+                RecoverySkeleton(label: String(localized: "Loading Arena"))
             }
 
             if viewModel?.showXPGain == true {
@@ -156,12 +156,12 @@ struct ArenaMainView: View {
             HStack(spacing: Tide.s2) {
                 if vm.freezesAvailable > 0 {
                     chip(symbol: "snowflake", value: vm.freezesAvailable, tint: TideTone.sky)
-                        .accessibilityLabel(ArenaText.count(vm.freezesAvailable, "streak freeze"))
-                        .explains(Explainer.streakFreezes.showing("\(vm.freezesAvailable) left"))
+                        .accessibilityLabel(ArenaText.streakFreezes(vm.freezesAvailable))
+                        .explains(Explainer.streakFreezes.showing(String(localized: "\(vm.freezesAvailable) left")))
                 }
                 chip(symbol: "flame.fill", value: vm.streakDays, tint: Tide.streak)
-                    .accessibilityLabel("\(ArenaText.count(vm.streakDays, "day")) streak")
-                    .explains(Explainer.arenaStreak.showing(ArenaText.count(vm.streakDays, "day")))
+                    .accessibilityLabel(ArenaText.streakDays(vm.streakDays))
+                    .explains(Explainer.arenaStreak.showing(ArenaText.days(vm.streakDays)))
                 NavigationLink(value: ArenaDestination.friends) {
                     Image(systemName: "person.2.fill")
                         .font(Tide.bodyStrong)
@@ -176,7 +176,7 @@ struct ArenaMainView: View {
                 }
                 .buttonStyle(.plain)
                 .tideZoomSource(id: ArenaDestination.friends, in: zoom)
-                .accessibilityLabel(requests > 0 ? "Friends, \(ArenaText.count(requests, "request"))" : "Friends")
+                .accessibilityLabel(requests > 0 ? ArenaText.friendsWithRequests(requests) : String(localized: "Friends"))
                 .accessibilityIdentifier("arena.friendsButton")
             }
             // The chips take their full width first; the title gets the rest.
@@ -207,18 +207,18 @@ struct ArenaMainView: View {
                     TideNumber("\(vm.level)", size: Tide.numeralL, relativeTo: .title)
                 }
             }
-            .explains(Explainer.arenaLevel.showing("Level \(vm.level)"))
+            .explains(Explainer.arenaLevel.showing(String(localized: "Level \(vm.level)")))
         } side: {
             Text(vm.levelTitle)
                 .font(Tide.title2)
                 .foregroundStyle(mood.accent)
                 .lineLimit(2)
                 .minimumScaleFactor(Tide.labelShrink)
-            Text(isMax ? "Top level" : "\(vm.xpForNextLevel.formatted()) XP to \(vm.nextLevelTitle)")
+            Text(isMax ? String(localized: "Top level") : String(localized: "\(vm.xpForNextLevel.formatted()) XP to \(vm.nextLevelTitle)"))
                 .font(Tide.caption).foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             // One figure everywhere: the same total as Settings and the Watch.
-            TideNumber(vm.totalXP.formatted(), unit: "XP total", size: Tide.numeralS, relativeTo: .headline)
+            TideNumber(vm.totalXP.formatted(), unit: String(localized: "XP total"), size: Tide.numeralS, relativeTo: .headline)
             if vm.streakDays > 0 {
                 Button {
                     ShareCard.present(.streak(days: vm.streakDays, level: vm.level))
@@ -244,17 +244,17 @@ struct ArenaMainView: View {
         case .idle,
              .loading:
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "This week")
-                ArenaListSkeleton(rows: 2, label: "Loading leaderboard")
+                TideSectionLabel(title: String(localized: "This week"))
+                ArenaListSkeleton(rows: 2, label: String(localized: "Loading leaderboard"))
             }
             .tideCard()
 
         case let .failed(message):
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "This week")
+                TideSectionLabel(title: String(localized: "This week"))
                 TideEmptyPanel(
-                    systemImage: "wifi.exclamationmark", title: "Could not load the leaderboard",
-                    message: message, actionTitle: "Try again"
+                    systemImage: "wifi.exclamationmark", title: String(localized: "Could not load the leaderboard"),
+                    message: message, actionTitle: String(localized: "Try again")
                 ) { Task { await arena.refresh() } }
             }
             .tideCard()
@@ -263,7 +263,7 @@ struct ArenaMainView: View {
             if arena.friends.isEmpty {
                 // Nobody to race yet: three empty places and the one way to fill them.
                 VStack(alignment: .leading, spacing: Tide.s4) {
-                    TideSectionLabel(title: "This week")
+                    TideSectionLabel(title: String(localized: "This week"))
                     let layout = typeSize.isAccessibilitySize
                         ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
                         : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s4))
@@ -287,7 +287,7 @@ struct ArenaMainView: View {
                 let preview = Self.preview(board.rankings)
                 NavigationLink(value: ArenaDestination.leaderboard) {
                     VStack(alignment: .leading, spacing: Tide.s3) {
-                        TideSectionLabel(title: "This week", trailing: "See all")
+                        TideSectionLabel(title: String(localized: "This week"), trailing: String(localized: "See all"))
                         standingLine(board)
                         VStack(spacing: Tide.s1) {
                             ForEach(preview) { entry in
@@ -321,7 +321,7 @@ struct ArenaMainView: View {
         if let rank = board.myRank, let lead = board.rankings.first {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                 TideNumber("#\(rank)", size: Tide.numeralM, relativeTo: .title2, color: mood.accent)
-                Text(rank == 1 ? "You lead the week" : "\((lead.xp - board.myXP).formatted()) XP behind \(lead.user.displayName)")
+                Text(rank == 1 ? String(localized: "You lead the week") : String(localized: "\((lead.xp - board.myXP).formatted()) XP behind \(lead.user.displayName)"))
                     .font(Tide.body).foregroundStyle(Tide.text2)
                     .lineLimit(2)
                     .minimumScaleFactor(Tide.labelShrink)
@@ -336,7 +336,7 @@ struct ArenaMainView: View {
         let earned = vm.todayXP > 0
         let goalMet = vm.dailyXPProgress >= 1
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Today's XP")
+            TideSectionLabel(title: String(localized: "Today's XP"))
             VStack(alignment: .leading, spacing: Tide.s2) {
                 // Nothing earned yet: the goal is the number, not a "+0".
                 if earned {
@@ -348,7 +348,7 @@ struct ArenaMainView: View {
                     }
                     .accessibilityElement(children: .combine)
                 } else {
-                    TideNumber(vm.dailyXPGoal.formatted(), unit: "XP daily goal", size: Tide.numeralL, color: Tide.text2)
+                    TideNumber(vm.dailyXPGoal.formatted(), unit: String(localized: "XP daily goal"), size: Tide.numeralL, color: Tide.text2)
                 }
                 TideLevelBar(progress: vm.dailyXPProgress, height: Tide.bar)
                 if goalMet {
@@ -362,7 +362,7 @@ struct ArenaMainView: View {
                 }
             }
             .contentShape(.rect)
-            .explains(Explainer.arenaDailyGoal.showing("\(vm.todayXP.formatted()) of \(vm.dailyXPGoal.formatted()) XP"))
+            .explains(Explainer.arenaDailyGoal.showing(String(localized: "\(vm.todayXP.formatted()) of \(vm.dailyXPGoal.formatted()) XP")))
 
             if vm.xpBreakdown.isEmpty {
                 waysToEarn
@@ -414,15 +414,15 @@ struct ArenaMainView: View {
                 .fixedSize(horizontal: false, vertical: true)
             layout {
                 ArenaEarnChip(
-                    systemImage: XPSource.workout.tideSymbol, title: "Train", tint: TideTone.amber,
+                    systemImage: XPSource.workout.tideSymbol, title: String(localized: "Train"), tint: TideTone.amber,
                     sideBySide: sideBySide
                 )
                 ArenaEarnChip(
-                    systemImage: XPSource.study.tideSymbol, title: "Study", tint: TideTone.violet,
+                    systemImage: XPSource.study.tideSymbol, title: String(localized: "Study"), tint: TideTone.violet,
                     sideBySide: sideBySide
                 )
                 ArenaEarnChip(
-                    systemImage: XPSource.meal.tideSymbol, title: "Log a meal", tint: TideTone.mint,
+                    systemImage: XPSource.meal.tideSymbol, title: String(localized: "Log a meal"), tint: TideTone.mint,
                     sideBySide: sideBySide
                 )
             }
@@ -467,12 +467,12 @@ struct ArenaMainView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Last week")
+            TideSectionLabel(title: String(localized: "Last week"))
             layout {
                 recapStat("XP", "+\(vm.lastWeekXP.formatted())", mood.accent)
-                recapStat(vm.lastWeekWorkouts == 1 ? "Workout" : "Workouts", "\(vm.lastWeekWorkouts)", TideTone.amber)
+                recapStat(vm.lastWeekWorkouts == 1 ? String(localized: "Workout") : String(localized: "Workouts"), "\(vm.lastWeekWorkouts)", TideTone.amber)
                 if vm.lastWeekAchievements > 0 {
-                    recapStat("Unlocked", "\(vm.lastWeekAchievements)", TideTone.violet)
+                    recapStat(String(localized: "Unlocked"), "\(vm.lastWeekAchievements)", TideTone.violet)
                 }
             }
             Button {
@@ -510,10 +510,10 @@ struct ArenaMainView: View {
         } else {
             NavigationLink(value: ArenaDestination.challenges) {
                 ArenaLinkRow(
-                    systemImage: "flag.2.crossed.fill", title: "Challenges",
+                    systemImage: "flag.2.crossed.fill", title: String(localized: "Challenges"),
                     detail: arena.phase == .ready
-                        ? "None running. Start one with a friend or on your own."
-                        : "Race a friend for a week, or go solo.",
+                        ? String(localized: "None running. Start one with a friend or on your own.")
+                        : String(localized: "Race a friend for a week, or go solo."),
                     tint: TideTone.amber
                 )
                 .tideCard(padding: Tide.s4)
@@ -528,10 +528,10 @@ struct ArenaMainView: View {
         let shown = Array(running.prefix(2))
         return NavigationLink(value: ArenaDestination.challenges) {
             VStack(alignment: .leading, spacing: Tide.s4) {
-                TideSectionLabel(title: "Challenges", trailing: "See all")
+                TideSectionLabel(title: String(localized: "Challenges"), trailing: String(localized: "See all"))
                 if !invited.isEmpty {
                     Label(
-                        invited.count == 1 ? "1 invitation waiting" : "\(invited.count) invitations waiting",
+                        invited.count == 1 ? String(localized: "1 invitation waiting") : String(localized: "\(invited.count) invitations waiting"),
                         systemImage: "envelope.badge.fill"
                     )
                     .font(Tide.bodyStrong)
@@ -581,12 +581,12 @@ struct ArenaMainView: View {
     private func earnedCard(_ vm: ArenaViewModel) -> some View {
         NavigationLink(value: ArenaDestination.earned) {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Earned", trailing: "See all")
+                TideSectionLabel(title: String(localized: "Earned"), trailing: String(localized: "See all"))
                 if vm.recentAchievements.isEmpty {
                     ArenaLinkRowBody(
                         systemImage: "medal.fill",
-                        title: "\(vm.totalEarned) of \(vm.totalTracked) achievements",
-                        detail: "Train, study and eat well to unlock your first."
+                        title: String(localized: "\(vm.totalEarned) of \(vm.totalTracked) achievements"),
+                        detail: String(localized: "Train, study and eat well to unlock your first.")
                     )
                 } else {
                     ScrollView(.horizontal) {
@@ -620,7 +620,7 @@ struct ArenaMainView: View {
             TideAreaIconTile(systemName: achievement.rarity.tideSymbol, tint: tint, size: Tide.avatarLarge)
                 // Earned: it glows, like its cell on the earned page.
                 .shadow(color: tint.opacity(0.35), radius: Tide.s3)
-            Text(achievement.name)
+            Text(achievement.displayName)
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text)
                 .lineLimit(2)
@@ -710,7 +710,7 @@ struct ArenaMainView: View {
 
         if !vm.xpBreakdown.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                TideSectionLabel(title: "Earned today").padding(.bottom, Tide.s1)
+                TideSectionLabel(title: String(localized: "Earned today")).padding(.bottom, Tide.s1)
                 ForEach(Array(vm.xpBreakdown.enumerated()), id: \.element.id) { index, row in
                     if index > 0 {
                         TideDivider()
@@ -722,7 +722,7 @@ struct ArenaMainView: View {
         }
 
         VStack(alignment: .leading, spacing: 0) {
-            TideSectionLabel(title: "How to earn XP").padding(.bottom, Tide.s1)
+            TideSectionLabel(title: String(localized: "How to earn XP")).padding(.bottom, Tide.s1)
             ForEach(Array(XPEngine.xpEarningCategories.enumerated()), id: \.element.id) { index, category in
                 if index > 0 {
                     TideDivider()
