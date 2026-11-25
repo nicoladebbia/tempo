@@ -61,7 +61,9 @@ enum FuelLogToast {
 // MARK: - FuelLogToastHost
 
 struct FuelLogToastHost: ViewModifier {
-    var placement: ToastPlacement = .top
+    /// False on the app shell: it keeps the toast but cannot show it (a slot outside the tab bar
+    /// would sit under it), so each tab shows it with `toastSlot` instead.
+    var showsSlot: Bool = true
 
     @Environment(\.fuelLogToastHosted)
     private var alreadyHosted
@@ -71,17 +73,24 @@ struct FuelLogToastHost: ViewModifier {
     func body(content: Content) -> some View {
         if alreadyHosted {
             content
+        } else if showsSlot {
+            hosted(content)
+                .tempoToast($toast)
         } else {
-            content
-                .environment(\.fuelLogToastHosted, true)
-                .tempoToast($toast, placement: placement)
-                .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
-                    if let next = FuelLogToast.toast(from: note) {
-                        toast = next
-                        dismissLater(next)
-                    }
-                }
+            hosted(content)
+                .environment(\.pageToast, $toast)
         }
+    }
+
+    private func hosted(_ content: Content) -> some View {
+        content
+            .environment(\.fuelLogToastHosted, true)
+            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
+                if let next = FuelLogToast.toast(from: note) {
+                    toast = next
+                    dismissLater(next)
+                }
+            }
     }
 
     /// The toast's own timer does not run for one posted from inside another toast's
@@ -103,8 +112,8 @@ extension View {
     /// Shows the toasts Fuel logs post (with Undo) on top of this screen. A
     /// second host inside a first one does nothing, so the Fuel tab and the app
     /// shell can both use it without double toasts.
-    func fuelLogToastHost(placement: ToastPlacement = .top) -> some View {
-        modifier(FuelLogToastHost(placement: placement))
+    func fuelLogToastHost(showsSlot: Bool = true) -> some View {
+        modifier(FuelLogToastHost(showsSlot: showsSlot))
     }
 }
 

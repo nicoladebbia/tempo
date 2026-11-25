@@ -136,7 +136,7 @@ struct GroceryListView: View {
         .scrollIndicators(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
         // Before the bottom bar, so the toast rests above "Store Mode", not on it.
-        .kitchenToast($toast)
+        .tempoToast($toast)
         // The way into the shop sits where the thumb is, not up in the card.
         .kitchenBottomBar {
             Button {

@@ -173,20 +173,35 @@ private struct FirstTipModifier: ViewModifier {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
+    /// A toast is on the same edge and wins: while one is up the tip steps aside (it is not
+    /// dismissed, and comes back once the toast and its room are gone).
+    private var toastIsUp: Bool {
+        ToastPresence.shared.isUp
+    }
+
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if visible {
+                if visible, !toastIsUp {
                     tip
-                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                        // It leaves by fading, not by sliding down over the toast that takes its place.
+                        .transition(reduceMotion ? .opacity : .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .opacity
+                        ))
                 }
             }
+            .animation(reduceMotion ? nil : Tide.snap, value: toastIsUp)
             .task {
                 guard !FirstTips.disabled, !FirstTips.seen(id) else {
                     return
                 }
                 // Let the page settle first; the tip is the last thing to arrive.
                 try? await Task.sleep(for: .milliseconds(600))
+                // Not while a toast is up: it would show for the first time under the toast.
+                while ToastPresence.shared.isUp, !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
                 guard !Task.isCancelled else {
                     return
                 }

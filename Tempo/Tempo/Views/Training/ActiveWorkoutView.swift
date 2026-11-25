@@ -295,6 +295,18 @@ struct ActiveWorkoutView: View {
         }
     }
 
+    /// The pages with a bottom bar (Finish Set, Skip rest, the warm-up buttons) show the undo toast
+    /// themselves, just above that bar (`toastSlot`), so the bar stays where it is and a thumb on its
+    /// old spot never lands on the toast. The other pages use the slot below the whole phase.
+    private var pageShowsOwnToast: Bool {
+        switch viewModel.sessionState {
+        case .warmup,
+             .exercise(.setActive),
+             .exercise(.resting): true
+        default: false
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Timer bar
@@ -303,7 +315,8 @@ struct ActiveWorkoutView: View {
             // Content based on state
             phaseContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .tempoToast($undoToast)
+                .toastSlot(active: !pageShowsOwnToast)
+                .environment(\.pageToast, $undoToast)
         }
         // Set → rest → next set cross-fades instead of cutting.
         .animation(reduceMotion ? nil : Tide.snap, value: phaseKey)
@@ -569,6 +582,8 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
+        // Before the bar, so the undo toast rests on it and the bar stays put (see `pageShowsOwnToast`).
+        .toastSlot(active: true)
         .safeAreaBar(edge: .bottom) {
             actionRow
                 .padding(.horizontal, Tide.edge)
@@ -1092,6 +1107,7 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s3)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .toastSlot(active: true)
         .safeAreaBar(edge: .bottom) {
             VStack(spacing: Tide.s2) {
                 Button {
@@ -1169,6 +1185,7 @@ struct ActiveWorkoutView: View {
             .padding(.vertical, Tide.s4)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .toastSlot(active: true)
         .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.advancePastWarmup()

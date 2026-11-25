@@ -94,7 +94,7 @@ struct MatchScheduleView: View {
                     addMatch(kickoff: kickoff, opponent: opponent, competitive: competitive)
                 }
             }
-            .tempoToast($toast, placement: .bottom)
+            .tempoToast($toast)
         }
     }
 

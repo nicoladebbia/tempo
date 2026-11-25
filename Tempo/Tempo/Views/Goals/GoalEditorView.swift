@@ -120,7 +120,7 @@ struct GoalEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.success, trigger: saved)
         // At the bottom, so it never covers the navigation bar or the Remove button.
-        .tempoToast($toast, placement: .bottom)
+        .tempoToast($toast)
         .firstTip("goals.editor", "Pick a type, a target and a date. Tempo draws a line to it and tells you if you are ahead.", systemImage: "target")
         .onAppear {
             load()

@@ -385,61 +385,10 @@ extension View {
             }
     }
 
-    /// An Undo toast that takes its own room above the bottom bar instead of floating over the
-    /// list. A floating toast sits on rows and bars, and a tap on its Undo can reach the row or
-    /// the bar under it. Put it before `kitchenBottomBar`, so it rests on the bar.
-    func kitchenToast(_ toast: Binding<ToastData?>) -> some View {
-        modifier(KitchenToastModifier(toast: toast))
-    }
-
     /// A panel that floats over a live camera: glass with extra ink so text
     /// stays readable on any scene.
     func kitchenCameraPanel(radius: CGFloat = Tide.cardRadius) -> some View {
         glassEffect(.regular.tint(Tide.Kitchen.cameraTint), in: .rect(cornerRadius: radius))
-    }
-}
-
-// MARK: - KitchenToastModifier
-
-private struct KitchenToastModifier: ViewModifier {
-    @Binding
-    var toast: ToastData?
-
-    func body(content: Content) -> some View {
-        content
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let toast {
-                    TempoToast(
-                        message: toast.message,
-                        style: toast.style,
-                        actionTitle: toast.actionTitle,
-                        action: toast.action.map { run in
-                            {
-                                // Clear first: run() may set its own toast.
-                                withAnimation(Tide.snap) {
-                                    self.toast = nil
-                                }
-                                run()
-                            }
-                        }
-                    )
-                    .padding(.bottom, Tide.s2)
-                    .id(toast.id)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .task(id: toast.id) {
-                        HapticManager.notification(toast.style.haptic)
-                        try? await Task.sleep(for: .seconds(toast.duration))
-                        // A newer toast is never dismissed by an older timer.
-                        guard !Task.isCancelled, self.toast?.id == toast.id else {
-                            return
-                        }
-                        withAnimation(Tide.snap) {
-                            self.toast = nil
-                        }
-                    }
-                }
-            }
-            .animation(Tide.lively, value: toast?.id)
     }
 }
 

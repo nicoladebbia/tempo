@@ -1050,6 +1050,7 @@
 		B5E8D99656DD7368AACA8EB7 /* ShelfLifeEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EC11FDFDFC45313703FFDD /* ShelfLifeEstimatorTests.swift */; };
 		B64747F90F180C2D63374ADC /* TodayWorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED0527B188D9FBA91B55BD7 /* TodayWorkoutView.swift */; };
 		B6643208673080AC8FE3B3A6 /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4D7898A158FC78970C573EB /* ChallengesView.swift */; };
+		B682493EE039E1653D2239D2 /* ToastTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62D58D14503730457D028747 /* ToastTests.swift */; };
 		B69242063A760BE21AF37048 /* CalendarServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015BC25A2789414F87DA7B24 /* CalendarServiceProtocol.swift */; };
 		B6938104189AC30745A65CBD /* TrainingViewModel+LiveActivityCoordination.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66D6B62D70CE3B29A449402 /* TrainingViewModel+LiveActivityCoordination.swift */; };
 		B6A174CD723F43D4EFEB53E4 /* TempoModelContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55EB01321CEE061E3C677AC7 /* TempoModelContainer.swift */; };
@@ -2069,6 +2070,7 @@
 		61E090B5BE2137F736EF29DF /* LocationFixProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationFixProvider.swift; sourceTree = "<group>"; };
 		625A44085FC0AD8CDB5518B9 /* NaturalLanguageLoggingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NaturalLanguageLoggingService.swift; sourceTree = "<group>"; };
 		62910858F8071F1D9532D4DC /* TrainingViewModelPauseIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingViewModelPauseIntegrationTests.swift; sourceTree = "<group>"; };
+		62D58D14503730457D028747 /* ToastTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastTests.swift; sourceTree = "<group>"; };
 		62EC11FDFDFC45313703FFDD /* ShelfLifeEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfLifeEstimatorTests.swift; sourceTree = "<group>"; };
 		62F11210E6B64AA8536E58A2 /* LateNightWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LateNightWindowTests.swift; sourceTree = "<group>"; };
 		63036777C50F6966F1074820 /* Logger+Tempo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Logger+Tempo.swift"; sourceTree = "<group>"; };
@@ -3942,6 +3944,7 @@
 				9B4B950B94AF31126AF651FC /* RunUnitsFormattingTests.swift */,
 				C497C2B8EBC593C69281B171 /* ScanPermissionAndCropTests.swift */,
 				30CE3EE84150EC9DC8B23255 /* SpendingTests.swift */,
+				62D58D14503730457D028747 /* ToastTests.swift */,
 				82855D1CA079502D4BAAFD8E /* TrainDisplayLogicTests.swift */,
 				9E6B8C241E34DC919825A154 /* TrainExplainersTests.swift */,
 				37F20941657886F627A26E4A /* TrainingSessionDisplayMathTests.swift */,
@@ -6356,6 +6359,7 @@
 				CDB72D54183C6FFC1C013B11 /* TempoNotificationDelegateTests.swift in Sources */,
 				772BD3105B7AB5A996B536FB /* TempoTests.swift in Sources */,
 				FDB06130A3AFED85B5758CE4 /* TideTests.swift in Sources */,
+				B682493EE039E1653D2239D2 /* ToastTests.swift in Sources */,
 				FF1B9DB85E3FE438CD334E2C /* TodayDisplayStateTests.swift in Sources */,
 				A3F47CC47916400FBE82282D /* TodayExplainersTests.swift in Sources */,
 				2C7AEE94E7D97D31B0C87773 /* TodayNavigationTests.swift in Sources */,

@@ -98,9 +98,8 @@ struct CoachChatView: View {
                 budgetBanner(state)
             }
             transcript
-                // Top of the transcript: under the title bar, clear of the input bar.
-                .tempoToast($toast, placement: .top)
                 // On the transcript, so it rests above the input bar instead of under it.
+                .tempoToast($toast)
                 .firstTip(
                     "coach.chat",
                     "Ask a question, or tell me something to remember, like \"I never eat before 11am\".",
