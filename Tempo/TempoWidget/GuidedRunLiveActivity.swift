@@ -116,10 +116,8 @@ private struct GuidedRunDetailRow: View {
 
     var body: some View {
         HStack(spacing: Tide.s3) {
-            if state.isPaused {
-                Text("Paused")
-                    .fontWeight(.bold)
-            } else if let next = state.nextStepText {
+            // The readout beside it already says "Paused".
+            if let next = state.nextStepText {
                 Text(next)
             } else if let detail = state.detailText {
                 Text(detail)
