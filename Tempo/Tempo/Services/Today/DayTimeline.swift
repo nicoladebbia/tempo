@@ -200,7 +200,7 @@ enum DayTimeline {
         case .completed: .done
         case .inProgress: .inProgress
         case .skipped: .skipped
-        case .planned: minutes(of: input.now, calendar: calendar) >= input.bedtimeMinutes ? .missed : .upcoming
+        case .planned: pastBedtime(input, calendar: calendar) ? .missed : .upcoming
         }
         let detail: String? = switch row.status {
         case .completed: row.durationMinutes.map { "\($0) min" }
@@ -268,6 +268,17 @@ enum DayTimeline {
     }
 
     // MARK: Clock helpers
+
+    /// True once the person's bedtime has passed. A bedtime after midnight
+    /// (00:30, stored as 30) is earlier on the clock than the wake time, so the
+    /// day runs on past midnight and only the hours from bedtime to wake count.
+    static func pastBedtime(_ input: DayTimelineInput, calendar: Calendar) -> Bool {
+        let now = minutes(of: input.now, calendar: calendar)
+        if input.bedtimeMinutes >= input.wakeMinutes {
+            return now >= input.bedtimeMinutes
+        }
+        return now >= input.bedtimeMinutes && now < input.wakeMinutes
+    }
 
     static func minutes(of date: Date, calendar: Calendar) -> Int {
         calendar.component(.hour, from: date) * 60 + calendar.component(.minute, from: date)

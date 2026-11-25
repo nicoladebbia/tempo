@@ -183,7 +183,7 @@ struct TodayView: View {
         // The day's items follow the page: a meal logged, a session ended, a task ticked.
         .task(id: shownSnapshot) { await reloadDay() }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
-            dayModel.invalidateWeek()
+            Task { await reloadDay() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoSessionEnded)) { _ in
             model.sessionEnded()

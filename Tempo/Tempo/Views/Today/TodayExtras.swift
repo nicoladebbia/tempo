@@ -22,8 +22,6 @@ final class TodayDayModel {
     private(set) var leisureMinutes = 19 * 60 + 30
     private(set) var tomorrow: TomorrowPreview?
     private(set) var week: WeekReview?
-    /// The day the week was last read for, so it is not rebuilt on every refresh.
-    private var weekFor: Date?
 
     var hasWeekData: Bool {
         week.map { !$0.thisWeek.isEmpty } ?? false
@@ -35,7 +33,7 @@ final class TodayDayModel {
         let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
         // Without calendar access this returns nothing; it never asks for it.
         let range = DateInterval(start: dayStart, end: dayEnd)
-        let events = (try? await services.calendar.fetchEvents(for: range)) ?? []
+        let events = await (try? services.calendar.fetchEvents(for: range)) ?? []
         let input = DayTimelineLoader.input(now: now, calendar: calendar, events: events, in: context)
         items = DayTimeline.items(input)
         leisureMinutes = input.leisureMinutes
@@ -46,17 +44,10 @@ final class TodayDayModel {
             tomorrow = nil
         }
 
-        // The week changes slowly: once a day is enough.
+        // Read again on every reload: the card shows on Sunday evening and must
+        // count that day's meals, tasks and study, which land after an earlier load.
         let reference = calendar.startOfDay(for: WeekReviewBuilder.reference(for: now, calendar: calendar))
-        if weekFor != reference || week == nil {
-            week = WeekReviewLoader.review(now: reference, calendar: calendar, in: context)
-            weekFor = reference
-        }
-    }
-
-    /// Forget the saved week so the next reload reads it again (a workout ended, a meal was logged).
-    func invalidateWeek() {
-        weekFor = nil
+        week = WeekReviewLoader.review(now: reference, calendar: calendar, in: context)
     }
 
     private func tomorrowPreview(

@@ -112,6 +112,16 @@ final class DayTimelineTests: XCTestCase {
         XCTAssertEqual(DayTimeline.items(input(now: at(23, 30), workout: session())).first?.state, .missed)
     }
 
+    func testABedtimeAfterMidnightDoesNotMissTheSessionAllDay() {
+        var late = input(now: at(15), workout: session())
+        late.bedtimeMinutes = 30
+        XCTAssertEqual(DayTimeline.items(late).first?.state, .upcoming)
+        late.now = at(23, 45)
+        XCTAssertEqual(DayTimeline.items(late).first?.state, .upcoming, "still before 00:30")
+        late.now = at(3)
+        XCTAssertEqual(DayTimeline.items(late).first?.state, .missed, "past 00:30 and before wake")
+    }
+
     func testAnEveningSessionSortsAfterALunch() {
         let items = DayTimeline.items(input(
             now: at(9), meals: [meal("Lunch", "12:30")], workout: session(window: .evening)

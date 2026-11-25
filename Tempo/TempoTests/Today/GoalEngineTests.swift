@@ -26,6 +26,38 @@ final class GoalEngineTests: XCTestCase {
         )
     }
 
+    // MARK: A reading already past the target
+
+    func testALiftAtOrAboveTheTargetIsReachedNotBehind() {
+        let first = GoalEngine.evaluate(
+            start: 105, startDate: start, target: 100, targetDate: day(100),
+            current: 105, now: day(0), higherIsBetter: true, calendar: calendar
+        )
+        XCTAssertEqual(first.pace, .reached)
+        XCTAssertEqual(first.fraction, 1)
+        let later = GoalEngine.evaluate(
+            start: 105, startDate: start, target: 100, targetDate: day(100),
+            current: 110, now: day(50), higherIsBetter: true, calendar: calendar
+        )
+        XCTAssertEqual(later.pace, .reached, "getting stronger never turns a reached goal into behind")
+    }
+
+    func testARunFasterThanTheTargetIsReached() {
+        let progress = GoalEngine.evaluate(
+            start: 1380, startDate: start, target: 1500, targetDate: day(100),
+            current: 1380, now: day(10), higherIsBetter: false, calendar: calendar
+        )
+        XCTAssertEqual(progress.pace, .reached)
+    }
+
+    func testARunSlowerThanTheTargetIsStillToDo() {
+        let progress = GoalEngine.evaluate(
+            start: 1700, startDate: start, target: 1500, targetDate: day(100),
+            current: 1650, now: day(10), higherIsBetter: false, calendar: calendar
+        )
+        XCTAssertNotEqual(progress.pace, .reached)
+    }
+
     // MARK: Gaining (a lift going up)
 
     func testHalfwayThereHalfwayThroughIsOnTrack() {

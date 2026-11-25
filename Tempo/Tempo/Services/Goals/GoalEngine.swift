@@ -62,6 +62,7 @@ enum GoalEngine {
         targetDate: Date,
         current: Double?,
         now: Date,
+        higherIsBetter: Bool? = nil,
         calendar: Calendar = .current
     ) -> GoalProgress {
         // Whole calendar days, so a daylight-saving change never nudges the line
@@ -82,15 +83,19 @@ enum GoalEngine {
         }
 
         let distance = target - start
-        // 1 when the target is above the start, -1 when it is below
-        // (weight to lose, a run time to cut).
-        let direction: Double = distance >= 0 ? 1 : -1
-        let fraction = abs(distance) < .ulpOfOne ? 1 : min(max((current - start) / distance, 0), 1)
+        // 1 when a bigger number is better, -1 when a smaller one is. A lift is
+        // always the first and a run time always the second, even when the first
+        // reading is already past the target; only a body weight (to lose or to
+        // gain) takes its direction from where it starts.
+        let direction: Double = higherIsBetter.map { $0 ? 1 : -1 } ?? (distance >= 0 ? 1 : -1)
 
         let pace: GoalProgress.Pace
+        let fraction: Double
         if (current - target) * direction >= 0 {
             pace = .reached
+            fraction = 1
         } else {
+            fraction = abs(distance) < .ulpOfOne ? 1 : min(max((current - start) / distance, 0), 1)
             let gap = (current - expected) * direction
             let band = abs(distance) * tolerance
             pace = gap > band ? .ahead : (gap < -band ? .behind : .onTrack)
@@ -111,6 +116,7 @@ enum GoalEngine {
             targetDate: goal.targetDate,
             current: current,
             now: now,
+            higherIsBetter: goal.kind == .bodyWeight ? nil : goal.kind == .liftE1RM,
             calendar: calendar
         )
     }
