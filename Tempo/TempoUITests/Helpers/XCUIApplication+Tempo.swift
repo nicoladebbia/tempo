@@ -21,6 +21,7 @@ extension XCUIApplication {
         launchArguments = [
             TestLaunchArguments.useMockData,
             TestLaunchArguments.resetDefaults,
+            TestLaunchArguments.noTips,
         ]
         if skipOnboarding {
             launchArguments.append(TestLaunchArguments.skipOnboarding)
@@ -34,6 +35,7 @@ extension XCUIApplication {
         launchArguments = [
             TestLaunchArguments.useMockData,
             TestLaunchArguments.resetDefaults,
+            TestLaunchArguments.noTips,
         ]
         launch()
     }
