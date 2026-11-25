@@ -11,17 +11,9 @@ import Foundation
 // MARK: - XPEngineProtocol
 
 protocol XPEngineProtocol: Sendable {
-    func calculateXP(
-        from snapshot: DailySnapshot,
-        accountability: DailyAccountability,
-        floorForcedRest: Bool
-    ) -> [XPEvent]
-
     func currentLevel(totalXP: Int) -> Int
 
     func xpToNextLevel(totalXP: Int) -> Int
-
-    func streakMilestoneXP(streakCount: Int) -> XPEvent?
 
     func levelName(for level: Int) -> String
 
