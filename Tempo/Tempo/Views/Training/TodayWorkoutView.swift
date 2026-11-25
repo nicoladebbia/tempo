@@ -357,6 +357,10 @@ struct TodayWorkoutView: View {
                 if let ev = savedWorkoutEvent, ev.start <= now {
                     savedWorkoutEvent = nil
                 }
+                // The suggested window ran out: ask again for the next free gap.
+                if savedWorkoutEvent == nil, suggestedWindow != nil, upcomingWindow == nil {
+                    await refreshWorkoutSchedule()
+                }
             }
         }
         .sheet(isPresented: $showAddToCalendar, onDismiss: {
@@ -408,7 +412,12 @@ struct TodayWorkoutView: View {
             // falling back to the largest free gap when that daypart is busy).
             let timePref = (try? modelContext.fetch(FetchDescriptor<UserDailyPlanProfile>()))?
                 .first?.trainingTimePreference ?? .anyFree
-            suggestedWindow = await services.calendar.suggestWorkoutWindow(for: Date(), preferring: timePref)
+            // `notBefore: now`: the best window is a gap still ahead of us, so a
+            // free morning never hides a free evening once the morning is gone.
+            let asked = Date()
+            suggestedWindow = await services.calendar.suggestWorkoutWindow(
+                for: asked, preferring: timePref, notBefore: asked
+            )
         }
     }
 

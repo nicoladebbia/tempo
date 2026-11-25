@@ -105,6 +105,7 @@ final class TrainingViewModel {
             setText: String,
             isResting: Bool = false,
             restEndsAt: Date? = nil,
+            restStartedAt: Date? = nil,
             isPaused: Bool = false
         ) -> WorkoutActivityAttributes.ContentState {
             WorkoutActivityAttributes.ContentState(
@@ -115,6 +116,7 @@ final class TrainingViewModel {
                 totalSets: totalSets,
                 isResting: isResting,
                 restEndsAt: restEndsAt,
+                restStartedAt: restStartedAt,
                 startedAt: workoutStartTime,
                 isPaused: isPaused
             )
@@ -130,7 +132,8 @@ final class TrainingViewModel {
                 exerciseName: restContext.exercise?.name ?? currentName,
                 setText: setCountText,
                 isResting: true,
-                restEndsAt: restEndDate
+                restEndsAt: restEndDate,
+                restStartedAt: restStartDate
             )
         case .exercise(.betweenExercises):
             return state(exerciseName: currentName, setText: "Next exercise")

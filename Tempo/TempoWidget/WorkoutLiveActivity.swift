@@ -72,7 +72,7 @@ struct WorkoutLiveActivity: Widget {
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
                             .lineLimit(1)
-                        WidgetBar(progress: state.progress, color: tone)
+                        WorkoutBar(state: state, tone: tone)
                     }
                 }
             } compactLeading: {
@@ -104,6 +104,31 @@ struct WorkoutLiveActivity: Widget {
                 }
             }
             .keylineTint(tone)
+        }
+    }
+}
+
+// MARK: - WorkoutBar
+
+/// The bar under the exercise: whole-session progress while lifting, and while
+/// resting a bar that drains from full to empty over the rest. The drain is a
+/// system timer bar, so it runs by itself with no pushes from the app.
+private struct WorkoutBar: View {
+    let state: WorkoutActivityAttributes.ContentState
+    let tone: Color
+
+    var body: some View {
+        if let range = state.restDrainRange {
+            ProgressView(timerInterval: range, countsDown: true) {
+                EmptyView()
+            } currentValueLabel: {
+                EmptyView()
+            }
+            .progressViewStyle(.linear)
+            .tint(tone)
+            .accessibilityHidden(true)
+        } else {
+            WidgetBar(progress: state.progress, color: tone)
         }
     }
 }
@@ -158,9 +183,9 @@ private struct WorkoutLockScreenView: View {
                         Spacer(minLength: Tide.s2)
                         WorkoutReadout(state: state)
                     }
-                    if let progress = state.progress {
+                    if state.progress != nil {
                         HStack(spacing: Tide.s3) {
-                            WidgetBar(progress: progress, color: tone)
+                            WorkoutBar(state: state, tone: tone)
                             Text(state.progressText)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
