@@ -295,6 +295,14 @@ final class LocalizationCatalogTests: XCTestCase {
         XCTAssertEqual(String(localized: "\(4) days", locale: Locale(identifier: "en")), "4 days")
     }
 
+    /// The Italian copy file has to be in the app target's resources. If the generated
+    /// project misses it, the pool silently falls back to English and nothing else fails.
+    func testItalianAccountabilityCopyShipsInTheAppBundle() {
+        let candidates = [Bundle.main, Bundle(for: AppState.self)] + Bundle.allBundles
+        let found = candidates.contains { $0.url(forResource: "AccountabilityCopy.it", withExtension: "json") != nil }
+        XCTAssertTrue(found, "AccountabilityCopy.it.json is not in the app bundle; run xcodegen generate")
+    }
+
     /// The Italian accountability messages must mirror the English file: same
     /// tiers, same intensities, same number of messages and the same `{placeholders}`
     /// in each one, otherwise a notification would show a raw `{remaining}`.

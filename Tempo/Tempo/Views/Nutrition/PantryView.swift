@@ -584,7 +584,7 @@ struct PantryManualAddSheet: View {
     }
 
     private var canAddCurrent: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && (Double(quantityText) ?? 0) > 0
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && (WeightFormat.parseDecimal(quantityText) ?? 0) > 0
     }
 
     var body: some View {
@@ -765,7 +765,7 @@ struct PantryManualAddSheet: View {
     // MARK: - Actions
 
     private func stageCurrentRow() {
-        guard canAddCurrent, let qty = Double(quantityText) else {
+        guard canAddCurrent, let qty = WeightFormat.parseDecimal(quantityText) else {
             return
         }
         staged.append(StagedPantryItem(

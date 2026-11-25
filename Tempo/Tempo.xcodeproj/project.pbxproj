@@ -1356,6 +1356,7 @@
 		EAA4037D977EAE8E523D8855 /* NutritionLogPhotoMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF66718E261386402FCF78E /* NutritionLogPhotoMappingTests.swift */; };
 		EAB57A135AE94AC803A94487 /* CoachChatProxyDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E623581F73F49335F9BE66C /* CoachChatProxyDTOs.swift */; };
 		EAE27677DFA68F36B46DAD55 /* Universities.json in Resources */ = {isa = PBXBuildFile; fileRef = 680F9AE2427E424447FB2CBE /* Universities.json */; };
+		EB226CFC7BF32A4BD997B5D0 /* AccountabilityCopy.it.json in Resources */ = {isa = PBXBuildFile; fileRef = DC616BBA830F226B35234944 /* AccountabilityCopy.it.json */; };
 		EB76646D4D9F19E769B989C5 /* MonthlyReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E0108B5E3B7188A38DD9E2 /* MonthlyReview.swift */; };
 		EBFBAC6040C3337449AD04D8 /* AIProgramPlannerFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EA489045785F187CB5DAAB4 /* AIProgramPlannerFailureTests.swift */; };
 		EC15390585FF0FCE1393DB28 /* TrainingUnitsReviewFixesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14617B05D4F84F2F400F6F98 /* TrainingUnitsReviewFixesTests.swift */; };
@@ -2803,6 +2804,7 @@
 		DC108006030666C3F65450B7 /* DailyPrescription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyPrescription.swift; sourceTree = "<group>"; };
 		DC38A77AD620A2A05751C266 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		DC3FD71F11DFCCC37D12FA1E /* TrainingSessionDisplayMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainingSessionDisplayMath.swift; sourceTree = "<group>"; };
+		DC616BBA830F226B35234944 /* AccountabilityCopy.it.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AccountabilityCopy.it.json; sourceTree = "<group>"; };
 		DC9501D2C83565DCAF804074 /* OnboardingBackendStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingBackendStepTests.swift; sourceTree = "<group>"; };
 		DCA19F6669555D8B7B7E201F /* Double+Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Double+Formatting.swift"; sourceTree = "<group>"; };
 		DCBC1809D21C98EC00588302 /* cue_move_scapular_push_ups.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_move_scapular_push_ups.mp3; sourceTree = "<group>"; };
@@ -5137,6 +5139,7 @@
 				1EFBD354685D210A53ABA33C /* CueAudio */,
 				BE5D81DE61E38F7F52A4FC39 /* Receipt */,
 				ADE5044FB977DE22691B7A9B /* Sounds */,
+				DC616BBA830F226B35234944 /* AccountabilityCopy.it.json */,
 				A5BB9711F551CF1985C24BC3 /* AccountabilityCopy.json */,
 				0296CB64B525F8E5AC6C8A55 /* Exercises.json */,
 				749BE7D5AE9BBB52C43B06EC /* FoodAdditives.json */,
@@ -5794,6 +5797,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EB226CFC7BF32A4BD997B5D0 /* AccountabilityCopy.it.json in Resources */,
 				0D13B86F31B5C1108DA8E32E /* AccountabilityCopy.json in Resources */,
 				A6CB3DBBB3178AFB8314CE11 /* AppShortcuts.xcstrings in Resources */,
 				78D431FC734932DC2397F4AB /* Assets.xcassets in Resources */,

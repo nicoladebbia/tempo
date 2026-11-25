@@ -39,7 +39,7 @@ struct CoachSession: Codable, Sendable, Equatable, Identifiable {
         case percentRecorded = "percent_recorded"
     }
 
-    var label: String { (sportName ?? "workout").capitalized }
+    var label: String { sportName.map(\.capitalized) ?? String(localized: "Workout") }
 
     var durationMinutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
 }

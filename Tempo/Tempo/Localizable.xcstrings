@@ -5979,12 +5979,10 @@
     },
     "%lldm" : {
       "extractionState" : "automatic",
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lldm %llds" : {
       "extractionState" : "automatic",
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lldm ago" : {
@@ -6077,7 +6075,6 @@
     },
     "%llds" : {
       "extractionState" : "automatic",
-      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lld× trained" : {
@@ -69801,6 +69798,60 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "recupero %lld'"
+          }
+        }
+      }
+    },
+    "rest.duration.min" : {
+      "comment" : "Rest time shown on the exercise page",
+      "extractionState" : "automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldm"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        }
+      }
+    },
+    "rest.duration.min-sec" : {
+      "comment" : "Rest time shown on the exercise page",
+      "extractionState" : "automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldm %llds"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min %lld s"
+          }
+        }
+      }
+    },
+    "rest.duration.sec" : {
+      "comment" : "Rest time shown on the exercise page",
+      "extractionState" : "automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%llds"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld s"
           }
         }
       }

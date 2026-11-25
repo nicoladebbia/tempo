@@ -502,11 +502,11 @@ struct ExerciseDetailView: View {
         let min = seconds / 60
         let sec = seconds % 60
         if min > 0, sec > 0 {
-            return String(localized: "\(min)m \(sec)s")
+            return String(localized: "rest.duration.min-sec", defaultValue: "\(min)m \(sec)s", comment: "Rest time, minutes and seconds (the shared 48m tile keys stay short)")
         } else if min > 0 {
-            return String(localized: "\(min)m")
+            return String(localized: "rest.duration.min", defaultValue: "\(min)m", comment: "Rest time in whole minutes")
         }
-        return String(localized: "\(sec)s")
+        return String(localized: "rest.duration.sec", defaultValue: "\(sec)s", comment: "Rest time in seconds")
     }
 
     // MARK: - Helpers
