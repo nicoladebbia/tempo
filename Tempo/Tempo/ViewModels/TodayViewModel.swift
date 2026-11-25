@@ -247,6 +247,8 @@ final class TodayViewModel {
     /// opens on it. Writes only when something is actually different.
     func liveSnapshotChanged(_ snapshot: TodaySnapshot) {
         cached = snapshot
+        // The widgets draw this same snapshot.
+        WidgetSyncService.publish(today: snapshot)
         guard snapshot != lastSaved else {
             return
         }

@@ -63,6 +63,15 @@ struct MealRequest: Equatable, Identifiable {
     let action: Action
 }
 
+/// A session Siri, Shortcuts, the Action button or a widget wants started the
+/// moment the app is up. `TempoSystemRequestHost` acts on it and clears it.
+enum StartRequest: Equatable {
+    /// Start (or pick up) today's session.
+    case workout
+    /// Start a focus timer; nil minutes = the app's usual length.
+    case focus(minutes: Int?)
+}
+
 /// A Recovery Coach session a notification wants on screen (WHOOP v2 workout id).
 struct CoachRequest: Equatable, Identifiable {
     let id: String
@@ -101,6 +110,8 @@ final class AppState {
     /// Set by a notification that wants a specific Nutrition section (Plan for
     /// "week is ready", Kitchen › Supplements …); ContentView applies and clears it.
     var requestedNutrition: NutritionRoute?
+    /// Set by the "Start workout" / "Start focus" intents and `tempo://start/...` links.
+    var requestedStart: StartRequest?
     var isOffline: Bool = false
 
     private let authService: AuthService

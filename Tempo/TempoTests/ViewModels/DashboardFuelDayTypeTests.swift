@@ -185,23 +185,4 @@ final class DashboardFuelDayTypeTests: XCTestCase {
         XCTAssertEqual(totals.mealsLogged, 1)
         XCTAssertEqual(totals.lastEatenAt, mealTime)
     }
-
-    // MARK: - Widget snapshot
-
-    func testWidgetSnapshotMirrorsDashboard() {
-        let vm = DashboardViewModel.preview()
-        let snap = vm.widgetSnapshot
-        XCTAssertEqual(snap.caloriesConsumed, vm.fuel.caloriesConsumed)
-        XCTAssertEqual(snap.caloriesTarget, vm.fuel.calorieTarget)
-        XCTAssertEqual(snap.protein, vm.fuel.proteinGrams)
-        XCTAssertEqual(snap.carbs, vm.fuel.carbsGrams)
-        XCTAssertEqual(snap.fat, vm.fuel.fatGrams)
-        XCTAssertEqual(snap.mealsLogged, vm.fuel.mealsLogged)
-        XCTAssertEqual(snap.mealsTarget, vm.fuel.mealsPlanned)
-        XCTAssertEqual(snap.recoveryScore, 72)
-        XCTAssertEqual(snap.recoveryZone, "green")
-        XCTAssertEqual(snap.dailyScore, vm.dailyScore ?? 0)
-        XCTAssertEqual(snap.nnTotal, vm.nonNegotiablesTotal)
-        XCTAssertEqual(snap.nnCompleted, vm.nonNegotiablesDone)
-    }
 }
