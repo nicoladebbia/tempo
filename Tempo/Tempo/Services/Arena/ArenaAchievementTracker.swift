@@ -41,6 +41,9 @@ enum ArenaAchievementTracker {
         records: ArenaXPLedger.Records,
         level: Int,
         longestStreak: Int,
+        currentStreak: Int,
+        activityXPByDay: [(day: Date, xp: Int)],
+        xpForLevel: (Int) -> Int,
         now: Date,
         targets: [String: Int],
         calendar: Calendar = ArenaCalendar.calendar()
@@ -91,14 +94,45 @@ enum ArenaAchievementTracker {
             earnedOn: firstDay.flatMap { ArenaCalendar.date(forKey: $0, calendar: calendar) }
         )
 
-        // Streak and level badges have no history to look back on: reached today.
+        // Streak and level badges are dated to the day they were reached, not the day the
+        // app first noticed: a 50-day streak must not pay every streak badge into today.
+        let today = calendar.startOfDay(for: now)
         for id in ["no_days_off", "the_grind", "diamond_hands"] {
-            result[id] = reached(longestStreak, target: target(id), on: now)
+            let goal = target(id)
+            let day: Date = if currentStreak >= goal {
+                // The run is still going, so it hit the goal exactly `currentStreak - goal` days ago.
+                ArenaCalendar.addingDays(-(currentStreak - goal), to: today, calendar: calendar)
+            } else if let first = records.activityDays(calendar: calendar).min()
+                .flatMap({ ArenaCalendar.date(forKey: $0, calendar: calendar) })
+            {
+                // An earlier, longer run: the first day it could have been.
+                min(ArenaCalendar.addingDays(goal - 1, to: first, calendar: calendar), today)
+            } else {
+                today
+            }
+            result[id] = reached(longestStreak, target: goal, on: day)
         }
         for id in ["level_10", "level_25"] {
-            result[id] = reached(level, target: target(id), on: now)
+            let goal = target(id)
+            var day = today
+            if let crossed = dayReaching(xp: xpForLevel(goal), in: activityXPByDay) {
+                day = crossed
+            }
+            result[id] = reached(level, target: goal, on: day)
         }
         return result
+    }
+
+    /// The first day the running total of `days` (oldest first) reaches `xp`, nil if it never does.
+    private static func dayReaching(xp: Int, in days: [(day: Date, xp: Int)]) -> Date? {
+        var total = 0
+        for entry in days.sorted(by: { $0.day < $1.day }) {
+            total += entry.xp
+            if total >= xp {
+                return entry.day
+            }
+        }
+        return nil
     }
 
     // MARK: - Counting

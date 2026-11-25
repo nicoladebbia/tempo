@@ -229,6 +229,41 @@ final class ArenaXPLedgerTests: XCTestCase {
         XCTAssertTrue(again.newlyEarned.isEmpty)
     }
 
+    func testStreakBadgesAreDatedToTheDayTheRunReachedThem() throws {
+        try AchievementLibrary.loadIfNeeded(context: context)
+        context.insert(Streak(type: .overall, currentCount: 40, longestCount: 40))
+        try context.save()
+        let summary = sync()
+
+        let badges = try context.fetch(FetchDescriptor<Achievement>())
+        let grind = try XCTUnwrap(badges.first { $0.badgeID == "the_grind" }) // 30 days
+        let noDaysOff = try XCTUnwrap(badges.first { $0.badgeID == "no_days_off" }) // 14 days
+        let diamond = try XCTUnwrap(badges.first { $0.badgeID == "diamond_hands" }) // 100 days
+        let today = calendar.startOfDay(for: now)
+        XCTAssertEqual(grind.earnedAt, ArenaCalendar.addingDays(-10, to: today, calendar: calendar))
+        XCTAssertEqual(noDaysOff.earnedAt, ArenaCalendar.addingDays(-26, to: today, calendar: calendar))
+        XCTAssertFalse(diamond.isEarned)
+        // A first sync with a long streak must not pay those rewards into today.
+        XCTAssertEqual(summary.xpByDay[ArenaCalendar.dayKey(now, calendar: calendar)] ?? 0, 0)
+        XCTAssertEqual(summary.newlyEarned, [])
+    }
+
+    func testLevelBadgeIsDatedToTheDayTheXPCrossedIt() {
+        let today = calendar.startOfDay(for: now)
+        let needed = engine.xpForLevel(10)
+        let step = (needed + 9) / 10
+        let days = (0 ..< 20).map { (day: ArenaCalendar.addingDays(-$0, to: today, calendar: calendar), xp: step) }
+        let progress = ArenaAchievementTracker.evaluate(
+            records: .init(workouts: [], meals: [], studySessions: [], taskDays: []),
+            level: 12, longestStreak: 0, currentStreak: 0, activityXPByDay: days,
+            xpForLevel: { self.engine.xpForLevel($0) }, now: now, targets: ["level_10": 10, "level_25": 25], calendar: calendar
+        )
+        // Oldest first, the tenth day brings the running total to the level's XP.
+        let tenth = ArenaCalendar.addingDays(-10, to: today, calendar: calendar)
+        XCTAssertEqual(progress["level_10"]?.earnedOn, tenth)
+        XCTAssertNil(progress["level_25"]?.earnedOn)
+    }
+
     func testNineWorkoutsAreNotEnough() throws {
         try AchievementLibrary.loadIfNeeded(context: context)
         for offset in -8 ... 0 {
