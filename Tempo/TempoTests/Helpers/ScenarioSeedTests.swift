@@ -91,6 +91,27 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertTrue(favourite.isPinned)
     }
 
+    func testSpendingSeedsEightWeeksOfReceiptsAgainstABudget() throws {
+        let now = Date()
+        ScenarioSeed.seed("spending", context: context, now: now)
+
+        let receipts = try context.fetch(FetchDescriptor<Receipt>())
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .confirmed }.count, 10)
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .awaitingReview }.count, 1)
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .failed }.count, 1)
+        XCTAssertTrue(receipts.allSatisfy { $0.purchaseDate <= now }, "no receipt is dated in the future")
+        let settings = try XCTUnwrap(context.fetch(FetchDescriptor<UserSettings>()).first)
+        XCTAssertEqual(settings.groceryBudgetCapUSD, SpendingScenarioSeed.budgetCapUSD)
+
+        // The same numbers the Spending page shows: eight weeks, one of them over the cap.
+        let weeks = GroceryWeeklySpendCalculator.compute(
+            priceEntries: try context.fetch(FetchDescriptor<PantryPriceEntry>()),
+            receipts: receipts, weeks: 8, budgetCapUSD: settings.groceryBudgetCapUSD, now: now
+        )
+        XCTAssertEqual(weeks.count, 8)
+        XCTAssertEqual(weeks.filter(\.isOverBudget).count, 1)
+    }
+
     func testGroceriesAndTrainingReuseTheirUITestSeeds() {
         ScenarioSeed.seed("groceries", context: context)
         XCTAssertGreaterThan(count(GroceryListItem.self), 0)

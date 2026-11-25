@@ -3,8 +3,8 @@
 // Tempo
 //
 // One home for everything you own or buy: Pantry (default), Groceries,
-// Receipts and Supplements. A glass segmented control on top switches
-// between them.
+// Spending (receipts and what the shop cost) and Supplements. A glass
+// segmented control on top switches between them.
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ struct KitchenView: View {
             KitchenSegmented(
                 options: Array(KitchenSection.allCases),
                 selection: $viewModel.selectedKitchen
-            ) { $0.rawValue }
+            ) { $0 == .receipts ? "Spending" : $0.rawValue }
                 .padding(.horizontal, Tide.edge)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Kitchen section")
@@ -32,7 +32,7 @@ struct KitchenView: View {
                 case .groceries:
                     GroceryListView(viewModel: viewModel)
                 case .receipts:
-                    ReceiptsHistoryView(viewModel: viewModel)
+                    SpendingView(viewModel: viewModel)
                 case .supplements:
                     SupplementsView(openSupplementID: $viewModel.supplementToOpen)
                 }

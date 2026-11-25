@@ -57,6 +57,9 @@ import SwiftData
             case "groceries": // fuel-ready + a grocery list over budget, some items checked
                 fuelReady(context)
                 GroceryShoppingUITestSeed.seed(context: context)
+            case "spending": // fuel-ready + 8 weeks of grocery receipts and purchases against a weekly budget (one week over)
+                fuelReady(context)
+                SpendingScenarioSeed.seed(context: context, now: now)
             case "eaten-before-update": // meals marked eaten by an old build (no undo detail) — test undo
                 fuelReady(context)
                 eatenBeforeUpdate(context)
