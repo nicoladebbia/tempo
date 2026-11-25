@@ -130,16 +130,7 @@ struct PantryView: View {
         }
         .sheet(isPresented: $showManualAddSheet) {
             PantryManualAddSheet(initialStaged: barcodeStaged) { stagedItems in
-                for item in stagedItems {
-                    viewModel.addPantryItem(
-                        rawName: item.name,
-                        quantity: item.quantity,
-                        unit: item.unit,
-                        storageLocation: item.location,
-                        totalPaidUSD: item.totalPaidUSD,
-                        brand: item.brand
-                    )
-                }
+                viewModel.addPantryItemsWithUndo(stagedItems)
                 barcodeStaged = []
             }
         }
@@ -252,6 +243,8 @@ struct PantryView: View {
                     VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s2) {
                         if soon > 0 {
                             heroFigure("Use soon", value: soon, color: Tide.Kitchen.warn)
+                                .frame(minHeight: Tide.hit)
+                                .explains(.fuelPantryUseSoon.showing("\(soon)"))
                         }
                         if staples > 0 {
                             heroFigure("Staples", value: staples, color: Tide.text)
@@ -347,7 +340,7 @@ struct PantryView: View {
         // only works inside a List, so it never showed).
         .contextMenu {
             Button(role: .destructive) {
-                viewModel.deleteStaple(staple)
+                viewModel.deleteStapleWithUndo(staple)
             } label: {
                 Label("Remove", systemImage: "trash")
             }

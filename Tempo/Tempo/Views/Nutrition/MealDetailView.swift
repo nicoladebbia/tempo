@@ -60,12 +60,6 @@ struct MealDetailView: View {
     @State
     private var presentEatTimeEditor: Bool = false
 
-    /// Drives the "Undo — not eaten" confirmation sheet in the `.eaten`
-    /// status branch.
-    @State
-    private var presentUndoConfirm: Bool = false
-    @State
-    private var undoConfirmed: Bool = false
     @State
     private var eatTimeEdit: Date = .now
     /// When true, the Mark-Eaten sheet opens straight into the "Ate something
@@ -209,26 +203,6 @@ struct MealDetailView: View {
             eatTimeEditorSheet
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $presentUndoConfirm, onDismiss: {
-            // Undo runs once the sheet is gone: it may pop this screen.
-            if undoConfirmed {
-                undoConfirmed = false
-                undoEaten()
-            }
-        }) {
-            UndoMealSheet(
-                mealName: meal.mealName,
-                kcal: Int(meal.totalCalories.rounded()),
-                isLog: isUnplannedLog,
-                onConfirm: {
-                    undoConfirmed = true
-                    presentUndoConfirm = false
-                },
-                onCancel: { presentUndoConfirm = false }
-            )
-            .presentationDetents([.height(Tide.fuelDetentConfirm), .large])
-            .presentationDragIndicator(.visible)
         }
         .alert("Save as favourite", isPresented: $presentPresetAlert) {
             TextField("Name", text: $presetNameDraft)
@@ -461,6 +435,7 @@ struct MealDetailView: View {
             }
             TideNumber("\(totals.kcal)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
             FuelMacroRings(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
+                .explains(.fuelMacroShare)
             if let recipe = meal.recipe, !shouldRenderActualFoods {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: Tide.s4) { recipeMetrics(recipe) }
@@ -576,15 +551,15 @@ struct MealDetailView: View {
                     .accessibilityLabel("Save this meal as a favourite")
                 }
                 // Undo — take the meal back to planned so a wrong log (e.g.
-                // logged to the wrong slot) can be fixed. Confirmed because it
-                // clears the eaten state, deletes feedback, and re-credits any
-                // pantry stock this meal pulled.
+                // logged to the wrong slot) can be fixed. It happens at once and
+                // the toast offers Undo for a few seconds: the snapshot puts the
+                // eaten state, feedback and pantry stock back exactly.
                 FuelActionRow(
                     icon: isUnplannedLog ? "trash" : "arrow.uturn.backward",
                     title: isUnplannedLog ? "Delete log" : "Undo — not eaten",
                     isDestructive: true
                 ) {
-                    presentUndoConfirm = true
+                    undoEaten()
                     HapticManager.lightImpact()
                 }
                 .accessibilityLabel(isUnplannedLog ? "Delete this log" : "Undo, mark as not eaten")
@@ -689,24 +664,62 @@ struct MealDetailView: View {
 
     /// Undo this meal. A plan slot reverts to planned (original dish back); a
     /// log added on top of the plan is DELETED (the screen blanks itself first,
-    /// so nothing renders the deleted model).
+    /// so nothing renders the deleted model). Either way a toast offers a few
+    /// seconds to put it back exactly (`MealOutcomeService.restore`).
     private func undoEaten() {
         let env = outcomeEnv
         let target = meal
-        if target.isUnplannedLog, target.status == .eaten {
+        let name = target.mealName
+        let deletesLog = target.isUnplannedLog && target.status == .eaten
+        let snapshot: MealOutcomeService.LogSnapshot
+        do {
             // Delete first so a failure shows here. The screen blanks in the
             // same synchronous turn, before SwiftUI re-reads the deleted row.
-            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
-                isRemoved = true
-                HapticManager.notification(.success)
+            snapshot = try MealOutcomeService.undo(target, env: env)
+        } catch {
+            actionError = error.localizedDescription
+            if !deletesLog {
                 dismiss()
             }
-        } else {
-            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
-                HapticManager.notification(.success)
-            }
-            dismiss()
+            return
         }
+        if deletesLog {
+            isRemoved = true
+        }
+        HapticManager.notification(.success)
+        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
+        FuelLogToast.post(ToastData(message: message, style: .info, actionTitle: "Undo") {
+            do {
+                try MealOutcomeService.restore(snapshot, env: env)
+            } catch {
+                FuelLogToast.post(ToastData(message: "Couldn't restore \(name).", style: .error))
+            }
+        })
+        dismiss()
+    }
+
+    /// A few seconds to take back a mark-eaten or a skip. Undo goes through
+    /// `MealOutcomeService.undo` (slot back to planned, pantry credited back,
+    /// reminders re-armed, the substitute's planned dish restored).
+    private func offerTakeBack(_ message: String) {
+        let env = outcomeEnv
+        let mealID = meal.id
+        let name = meal.mealName
+        FuelLogToast.post(ToastData(message: message, style: .success, actionTitle: "Undo") {
+            if let target = Self.fetchMeal(mealID, in: env.modelContext),
+               (try? MealOutcomeService.undo(target, env: env)) != nil
+            {
+                FuelLogToast.post(ToastData(message: "\(name) is back on the plan.", style: .info))
+            } else {
+                FuelLogToast.post(ToastData(message: "Couldn't undo \(name).", style: .error))
+            }
+        })
+    }
+
+    private static func fetchMeal(_ id: UUID, in context: ModelContext) -> PlannedMeal? {
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
     }
 
     private func savePreset() {
@@ -751,6 +764,7 @@ struct MealDetailView: View {
             }
             if done {
                 HapticManager.notification(.success)
+                offerTakeBack("\(meal.mealName) marked eaten.")
             }
             return
         }
@@ -800,6 +814,7 @@ struct MealDetailView: View {
                 env: outcomeEnv
             )
             HapticManager.notification(.success)
+            offerTakeBack("\(meal.mealName) marked eaten.")
         } catch {
             if let blocker = AIBlocker(error) {
                 substituteBlocker = blocker
@@ -819,6 +834,7 @@ struct MealDetailView: View {
             return
         }
         HapticManager.lightImpact()
+        offerTakeBack("\(target.mealName) skipped.")
         Task { @MainActor in
             // Same inputs as the Today card: today's Whoop recovery + sleep.
             let whoop = services.whoop
@@ -1108,12 +1124,24 @@ struct MealDetailView: View {
     private func removeFood(at index: Int) {
         let env = outcomeEnv
         let target = meal
-        if target.foods.count == 1, target.isUnplannedLog {
+        if target.foods.count == 1, target.isUnplannedLog || target.replacedPlan != nil {
             undoEaten()
             return
         }
-        runAction { try MealOutcomeService.removeFood(at: index, from: target, env: env) }
+        let removed = target.foods.indices.contains(index) ? target.foods[index] : nil
+        let mealID = target.id
+        guard runAction({ try MealOutcomeService.removeFood(at: index, from: target, env: env) }), let removed else {
+            return
+        }
         HapticManager.lightImpact()
+        FuelLogToast.post(ToastData(message: "\(removed.name) removed.", style: .info, actionTitle: "Undo") {
+            guard let back = Self.fetchMeal(mealID, in: env.modelContext),
+                  (try? MealOutcomeService.restoreFood(removed, at: index, to: back, env: env)) != nil
+            else {
+                FuelLogToast.post(ToastData(message: "Couldn't put \(removed.name) back.", style: .error))
+                return
+            }
+        })
     }
 
     /// What was eaten, food by food, each with its share of the meal's

@@ -231,7 +231,7 @@ struct TodaySupplementsCard: View {
     private func checkButton(_ row: SupplementBoardRow) -> some View {
         Button {
             withAnimation(Tide.lively) {
-                viewModel.toggleSupplementTaken(
+                viewModel.toggleSupplementTakenWithUndo(
                     supplementID: row.dose.supplementID,
                     name: row.dose.name,
                     modelContext: modelContext

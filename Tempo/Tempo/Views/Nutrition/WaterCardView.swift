@@ -68,20 +68,23 @@ struct WaterCardView: View {
             .accessibilityLabel(target.map { "Water \(totalMl) of \($0) millilitres" } ?? "Water \(totalMl) millilitres")
             .accessibilityIdentifier("water.total")
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                    title
-                    Spacer(minLength: Tide.s2)
-                    total
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        title
+                        Spacer(minLength: Tide.s2)
+                        total
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        title
+                        total
+                    }
                 }
-                VStack(alignment: .leading, spacing: Tide.s2) {
-                    title
-                    total
-                }
-            }
 
-            TideLevelBar(progress: progress, color: Tide.water, height: Tide.bar)
-                .animation(Tide.settle, value: progress)
+                TideLevelBar(progress: progress, color: Tide.water, height: Tide.bar)
+                    .animation(Tide.settle, value: progress)
+            }
+            .explains(.fuelWaterTarget.showing(target.map { "\(totalMl.formatted()) / \($0.formatted()) ml" }))
 
             GlassEffectContainer(spacing: Tide.s2) {
                 // One row when it fits; otherwise Undo drops under the chips
@@ -164,8 +167,23 @@ struct WaterCardView: View {
         WaterStore(context: modelContext, healthKit: services.healthKit)
     }
 
+    /// Saves the water and offers a few seconds to take back exactly that entry.
     private func add(_ ml: Int) {
-        store().add(ml: ml)
+        guard let log = store().add(ml: ml) else {
+            FuelLogToast.post(ToastData(message: "Couldn't save that water. Try again.", style: .error))
+            return
+        }
+        let id = log.id
+        let context = modelContext
+        let healthKit = services.healthKit
+        FuelLogToast.post(ToastData(message: "\(ml) ml of water added.", style: .success, actionTitle: "Undo") {
+            let undone = WaterStore(context: context, healthKit: healthKit).remove(id: id)
+            FuelLogToast.post(
+                undone
+                    ? ToastData(message: "Water taken back.", style: .info)
+                    : ToastData(message: "That water was already taken back.", style: .info)
+            )
+        })
     }
 
     private func undo() {

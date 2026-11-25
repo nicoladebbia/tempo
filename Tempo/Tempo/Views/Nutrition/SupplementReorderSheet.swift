@@ -174,6 +174,7 @@ struct SupplementReorderSheet: View {
                     .foregroundStyle(Tide.text2)
             }
             .accessibilityElement(children: .combine)
+            .explains(.fuelSupplementDaysLeft)
             Text("Estimated from how often you've actually marked it taken over the last \(SupplementReorderService.intakeWindowDays) days.")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)

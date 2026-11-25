@@ -257,6 +257,7 @@ struct RecoveryCoachSection: View {
                         .foregroundStyle(Tide.text2)
                     TideNumber(RecoveryCoachFormat.liters(low), size: Tide.numeralL)
                 }
+                .explains(.fuelSweatLoss.showing(RecoveryCoachFormat.liters(low)))
                 Text("I don't know what you drank, so this is a minimum. Tell me below and I'll narrow it.")
                     .font(Tide.body)
                     .foregroundStyle(Tide.warn)
@@ -268,11 +269,13 @@ struct RecoveryCoachSection: View {
                         .foregroundStyle(Tide.text2)
                     TideNumber(RecoveryCoachFormat.litersRange(low: low, high: high), size: Tide.numeralL)
                 }
+                .explains(.fuelSweatLoss.showing(RecoveryCoachFormat.litersRange(low: low, high: high)))
                 if let margin = sweat.marginOfErrorPercent {
                     Text("\(RecoveryCoachFormat.margin(margin)) (95% range). An estimate, not a measurement.")
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .explains(.fuelSweatMargin)
                 }
             }
             Text(
@@ -281,6 +284,7 @@ struct RecoveryCoachSection: View {
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)
             .fixedSize(horizontal: false, vertical: true)
+            .explains(.fuelWeightLost)
             // The same percentage drawn against a 0 to 5% scale, so "how much" is seen.
             VStack(spacing: Tide.s1) {
                 TideLevelBar(
@@ -302,6 +306,7 @@ struct RecoveryCoachSection: View {
                 Label("Within 5% (95% range)", systemImage: "checkmark.seal")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.good)
+                    .explains(.fuelSweatMargin)
             } else if sweat.protocolQuality == "loose" {
                 Text("Your weigh-ins were far from the session, so the range is wider.")
                     .font(Tide.caption)
@@ -343,6 +348,7 @@ struct RecoveryCoachSection: View {
             )
         }
         .tideCard()
+        .explains(.fuelRecoveryPlan)
         .accessibilityIdentifier("coach.plan")
     }
 

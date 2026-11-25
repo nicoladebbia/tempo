@@ -38,8 +38,9 @@ struct QuickLogRows: View {
 
     /// The meal type the rows are for.
     let type: MealType
-    /// Where a failed pin or delete is told. The capture screen passes its own toast: a toast
-    /// posted to the Fuel host would sit under the sheet this view lives in.
+    /// Where a toast is shown: a failed pin or delete, and the Undo after a delete. The capture
+    /// screen passes its own toast: a toast posted to the Fuel host would sit under the sheet this
+    /// view lives in.
     var onFailure: (ToastData) -> Void = { FuelLogToast.post($0) }
     let onLog: (Choice) -> Void
 
@@ -182,9 +183,14 @@ struct QuickLogRows: View {
     }
 
     private func delete(_ preset: MealPreset) {
+        let snapshot = MealPresetSnapshot(preset)
         do {
             try MealOutcomeService.deletePreset(preset, modelContext: modelContext)
             HapticManager.lightImpact()
+            let context = modelContext
+            onFailure(ToastData(message: "\(snapshot.name) deleted.", style: .info, actionTitle: "Undo") {
+                snapshot.restore(in: context)
+            })
         } catch {
             onFailure(ToastData(message: "Couldn't remove that meal. Try again.", style: .error))
         }

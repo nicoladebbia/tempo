@@ -456,6 +456,43 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         return calendar
     }
 
+    /// Adds one Reminders entry for `item` and stores its identifier on the item.
+    private func createReminder(for item: GroceryListItem, in calendar: EKCalendar, listTitle: String) throws {
+        let reminder = EKReminder(eventStore: eventStore)
+        reminder.calendar = calendar
+        reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
+        reminder.notes = "\(listTitle)\nCategory: \(item.category)"
+        reminder.isCompleted = item.isChecked
+        do {
+            try eventStore.save(reminder, commit: false)
+        } catch {
+            throw GroceryListServiceError.remindersExportFailed(error.localizedDescription)
+        }
+        item.reminderIdentifier = reminder.calendarItemIdentifier
+    }
+
+    /// Puts back the Reminders entry of a row that Undo restored (a delete removes it).
+    /// Quiet on purpose: without Reminders access there is nothing to put back, and the next
+    /// export covers it. The "Tempo Groceries" list is made again if it was removed meanwhile.
+    func restoreReminder(for item: GroceryListItem) async {
+        guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess, !item.isBought,
+              let list = item.list,
+              let calendar = try? tempoGroceriesCalendar()
+        else {
+            return
+        }
+        // The entry the delete removed is gone for good: this one gets a new identifier.
+        item.reminderIdentifier = nil
+        let title = "Tempo Grocery — \(list.weekStartDate.formatted(date: .abbreviated, time: .omitted))"
+        do {
+            try createReminder(for: item, in: calendar, listTitle: title)
+            try eventStore.commit()
+            try modelContext.save()
+        } catch {
+            logger.error("Couldn't put the grocery reminder back: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Exports (or re-syncs) `list` to the "Tempo Groceries" Reminders list.
     /// Per BUILD item 1c, this must not duplicate on repeat export: each
     /// item's EKReminder identifier is stored on the item
@@ -490,17 +527,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                 guard let item = itemsByID[itemID] else {
                     continue
                 }
-                let reminder = EKReminder(eventStore: eventStore)
-                reminder.calendar = calendar
-                reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
-                reminder.notes = "\(title)\nCategory: \(item.category)"
-                reminder.isCompleted = item.isChecked
-                do {
-                    try eventStore.save(reminder, commit: false)
-                } catch {
-                    throw GroceryListServiceError.remindersExportFailed(error.localizedDescription)
-                }
-                item.reminderIdentifier = reminder.calendarItemIdentifier
+                try createReminder(for: item, in: calendar, listTitle: title)
 
             case let .update(itemID, reminderIdentifier):
                 guard let item = itemsByID[itemID] else {
@@ -624,6 +651,8 @@ final class MockGroceryListService: GroceryListServiceProtocol {
         // Mock pantry isn't wired; treat as a no-op so tests stay stable.
         0
     }
+
+    func restoreReminder(for item: GroceryListItem) async {}
 
     func exportToReminders(_ list: GroceryList) async throws {
         if let err = simulatedRemindersError {

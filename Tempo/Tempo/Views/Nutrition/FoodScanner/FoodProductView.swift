@@ -184,6 +184,7 @@ struct FoodProductView: View {
             RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
                 .strokeBorder(Tide.Kitchen.warn.opacity(0.4), lineWidth: 1)
         )
+        .explains(.fuelLabelCheck)
         .accessibilityIdentifier("foodImplausibilityBanner")
     }
 
@@ -391,6 +392,7 @@ struct FoodProductView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
+            .explains(.fuelTempoScore.showing("\(score.total) / 100"))
         } else {
             KitchenNotice(
                 systemImage: "questionmark.circle.fill",
@@ -551,6 +553,7 @@ struct FoodProductView: View {
                 RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
                     .strokeBorder(worst.color.opacity(0.45), lineWidth: 1)
             )
+            .explains(.fuelForYou)
             .animation(Tide.snap, value: grams)
         }
     }
@@ -590,6 +593,7 @@ struct FoodProductView: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Nutri-Score \(score.nutriScoreGrade.uppercased())")
                 }
+                .explains(.fuelNutriScore.showing(score.nutriScoreGrade.uppercased()))
             }
             if let nova = product.novaGroup {
                 VStack(alignment: .leading, spacing: Tide.hair) {
@@ -599,6 +603,7 @@ struct FoodProductView: View {
                         .foregroundStyle(nova == 4 ? Tide.Kitchen.warn : Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                .explains(.fuelNova.showing("Group \(nova)"))
             }
         }
     }
@@ -636,6 +641,7 @@ struct FoodProductView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .tideCard()
+            .explains(.fuelAdditives)
         }
     }
 
@@ -683,6 +689,7 @@ struct FoodProductView: View {
                 nutrientRow("Fiber", per100.fiber, portion.fiber, unit: "g", level: nil)
                 nutrientRow("Salt", per100.salt, portion.salt, unit: "g", level: Self.level(per100.salt, medium: 0.3, high: 1.5))
             }
+            .explains(.fuelTrafficLights)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard()
