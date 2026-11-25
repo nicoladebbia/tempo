@@ -312,7 +312,11 @@ struct ChallengeController: RouteCollection {
                 status: "joined"
             )
         }
-        participants += shown.filter { $0.status == "invited" }.map { member in
+        // By name, so invited people do not shuffle between refreshes.
+        let invited = shown.filter { $0.status == "invited" }.sorted {
+            name(usersByID[$0.userID]).localizedCaseInsensitiveCompare(name(usersByID[$1.userID])) == .orderedAscending
+        }
+        participants += invited.map { member in
             ChallengeParticipantDTO(
                 displayName: name(usersByID[member.userID]),
                 level: usersByID[member.userID]?.level ?? 1,
