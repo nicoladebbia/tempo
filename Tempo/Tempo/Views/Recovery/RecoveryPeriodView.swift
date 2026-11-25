@@ -635,7 +635,7 @@ struct RecoveryPeriodView: View {
         .frame(maxWidth: .infinity)
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(label) zone, \(count) \(count == 1 ? "day" : "days") of \(total)")
+        .accessibilityLabel("\(label) zone, \(count) \(count == 1 ? String(localized: "day") : String(localized: "days")) of \(total)")
     }
 
     // MARK: - Pattern insights

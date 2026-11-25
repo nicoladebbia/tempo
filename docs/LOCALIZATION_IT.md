@@ -9,7 +9,7 @@ English is the development language. Italian (`it`) is the first translation. St
 | `Tempo/Tempo/AppShortcuts.xcstrings`      | app                      | Siri / Shortcuts phrases                       |
 | `Tempo/TempoWidget/Localizable.xcstrings` | widget + Live Activities | widget and Live Activity text                  |
 
-Out of scope on purpose (stays English): text that comes from the server or the AI (coach replies, meal plans, backend pushes), the exercise and food databases, `AccountabilityCopy.json`, the Apple Watch app, App Store metadata. See "Not translated" at the end.
+Out of scope on purpose (stays English): text that comes from the server or the AI (coach replies, meal plans, backend pushes), the exercise and food databases, the Apple Watch app, App Store metadata. See "Not translated" at the end. The accountability notification pool has an Italian sibling file, `Tempo/Resources/AccountabilityCopy.it.json` (same tiers, same `{placeholders}`; a test checks it).
 
 ## Voice
 
@@ -138,4 +138,11 @@ Counts use catalog plural variations (`one` / `other`) so "1 giorno" and "3 gior
 
 ## Not translated (and why)
 
-See the final report of the Italian pass: server and AI text, bundled exercise and food data, `AccountabilityCopy.json`, the Watch app, App Store metadata.
+- **Server and AI text**: coach replies, weekly meal plans, AI-written insights, backend pushes. The server and the prompts write in English. Fix: send the app language with each request and tell the model to answer in it (a backend change).
+- **Bundled data**: the exercise database (`Exercises.json`), the food, ingredient, additive and supplement tables written in Swift, trainer report documents. They are data, matched by name, and the names are searched and sent to the AI.
+- **Apple Watch app** (`TempoWatch`): a separate target with its own strings; it needs its own catalog and a watch build to check it.
+- **App Store metadata** (name, subtitle, keywords, description, screenshots): written in App Store Connect, not in the app.
+- **Text that is stored or compared**: calendar event titles ("<Type> Workout"), "Imported workout" and "Trainer Program" default names, historical XP ledger and insight rows saved in English, exercise technique entry names, CSV column names, spoken countdown cues.
+- **Allergy, store and cuisine chips** in Fuel setup stay English because they are stored and keyword-matched (a translated chip would weaken allergen exclusion).
+
+Rule for stored words: keep a stable English form (`englishName`, raw value) for storage, prompts and comparisons, and show `displayName` on screen.

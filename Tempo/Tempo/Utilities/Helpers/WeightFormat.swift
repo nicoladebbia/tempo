@@ -15,9 +15,20 @@ enum WeightFormat {
         number(WeightUnit.kg.convert(kg, to: unit))
     }
 
-    /// Number only for a value already in the display unit.
+    /// Number only for a value already in the display unit, in the phone's number format
+    /// ("62.5" in English, "62,5" in Italian).
     static func number(_ displayValue: Double) -> String {
         let rounded = (displayValue * 10).rounded() / 10
+        if rounded == rounded.rounded() {
+            return String(Int(rounded))
+        }
+        return rounded.tempoDecimal(1)
+    }
+
+    /// The same number with a "." decimal whatever the phone's language: for files and text that
+    /// is read back by a program (the CSV export).
+    static func invariantNumber(kg: Double, unit: WeightUnit) -> String {
+        let rounded = (WeightUnit.kg.convert(kg, to: unit) * 10).rounded() / 10
         if rounded == rounded.rounded() {
             return String(Int(rounded))
         }

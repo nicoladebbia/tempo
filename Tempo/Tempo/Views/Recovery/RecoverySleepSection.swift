@@ -128,7 +128,10 @@ struct RecoverySleepSection: View {
                     .fill(color)
                     .frame(width: Tide.s2, height: Tide.s2)
                     .accessibilityHidden(true)
-                Text(name).tideLabel(color)
+                Text(name)
+                    .tideLabel(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
             }
             TideNumber(formatMinutes(minutes), size: Tide.numeralS, relativeTo: .title3)
             Text("\(stagePercent(minutes))%")
@@ -262,7 +265,7 @@ struct RecoverySleepSection: View {
             )
             .explains(.sleepConsistency)
             TideMetricTile(
-                label: String(localized: "Respiratory rate"),
+                label: String(localized: "recovery.respiratory-rate.tile", defaultValue: "Respiratory rate", comment: "Short tile label (narrow column); the explainer keeps the full name"),
                 value: viewModel.todayRecovery?.respiratoryRate.map { $0.tempoDecimal(1) } ?? "--",
                 unit: String(localized: "br/min"),
                 systemImage: "lungs"

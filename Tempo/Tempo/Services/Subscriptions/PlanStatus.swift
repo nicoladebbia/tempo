@@ -175,7 +175,7 @@ struct PlanStatus: Equatable, Sendable {
     private static let activeUntilLabel = String(localized: "Active until")
 
     private static let free = PlanStatus(
-        kind: .free, isPro: false, title: String(localized: "Free"),
+        kind: .free, isPro: false, title: String(localized: "plan.free", defaultValue: "Free", comment: "Name of the free plan (not the free time slot)"),
         subtitle: String(localized: "Upgrade to unlock everything Tempo offers."),
         dateLabel: nil, date: nil, startDate: nil, productName: nil,
         action: .showPaywall, actionTitle: String(localized: "Subscribe to Pro"), notice: nil

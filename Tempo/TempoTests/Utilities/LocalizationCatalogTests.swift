@@ -295,6 +295,37 @@ final class LocalizationCatalogTests: XCTestCase {
         XCTAssertEqual(String(localized: "\(4) days", locale: Locale(identifier: "en")), "4 days")
     }
 
+    /// The Italian accountability messages must mirror the English file: same
+    /// tiers, same intensities, same number of messages and the same `{placeholders}`
+    /// in each one, otherwise a notification would show a raw `{remaining}`.
+    func testItalianAccountabilityCopyMirrorsEnglish() throws {
+        func load(_ name: String) throws -> [String: [String: [String]]] {
+            let url = projectDir.appendingPathComponent("Tempo/Resources/\(name)")
+            let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+            return try XCTUnwrap(root["tiers"] as? [String: [String: [String]]], name)
+        }
+        func tokens(_ text: String) -> [String] {
+            let regex = try? NSRegularExpression(pattern: "\\{\\w+\\}")
+            let range = NSRange(text.startIndex..., in: text)
+            return (regex?.matches(in: text, range: range) ?? [])
+                .compactMap { Range($0.range, in: text).map { String(text[$0]) } }
+                .sorted()
+        }
+        let en = try load("AccountabilityCopy.json")
+        let it = try load("AccountabilityCopy.it.json")
+        XCTAssertEqual(Set(en.keys), Set(it.keys), "tiers differ")
+        for (tier, intensities) in en {
+            XCTAssertEqual(Set(intensities.keys), Set(it[tier].map { Array($0.keys) } ?? []), "\(tier): intensities differ")
+            for (intensity, messages) in intensities {
+                let italianMessages = it[tier]?[intensity] ?? []
+                XCTAssertEqual(messages.count, italianMessages.count, "\(tier)/\(intensity): message count differs")
+                for (english, italian) in zip(messages, italianMessages) {
+                    XCTAssertEqual(tokens(english), tokens(italian), "\(tier)/\(intensity): placeholders differ in \"\(italian)\"")
+                }
+            }
+        }
+    }
+
     func testItalianTranslatesAKnownKey() throws {
         let bundle = try italianBundle()
         XCTAssertEqual(bundle.localizedString(forKey: "Today", value: nil, table: nil), "Oggi")

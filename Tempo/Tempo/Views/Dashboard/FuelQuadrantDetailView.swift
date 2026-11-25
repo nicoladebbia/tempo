@@ -293,7 +293,7 @@ struct FuelQuadrantDetailView: View {
             )
 
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(row.meal.mealName)
+                Text(row.meal.displayMealName)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)

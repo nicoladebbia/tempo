@@ -32,7 +32,7 @@ extension FuelQuadrantData {
     /// was eaten, else a nudge to log one.
     var cardFootnote: String {
         if let nextMeal {
-            return String(localized: "Next: \(nextMeal.mealName) · \(nextMeal.scheduledTime)")
+            return String(localized: "Next: \(nextMeal.displayMealName) · \(nextMeal.scheduledTime)")
         }
         if lastEatenAt != nil {
             return String(localized: "Last meal \(formattedLastEaten)")
@@ -57,7 +57,7 @@ extension MoveQuadrantData {
     var workoutCaption: String {
         switch workoutStatus {
         case .completed:
-            workoutDurationMinutes == nil ? String(localized: "Done") : String(localized: "Done · \(formattedWorkoutDuration)")
+            workoutDurationMinutes == nil ? String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)") : String(localized: "Done · \(formattedWorkoutDuration)")
         case .planned:
             workoutDurationMinutes.map { String(localized: "Planned · ~\($0) min") } ?? String(localized: "Planned for today")
         case .restDay: String(localized: "Recovery is training.")

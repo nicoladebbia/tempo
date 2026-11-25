@@ -92,7 +92,7 @@ struct GroceryDoneShoppingView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(title: String(localized: "Into your pantry"), trailing: includedCount == rows.count ? String(localized: "All of it") : String(localized: "\(rows.count - includedCount) left out"))
-            TideNumber("\(includedCount)", unit: includedCount == 1 ? "item" : "items", size: Tide.numeralL, relativeTo: .largeTitle)
+            TideNumber("\(includedCount)", unit: includedCount == 1 ? String(localized: "item") : String(localized: "items"), size: Tide.numeralL, relativeTo: .largeTitle)
             TideLevelBar(
                 progress: Double(includedCount) / Double(max(rows.count, 1)),
                 color: mood.accent,

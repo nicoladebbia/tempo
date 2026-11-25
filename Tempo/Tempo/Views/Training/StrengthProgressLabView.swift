@@ -117,7 +117,7 @@ struct StrengthProgressLabView: View {
 
     private var spanTabs: some View {
         TrainPlanTabs(
-            items: ProgressLabMath.Span.allCases.map { (tag: $0, label: $0.rawValue) },
+            items: ProgressLabMath.Span.allCases.map { (tag: $0, label: $0.label) },
             selection: $span
         )
     }

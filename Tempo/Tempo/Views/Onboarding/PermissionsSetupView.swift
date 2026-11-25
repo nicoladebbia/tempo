@@ -85,7 +85,7 @@ struct PermissionsSetupView: View {
                         title: kind.title,
                         why: kind.why,
                         access: access(for: kind),
-                        grantedText: kind == .health ? String(localized: "Done") : String(localized: "On"),
+                        grantedText: kind == .health ? String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)") : String(localized: "On"),
                         isBusy: busy == kind,
                         errorText: errors[kind],
                         identifier: kind.rawValue

@@ -53,6 +53,15 @@ struct ExerciseDetailView: View {
         case ninetyDays = "90D"
         case all = "ALL"
 
+        /// The chip label; the raw value stays the English identifier.
+        var label: String {
+            switch self {
+            case .thirtyDays: String(localized: "30D", comment: "Chart range chip: last 30 days")
+            case .ninetyDays: String(localized: "90D", comment: "Chart range chip: last 90 days")
+            case .all: String(localized: "ALL", comment: "Chart range chip: everything")
+            }
+        }
+
         var days: Int? {
             switch self {
             case .thirtyDays: 30
@@ -385,7 +394,7 @@ struct ExerciseDetailView: View {
 
     private var rangeTabs: some View {
         TrainPlanTabs(
-            items: ChartRange.allCases.map { (tag: $0, label: $0.rawValue) },
+            items: ChartRange.allCases.map { (tag: $0, label: $0.label) },
             selection: $chartRange
         )
         .onChange(of: chartRange) {

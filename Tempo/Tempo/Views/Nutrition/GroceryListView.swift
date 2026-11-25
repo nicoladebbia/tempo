@@ -345,7 +345,7 @@ struct GroceryListView: View {
         let left = items.filter { !$0.isChecked }.count
         return KitchenGroup(
             title: GroceryAisleName.display(category),
-            trailing: left == 0 ? String(localized: "Done") : String(localized: "\(left) left")
+            trailing: left == 0 ? String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)") : String(localized: "\(left) left")
         ) {
             ForEach(items, id: \.id) { item in
                 Button {

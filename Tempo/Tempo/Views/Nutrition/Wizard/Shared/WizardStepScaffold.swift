@@ -139,7 +139,7 @@ struct WizardStepScaffold<Content: View>: View {
                                 .font(Tide.bodyStrong)
                                 .frame(width: Tide.hit + Tide.s2)
                         } else {
-                            Text("Back")
+                            Text(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
                                 .font(Tide.bodyStrong)
                                 .padding(.horizontal, Tide.s5)
                         }
@@ -150,7 +150,7 @@ struct WizardStepScaffold<Content: View>: View {
                     .contentShape(.capsule)
                 }
                 .buttonStyle(FuelPressStyle())
-                .accessibilityLabel("Back")
+                .accessibilityLabel(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
             }
 
             Button {

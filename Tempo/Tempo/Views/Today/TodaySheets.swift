@@ -138,7 +138,7 @@ struct InsightDetailSheet: View {
 
     private func trainingStatusText(_ move: MoveQuadrantData) -> String {
         switch move.workoutStatus {
-        case .completed: String(localized: "Done")
+        case .completed: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)")
         case .planned: String(localized: "Planned")
         case .restDay: String(localized: "Rest day")
         case .none: String(localized: "No workout")

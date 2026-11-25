@@ -361,7 +361,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     private func mealReminderRequest(_ reminder: MealReminderRequest) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Fuel Up")
-        content.body = String(localized: "\(reminder.mealName) in \(MealReminderPlanner.leadMinutes) min. Don't skip it.")
+        content.body = String(localized: "\(PlannedMeal.displayName(forMealName: reminder.mealName)) in \(MealReminderPlanner.leadMinutes) min. Don't skip it.")
         content.categoryIdentifier = "MEAL_REMINDER"
         content.threadIdentifier = "tempo.meals.\(dateKey(reminder.fireDate))"
         content.interruptionLevel = .active

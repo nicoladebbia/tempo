@@ -121,7 +121,7 @@ final class DayPlannerService {
             return PlannedBlock(
                 startMinuteOfDay: start,
                 endMinuteOfDay: end,
-                title: meal.mealName,
+                title: meal.displayMealName,
                 sourceId: meal.id.uuidString
             )
         }

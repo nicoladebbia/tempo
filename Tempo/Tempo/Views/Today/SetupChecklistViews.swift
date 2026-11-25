@@ -145,7 +145,7 @@ struct SetupChecklistPage: View {
         let step = line.step
         if line.done {
             SettingsStatusRow(
-                icon: step.icon, title: step.title, status: String(localized: "Done"), statusColor: TideTone.mint, showsChevron: false
+                icon: step.icon, title: step.title, status: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)"), statusColor: TideTone.mint, showsChevron: false
             )
             .accessibilityIdentifier("setup.\(step.id)")
         } else {

@@ -40,14 +40,14 @@ struct MealFeedbackSheet: View {
                 VStack(alignment: .leading, spacing: Tide.s5) {
                     stars
                     noteField(
-                        String(localized: "Overall"), prompt: "Loved this. Or didn't.", text: $overallNote, lines: 2 ... 4
+                        String(localized: "Overall"), prompt: String(localized: "Loved this. Or didn't."), text: $overallNote, lines: 2 ... 4
                     )
                     noteField(
-                        String(localized: "Portion"), prompt: "Too big, too small, just right…", text: $portionNote, lines: 1 ... 3,
+                        String(localized: "Portion"), prompt: String(localized: "Too big, too small, just right…"), text: $portionNote, lines: 1 ... 3,
                         footnote: String(localized: "If 100g feels right instead of 300g, say so. Plans will adapt.")
                     )
                     noteField(
-                        String(localized: "Next time"), prompt: "Add lemon. Swap rice for quinoa. Less salt.", text: $suggestedChange,
+                        String(localized: "Next time"), prompt: String(localized: "Add lemon. Swap rice for quinoa. Less salt."), text: $suggestedChange,
                         lines: 1 ... 3,
                         footnote: String(localized: "Specific changes you want applied when this dish comes around again.")
                     )
@@ -101,7 +101,7 @@ struct MealFeedbackSheet: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(star) \(star == 1 ? "star" : "stars")")
+                    .accessibilityLabel(star == 1 ? String(localized: "1 star") : String(localized: "\(star) stars"))
                     .accessibilityAddTraits(star == rating ? .isSelected : [])
                 }
             }

@@ -49,6 +49,17 @@ struct ProgressChartsView: View {
         case records = "Records"
         case body = "Body"
         case history = "History"
+
+        /// The label on the tab strip; the raw value stays the English identifier.
+        var label: String {
+            switch self {
+            case .overview: String(localized: "Overview")
+            case .lifts: String(localized: "Lifts")
+            case .records: String(localized: "Records")
+            case .body: String(localized: "Body")
+            case .history: String(localized: "History")
+            }
+        }
     }
 
     private var hasAnyData: Bool {
@@ -61,7 +72,7 @@ struct ProgressChartsView: View {
             // Always shown: History is where workouts are imported from
             // another app, so it must be reachable before the first workout.
             TrainPlanTabs(
-                items: ProgressTab.allCases.map { (tag: $0, label: $0.rawValue) },
+                items: ProgressTab.allCases.map { (tag: $0, label: $0.label) },
                 selection: $selectedTab
             )
             .padding(.horizontal, Tide.edge)

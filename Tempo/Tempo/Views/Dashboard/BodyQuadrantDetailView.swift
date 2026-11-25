@@ -486,7 +486,7 @@ struct BodyQuadrantDetailView: View {
         let lastWeek = BodyHistory.day(7, before: Date()).flatMap { BodyHistory.reading(on: $0, in: readings) }
         let weekCells = BodyHistory.changes(today: todayReading, other: lastWeek, kinds: [.recovery, .sleep])
         if !weekCells.isEmpty {
-            lines.append(ComparisonLine(title: String(localized: "Last week"), cells: weekCells.map(changeCell)))
+            lines.append(ComparisonLine(title: String(localized: "body.compare.last-week", defaultValue: "Last week", comment: "Row title in the body comparison table, short because the column is narrow"), cells: weekCells.map(changeCell)))
         }
 
         var averages = [ComparisonLine.Cell]()
@@ -562,6 +562,7 @@ struct BodyQuadrantDetailView: View {
             HStack(spacing: Tide.s2) {
                 title
                     .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
                     .frame(width: Tide.hit * 2.4, alignment: .leading)
                 cells
             }

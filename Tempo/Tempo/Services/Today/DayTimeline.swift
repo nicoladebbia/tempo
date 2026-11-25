@@ -355,7 +355,7 @@ enum DayTimelineLoader {
                 }
                 return DayTimelineInput.MealRow(
                     id: meal.id,
-                    name: meal.mealName,
+                    name: meal.displayMealName,
                     scheduledTime: meal.scheduledTime,
                     status: status,
                     eatenAt: meal.actualEatenAt,
@@ -411,7 +411,7 @@ enum DayTimelineLoader {
         let firstMeal = CanonicalMeals.meals(on: tomorrow, in: context)
             .filter { !EatenMealRecorder.isSupplementDose($0) && !$0.isUnplannedLog }
             .min { $0.scheduledTime < $1.scheduledTime }
-            .map { TomorrowPreview.Meal(name: $0.mealName, time: $0.scheduledTime) }
+            .map { TomorrowPreview.Meal(name: $0.displayMealName, time: $0.scheduledTime) }
 
         let weekday = calendar.component(.weekday, from: tomorrow)
         let tasks = (try? context.fetch(FetchDescriptor<NonNegotiable>(

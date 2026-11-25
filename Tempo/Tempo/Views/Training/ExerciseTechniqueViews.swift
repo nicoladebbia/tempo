@@ -80,7 +80,7 @@ struct WorkoutFormRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("workout-form-toggle")
-            .accessibilityValue(isOpen ? String(localized: "Open") : String(localized: "Closed"))
+            .accessibilityValue(isOpen ? String(localized: "state.open", defaultValue: "Open", comment: "Accessibility value: an expandable section is open") : String(localized: "Closed"))
             .accessibilityHint(isOpen ? String(localized: "Hides the form guide") : String(localized: "Shows the cues and common mistakes"))
 
             if isOpen {

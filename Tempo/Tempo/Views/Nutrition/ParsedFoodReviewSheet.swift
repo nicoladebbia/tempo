@@ -172,7 +172,7 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - When
 
     private var whenCard: some View {
-        card("WHEN") {
+        card(String(localized: "WHEN")) {
             HStack {
                 Text(Self.relativeDay(draft.eatenAt))
                     .font(Tide.body)

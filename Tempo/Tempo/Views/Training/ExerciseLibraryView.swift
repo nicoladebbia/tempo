@@ -127,7 +127,7 @@ struct ExerciseLibraryView: View {
     // Per MODULE_TRAINING.md Section 10.2 — 44pt search bar
 
     private var searchBar: some View {
-        TrainPlanSearchField(text: $searchText, prompt: "Search exercises...")
+        TrainPlanSearchField(text: $searchText, prompt: String(localized: "Search exercises..."))
             .padding(.horizontal, Tide.edge)
     }
 
@@ -550,9 +550,19 @@ struct CustomExerciseFormView: View {
     }
 
     static func patternLabel(_ pattern: MovementPattern) -> String {
-        pattern.rawValue
-            .split(separator: "_")
-            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-            .joined(separator: " ")
+        switch pattern {
+        case .horizontalPush: String(localized: "Horizontal Push")
+        case .horizontalPull: String(localized: "Horizontal Pull")
+        case .verticalPush: String(localized: "Vertical Push")
+        case .verticalPull: String(localized: "Vertical Pull")
+        case .squat: String(localized: "Squat")
+        case .hinge: String(localized: "Hinge")
+        case .lunge: String(localized: "Lunge")
+        case .carry: String(localized: "Carry")
+        case .isolation: String(localized: "Isolation")
+        case .rotation: String(localized: "Rotation")
+        case .plank: String(localized: "Plank")
+        case .cardio: String(localized: "Cardio")
+        }
     }
 }

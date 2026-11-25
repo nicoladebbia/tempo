@@ -87,7 +87,7 @@ extension TodaySnapshot {
             nextMeal: fuel.nextMeal.map { meal in
                 Meal(
                     id: meal.id,
-                    name: meal.mealName,
+                    name: meal.displayMealName,
                     time: meal.scheduledTime,
                     calories: Int(meal.totalCalories.rounded()),
                     protein: Int(meal.totalProtein.rounded()),

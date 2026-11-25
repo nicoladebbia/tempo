@@ -253,6 +253,7 @@ struct FuelSetupSectionFlow: View {
                 defaultValue: max(working.routine.trainingDaysPerWeek, 3),
                 range: 0 ... 7,
                 unit: String(localized: "days"),
+                singularUnit: String(localized: "day"),
                 id: "fuelTrainingDays"
             )
         case .meals:
@@ -262,6 +263,7 @@ struct FuelSetupSectionFlow: View {
                     defaultValue: 4,
                     range: 1 ... 8,
                     unit: String(localized: "meals"),
+                    singularUnit: String(localized: "meal"),
                     label: String(localized: "Meals a day"),
                     id: "fuelMeals"
                 )
@@ -725,6 +727,7 @@ struct FuelSetupSectionFlow: View {
                 defaultValue: 4,
                 range: 0 ... 7,
                 unit: String(localized: "days"),
+                singularUnit: String(localized: "day"),
                 label: String(localized: "Days you cook"),
                 id: "fuelCookDays"
             )

@@ -154,7 +154,9 @@ enum UsualMeals {
         // Sentence case: "Oats, banana", not "oats, banana".
         let title = names.count <= 2
             ? names.joined(separator: ", ")
-            : String(localized: "\(names[0]), \(names[1]) and \(names.count - 2) more")
+            : names.count == 3
+                ? String(localized: "\(names[0]), \(names[1]) and 1 more")
+                : String(localized: "\(names[0]), \(names[1]) and \(names.count - 2) more")
         return title.prefix(1).uppercased() + title.dropFirst()
     }
 

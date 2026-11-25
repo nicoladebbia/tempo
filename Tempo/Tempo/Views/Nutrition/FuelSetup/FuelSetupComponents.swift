@@ -140,7 +140,7 @@ struct FuelFlowScaffold<Content: View>: View {
                         HapticManager.selection()
                         onBack()
                     } label: {
-                        Text("Back")
+                        Text(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
                             .padding(.horizontal, Tide.s5)
@@ -263,11 +263,17 @@ struct FuelBigStepper: View {
     let range: ClosedRange<Int>
     var step = 1
     var unit: String
+    /// Shown instead of `unit` when the value is 1 ("1 day", "1 giorno").
+    var singularUnit: String?
     var label: String?
     var id: String
 
     @Environment(\.dynamicTypeSize)
     private var typeSize
+
+    private var shownUnit: String {
+        current == 1 ? (singularUnit ?? unit) : unit
+    }
 
     private var current: Int {
         value ?? defaultValue
@@ -311,14 +317,14 @@ struct FuelBigStepper: View {
                 }
                 VStack(spacing: Tide.hair) {
                     TideNumber("\(current)", size: Tide.numeralM)
-                    Text(unit)
+                    Text(shownUnit)
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .lineLimit(1)
                 }
                 .frame(minWidth: Tide.s8 * 2, maxWidth: label == nil ? CGFloat.infinity : nil)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(label.map { "\($0) " } ?? "")\(current) \(unit)")
+                .accessibilityLabel("\(label.map { "\($0) " } ?? "")\(current) \(shownUnit)")
                 .accessibilityIdentifier(id)
                 button("plus", enabled: current + step <= range.upperBound) {
                     value = min(range.upperBound, current + step)

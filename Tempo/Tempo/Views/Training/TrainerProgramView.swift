@@ -643,7 +643,7 @@ struct TrainerProgramView: View {
             Button {
                 pendingActivate = program
             } label: {
-                Text("Run")
+                Text(String(localized: "trainer.past.run", defaultValue: "Run", comment: "Button on a past trainer program: start this program again (not the sport)"))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, Tide.s5)

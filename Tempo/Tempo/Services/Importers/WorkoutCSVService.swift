@@ -588,7 +588,7 @@ enum WorkoutCSVService {
                     let assistedLift = bodyweightLift && isAssistedName(exercise.name)
                     let load = bodyweightLift ? set.addedLoadKg.map { assistedLift ? -$0 : $0 } : set.actualWeight
                     let weight = (load.flatMap { $0 > 0 ? $0 : nil })
-                        .map { WeightFormat.number(kg: $0, unit: unit) } ?? ""
+                        .map { WeightFormat.invariantNumber(kg: $0, unit: unit) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""
                     // §6.4 — a drop step is exported as a set like any other
                     // (it counts toward volume/history), just annotated so

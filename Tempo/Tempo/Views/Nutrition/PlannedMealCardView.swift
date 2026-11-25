@@ -298,6 +298,10 @@ extension PlannedMeal {
         if let type = MealType.allCases.first(where: { $0.englishName.caseInsensitiveCompare(trimmed) == .orderedSame }) {
             return type.displayName
         }
+        // The one entry that ticking supplements adds to the day's totals.
+        if trimmed.caseInsensitiveCompare("Supplements") == .orderedSame {
+            return String(localized: "Supplements")
+        }
         return name
     }
 }

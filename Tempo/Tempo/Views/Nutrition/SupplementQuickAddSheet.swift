@@ -58,7 +58,7 @@ struct SupplementQuickAddSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(step == .picking ? String(localized: "Cancel") : String(localized: "Back")) {
+                    Button(step == .picking ? String(localized: "Cancel") : String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)")) {
                         if step == .picking {
                             dismiss()
                         } else {

@@ -190,7 +190,7 @@ struct LockdownMainView: View {
         let percent = Int((min(max(viewModel.completionPercentage, 0), 1) * 100).rounded())
 
         return RecoveryHero {
-            TideDial(score: percent, caption: String(localized: "Done"), diameter: Tide.dialHero)
+            TideDial(score: percent, caption: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)"), diameter: Tide.dialHero)
                 .explains(Explainer.lockdownProgress.showing(String(localized: "\(percent) percent")))
         } side: {
             HStack(spacing: Tide.s2) {
@@ -418,7 +418,7 @@ struct LockdownMainView: View {
             }
             if !finished.isEmpty {
                 TideSectionLabel(
-                    title: String(localized: "Done"),
+                    title: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)"),
                     trailing: String(localized: "\(finished.count) of \(viewModel.progressItems.count)")
                 )
                 .padding(.top, open.isEmpty ? Tide.s2 : Tide.s1)

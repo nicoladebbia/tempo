@@ -480,7 +480,7 @@ struct WorkoutSummaryView: View {
                 .foregroundStyle(
                     plannedEx.isComplete ? TideTrain.positive : Tide.text3
                 )
-                .accessibilityLabel(plannedEx.isComplete ? String(localized: "Done") : String(localized: "Not finished"))
+                .accessibilityLabel(plannedEx.isComplete ? String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)") : String(localized: "Not finished"))
         }
     }
 

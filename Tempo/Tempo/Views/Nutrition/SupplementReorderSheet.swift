@@ -155,7 +155,7 @@ struct SupplementReorderSheet: View {
                 if let daysLeft {
                     TideNumber(
                         daysLeft <= 0 ? String(localized: "Out") : "~\(daysLeft)",
-                        unit: daysLeft <= 0 ? nil : (daysLeft == 1 ? "day" : "days"),
+                        unit: daysLeft <= 0 ? nil : (daysLeft == 1 ? String(localized: "day") : String(localized: "days")),
                         size: Tide.numeralL, relativeTo: .largeTitle, color: tone
                     )
                 } else {

@@ -259,7 +259,7 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
             // re-restored by the same scheduler hook.
             let scheduler = notifications
             undoEntry = CoachService.UndoEntry(
-                description: String(localized: "Undo move \(pre.mealName)"),
+                description: String(localized: "Undo move \(PlannedMeal.displayName(forMealName: pre.mealName))"),
                 reverseAction: { @MainActor in
                     let row = try? CoachToolHelpers.plannedMeal(id: mealID, in: context)
                     row?.scheduledTime = oldScheduled
@@ -311,7 +311,7 @@ struct CoachToolDispatcherAdapter: CoachToolDispatcher {
             // planned, reminders restored, Dashboard refreshed.
             let env = outcomeEnv?(context) ?? MealOutcomeService.Env(modelContext: context)
             undoEntry = CoachService.UndoEntry(
-                description: String(localized: "Undo skip \(pre.mealName)"),
+                description: String(localized: "Undo skip \(PlannedMeal.displayName(forMealName: pre.mealName))"),
                 reverseAction: { @MainActor in
                     guard oldStatus != .skipped,
                           let row = try? CoachToolHelpers.plannedMeal(id: mealID, in: context),
