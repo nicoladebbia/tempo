@@ -353,6 +353,17 @@ struct FriendController: RouteCollection {
 
         try await friendship.delete(on: req.db)
 
+        // The link may still sit in the chat of the person just removed; opening it would put
+        // them straight back. Killing it means the next "Invite a friend" makes a new one.
+        let live = try await FriendInvite.query(on: req.db)
+            .filter(\.$userID == userID)
+            .filter(\.$revokedAt == nil)
+            .all()
+        for invite in live {
+            invite.revokedAt = Date()
+            try await invite.save(on: req.db)
+        }
+
         return Envelope(data: EmptyResponse(), requestID: req.requestID)
     }
 

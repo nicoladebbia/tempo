@@ -389,7 +389,40 @@ struct ArenaControllerTests {
         }
     }
 
+    @Test func removingAFriendKillsYourLinkSoTheyCannotJustComeBack() async throws {
+        try await withApp { app in
+            let alice = try await makePerson(app, name: "Alice")
+            let bob = try await makePerson(app, name: "Bob")
+            let token = try #require(try await call(app, .POST, "v1/friends/invite", as: alice).object()["token"] as? String)
+            #expect(try await call(app, .POST, "v1/friends/invites/\(token)/accept", as: bob).status == .ok)
+
+            let friendshipID = try #require(try await call(app, .GET, "v1/friends", as: alice).array().first?["friendship_id"] as? String)
+            #expect(try await call(app, .DELETE, "v1/friends/\(friendshipID)", as: alice).status == .ok)
+
+            // The old link in Bob's chat is dead; Alice's next "Invite a friend" is a new one.
+            #expect(try await call(app, .GET, "i/\(token)").status == .gone)
+            #expect(try await call(app, .POST, "v1/friends/invites/\(token)/accept", as: bob).status != .ok)
+            #expect(try await call(app, .GET, "v1/friends", as: alice).array().isEmpty)
+            let fresh = try #require(try await call(app, .POST, "v1/friends/invite", as: alice).object()["token"] as? String)
+            #expect(fresh != token)
+        }
+    }
+
     // MARK: Stats push
+
+    @Test func aDayThatLostItsXPIsCorrectedAndAnEmptyDayMakesNoRow() async throws {
+        try await withApp { app in
+            let alice = try await makePerson(app, name: "Alice")
+            let old = daysFromToday(-30)
+            try await push(app, alice, days: [(old, 80, 1, 10)])
+            // The phone sends the whole window: the day that lost its XP, and an empty day.
+            try await push(app, alice, days: [(old, 0, 0, 0), (daysFromToday(-31), 0, 0, 0), (today(), 20, 0, 0)])
+            let rows = try await ArenaDailyStat.query(on: app.db).filter(\.$userID == alice.id).all()
+            #expect(Set(rows.map(\.day)) == [old, today()])
+            #expect(rows.first(where: { $0.day == old })?.xp == 0)
+            #expect(rows.first(where: { $0.day == old })?.workouts == 0)
+        }
+    }
 
     @Test func pushingADayTwiceReplacesItInsteadOfAddingUp() async throws {
         try await withApp { app in
@@ -656,6 +689,43 @@ struct ArenaControllerTests {
             let people = try #require(detail["participants"] as? [[String: Any]])
             #expect(Set(people.compactMap { $0["display_name"] as? String }) == ["Alice", "Bob"])
             #expect(detail["member_count"] as? Int == 2)
+        }
+    }
+
+    @Test func someoneWhoLeftCannotRejoinAfterBeingRemovedAsAFriend() async throws {
+        try await withApp { app in
+            let alice = try await makePerson(app, name: "Alice")
+            let bob = try await makePerson(app, name: "Bob")
+            try await befriend(alice, bob, app)
+            let id = try #require(try await createChallenge(app, by: alice, invite: [bob]).object()["id"] as? String)
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/join", as: bob).status == .ok)
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/leave", as: bob).status == .ok)
+
+            // Still friends: coming back is fine.
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/join", as: bob).status == .ok)
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/leave", as: bob).status == .ok)
+
+            let friendshipID = try #require(try await call(app, .GET, "v1/friends", as: alice).array().first?["friendship_id"] as? String)
+            #expect(try await call(app, .DELETE, "v1/friends/\(friendshipID)", as: alice).status == .ok)
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/join", as: bob).status == .forbidden)
+        }
+    }
+
+    @Test func aDeletedAccountIsOffTheChallengeBoard() async throws {
+        try await withApp { app in
+            let alice = try await makePerson(app, name: "Alice")
+            let bob = try await makePerson(app, name: "Bob")
+            try await befriend(alice, bob, app)
+            let id = try #require(try await createChallenge(app, by: alice, invite: [bob]).object()["id"] as? String)
+            #expect(try await call(app, .POST, "v1/challenges/\(id)/join", as: bob).status == .ok)
+            let before = try await call(app, .GET, "v1/challenges/\(id)", as: alice).object()
+            #expect((before["participants"] as? [[String: Any]])?.count == 2)
+
+            bob.user.deletedAt = Date()
+            try await bob.user.save(on: app.db)
+            let after = try await call(app, .GET, "v1/challenges/\(id)", as: alice).object()
+            let people = try #require(after["participants"] as? [[String: Any]])
+            #expect(people.compactMap { $0["display_name"] as? String } == ["Alice"])
         }
     }
 

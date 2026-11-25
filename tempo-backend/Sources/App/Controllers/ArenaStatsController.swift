@@ -66,10 +66,29 @@ struct ArenaStatsController: RouteCollection {
                 row.workouts = workouts
                 row.studyMinutes = study
                 try await row.save(on: req.db)
-            } else {
+            } else if xp > 0 || workouts > 0 || study > 0 {
+                // A day with nothing in it and no row on file needs no row: the phone sends
+                // the whole window so that a day that lost its XP is corrected here too.
                 let row = ArenaDailyStat(userID: userID, day: day, xp: xp, workouts: workouts, studyMinutes: study)
-                try await row.save(on: req.db)
-                rows[day] = row
+                do {
+                    try await row.save(on: req.db)
+                    rows[day] = row
+                } catch {
+                    // A second push from the same phone inserted this day first (unique user + day):
+                    // its row is the one to update.
+                    guard let winner = try await ArenaDailyStat.query(on: req.db)
+                        .filter(\.$userID == userID)
+                        .filter(\.$day == day)
+                        .first()
+                    else {
+                        throw error
+                    }
+                    winner.xp = xp
+                    winner.workouts = workouts
+                    winner.studyMinutes = study
+                    try await winner.save(on: req.db)
+                    rows[day] = winner
+                }
             }
         }
 
@@ -89,8 +108,8 @@ struct ArenaStatsController: RouteCollection {
 
 // MARK: - DTOs
 
-// Request bodies: decoded by the global `.convertFromSnakeCase` decoder, so plain
-// camelCase properties and no CodingKeys.
+/// Request bodies: decoded by the global `.convertFromSnakeCase` decoder, so plain
+/// camelCase properties and no CodingKeys.
 struct ArenaStatsDayDTO: Content {
     /// "YYYY-MM-DD" in the user's own calendar.
     let day: String

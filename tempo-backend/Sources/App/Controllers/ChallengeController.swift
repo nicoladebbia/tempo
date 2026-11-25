@@ -185,6 +185,13 @@ struct ChallengeController: RouteCollection {
             guard challenge.members.filter({ $0.status == "joined" }).count < challenge.maxParticipants else {
                 throw Abort(.conflict, reason: "Challenge full.")
             }
+            // Someone who left or said no comes back only as a friend of the creator;
+            // an invitation stands on its own.
+            if existing.status != "invited", existing.userID != challenge.creatorID {
+                guard try await ArenaService.areFriends(userID, challenge.creatorID, on: req.db) else {
+                    throw Abort(.forbidden, reason: "Challenge access denied (private challenge, not invited).")
+                }
+            }
             // Invited (or rejoining after leaving): in.
             existing.status = "joined"
             try await existing.save(on: req.db)
@@ -268,11 +275,15 @@ struct ChallengeController: RouteCollection {
     ) async throws -> ChallengeDetailDTO {
         let startDay = ArenaService.dayString(challenge.startDate)
         let endDay = ArenaService.dayString(challenge.endDate)
-        let shown = challenge.members.filter { $0.status == "joined" || $0.status == "invited" }
-        let memberIDs = shown.map(\.userID)
+        let invitedOrJoined = challenge.members.filter { $0.status == "joined" || $0.status == "invited" }
 
-        let users = try await User.query(on: db).filter(\.$id ~~ memberIDs).all()
+        // A deleted account is off the board at once, as it is off friends lists.
+        let users = try await User.query(on: db)
+            .filter(\.$id ~~ invitedOrJoined.map(\.userID))
+            .filter(\.$deletedAt == nil)
+            .all()
         let usersByID = Dictionary(uniqueKeysWithValues: users.compactMap { user in user.id.map { ($0, user) } })
+        let shown = invitedOrJoined.filter { usersByID[$0.userID] != nil }
         let scores = try await ArenaService.totals(
             userIDs: shown.filter { $0.status == "joined" }.map(\.userID),
             from: startDay,
