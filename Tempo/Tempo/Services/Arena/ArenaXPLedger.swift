@@ -324,7 +324,10 @@ enum ArenaXPLedger {
             }
         }
         for (key, want) in desired where !matched.contains(key) {
-            context.insert(XPEvent(date: want.day, source: want.source, amount: want.amount, description: want.text))
+            let event = XPEvent(date: want.day, source: want.source, amount: want.amount, description: want.text)
+            // XPEvent cuts its own day with the device calendar; the ledger's day is the one that counts.
+            event.date = want.day
+            context.insert(event)
         }
 
         // Totals: what the rows now say.

@@ -204,23 +204,43 @@ final class ArenaXPLedgerTests: XCTestCase {
 
     // MARK: - Achievements
 
-    func testFirstWorkoutUnlocksIronNoviceAndPaysItsXPOnce() throws {
+    func testTenthWorkoutUnlocksIronNoviceAndPaysItsXPOnce() throws {
         try AchievementLibrary.loadIfNeeded(context: context)
-        _ = finishedWorkout(on: day(0))
+        for offset in -9 ... 0 {
+            _ = finishedWorkout(on: day(offset))
+        }
         try context.save()
-        let first = sync()
 
         let novice = try XCTUnwrap(
-            try (context.fetch(FetchDescriptor<Achievement>())).first { $0.badgeID == "iron_novice" }
+            try context.fetch(FetchDescriptor<Achievement>()).first { $0.badgeID == "iron_novice" }
         )
+        XCTAssertFalse(novice.isEarned)
+        let first = sync()
         XCTAssertTrue(novice.isEarned)
         XCTAssertTrue(first.newlyEarned.contains(novice.name))
-        let achievementRows = xpRows().filter { $0.source == .achievement }
-        XCTAssertEqual(achievementRows.count, 1)
+        let reward = xpRows().filter { $0.source == .achievement }.reduce(0) { $0 + $1.amount }
+        // Ten days in a row also earn the badges that count those days; every unlocked badge pays once.
+        let earned = try context.fetch(FetchDescriptor<Achievement>()).filter(\.isEarned)
+        XCTAssertGreaterThanOrEqual(earned.count, 1)
+        XCTAssertEqual(reward, earned.reduce(0) { $0 + $1.effectiveXPReward })
 
         let again = sync()
         XCTAssertEqual(again.totalXP, first.totalXP, "the reward is not paid twice")
-        XCTAssertTrue(again.newlyEarned.isEmpty || again.newlyEarned == first.newlyEarned)
+        XCTAssertTrue(again.newlyEarned.isEmpty)
+    }
+
+    func testNineWorkoutsAreNotEnough() throws {
+        try AchievementLibrary.loadIfNeeded(context: context)
+        for offset in -8 ... 0 {
+            _ = finishedWorkout(on: day(offset))
+        }
+        try context.save()
+        _ = sync()
+        let novice = try XCTUnwrap(
+            try context.fetch(FetchDescriptor<Achievement>()).first { $0.badgeID == "iron_novice" }
+        )
+        XCTAssertFalse(novice.isEarned)
+        XCTAssertEqual(novice.progressValue, 9)
     }
 
     func testUntrackedAchievementsStayLocked() throws {
