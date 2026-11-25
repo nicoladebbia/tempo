@@ -239,7 +239,7 @@ struct StreakCalendarView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text("\(remaining) freezes remaining")
+                    Text(remaining == 1 ? "1 freeze remaining" : "\(remaining) freezes remaining")
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                     Text("Freezes protect your streak on missed days. Resets monthly.")

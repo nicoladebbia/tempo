@@ -111,7 +111,7 @@ extension ShareCardContent {
     static func streak(days: Int, longest: Int? = nil, level: Int? = nil, date: Date = Date()) -> ShareCardContent {
         var stats: [Stat] = []
         if let longest, longest > days {
-            stats.append(Stat(label: "Best run", value: "\(longest) days"))
+            stats.append(Stat(label: "Best run", value: longest == 1 ? "1 day" : "\(longest) days"))
         }
         if let level {
             stats.append(Stat(label: "Level", value: "\(level)"))

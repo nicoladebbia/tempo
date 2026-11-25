@@ -60,6 +60,8 @@ struct DashboardSettingsView: View {
     @State private var deleteAccountError: String?
     /// The server's answer about the plan, shared with the Subscription page.
     @State private var plan = PlanModel()
+    /// Confirms "Show tips again".
+    @State private var tipsToast: ToastData?
 
     var body: some View {
         TideSettingsPage {
@@ -190,6 +192,8 @@ struct DashboardSettingsView: View {
                 }
                 .buttonStyle(.tideSettingsRow)
 
+                ShowTipsAgainRow(toast: $tipsToast)
+
                 if let supportURL = URL(string: "https://tempo.app/support") {
                     Link(destination: supportURL) {
                         SettingsActionRow(icon: "questionmark.circle", title: "Support", tint: Tide.text)
@@ -229,6 +233,7 @@ struct DashboardSettingsView: View {
                 }
             #endif
         }
+        .tempoToast($tipsToast)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

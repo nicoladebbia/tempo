@@ -101,7 +101,12 @@ enum PreMatchWeighInScheduler {
             footballBlocks: footballBlocks(in: modelContext, from: now, to: horizon)
         )
         let lastWeighIn = await latestWeighIn(healthKit: healthKit, store: store, now: now)
+        // Quiet hours apply here like everywhere else: a weigh-in prompt can wait for the morning.
+        let policy = NotificationPolicyStore.current
         for reminder in PreMatchWeighInPlan.reminders(kickoffs: kickoffs, now: now, lastWeighIn: lastWeighIn) {
+            guard policy.decide(category: CoachNotifications.preCategoryID, fireDate: reminder.fireDate).isAllowed else {
+                continue
+            }
             let content = UNMutableNotificationContent()
             content.title = "Weigh yourself now"
             content.body = "Before you drink. It takes a minute and makes your recovery numbers real."

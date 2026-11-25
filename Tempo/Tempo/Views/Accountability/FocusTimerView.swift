@@ -917,7 +917,7 @@ struct FocusTimerView: View {
                             .multilineTextAlignment(.center)
                             .arenaReveal(5)
 
-                        Text("\(totalSessions) sessions of focused study")
+                        Text(totalSessions == 1 ? "1 session of focused study" : "\(totalSessions) sessions of focused study")
                             .font(Tide.body)
                             .foregroundStyle(Tide.text2)
                             .multilineTextAlignment(.center)
