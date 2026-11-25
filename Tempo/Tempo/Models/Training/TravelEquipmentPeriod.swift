@@ -25,8 +25,8 @@ enum TravelEquipmentScope: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .today: "Today only"
-        case .thisWeek: "This week"
+        case .today: String(localized: "Today only")
+        case .thisWeek: String(localized: "This week")
         }
     }
 }

@@ -149,8 +149,8 @@ struct WorkoutHistoryView: View {
                 VStack(spacing: Tide.s3) {
                     TrainEmptyCard(
                         systemImage: "clock.arrow.circlepath",
-                        title: "No workouts yet",
-                        message: "Complete your first workout to see your history here, or bring in the history you already have."
+                        title: String(localized: "No workouts yet"),
+                        message: String(localized: "Complete your first workout to see your history here, or bring in the history you already have.")
                     )
                     Button {
                         showCSVImporter = true
@@ -256,7 +256,7 @@ struct WorkoutHistoryView: View {
         ) {
             // The athlete's own unit first — the likeliest answer.
             ForEach([weightUnit, weightUnit == .kg ? WeightUnit.lbs : .kg], id: \.self) { unit in
-                Button(unit == .kg ? "Kilograms (kg)" : "Pounds (lbs)") {
+                Button(unit == .kg ? String(localized: "Kilograms (kg)") : String(localized: "Pounds (lbs)")) {
                     if let file = pendingUnitChoice {
                         pendingUnitChoice = nil
                         startImport(file, unit: unit)
@@ -281,7 +281,7 @@ struct WorkoutHistoryView: View {
                 }
             )
         ) {
-            Button(resultOffersUndo ? "Keep" : "OK") { csvResultMessage = nil }
+            Button(resultOffersUndo ? String(localized: "Keep") : String(localized: "OK")) { csvResultMessage = nil }
             if resultOffersUndo, undoableImportBatch != nil {
                 Button("Undo import", role: .destructive) { undoLastImport() }
             }
@@ -445,7 +445,7 @@ struct WorkoutHistoryView: View {
         hiddenWorkoutID = id
         swipedWorkoutID = nil
         pendingDelete = nil
-        deleteToast = ToastData(message: "Deleted \(name) workout", style: .success, actionTitle: "Undo") {
+        deleteToast = ToastData(message: String(localized: "Deleted \(name) workout"), style: .success, actionTitle: String(localized: "Undo")) {
             if pendingPurge.undo() != nil {
                 withAnimation(Tide.snap) { hiddenWorkoutID = nil }
             }
@@ -486,7 +486,7 @@ struct WorkoutHistoryView: View {
     private func importCSV(_ result: Result<URL, Error>) {
         switch result {
         case let .success(url):
-            importStage = "Reading file…"
+            importStage = String(localized: "Reading file…")
             importProgress = nil
             // Reading + parsing a multi-year export is heavy: off the main actor.
             Task {
@@ -523,7 +523,7 @@ struct WorkoutHistoryView: View {
 
     private struct CSVReadError: LocalizedError {
         var errorDescription: String? {
-            "Couldn't read that file."
+            String(localized: "Couldn't read that file.")
         }
     }
 
@@ -533,7 +533,7 @@ struct WorkoutHistoryView: View {
 
     @MainActor
     private func runImport(_ file: WorkoutCSVService.ParsedFile, unit: WeightUnit) async {
-        importStage = "Importing workouts…"
+        importStage = String(localized: "Importing workouts…")
         importProgress = 0
         defer {
             importStage = nil
@@ -594,10 +594,10 @@ struct WorkoutHistoryView: View {
         do {
             let removed = try WorkoutCSVService.undoImport(batchID: batch, modelContext: modelContext)
             lastImportBatchID = ""
-            csvResultMessage = "Import undone — \(TrainCount.text(removed, "workout")) removed."
+            csvResultMessage = String(localized: "Import undone — \(removed) workouts removed.")
             HapticManager.notification(.success)
         } catch {
-            csvResultMessage = "Couldn't undo the import: \(error.localizedDescription)"
+            csvResultMessage = String(localized: "Couldn't undo the import: \(error.localizedDescription)")
         }
     }
 
@@ -609,7 +609,7 @@ struct WorkoutHistoryView: View {
             try csv.write(to: url, atomically: true, encoding: .utf8)
             exportFileURL = url
         } catch {
-            csvResultMessage = "Export failed: \(error.localizedDescription)"
+            csvResultMessage = String(localized: "Export failed: \(error.localizedDescription)")
         }
     }
 
@@ -749,7 +749,7 @@ struct WorkoutHistoryView: View {
             if exerciseCount > 0 {
                 historyStat(
                     "figure.strengthtraining.traditional",
-                    "\(exerciseCount) \(exerciseCount == 1 ? "exercise" : "exercises")"
+                    String(localized: "\(exerciseCount) exercises")
                 )
             }
             if volume > 0 {
@@ -757,7 +757,7 @@ struct WorkoutHistoryView: View {
             }
             // Warm-up completed marker
             if workout.warmupCompleted {
-                historyStat("checkmark.seal.fill", "Warm-up", color: TideTrain.positive)
+                historyStat("checkmark.seal.fill", String(localized: "Warm-up"), color: TideTrain.positive)
             }
         }
         return ViewThatFits(in: .horizontal) {
@@ -783,7 +783,7 @@ struct WorkoutHistoryView: View {
         if let seconds = workout.actualDurationSeconds {
             return WorkoutPlan.durationLabel(seconds: seconds)
         }
-        return workout.durationMinutes.map { "\($0) min" }
+        return workout.durationMinutes.map { String(localized: "\($0) min") }
     }
 
     /// Working sets always (logged or not), warm-ups only when actually done.
@@ -795,16 +795,16 @@ struct WorkoutHistoryView: View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(spacing: Tide.s4) {
                 if let strain = session.strain {
-                    activityMetric(String(format: "%.1f", strain), "Strain")
+                    activityMetric(strain.tempoDecimal(1), String(localized: "Strain"))
                 }
                 if let mins = session.durationMinutes {
-                    activityMetric("\(Int(mins))m", "Duration")
+                    activityMetric(String(localized: "\(Int(mins))m"), String(localized: "Duration"))
                 }
                 if let hr = session.averageHeartRate {
-                    activityMetric("\(Int(hr))", "Avg HR")
+                    activityMetric("\(Int(hr))", String(localized: "Avg HR"))
                 }
                 if let cal = session.caloriesBurned {
-                    activityMetric("\(Int(cal))", "Cal")
+                    activityMetric("\(Int(cal))", String(localized: "Cal"))
                 }
             }
 
@@ -816,7 +816,7 @@ struct WorkoutHistoryView: View {
                     Image(systemName: "drop.fill")
                         .font(Tide.label)
                         .foregroundStyle(Tide.water)
-                    Text(String(format: "~%.1f–%.1f L lost", range.lowerBound, range.upperBound))
+                    Text(String(localized: "~\(range.lowerBound.tempoDecimal(1))–\(range.upperBound.tempoDecimal(1)) L lost"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
@@ -871,7 +871,7 @@ struct WorkoutHistoryView: View {
                 ForEach(grouped.keys.sorted(), id: \.self) { key in
                     let day = programDay(forSessionKey: key)
                     VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(day?.title ?? day?.workoutType.displayName ?? "Conditioning").tideLabel()
+                        Text(day?.title ?? day?.workoutType.displayName ?? String(localized: "Conditioning")).tideLabel()
                         ForEach((grouped[key] ?? []).sorted { $0.createdAt < $1.createdAt }, id: \.id) { result in
                             conditioningResultRow(result, day: day)
                         }
@@ -891,7 +891,7 @@ struct WorkoutHistoryView: View {
                 .foregroundStyle(conditioningResultColor(result))
                 .padding(.top, Tide.hair)
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(block?.name ?? "Block")
+                Text(block?.name ?? String(localized: "Block"))
                     .font(Tide.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(Tide.text)
@@ -928,24 +928,24 @@ struct WorkoutHistoryView: View {
     private func conditioningResultSummary(_ result: ConditioningBlockResult) -> String {
         var parts: [String] = []
         if let times = result.repTimesSeconds, !times.isEmpty {
-            parts.append("\(times.count) rep\(times.count == 1 ? "" : "s")")
+            parts.append(String(localized: "\(times.count) reps"))
             if let best = ConditioningTargetEvaluator.bestTime(times) {
-                parts.append("best \(formatConditioningSeconds(best))")
+                parts.append(String(localized: "best \(formatConditioningSeconds(best))"))
             }
         }
         if let duration = result.durationSeconds {
             parts.append("\(Int((duration / 60).rounded()))'")
         }
         if let distance = result.distanceMeters {
-            parts.append(String(format: "%.1f km", distance / 1000))
+            parts.append(String(localized: "\((distance / 1000).tempoDecimal(1)) km"))
         }
         if let rounds = result.roundsCompleted {
             parts.append(TrainCount.text(rounds, "round"))
         }
         if let rpe = result.rpe {
-            parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")
+            parts.append(String(localized: "RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))"))
         }
-        return parts.isEmpty ? "Logged" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Logged") : parts.joined(separator: " · ")
     }
 
     private func formatConditioningSeconds(_ seconds: Double) -> String {
@@ -998,7 +998,7 @@ struct WorkoutHistoryView: View {
                             .clipShape(RoundedRectangle(cornerRadius: Tide.s1, style: .continuous))
                             // §13 — every warmup on a trainer day is one
                             // Tempo added; the trainer never wrote it.
-                            Text(plannedEx.workoutPlan?.programSessionKey != nil ? "Tempo warm-up" : "Warm-up")
+                            Text(plannedEx.workoutPlan?.programSessionKey != nil ? String(localized: "Tempo warm-up") : String(localized: "Warm-up"))
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text3)
                         } else if set.completed, let weight = set.actualWeight, let reps = set.actualReps {

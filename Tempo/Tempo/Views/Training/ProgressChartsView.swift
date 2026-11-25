@@ -122,8 +122,8 @@ struct ProgressChartsView: View {
         VStack(spacing: Tide.s3) {
             TrainEmptyCard(
                 systemImage: "chart.line.uptrend.xyaxis",
-                title: "No progress yet",
-                message: "Complete your first workout to start tracking progress."
+                title: String(localized: "No progress yet"),
+                message: String(localized: "Complete your first workout to start tracking progress.")
             )
             Button {
                 withAnimation(Tide.snap) {
@@ -286,13 +286,13 @@ struct ProgressChartsView: View {
                     heroFigure(current)
                     Spacer(minLength: Tide.s2)
                     if let delta {
-                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
+                        TrainPlanDelta(fraction: delta, suffix: String(localized: "vs last week"))
                     }
                 }
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     heroFigure(current)
                     if let delta {
-                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
+                        TrainPlanDelta(fraction: delta, suffix: String(localized: "vs last week"))
                     }
                 }
             }
@@ -329,12 +329,12 @@ struct ProgressChartsView: View {
     @ViewBuilder
     private var streakTags: some View {
         TrainTag(
-            text: "\(weekStreak)-week streak",
+            text: String(localized: "\(weekStreak)-week streak"),
             systemImage: "flame.fill",
             color: weekStreak > 0 ? TideTrain.caution : Tide.text3
         )
         TrainTag(
-            text: "\(TrainCount.text(prCount30d, "PR")) this month",
+            text: String(localized: "\(prCount30d) PRs this month"),
             systemImage: "star.fill",
             color: prCount30d > 0 ? Color.accentColor : Tide.text3
         )
@@ -347,12 +347,12 @@ struct ProgressChartsView: View {
             .filter { $0.status == .completed }
             .reduce(0) { $0 + $1.completedSets }
 
-        return TrainPlanCard(label: "All-time") {
+        return TrainPlanCard(label: String(localized: "All-time")) {
             TrainStatGrid {
                 TrainStat(value: "\(totalWorkouts)", label: TrainCount.noun(totalWorkouts, "Workout"))
                 TrainStat(
                     value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit),
-                    label: "Volume (\(weightUnit.abbreviation))"
+                    label: String(localized: "Volume (\(weightUnit.abbreviation))")
                 )
                 TrainStat(value: "\(totalSets)", label: TrainCount.noun(totalSets, "Set"))
             }
@@ -368,11 +368,11 @@ struct ProgressChartsView: View {
             : Double(recentWeeks.reduce(0) { $0 + $1.count }) / Double(recentWeeks.count)
 
         return TrainPlanCard(
-            label: "Workout frequency",
-            trailing: average > 0 ? String(format: "avg %.1f/wk", average) : nil
+            label: String(localized: "Workout frequency"),
+            trailing: average > 0 ? String(localized: "avg \(average.tempoDecimal(1))/wk") : nil
         ) {
             if recentWeeks.isEmpty {
-                emptyLine("No workouts yet", height: TideTrain.barsHeight)
+                emptyLine(String(localized: "No workouts yet"), height: TideTrain.barsHeight)
             } else {
                 TrainPlanBarChart(
                     bars: recentWeeks.map {
@@ -388,9 +388,9 @@ struct ProgressChartsView: View {
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
-        return TrainPlanCard(label: "Muscle group distribution", trailing: "30 days") {
+        return TrainPlanCard(label: String(localized: "Muscle group distribution"), trailing: String(localized: "30 days")) {
             if distribution.isEmpty {
-                emptyLine("No data yet", height: TideTrain.barsHeight)
+                emptyLine(String(localized: "No data yet"), height: TideTrain.barsHeight)
             } else {
                 ForEach(distribution, id: \.group) { item in
                     TrainPlanMeterRow(
@@ -421,7 +421,7 @@ struct ProgressChartsView: View {
         let exercisesWithHistory = exercises.filter { ($0.history?.isEmpty ?? true) == false }
         if !exercisesWithHistory.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "All lifts", trailing: TrainCount.text(exercisesWithHistory.count, "lift"))
+                TideSectionLabel(title: String(localized: "All lifts"), trailing: TrainCount.text(exercisesWithHistory.count, "lift"))
                     .padding(.top, Tide.s2)
                 LazyVStack(spacing: Tide.s2) {
                     ForEach(exercisesWithHistory, id: \.id) { exercise in
@@ -484,9 +484,9 @@ struct ProgressChartsView: View {
     /// Volume per muscle group over the last 30 days (the distribution's own window).
     private var muscleVolumeCard: some View {
         let distribution = muscleGroupDistribution
-        return TrainPlanCard(label: "Volume by muscle group", trailing: "30 days") {
+        return TrainPlanCard(label: String(localized: "Volume by muscle group"), trailing: String(localized: "30 days")) {
             if distribution.isEmpty {
-                emptyLine("No data yet", height: TideTrain.barsHeight)
+                emptyLine(String(localized: "No data yet"), height: TideTrain.barsHeight)
             } else {
                 ForEach(distribution, id: \.group) { item in
                     TrainPlanMeterRow(
@@ -508,7 +508,7 @@ struct ProgressChartsView: View {
         let ratio = pullVolume > 0 ? pushVolume / pullVolume : 0
         let isBalanced = ratio >= 0.8 && ratio <= 1.3
 
-        return TrainPlanCard(label: "Balance analysis") {
+        return TrainPlanCard(label: String(localized: "Balance analysis")) {
             HStack(spacing: Tide.s3) {
                 TideIconTile(
                     systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
@@ -520,7 +520,7 @@ struct ProgressChartsView: View {
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
 
-                    Text(ratio > 0 ? String(format: "%.1f:1 (ideal: 1:1)", ratio) : "Not enough data")
+                    Text(ratio > 0 ? String(localized: "\(ratio.tempoDecimal(1)):1 (ideal: 1:1)") : String(localized: "Not enough data"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -536,18 +536,18 @@ struct ProgressChartsView: View {
     /// gym workout. Shown on Overview only when there is at least one.
     private var otherTrainingCards: some View {
         VStack(spacing: Tide.s4) {
-            TrainPlanCard(label: "Football, runs and conditioning") {
+            TrainPlanCard(label: String(localized: "Football, runs and conditioning")) {
                 TrainStatGrid {
                     TrainStat(value: "\(activitySessions.count)", label: TrainCount.noun(activitySessions.count, "Session"))
-                    TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
+                    TrainStat(value: String(localized: "\(Int(totalActiveMinutes))m"), label: String(localized: "Active"))
                     TrainStat(
-                        value: String(format: "%.0f", totalActivityStrain), label: "Total strain",
+                        value: totalActivityStrain.tempoDecimal(0), label: String(localized: "Total strain"),
                         explainer: TrainExplainers.strain
                     )
                 }
             }
 
-            TrainPlanCard(label: "Recent sessions") {
+            TrainPlanCard(label: String(localized: "Recent sessions")) {
                 let recent = Array(activitySessions.prefix(20))
                 ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
                     if index > 0 {
@@ -573,7 +573,7 @@ struct ProgressChartsView: View {
         }
         let figures = VStack(alignment: .trailing, spacing: Tide.hair) {
             if let strain = session.strain {
-                Text(String(format: "%.1f strain", strain))
+                Text(String(localized: "\(strain.tempoDecimal(1)) strain"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
@@ -629,7 +629,7 @@ struct ProgressChartsView: View {
             let count = workoutPlans.count(where: {
                 $0.status == .completed && $0.date >= weekStart && $0.date < weekEnd
             })
-            return WeekCount(weekLabel: "W\(weeks - weekOffset)", count: count)
+            return WeekCount(weekLabel: String(localized: "W\(weeks - weekOffset)"), count: count)
         }
     }
 

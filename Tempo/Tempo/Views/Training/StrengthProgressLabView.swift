@@ -67,7 +67,7 @@ struct StrengthProgressLabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             if rankedLifts.isEmpty {
-                TrainEmptyCard(systemImage: "chart.xyaxis.line", title: "Log workouts to see your lifts")
+                TrainEmptyCard(systemImage: "chart.xyaxis.line", title: String(localized: "Log workouts to see your lifts"))
             } else {
                 liftChips
                 controls
@@ -130,7 +130,7 @@ struct StrengthProgressLabView: View {
             }
         } label: {
             Label(
-                compareLift.map { "vs \($0.name)" } ?? "Compare",
+                compareLift.map { String(localized: "vs \($0.name)") } ?? String(localized: "Compare"),
                 systemImage: "arrow.left.arrow.right"
             )
             .font(Tide.bodyStrong)
@@ -244,7 +244,7 @@ struct StrengthProgressLabView: View {
         let primary = points(for: primaryLift)
         let lit = scrubDate.flatMap { ProgressLabMath.nearest(to: $0, in: primary) }?.date
 
-        return TrainPlanCard(label: "Session volume") {
+        return TrainPlanCard(label: String(localized: "Session volume")) {
             if primary.isEmpty {
                 Text("Nothing in this range.")
                     .font(Tide.caption)

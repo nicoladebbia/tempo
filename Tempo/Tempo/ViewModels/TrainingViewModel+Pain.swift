@@ -105,7 +105,7 @@ extension TrainingViewModel {
             }
             warmup.targetWeight = WeightConverter.loadableKg(base * factor, equipment: exercise.equipment, unit: unit)
         }
-        plannedExercise.loadAdjustmentNote = "Pain note — reduced 20%"
+        plannedExercise.loadAdjustmentNote = "Pain note — reduced 20%" // stored English; shown via displayLoadAdjustmentNote
         plannedExercise.painLoadReduced = true
     }
 
@@ -226,7 +226,7 @@ extension TrainingViewModel {
         plannedExercise?.painSkipped = true
         plan.status = .skipped
         plan.skipReason = .floorForced
-        saveGuarded(modelContext, operation: "pain-ended workout")
+        saveGuarded(modelContext, operation: String(localized: "pain-ended workout"))
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 }

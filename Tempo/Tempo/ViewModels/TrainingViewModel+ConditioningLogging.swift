@@ -154,7 +154,7 @@ extension TrainingViewModel {
             source: source
         )
         modelContext.insert(result)
-        saveGuarded(modelContext, operation: "conditioning block result")
+        saveGuarded(modelContext, operation: String(localized: "conditioning block result"))
 
         // trainer-feedback-tests — announce the new timed baseline, same
         // convention as a strength test's "New max" message. Either

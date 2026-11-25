@@ -59,17 +59,17 @@ enum PRDisplay {
     static func subtitle(_ pr: PersonalRecord) -> String {
         switch pr.type {
         case .oneRepMax:
-            "New estimated 1RM"
+            String(localized: "New estimated 1RM")
         case .repMax:
             if let reps = repsFromContext(pr.context) {
-                "Heaviest weight · \(reps) rep\(reps == "1" ? "" : "s")"
+                reps == "1" ? String(localized: "Heaviest weight · \(reps) rep") : String(localized: "Heaviest weight · \(reps) reps")
             } else {
-                "Heaviest weight"
+                String(localized: "Heaviest weight")
             }
         case .volume:
-            "New volume PR"
+            String(localized: "New volume PR")
         case .mostReps:
-            "Most reps in a set"
+            String(localized: "Most reps in a set")
         }
     }
 

@@ -101,7 +101,7 @@ struct WorkoutSummaryView: View {
 
                 // Warm-up marker (the guided mobility block logs no sets).
                 if viewModel.todayPlan?.warmupCompleted == true {
-                    TrainTag(text: "Warm-up completed", systemImage: "checkmark.seal.fill", color: TideTrain.positive)
+                    TrainTag(text: String(localized: "Warm-up completed"), systemImage: "checkmark.seal.fill", color: TideTrain.positive)
                         .frame(maxWidth: .infinity)
                 }
 
@@ -179,7 +179,7 @@ struct WorkoutSummaryView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sets done")
             .accessibilityValue("\(Int((completionFraction * 100).rounded())) percent")
-            .explains(TrainExplainers.setsDone.showing("\(Int((completionFraction * 100).rounded())) percent"))
+            .explains(TrainExplainers.setsDone.showing(String(localized: "\(Int((completionFraction * 100).rounded())) percent")))
             .onAppear {
                 if reduceMotion {
                     ringProgress = completionFraction
@@ -219,7 +219,7 @@ struct WorkoutSummaryView: View {
                     .foregroundStyle(TideTrain.record) // gold
                     .accessibilityHidden(true)
 
-                Text("\(viewModel.detectedPRs.count) Personal Record\(viewModel.detectedPRs.count > 1 ? "s" : "")!")
+                Text(String(localized: "\(viewModel.detectedPRs.count) Personal Records!"))
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                 Spacer(minLength: 0)
@@ -233,7 +233,7 @@ struct WorkoutSummaryView: View {
                 HStack(spacing: Tide.s3) {
                     HStack(spacing: Tide.s3) {
                         VStack(alignment: .leading, spacing: Tide.hair) {
-                            Text(pr.exercise?.name ?? "Exercise")
+                            Text(pr.exercise?.name ?? String(localized: "Exercise"))
                                 .font(Tide.bodyStrong)
                                 .foregroundStyle(Tide.text)
 
@@ -309,16 +309,16 @@ struct WorkoutSummaryView: View {
         )
         return VStack(alignment: .leading, spacing: Tide.s4) {
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
-                TrainStat(value: viewModel.formattedElapsedTime, label: "Duration", size: Tide.numeralM)
+                TrainStat(value: viewModel.formattedElapsedTime, label: String(localized: "Duration"), size: Tide.numeralM)
                 TrainStat(
-                    value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM,
+                    value: viewModel.formattedVolume, label: String(localized: "Volume"), size: Tide.numeralM,
                     explainer: TrainExplainers.volume
                 )
             }
             TrainSessionRule()
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
-                TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
-                TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
+                TrainStat(value: "\(viewModel.completedSets)", label: String(localized: "Sets"))
+                TrainStat(value: "\(viewModel.performedExercises)", label: String(localized: "Exercises"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -331,7 +331,7 @@ struct WorkoutSummaryView: View {
         Button {
             ShareCard.present(
                 TrainShare.workoutCard(
-                    title: viewModel.todayPlan.map { "\($0.type.displayName) day" } ?? "Workout",
+                    title: viewModel.todayPlan.map { String(localized: "\($0.type.displayName) day") } ?? String(localized: "Workout"),
                     elapsedSeconds: viewModel.elapsedSeconds,
                     exercises: viewModel.performedExercises,
                     sets: viewModel.completedSets,
@@ -371,7 +371,7 @@ struct WorkoutSummaryView: View {
     private var trainerAdjustmentsSection: some View {
         if !trainerAdjustedExercises.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Trainer adjustments")
+                TideSectionLabel(title: String(localized: "Trainer adjustments"))
 
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(Array(trainerAdjustedExercises.enumerated()), id: \.element.id) { index, plannedEx in
@@ -385,8 +385,8 @@ struct WorkoutSummaryView: View {
                                     .foregroundStyle(Tide.text)
                                 Text(
                                     plannedEx.trainerOverrideApplied
-                                        ? "Used the trainer's own weight"
-                                        : (plannedEx.loadAdjustmentNote ?? "Adjusted")
+                                        ? String(localized: "Used the trainer's own weight")
+                                        : (plannedEx.displayLoadAdjustmentNote ?? String(localized: "Adjusted"))
                                 )
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
@@ -408,7 +408,7 @@ struct WorkoutSummaryView: View {
 
     private var exerciseSummary: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Exercise summary")
+            TideSectionLabel(title: String(localized: "Exercise summary"))
 
             if let plan = viewModel.todayPlan {
                 VStack(alignment: .leading, spacing: Tide.s3) {
@@ -431,7 +431,7 @@ struct WorkoutSummaryView: View {
         let working = plannedEx.orderedSets.filter { !$0.isWarmup }
         return row {
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(plannedEx.exercise?.name ?? "Exercise")
+                Text(plannedEx.exercise?.name ?? String(localized: "Exercise"))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
@@ -480,7 +480,7 @@ struct WorkoutSummaryView: View {
                 .foregroundStyle(
                     plannedEx.isComplete ? TideTrain.positive : Tide.text3
                 )
-                .accessibilityLabel(plannedEx.isComplete ? "Done" : "Not finished")
+                .accessibilityLabel(plannedEx.isComplete ? String(localized: "Done") : String(localized: "Not finished"))
         }
     }
 

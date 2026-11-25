@@ -172,9 +172,9 @@ struct PainReportSheet: View {
 
     private var tierLabel: String {
         switch tier {
-        case .mild: "Mild"
-        case .moderate: "Moderate"
-        case .severe: "Severe"
+        case .mild: String(localized: "Mild")
+        case .moderate: String(localized: "Moderate")
+        case .severe: String(localized: "Severe")
         }
     }
 
@@ -187,7 +187,7 @@ struct PainReportSheet: View {
     }
 
     private var disclaimer: String {
-        "Tempo isn't a medical service and this isn't a diagnosis. For anything that doesn't settle, see a doctor or physio."
+        String(localized: "Tempo isn't a medical service and this isn't a diagnosis. For anything that doesn't settle, see a doctor or physio.")
     }
 
     private func submit() {
@@ -221,8 +221,8 @@ struct PainReportSheet: View {
     private var mildOutcome: some View {
         outcomeShell(
             icon: "checkmark.circle.fill", color: TideTrain.positive,
-            title: "Load reduced 20%",
-            message: "This exercise's remaining sets today are lighter. Stop again if it doesn't ease up."
+            title: String(localized: "Load reduced 20%"),
+            message: String(localized: "This exercise's remaining sets today are lighter. Stop again if it doesn't ease up.")
         ) {
             doneButton
         }
@@ -231,8 +231,8 @@ struct PainReportSheet: View {
     private func moderateOutcome(_ report: PainReport) -> some View {
         outcomeShell(
             icon: "arrow.triangle.2.circlepath", color: TideTrain.caution,
-            title: "Swap it or skip it",
-            message: "Moderate pain — pick a pain-free alternative for the same muscle, or skip this exercise for today."
+            title: String(localized: "Swap it or skip it"),
+            message: String(localized: "Moderate pain — pick a pain-free alternative for the same muscle, or skip this exercise for today.")
         ) {
             VStack(spacing: Tide.s2) {
                 if let message = swapFailedMessage {
@@ -247,7 +247,7 @@ struct PainReportSheet: View {
                             if viewModel.applyPainSwap(report, plannedExercise: plannedExercise, to: alt, modelContext: modelContext) {
                                 dismiss()
                             } else {
-                                swapFailedMessage = "You've already logged a set on this one — swapping mid-exercise isn't safe. Skip it instead."
+                                swapFailedMessage = String(localized: "You've already logged a set on this one — swapping mid-exercise isn't safe. Skip it instead.")
                             }
                         } label: {
                             TrainRowLabel(
@@ -277,10 +277,10 @@ struct PainReportSheet: View {
         let canEnd = viewModel.canEndSessionForPain
         return outcomeShell(
             icon: "exclamationmark.octagon.fill", color: Tide.danger,
-            title: "Stop this exercise",
+            title: String(localized: "Stop this exercise"),
             message: canEnd
-                ? "That's a lot of pain to push through. Consider ending the session — and if it doesn't settle down, get it looked at by a professional."
-                : "That's a lot of pain to push through. Skip it today — and if it doesn't settle down, get it looked at by a professional."
+                ? String(localized: "That's a lot of pain to push through. Consider ending the session — and if it doesn't settle down, get it looked at by a professional.")
+                : String(localized: "That's a lot of pain to push through. Skip it today — and if it doesn't settle down, get it looked at by a professional.")
         ) {
             VStack(spacing: Tide.s2) {
                 if canEnd {

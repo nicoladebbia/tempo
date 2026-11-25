@@ -165,7 +165,7 @@ extension TrainingViewModel {
             plan.programSecondaryKey = nil
             if let main = resolution.main {
                 if isRedRecoveryDay {
-                    plan.notes = "Recovery is low — your trainer's \(main.day.title ?? "session") is paused today."
+                    plan.notes = String(localized: "Recovery is low — your trainer's \(main.day.title ?? String(localized: "session")) is paused today.")
                     plan.programSessionKey = nil
                     // A paused session never actually ran — sequence mode
                     // must not advance past it (it stays next-due), and it
@@ -175,7 +175,7 @@ extension TrainingViewModel {
                 }
                 plan.type = main.day.workoutType
                 plan.programSessionKey = program.sessionKey(weekIndex: main.weekIndex, dayIndex: main.dayIndex)
-                plan.notes = main.day.title ?? "Trainer session"
+                plan.notes = main.day.title ?? String(localized: "Trainer session")
                 // A second session the same day becomes the day's second part
                 // (two-a-day): lift then shuttles, or two conditioning blocks.
                 // Prefer a conditioning session after a lift.
@@ -199,7 +199,7 @@ extension TrainingViewModel {
                     break // your sport / recovery stay as planned
                 default:
                     plan.type = .rest
-                    plan.notes = "Rest — not on your trainer's program."
+                    plan.notes = String(localized: "Rest — not on your trainer's program.")
                 }
                 plan.secondarySessionType = nil
                 previousDayWasLift = false
@@ -434,7 +434,7 @@ extension TrainingViewModel {
         today.programSecondaryKey = nil
         today.type = missed.day.workoutType
         today.secondarySessionType = nil
-        today.notes = "Missed \(missed.day.title ?? "session") — moved to today."
+        today.notes = String(localized: "Missed \(missed.day.title ?? String(localized: "session")) — moved to today.")
         _ = populateFromTrainerProgram(today, modelContext: modelContext)
         guard modelContext.saveOrAlert("trainer program missed-session swap") else {
             return
@@ -698,7 +698,7 @@ extension TrainingViewModel {
             workingSet.targetWeight = WeightConverter.loadableKg(target, equipment: exercise.equipment, unit: unit)
         }
         plannedExercise.trainerOverrideApplied = true
-        saveGuarded(modelContext, operation: "trainer weight override")
+        saveGuarded(modelContext, operation: String(localized: "trainer weight override"))
         HapticManager.selection()
         // Today + the active workout read the plan's exercises directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
@@ -806,6 +806,10 @@ extension TrainingViewModel {
         max(0, repsPossible(atPercent: percent) - targetReps)
     }
 
+    /// Stored as stable English: the trainer report matches these exact phrases
+    /// (`TrainerReportBuilder.translateAdjustmentNote`). The screens show it through
+    /// `PlannedExercise.displayLoadAdjustmentNote`, which applies the user's language.
+    ///
     /// §4 — human reason today's trainer-day weight differs from the
     /// trainer's own number. nil when Tempo didn't change it (nothing to
     /// explain, nothing to show/override on Today).

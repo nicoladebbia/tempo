@@ -123,7 +123,7 @@ struct ConditioningLogSheet: View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             // trainer-feedback-tests — "TEST — work up to a max" banner.
             if block.isTest == true {
-                TrainTag(text: "TEST — WORK UP TO A MAX", color: Color.accentColor)
+                TrainTag(text: String(localized: "TEST — WORK UP TO A MAX"), color: Color.accentColor)
             }
             Text(block.name)
                 .font(Tide.title2)
@@ -168,8 +168,8 @@ struct ConditioningLogSheet: View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             sectionLabel(
                 capSeconds != nil
-                    ? "EACH REP — \(formatDistance(distance, unit)) · cap \(formatSeconds(capSeconds!))"
-                    : "EACH REP — \(formatDistance(distance, unit))"
+                    ? String(localized: "EACH REP — \(formatDistance(distance, unit)) · cap \(formatSeconds(capSeconds!))")
+                    : String(localized: "EACH REP — \(formatDistance(distance, unit))")
             )
             VStack(spacing: Tide.s2) {
                 ForEach(Array(repTimeText.indices), id: \.self) { index in
@@ -211,7 +211,9 @@ struct ConditioningLogSheet: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Rep \(index + 1)" + (met == nil ? "" : met == true ? ", under cap" : ", over cap")
+            met == nil
+                ? String(localized: "Rep \(index + 1)")
+                : met == true ? String(localized: "Rep \(index + 1), under cap") : String(localized: "Rep \(index + 1), over cap")
         )
     }
 
@@ -220,14 +222,14 @@ struct ConditioningLogSheet: View {
     private var durationDistanceSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             if case let .duration(minutes) = target.kind {
-                sectionLabel("DURATION — target \(formatMinutes(minutes))")
+                sectionLabel(String(localized: "DURATION — target \(formatMinutes(minutes))"))
             } else if case let .distance(value, unit) = target.kind {
-                sectionLabel("DISTANCE — target \(formatDistance(value, unit))")
+                sectionLabel(String(localized: "DISTANCE — target \(formatDistance(value, unit))"))
             } else {
-                sectionLabel("Duration & distance")
+                sectionLabel(String(localized: "Duration & distance"))
             }
-            labeledField(label: "Duration (min)", text: $durationText, keyboard: .decimalPad)
-            labeledField(label: "Distance (m)", text: $distanceText, keyboard: .decimalPad)
+            labeledField(label: String(localized: "Duration (min)"), text: $durationText, keyboard: .decimalPad)
+            labeledField(label: String(localized: "Distance (m)"), text: $distanceText, keyboard: .decimalPad)
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
@@ -236,8 +238,8 @@ struct ConditioningLogSheet: View {
 
     private func roundsSection(sets: Int, reps: Int) -> some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionLabel("ROUNDS — target \(sets * reps) (\(sets) × \(reps))")
-            labeledField(label: "Rounds completed", text: $roundsText, keyboard: .numberPad)
+            sectionLabel(String(localized: "ROUNDS — target \(sets * reps) (\(sets) × \(reps))"))
+            labeledField(label: String(localized: "Rounds completed"), text: $roundsText, keyboard: .numberPad)
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
@@ -281,7 +283,7 @@ struct ConditioningLogSheet: View {
         isLoadingFill = true
         defer { isLoadingFill = false }
         guard let data = await viewModel.conditioningFillData(for: Date(), modelContext: modelContext) else {
-            fillMessage = "No Whoop or Health activity found for today."
+            fillMessage = String(localized: "No Whoop or Health activity found for today.", comment: "Keep the word Whoop: the code checks for it to pick the data source")
             return
         }
         if let minutes = data.durationMinutes {
@@ -290,14 +292,14 @@ struct ConditioningLogSheet: View {
         if let distance = data.distanceMeters {
             distanceText = String(format: "%.0f", distance)
         }
-        fillMessage = "Filled from \(data.source == "whoop" ? "Whoop" : "Health")."
+        fillMessage = data.source == "whoop" ? String(localized: "Filled from Whoop.", comment: "Keep the word Whoop: the code checks for it to pick the data source") : String(localized: "Filled from Health.")
     }
 
     // MARK: - RPE + notes
 
     private var rpeSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionLabel("Effort (RPE)")
+            sectionLabel(String(localized: "Effort (RPE)"))
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: 5),
                 spacing: Tide.s2
@@ -317,7 +319,7 @@ struct ConditioningLogSheet: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionLabel("Notes")
+            sectionLabel(String(localized: "Notes"))
             TextField("How did it feel?", text: $notes, axis: .vertical)
                 .font(Tide.body)
                 .lineLimit(2 ... 4)

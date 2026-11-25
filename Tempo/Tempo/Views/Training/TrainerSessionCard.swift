@@ -129,7 +129,7 @@ struct TrainerSessionCard: View {
 
     private var blockCountText: String {
         let count = day.exercises.count
-        return count == 1 ? "1 block" : "\(count) blocks"
+        return String(localized: "\(count) blocks")
     }
 
     private var loggedRow: some View {
@@ -266,27 +266,27 @@ struct TrainerSessionCard: View {
             let best = ConditioningTargetEvaluator.bestTime(times)
             if case let .repsDistance(_, _, _, capSeconds) = target.kind, let capSeconds {
                 let under = times.filter { $0 <= capSeconds }.count
-                parts.append("\(under)/\(times.count) under \(formatSeconds(capSeconds))")
+                parts.append(String(localized: "\(under)/\(times.count) under \(formatSeconds(capSeconds))"))
             } else {
                 parts.append(TrainCount.text(times.count, "rep"))
             }
             if let best {
-                parts.append("best \(formatSeconds(best))")
+                parts.append(String(localized: "best \(formatSeconds(best))"))
             }
         }
         if let duration = result.durationSeconds {
             parts.append(formatMinutesFromSeconds(duration))
         }
         if let distance = result.distanceMeters {
-            parts.append(String(format: "%.1f km", distance / 1000))
+            parts.append(String(localized: "\((distance / 1000).tempoDecimal(1)) km"))
         }
         if let rounds = result.roundsCompleted {
             parts.append(TrainCount.text(rounds, "round"))
         }
         if let rpe = result.rpe {
-            parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")
+            parts.append(String(localized: "RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))"))
         }
-        return parts.isEmpty ? "Logged" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Logged") : parts.joined(separator: " · ")
     }
 
     private func formatSeconds(_ seconds: Double) -> String {
@@ -305,16 +305,16 @@ struct TrainerSessionCard: View {
             parts.append(detail)
         } else {
             let reps = block.repsHigh.map { "\(block.repsLow)-\($0)" } ?? "\(block.repsLow)"
-            parts.append("\(block.sets) × \(reps)\(block.perSide == true ? " per side" : "")")
+            parts.append(block.perSide == true ? String(localized: "\(block.sets) × \(reps) per side") : "\(block.sets) × \(reps)")
             if let pct = block.percentOf1RM {
                 parts.append("\(Int((pct * 100).rounded()))%")
             }
         }
         if let rpe = block.rpe {
-            parts.append("RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))")
+            parts.append(String(localized: "RPE \(rpe.formatted(.number.precision(.fractionLength(0 ... 1))))"))
         }
         if let rest = block.restSeconds {
-            parts.append(rest >= 60 && rest % 60 == 0 ? "rest \(rest / 60)'" : "rest \(rest)\"")
+            parts.append(rest >= 60 && rest % 60 == 0 ? String(localized: "rest \(rest / 60)'") : String(localized: "rest \(rest)\""))
         }
         return parts.joined(separator: " · ")
     }

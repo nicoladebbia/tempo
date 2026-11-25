@@ -48,10 +48,10 @@ struct WelcomeBackResumeCard: View {
 
     private func card(for pause: TrainingPause) -> some View {
         TrainAskCard(
-            label: "Welcome back",
+            label: String(localized: "Welcome back"),
             tint: TideTrain.positive,
-            title: "Pick up where you left off?",
-            message: "Your trainer's program uses fixed weekdays. Continue the same program week you paused in, or just pick up from today's weekday."
+            title: String(localized: "Pick up where you left off?"),
+            message: String(localized: "Your trainer's program uses fixed weekdays. Continue the same program week you paused in, or just pick up from today's weekday.")
         ) {
             TideIconTile(systemName: "figure.walk.arrival", tint: TideTrain.positive, size: TideTrain.askTile)
         } actions: {

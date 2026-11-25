@@ -77,7 +77,7 @@ struct MatchSnapshot: Equatable {
 
     /// "Deleted the match vs Inter" or "Deleted the match".
     var message: String {
-        opponent.map { "Deleted the match vs \($0)" } ?? "Deleted the match"
+        opponent.map { String(localized: "Deleted the match vs \($0)") } ?? String(localized: "Deleted the match")
     }
 
     /// Puts the match back with its old id, so it lands in the same place in
@@ -311,9 +311,9 @@ struct RoutineItemRemoval: Equatable {
     /// "Removed Barbell Row" or "Removed 2 exercises".
     var message: String {
         if removed.count == 1, let only = removed.first {
-            return "Removed \(only.item.exerciseName)"
+            return String(localized: "Removed \(only.item.exerciseName)")
         }
-        return "Removed \(TrainCount.text(removed.count, "exercise"))"
+        return String(localized: "Removed \(removed.count) exercises")
     }
 
     /// Puts each item back at its old place (or at the end if the list has

@@ -148,7 +148,7 @@ extension TrainingViewModel {
             insertedFeedback = feedback
         }
 
-        guard saveGuarded(modelContext, operation: "watch set") else {
+        guard saveGuarded(modelContext, operation: String(localized: "watch set")) else {
             // Undo EVERYTHING the attempt touched — a PR/feedback row for a
             // set that isn't logged would otherwise stay in the context (and
             // get saved by the next unrelated save).
@@ -171,7 +171,7 @@ extension TrainingViewModel {
                 plan: plan, modelContext: modelContext
             )
             if outcome != .none {
-                saveGuarded(modelContext, operation: "watch PR")
+                saveGuarded(modelContext, operation: String(localized: "watch PR"))
             }
             if outcome == .new {
                 HapticManager.notification(.success)

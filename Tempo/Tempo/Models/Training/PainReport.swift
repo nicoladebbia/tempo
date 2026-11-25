@@ -37,12 +37,12 @@ enum PainBodyArea: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .knee: "Knee"
-        case .shoulder: "Shoulder"
-        case .back: "Back"
-        case .hip: "Hip"
-        case .ankle: "Ankle"
-        case .other: "Other"
+        case .knee: String(localized: "Knee")
+        case .shoulder: String(localized: "Shoulder")
+        case .back: String(localized: "Back")
+        case .hip: String(localized: "Hip")
+        case .ankle: String(localized: "Ankle")
+        case .other: String(localized: "Other")
         }
     }
 
@@ -94,11 +94,11 @@ enum PainActionTaken: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .reducedLoad: "Load reduced 20%"
-        case .swapped: "Swapped exercise"
-        case .skipped: "Skipped exercise"
-        case .endedSession: "Ended session"
-        case .none: "Logged"
+        case .reducedLoad: String(localized: "Load reduced 20%")
+        case .swapped: String(localized: "Swapped exercise")
+        case .skipped: String(localized: "Skipped exercise")
+        case .endedSession: String(localized: "Ended session")
+        case .none: String(localized: "Logged")
         }
     }
 }

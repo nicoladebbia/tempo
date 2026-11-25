@@ -49,7 +49,7 @@ extension TrainingViewModel {
         dailySession = nil
         let profile = fetchOrCreateAdaptiveProfile(modelContext: modelContext)
         profile.lastDailySessionDayKey = nil
-        guard saveGuarded(modelContext, operation: "stale session resync") else {
+        guard saveGuarded(modelContext, operation: String(localized: "stale session resync")) else {
             return false
         }
         #if DEBUG
@@ -210,7 +210,7 @@ extension TrainingViewModel {
         // pending row, and a duplicate cheap coach call beats a lost day).
         let priorDayKey = profile.lastDailySessionDayKey
         profile.lastDailySessionDayKey = todayKey
-        if !saveGuarded(modelContext, operation: "coach session") {
+        if !saveGuarded(modelContext, operation: String(localized: "coach session")) {
             profile.lastDailySessionDayKey = priorDayKey
         }
         dailySession = session
@@ -468,9 +468,9 @@ extension TrainingViewModel {
                 modality: "pool", intensity: .easy, durationMin: minutes,
                 blocks: [SessionBlockDTO(
                     kind: .pool,
-                    label: "Easy swim",
+                    label: String(localized: "Easy swim"),
                     notes: nil,
-                    cue: "Long strokes, easy pace.",
+                    cue: String(localized: "Long strokes, easy pace."),
                     scheduledMin: nil,
                     split: nil,
                     reps: nil,
@@ -516,8 +516,8 @@ extension TrainingViewModel {
                 let isRun = second == .run
                 let cardio = SessionBlockDTO(
                     kind: isRun ? .run : .pool,
-                    label: isRun ? "Easy run" : "Easy swim", notes: nil,
-                    cue: "Easy pace — this is the flush, not extra work.",
+                    label: isRun ? String(localized: "Easy run") : String(localized: "Easy swim"), notes: nil,
+                    cue: String(localized: "Easy pace — this is the flush, not extra work."),
                     scheduledMin: cardioMin, split: nil, reps: nil, distanceM: nil,
                     restSec: nil, intensityPct: nil, durationSec: 30 * 60,
                     stroke: isRun ? nil : "freestyle", runType: nil,
@@ -526,14 +526,14 @@ extension TrainingViewModel {
                 return DailySessionDTO(
                     modality: type.rawValue, intensity: .moderate, durationMin: dur,
                     blocks: [lift, cardio],
-                    shortWhy: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today.",
+                    shortWhy: String(localized: "Lift, then an easy \(second.displayName.lowercased()) — you've got the headroom today."),
                     fullWhy: nil, expectedStrain: nil, expectedSessionRPE: nil
                 )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.gym, type.rawValue, type.displayName)],
-                shortWhy: "Today's planned \(type.displayName.lowercased()).", fullWhy: nil,
+                shortWhy: String(localized: "Today's planned \(type.displayName.lowercased())."), fullWhy: nil,
                 expectedStrain: nil, expectedSessionRPE: nil
             )
         case .run:
@@ -543,7 +543,7 @@ extension TrainingViewModel {
                 modality: "run", intensity: .easy, durationMin: runDur,
                 blocks: [SessionBlockDTO(
                     kind: .run,
-                    label: "Easy run",
+                    label: String(localized: "Easy run"),
                     notes: nil,
                     cue: nil,
                     scheduledMin: nil,
@@ -558,7 +558,7 @@ extension TrainingViewModel {
                     paceSecPerKm: nil,
                     sets: nil
                 )],
-                shortWhy: ease ? "Recovery is down — keep the run short and easy." : "Easy aerobic run.",
+                shortWhy: ease ? String(localized: "Recovery is down — keep the run short and easy.") : String(localized: "Easy aerobic run."),
                 fullWhy: nil, expectedStrain: nil, expectedSessionRPE: 4
             )
         case .sprint,
@@ -569,13 +569,13 @@ extension TrainingViewModel {
             if ease {
                 return easySwim(
                     max(20, Int(Double(dur) * 0.7)),
-                    "Recovery is down — swapped the hard conditioning for an easy flush swim."
+                    String(localized: "Recovery is down — swapped the hard conditioning for an easy flush swim.")
                 )
             }
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.field, nil, type.displayName)],
-                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                shortWhy: String(localized: "Today's \(type.displayName.lowercased())."), fullWhy: nil,
                 expectedStrain: nil, expectedSessionRPE: 5
             )
         case .football:
@@ -583,7 +583,7 @@ extension TrainingViewModel {
             return DailySessionDTO(
                 modality: type.rawValue, intensity: .moderate, durationMin: dur,
                 blocks: [mk(.field, nil, type.displayName)],
-                shortWhy: "Today's \(type.displayName.lowercased()).", fullWhy: nil,
+                shortWhy: String(localized: "Today's \(type.displayName.lowercased())."), fullWhy: nil,
                 expectedStrain: nil, expectedSessionRPE: 5
             )
         case .pool:
@@ -591,12 +591,12 @@ extension TrainingViewModel {
             let poolDur = ease ? max(20, Int(Double(dur) * 0.7)) : dur
             return easySwim(
                 poolDur,
-                ease ? "Recovery is down — keep the swim short and easy."
-                    : "Easy recovery swim — flush the legs."
+                ease ? String(localized: "Recovery is down — keep the swim short and easy.")
+                    : String(localized: "Easy recovery swim — flush the legs.")
             )
         case .mobility,
              .rest:
-            return TrainingSafetyFloor.recoverySession(reason: "Recovery day.")
+            return TrainingSafetyFloor.recoverySession(reason: String(localized: "Recovery day."))
         }
     }
 

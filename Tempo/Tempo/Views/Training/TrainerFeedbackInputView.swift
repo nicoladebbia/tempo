@@ -39,7 +39,7 @@ struct TrainerFeedbackInputView: View {
     @State
     private var isProcessing = false
     @State
-    private var processingLabel = "Reading the screenshot…"
+    private var processingLabel = String(localized: "Reading the screenshot…")
     @State
     private var errorMessage: String?
     @State
@@ -137,7 +137,7 @@ struct TrainerFeedbackInputView: View {
             if let errorMessage {
                 TrainBanner(
                     systemImage: "exclamationmark.triangle.fill",
-                    label: "Couldn't read it",
+                    label: String(localized: "Couldn't read it"),
                     tint: Tide.danger,
                     message: errorMessage
                 ) {}
@@ -230,7 +230,7 @@ struct TrainerFeedbackInputView: View {
 
     private func loadScreenshot(_ item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
-            errorMessage = "Couldn't load that screenshot."
+            errorMessage = String(localized: "Couldn't load that screenshot.")
             return
         }
         screenshot = image
@@ -241,7 +241,7 @@ struct TrainerFeedbackInputView: View {
 
     private func submit() async {
         guard let feedbackService else {
-            errorMessage = "Not ready yet — try again."
+            errorMessage = String(localized: "Not ready yet — try again.")
             return
         }
         errorMessage = nil
@@ -250,20 +250,20 @@ struct TrainerFeedbackInputView: View {
 
         var combinedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let screenshot {
-            processingLabel = "Reading the screenshot…"
+            processingLabel = String(localized: "Reading the screenshot…")
             if let ocrText = try? await ProgramTextExtractor.extractText(from: screenshot), !ocrText.isEmpty {
                 combinedText = combinedText.isEmpty ? ocrText : "\(combinedText)\n\n\(ocrText)"
             } else if combinedText.isEmpty {
-                errorMessage = "Couldn't read any text from that screenshot. Try pasting it instead."
+                errorMessage = String(localized: "Couldn't read any text from that screenshot. Try pasting it instead.")
                 return
             }
         }
         guard !combinedText.isEmpty else {
-            errorMessage = "Nothing to read yet."
+            errorMessage = String(localized: "Nothing to read yet.")
             return
         }
 
-        processingLabel = "Reading the changes…"
+        processingLabel = String(localized: "Reading the changes…")
         do {
             let rawEdits = try await feedbackService.structureFeedback(from: combinedText)
             let weekIndex = program.weekIndex(on: Date()) ?? 0
@@ -283,7 +283,7 @@ struct TrainerFeedbackInputView: View {
         if let error = error as? LocalizedError, let description = error.errorDescription {
             return description
         }
-        return "Something went wrong reading those changes."
+        return String(localized: "Something went wrong reading those changes.")
     }
 
     #if DEBUG

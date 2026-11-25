@@ -22,9 +22,9 @@ enum BreathDifficulty: String, Codable, CaseIterable, Sendable {
     /// User-facing label. From UX_COPY_BIBLE `training.feedback.breath.*`.
     var displayName: String {
         switch self {
-        case .easy: "Easy"
-        case .moderate: "Moderate"
-        case .gassed: "Gassed"
+        case .easy: String(localized: "Easy")
+        case .moderate: String(localized: "Moderate")
+        case .gassed: String(localized: "Gassed")
         }
     }
 
@@ -59,9 +59,9 @@ enum FormQuality: String, Codable, CaseIterable, Sendable {
     /// User-facing label. From UX_COPY_BIBLE `training.feedback.form.*`.
     var displayName: String {
         switch self {
-        case .clean: "Clean"
-        case .sloppy: "Sloppy"
-        case .failed: "Failed"
+        case .clean: String(localized: "Clean")
+        case .sloppy: String(localized: "Sloppy")
+        case .failed: String(localized: "Failed")
         }
     }
 
@@ -231,7 +231,7 @@ extension SetFeedback {
     /// when none were (a neutral default is not a reading).
     var enteredSummary: String? {
         var parts: [String] = []
-        if hasEnteredRPE { parts.append("RPE \(rpe)") }
+        if hasEnteredRPE { parts.append(String(localized: "RPE \(rpe)")) }
         if hasEnteredBreath { parts.append(breathDifficulty.displayName) }
         if hasEnteredForm { parts.append(formQuality.displayName) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

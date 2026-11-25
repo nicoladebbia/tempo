@@ -139,7 +139,7 @@ struct ExerciseLibraryView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Tide.s2) {
                 // "All" chip
-                filterChip(label: "All", isSelected: selectedMuscleGroup == nil) {
+                filterChip(label: String(localized: "All"), isSelected: selectedMuscleGroup == nil) {
                     selectedMuscleGroup = nil
                 }
 
@@ -158,7 +158,7 @@ struct ExerciseLibraryView: View {
     private var equipmentChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Tide.s2) {
-                filterChip(label: "All", isSelected: selectedEquipment == nil) {
+                filterChip(label: String(localized: "All"), isSelected: selectedEquipment == nil) {
                     selectedEquipment = nil
                 }
 
@@ -186,7 +186,7 @@ struct ExerciseLibraryView: View {
             .prefix(6)
         if !top.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s1) {
-                TideSectionLabel(title: "Most trained")
+                TideSectionLabel(title: String(localized: "Most trained"))
                     .padding(.horizontal, Tide.edge)
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -282,7 +282,7 @@ struct ExerciseLibraryView: View {
                     .clipShape(Capsule())
             }
 
-            Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? "Compound" : "Isolation")")
+            Text("\(equipmentLabel(exercise.equipment)) · \(exercise.isCompound ? String(localized: "Compound") : String(localized: "Isolation"))")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.leading)
@@ -341,8 +341,8 @@ struct ExerciseLibraryView: View {
     private var emptyState: some View {
         TrainEmptyCard(
             systemImage: "magnifyingglass",
-            title: "No exercises found.",
-            message: searchText.isEmpty ? nil : "Try a different search term."
+            title: String(localized: "No exercises found."),
+            message: searchText.isEmpty ? nil : String(localized: "Try a different search term.")
         )
         .padding(.horizontal, Tide.edge)
         .padding(.top, Tide.s4)
@@ -385,19 +385,19 @@ struct ExerciseLibraryView: View {
 
     private func equipmentLabel(_ equipment: Equipment) -> String {
         switch equipment {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .cable: "Cable"
-        case .machine: "Machine"
-        case .bodyweight: "Bodyweight"
-        case .kettlebell: "Kettlebell"
-        case .resistanceBand: "Band"
-        case .smithMachine: "Smith"
-        case .ezBar: "EZ Bar"
-        case .trapBar: "Trap Bar"
-        case .pullUpBar: "Pull-Up Bar"
-        case .bench: "Bench"
-        case .none: "None"
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbell")
+        case .cable: String(localized: "Cable")
+        case .machine: String(localized: "Machine")
+        case .bodyweight: String(localized: "Bodyweight")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .resistanceBand: String(localized: "Band")
+        case .smithMachine: String(localized: "Smith")
+        case .ezBar: String(localized: "EZ Bar")
+        case .trapBar: String(localized: "Trap Bar")
+        case .pullUpBar: String(localized: "Pull-Up Bar")
+        case .bench: String(localized: "Bench")
+        case .none: String(localized: "None")
         }
     }
 }
@@ -447,7 +447,7 @@ struct CustomExerciseFormView: View {
     var body: some View {
         NavigationStack {
             TrainPlanPage {
-                TrainPlanField(label: "Name") {
+                TrainPlanField(label: String(localized: "Name")) {
                     TextField("e.g. Landmine Press", text: $name)
                 }
                 if isDuplicate {
@@ -458,29 +458,29 @@ struct CustomExerciseFormView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                TrainPlanCard(label: "Classification") {
-                    TrainPlanPickerRow(title: "Muscle group", selection: $muscleGroup) {
+                TrainPlanCard(label: String(localized: "Classification")) {
+                    TrainPlanPickerRow(title: String(localized: "Muscle group"), selection: $muscleGroup) {
                         ForEach(MuscleGroup.allCases, id: \.self) { group in
                             Text(group.displayName).tag(group)
                         }
                     }
                     TrainPlanDivider()
-                    TrainPlanPickerRow(title: "Equipment", selection: $equipment) {
+                    TrainPlanPickerRow(title: String(localized: "Equipment"), selection: $equipment) {
                         ForEach(Equipment.allCases, id: \.self) { eq in
                             Text(Self.equipmentLabel(eq)).tag(eq)
                         }
                     }
                     TrainPlanDivider()
-                    TrainPlanPickerRow(title: "Movement pattern", selection: $movementPattern) {
+                    TrainPlanPickerRow(title: String(localized: "Movement pattern"), selection: $movementPattern) {
                         ForEach(MovementPattern.allCases, id: \.self) { pattern in
                             Text(Self.patternLabel(pattern)).tag(pattern)
                         }
                     }
                     TrainPlanDivider()
-                    TrainPlanToggleRow(title: "Compound (multi-joint)", isOn: $isCompound)
+                    TrainPlanToggleRow(title: String(localized: "Compound (multi-joint)"), isOn: $isCompound)
                 }
 
-                TrainPlanCard(label: "Guidance (optional)") {
+                TrainPlanCard(label: String(localized: "Guidance (optional)")) {
                     TextField("How to perform it", text: $instructions, axis: .vertical)
                         .lineLimit(3 ... 6)
                         .font(Tide.body)
@@ -533,19 +533,19 @@ struct CustomExerciseFormView: View {
 
     static func equipmentLabel(_ equipment: Equipment) -> String {
         switch equipment {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .cable: "Cable"
-        case .machine: "Machine"
-        case .bodyweight: "Bodyweight"
-        case .kettlebell: "Kettlebell"
-        case .resistanceBand: "Band"
-        case .smithMachine: "Smith Machine"
-        case .ezBar: "EZ Bar"
-        case .trapBar: "Trap Bar"
-        case .pullUpBar: "Pull-Up Bar"
-        case .bench: "Bench"
-        case .none: "None"
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbell")
+        case .cable: String(localized: "Cable")
+        case .machine: String(localized: "Machine")
+        case .bodyweight: String(localized: "Bodyweight")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .resistanceBand: String(localized: "Band")
+        case .smithMachine: String(localized: "Smith Machine")
+        case .ezBar: String(localized: "EZ Bar")
+        case .trapBar: String(localized: "Trap Bar")
+        case .pullUpBar: String(localized: "Pull-Up Bar")
+        case .bench: String(localized: "Bench")
+        case .none: String(localized: "None")
         }
     }
 

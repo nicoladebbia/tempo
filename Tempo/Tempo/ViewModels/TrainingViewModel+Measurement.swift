@@ -112,7 +112,7 @@ extension TrainingViewModel {
         // from the session's real history rows.
         updateAdaptiveProfile(with: rows, modelContext: modelContext)
         plan.learningPending = false
-        saveGuarded(modelContext, operation: "session learning")
+        saveGuarded(modelContext, operation: String(localized: "session learning"))
     }
 
     // MARK: - Prediction Outcomes (Step 1 measurement spine)

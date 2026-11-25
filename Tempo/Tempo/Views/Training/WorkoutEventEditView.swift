@@ -35,7 +35,7 @@ struct WorkoutEventEditView: UIViewControllerRepresentable {
         controller.eventStore = store
 
         let event = EKEvent(eventStore: store)
-        event.title = "\(workoutTitle) Workout"
+        event.title = "\(workoutTitle) Workout" // CalendarService finds these events by the "Workout" suffix, so the title stays English
 
         // Prefill must never land in the past. The suggested window can
         // start earlier than "now" (it's scanned from 08:00). Start at the

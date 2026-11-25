@@ -36,7 +36,7 @@ struct ExerciseTechniqueLines: View {
 
             TrainPlanDivider()
 
-            TideSectionLabel(title: "Common mistakes")
+            TideSectionLabel(title: String(localized: "Common mistakes"))
 
             ForEach(Array(technique.mistakes.enumerated()), id: \.offset) { _, mistake in
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
@@ -80,8 +80,8 @@ struct WorkoutFormRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("workout-form-toggle")
-            .accessibilityValue(isOpen ? "Open" : "Closed")
-            .accessibilityHint(isOpen ? "Hides the form guide" : "Shows the cues and common mistakes")
+            .accessibilityValue(isOpen ? String(localized: "Open") : String(localized: "Closed"))
+            .accessibilityHint(isOpen ? String(localized: "Hides the form guide") : String(localized: "Shows the cues and common mistakes"))
 
             if isOpen {
                 ExerciseTechniqueLines(technique: technique)
@@ -100,7 +100,7 @@ struct WorkoutFormRow: View {
                 .foregroundStyle(Color.accentColor)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Tide.hair) {
-                TideLabel("Form")
+                TideLabel(String(localized: "Form"))
                 if !isOpen, let first = technique.cues.first {
                     Text(first)
                         .font(Tide.caption)

@@ -38,7 +38,7 @@ extension TodayWorkoutView {
                             .font(Tide.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(TideTrain.caution)
-                        if let note = plannedExercise.loadAdjustmentNote {
+                        if let note = plannedExercise.displayLoadAdjustmentNote {
                             Text(note)
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text3)

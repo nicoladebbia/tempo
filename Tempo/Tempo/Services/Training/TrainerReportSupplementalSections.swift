@@ -474,7 +474,15 @@ struct PauseTravelReportStrings: Sendable {
     func bodyAreaLabel(for area: PainBodyArea) -> String {
         let isItalian = language == .italian
         guard isItalian else {
-            return area.displayName
+            // Fixed English: the report language is its own choice, never the app's.
+            return switch area {
+            case .knee: "Knee"
+            case .shoulder: "Shoulder"
+            case .back: "Back"
+            case .hip: "Hip"
+            case .ankle: "Ankle"
+            case .other: "Other"
+            }
         }
         return switch area {
         case .knee: "Ginocchio"
@@ -521,7 +529,13 @@ struct PauseTravelReportStrings: Sendable {
     func actionLabel(for action: PainActionTaken) -> String {
         let isItalian = language == .italian
         guard isItalian else {
-            return action.displayName.lowercased()
+            return switch action {
+            case .reducedLoad: "load reduced 20%"
+            case .swapped: "swapped exercise"
+            case .skipped: "skipped exercise"
+            case .endedSession: "ended session"
+            case .none: "logged"
+            }
         }
         return switch action {
         case .reducedLoad: "carico ridotto 20%"

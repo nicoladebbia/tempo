@@ -78,9 +78,9 @@ enum TrainerFeedbackParser {
         var errorDescription: String? {
             switch self {
             case .invalidJSON:
-                "Couldn't read any changes out of that. Try rephrasing, or paste it as plain text."
+                String(localized: "Couldn't read any changes out of that. Try rephrasing, or paste it as plain text.")
             case .noEdits:
-                "No changes found in that message."
+                String(localized: "No changes found in that message.")
             }
         }
     }

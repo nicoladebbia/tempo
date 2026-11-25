@@ -82,7 +82,7 @@ extension TrainingViewModel {
         ))) ?? []
         let plans = planRows.map {
             MonthPlanSnapshot(
-                date: $0.date, typeDisplayName: $0.type.displayName, statusRaw: $0.statusRaw,
+                date: $0.date, typeDisplayName: $0.type.englishName, statusRaw: $0.statusRaw,
                 skipReasonRaw: $0.skipReasonRaw, startedAt: $0.startedAt,
                 tonnageKg: $0.totalVolume, sessionRPE: $0.sessionRPE
             )
@@ -179,7 +179,7 @@ extension TrainingViewModel {
 
         review.summaryText = text
         review.summaryGeneratedAt = Date()
-        saveGuarded(modelContext, operation: "monthly review")
+        saveGuarded(modelContext, operation: String(localized: "monthly review"))
         monthlyReviewDueKey = monthlyReviewDue(modelContext: modelContext)
         #if DEBUG
             print("\(DebugTrace.prefix)[monthly_review] summary persisted month=\(review.monthKey) chars=\(text.count)")
@@ -202,7 +202,7 @@ extension TrainingViewModel {
             return
         }
         modelContext.insert(TrainingBlock(emphasis: emphasis, startDate: day))
-        saveGuarded(modelContext, operation: "monthly focus")
+        saveGuarded(modelContext, operation: String(localized: "monthly focus"))
         #if DEBUG
             print("\(DebugTrace.prefix)[monthly_review] emphasis block inserted \(emphasis.rawValue) from \(day)")
         #endif

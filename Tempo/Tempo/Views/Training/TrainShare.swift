@@ -46,8 +46,8 @@ enum TrainShare {
         var previous: String?
         if record.type == .mostReps {
             value = "\(Int(record.value))"
-            unitText = Int(record.value) == 1 ? "rep" : "reps"
-            previous = before.flatMap { $0 >= 1 ? "\(Int($0)) \(Int($0) == 1 ? "rep" : "reps")" : nil }
+            unitText = Int(record.value) == 1 ? String(localized: "rep", comment: "Unit under a number, singular") : String(localized: "reps", comment: "Unit under a number, plural")
+            previous = before.flatMap { $0 >= 1 ? TrainCount.text(Int($0), "rep") : nil }
         } else {
             value = WeightFormat.number(kg: record.value, unit: unit)
             unitText = unit.abbreviation

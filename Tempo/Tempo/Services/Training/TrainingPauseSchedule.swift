@@ -88,7 +88,7 @@ enum TrainingPauseSchedule {
             plan.programSecondaryKey = nil
             plan.secondarySessionType = nil
             plan.pausedReasonRaw = pause.reason.rawValue
-            plan.notes = "Paused — \(pause.reason.reportLabel.lowercased())."
+            plan.notes = String(localized: "Paused — \(pause.reason.reportLabel.lowercased()).")
         }
     }
 

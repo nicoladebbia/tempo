@@ -34,8 +34,8 @@ enum BlockEmphasis: String, Codable, Sendable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .physique: "Physique"
-        case .soccer: "Soccer"
+        case .physique: String(localized: "Physique")
+        case .soccer: String(localized: "Soccer")
         }
     }
 

@@ -349,11 +349,11 @@ struct TrainStepper: View {
                 .lineLimit(1)
                 .minimumScaleFactor(Tide.labelShrink)
             HStack(spacing: Tide.s3) {
-                stepButton("minus", "Decrease \(label.lowercased())", enabled: value > range.lowerBound) {
+                stepButton("minus", String(localized: "Decrease \(label.lowercased())"), enabled: value > range.lowerBound) {
                     value = max(value - step, range.lowerBound)
                 }
                 figure
-                stepButton("plus", "Increase \(label.lowercased())", enabled: value < range.upperBound) {
+                stepButton("plus", String(localized: "Increase \(label.lowercased())"), enabled: value < range.upperBound) {
                     value = min(value + step, range.upperBound)
                 }
             }
@@ -370,7 +370,7 @@ struct TrainStepper: View {
 
     private var figure: some View {
         let content = VStack(spacing: Tide.hair) {
-            Text(String(format: format, value))
+            Text(String(format: format, locale: .current, value))
                 .font(Tide.numeral(figureSize))
                 .foregroundStyle(Tide.text)
                 .contentTransition(.numericText(value: value))
@@ -393,7 +393,7 @@ struct TrainStepper: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
-        .accessibilityValue("\(String(format: format, value)) \(unit)")
+        .accessibilityValue("\(String(format: format, locale: .current, value)) \(unit)")
         .accessibilityAddTraits(onTapValue == nil ? [] : .isButton)
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -1394,20 +1394,20 @@ struct TrainPlanWeekStrip: View {
 
     private var spokenValue: String {
         guard let selected, let day = days.first(where: { $0.id == selected }) else {
-            return "No day selected"
+            return String(localized: "No day selected")
         }
         var parts = [day.weekday]
-        parts.append(day.code ?? "no session")
+        parts.append(day.code ?? String(localized: "no session"))
         if let extra = day.extra {
             parts.append(extra)
         }
         if day.isToday {
-            parts.append("today")
+            parts.append(String(localized: "today"))
         }
         if day.isDone {
-            parts.append("done")
+            parts.append(String(localized: "done"))
         } else if day.isMatch {
-            parts.append("match")
+            parts.append(String(localized: "match"))
         }
         return parts.joined(separator: ", ")
     }

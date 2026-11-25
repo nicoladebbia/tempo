@@ -326,11 +326,11 @@ extension TrainingViewModel {
 
         // (offsetFromEnd, id, title, body) — fire each at `seconds - offset`.
         let cues: [(Double, String, String, String)] = [
-            (10, "tempo.rest.cue.10", "10 seconds", "Get ready — 10 seconds left."),
-            (3, "tempo.rest.cue.3", "3", "Rest ending…"),
-            (2, "tempo.rest.cue.2", "2", "Rest ending…"),
-            (1, "tempo.rest.cue.1", "1", "Rest ending…"),
-            (0, Self.restTimerNotificationID, "Rest Over", "Time to hit your next set."),
+            (10, "tempo.rest.cue.10", String(localized: "10 seconds"), String(localized: "Get ready — 10 seconds left.")),
+            (3, "tempo.rest.cue.3", "3", String(localized: "Rest ending…")),
+            (2, "tempo.rest.cue.2", "2", String(localized: "Rest ending…")),
+            (1, "tempo.rest.cue.1", "1", String(localized: "Rest ending…")),
+            (0, Self.restTimerNotificationID, String(localized: "Rest Over"), String(localized: "Time to hit your next set.")),
         ]
 
         for (offset, id, title, body) in cues {

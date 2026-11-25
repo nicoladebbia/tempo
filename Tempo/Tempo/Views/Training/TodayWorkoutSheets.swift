@@ -48,7 +48,7 @@ struct ExerciseReorderSheet: View {
                             .font(TideTrain.figure(.headline))
                             .foregroundStyle(Tide.text3)
                             .frame(minWidth: Tide.s5, alignment: .leading)
-                        Text(ex.exercise?.name ?? "Exercise")
+                        Text(ex.exercise?.name ?? String(localized: "Exercise"))
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
@@ -106,7 +106,7 @@ struct SwapExerciseSheet: View {
                 if alternatives.isEmpty {
                     TrainEmptyCard(
                         systemImage: "arrow.triangle.swap",
-                        title: "No alternatives for this muscle group."
+                        title: String(localized: "No alternatives for this muscle group.")
                     )
                     .trainPickerRow()
                 } else {
@@ -132,7 +132,7 @@ struct SwapExerciseSheet: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .trainSheetRoot()
-            .navigationTitle("Swap \(target.exercise?.name ?? "Exercise")")
+            .navigationTitle("Swap \(target.exercise?.name ?? String(localized: "Exercise"))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -187,8 +187,8 @@ struct AddExerciseSheet: View {
                 if sections.isEmpty {
                     TrainEmptyCard(
                         systemImage: "magnifyingglass",
-                        title: "Nothing found",
-                        message: "Try a different name."
+                        title: String(localized: "Nothing found"),
+                        message: String(localized: "Try a different name.")
                     )
                     .trainPickerRow()
                 }
@@ -251,17 +251,17 @@ struct ExercisePickRow: View {
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(exercise.equipment.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                Text(exercise.equipment.displayName)
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
                 if exercise.isCompound, stacksTag {
-                    TrainTag(text: "Compound")
+                    TrainTag(text: String(localized: "Compound"))
                         .padding(.top, Tide.s1)
                 }
             }
             Spacer(minLength: Tide.s2)
             if exercise.isCompound, !stacksTag {
-                TrainTag(text: "Compound")
+                TrainTag(text: String(localized: "Compound"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

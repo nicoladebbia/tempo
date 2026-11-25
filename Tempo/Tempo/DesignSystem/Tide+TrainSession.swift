@@ -103,8 +103,8 @@ struct TrainSessionBar: View {
                     Spacer(minLength: Tide.s2)
                 }
                 HStack(spacing: Tide.s5) {
-                    readout("Sets", "\(done)/\(total)")
-                    readout("Volume", volume)
+                    readout(String(localized: "Sets"), "\(done)/\(total)")
+                    readout(String(localized: "Volume"), volume)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,10 +165,10 @@ struct TrainSessionField: View {
                 .minimumScaleFactor(Tide.labelShrink)
             figure
             HStack(spacing: Tide.s3) {
-                stepButton("minus", "Decrease \(label.lowercased())", enabled: value > range.lowerBound) {
+                stepButton("minus", String(localized: "Decrease \(label.lowercased())"), enabled: value > range.lowerBound) {
                     value = max(value - step, range.lowerBound)
                 }
-                stepButton("plus", "Increase \(label.lowercased())", enabled: value < range.upperBound) {
+                stepButton("plus", String(localized: "Increase \(label.lowercased())"), enabled: value < range.upperBound) {
                     value = min(value + step, range.upperBound)
                 }
             }
@@ -179,7 +179,7 @@ struct TrainSessionField: View {
 
     private var figure: some View {
         let content = VStack(spacing: Tide.hair) {
-            Text(String(format: format, value))
+            Text(String(format: format, locale: .current, value))
                 .font(Tide.numeral(figureSize))
                 .foregroundStyle(Tide.text)
                 .contentTransition(.numericText(value: value))
@@ -205,7 +205,7 @@ struct TrainSessionField: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
-        .accessibilityValue("\(String(format: format, value)) \(unit)")
+        .accessibilityValue("\(String(format: format, locale: .current, value)) \(unit)")
         .accessibilityAddTraits(onTapValue == nil ? [] : .isButton)
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -958,7 +958,7 @@ struct TrainSetTicks: View {
     let done: Int
     let total: Int
     /// What the ticks count, for VoiceOver ("Sets", "Questions").
-    var label = "Sets"
+    var label = String(localized: "Sets")
 
     /// How many ticks are drawn, and how many of them are lit. Past the limit
     /// the trail shows the share done instead of looking full too early.

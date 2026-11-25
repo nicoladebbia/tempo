@@ -154,16 +154,16 @@ struct TodayWorkoutView: View {
     /// "Upper day", "Rest day": what today is, in one phrase.
     private var screenTitle: String {
         if showsPausedCard {
-            return "Paused"
+            return String(localized: "Paused")
         }
         switch viewModel.todayDisplayState {
         case .gym,
              .nonGym:
-            return viewModel.todayPlan.map { $0.type.displayName + " day" } ?? "Train"
+            return viewModel.todayPlan.map { String(localized: "\($0.type.displayName) day") } ?? String(localized: "Train")
         case .restDay:
-            return "Rest day"
+            return String(localized: "Rest day")
         case .noPlan:
-            return "Train"
+            return String(localized: "Train")
         }
     }
 
@@ -435,8 +435,8 @@ struct TodayWorkoutView: View {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "Gym in 30 min"
-        content.body = "Get moving — your workout window is coming up."
+        content.title = String(localized: "Gym in 30 min")
+        content.body = String(localized: "Get moving — your workout window is coming up.")
         content.sound = .default
         content.interruptionLevel = .timeSensitive
 
@@ -491,7 +491,7 @@ struct TodayWorkoutView: View {
             // Trainer program: the day's second session (conditioning after
             // the lift), block by block.
             if let second = viewModel.trainerDay(forKey: plan.programSecondaryKey, modelContext: modelContext) {
-                trainerSessionCard(second, heading: "Second session", plan: plan, key: plan.programSecondaryKey)
+                trainerSessionCard(second, heading: String(localized: "Second session"), plan: plan, key: plan.programSecondaryKey)
             }
 
             // §14 #3 — one-tap session RPE, only after completion.
@@ -530,11 +530,11 @@ struct TodayWorkoutView: View {
         // day — if recovery eased it to rest/mobility, the session card
         // explains; no trainer badge.
         if plan.programSessionKey != nil, plan.type.isGymWorkout {
-            Label(plan.notes ?? "Trainer session", systemImage: "person.fill.checkmark")
+            Label(plan.notes ?? String(localized: "Trainer session"), systemImage: "person.fill.checkmark")
                 .font(Tide.caption)
                 .foregroundStyle(Color.accentColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel("From your trainer's program: \(plan.notes ?? "session")")
+                .accessibilityLabel("From your trainer's program: \(plan.notes ?? String(localized: "session"))")
         }
     }
 
@@ -559,7 +559,7 @@ struct TodayWorkoutView: View {
         let dot = Circle()
             .fill(hasRecovery ? recoveryDotColor(plan: plan) : Tide.text3)
             .frame(width: TideTrainSession.dot, height: TideTrainSession.dot)
-        let recovery = Text(hasRecovery ? recoveryText(plan: plan) : "No recovery data today")
+        let recovery = Text(hasRecovery ? recoveryText(plan: plan) : String(localized: "No recovery data today"))
             .foregroundStyle(Tide.text)
         let adjustment = Text(adjustmentLabel(plan: plan))
             .foregroundStyle(recoveryDotColor(plan: plan))
@@ -616,7 +616,9 @@ struct TodayWorkoutView: View {
                     .foregroundStyle(TideTrain.caution)
                     .accessibilityHidden(true)
                 Text(
-                    "Coach called \(TrainModalityName.displayName(session.modality)). You kept \(viewModel.todayPlan?.type.displayName ?? "the plan"). Your call."
+                    String(
+                        localized: "Coach called \(TrainModalityName.displayName(session.modality)). You kept \(viewModel.todayPlan?.type.displayName ?? String(localized: "the plan")). Your call."
+                    )
                 )
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
@@ -636,7 +638,7 @@ struct TodayWorkoutView: View {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Text("Today's call").tideLabel()
                     Spacer(minLength: Tide.s2)
-                    TrainTag(text: session.intensity.rawValue.capitalized, color: intensityColor(session.intensity))
+                    TrainTag(text: session.intensity.displayName, color: intensityColor(session.intensity))
                 }
                 Text(TrainModalityName.displayName(session.modality))
                     .font(Tide.title2)
@@ -668,7 +670,7 @@ struct TodayWorkoutView: View {
                         .font(Tide.body)
                         .foregroundStyle(Tide.text3)
                 }
-                Button(showFullWhy ? "Less" : "Why?") {
+                Button(showFullWhy ? String(localized: "Less") : String(localized: "Why?")) {
                     withAnimation { showFullWhy.toggle() }
                 }
                 .font(Tide.caption)
@@ -721,7 +723,7 @@ struct TodayWorkoutView: View {
                         .foregroundStyle(Tide.text2)
                         .strikethrough(plan.secondaryCompleted, color: Tide.text3)
                     Spacer()
-                    Button(plan.secondaryCompleted ? "Undo" : "Mark done") {
+                    Button(plan.secondaryCompleted ? String(localized: "Undo") : String(localized: "Mark done")) {
                         HapticManager.selection()
                         viewModel.toggleSecondarySessionComplete(modelContext: modelContext)
                     }
@@ -766,7 +768,7 @@ struct TodayWorkoutView: View {
     /// §21 — part header for a composite day ("AT 16:00" / "ANYTIME" for the
     /// untimed anchor).
     private func partHeader(_ scheduledMin: Int?) -> String {
-        scheduledMin.map { "At \(VenuePatternMath.clockLabel($0))" } ?? "Anytime"
+        scheduledMin.map { String(localized: "At \(VenuePatternMath.clockLabel($0))") } ?? String(localized: "Anytime")
     }
 
     private func blockRow(_ block: SessionBlockDTO) -> some View {
@@ -807,11 +809,11 @@ struct TodayWorkoutView: View {
 
     private func sessionProvenance(_ session: DailySession) -> String {
         if session.wasDowngraded {
-            return "Adjusted for recovery — body data wins."
+            return String(localized: "Adjusted for recovery — body data wins.")
         }
         switch session.source {
-        case .floorFallback: return "Using your planned session (AI unavailable right now)."
-        case .simple: return "Building your baseline — recovery-aware, trends still warming up."
+        case .floorFallback: return String(localized: "Using your planned session (AI unavailable right now).")
+        case .simple: return String(localized: "Building your baseline — recovery-aware, trends still warming up.")
         case .brain: return ""
         }
     }
@@ -834,7 +836,7 @@ struct TodayWorkoutView: View {
     // once-a-minute countdown `.task`. Clears itself when the start passes.
 
     private func workoutCountdownBanner(_ event: DateInterval) -> some View {
-        TrainCountdownCard(title: "Gym in \(countdownString(to: event.start)) — \(timeString(event.start))")
+        TrainCountdownCard(title: String(localized: "Gym in \(countdownString(to: event.start)) — \(timeString(event.start))"))
     }
 
     /// "3h 32m" / "47m" / "soon" — derived from `now` so it re-renders on
@@ -842,14 +844,14 @@ struct TodayWorkoutView: View {
     private func countdownString(to start: Date) -> String {
         let remaining = Int(start.timeIntervalSince(now))
         guard remaining > 0 else {
-            return "soon"
+            return String(localized: "soon")
         }
         let hours = remaining / 3600
         let minutes = (remaining % 3600) / 60
         if hours > 0 {
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(max(minutes, 1))m"
+        return String(localized: "\(max(minutes, 1))m")
     }
 
     private func timeString(_ date: Date) -> String {
@@ -874,9 +876,9 @@ struct TodayWorkoutView: View {
             }
         }
         return TrainDayHero(
-            label: isDone ? "Time" : "Estimated time",
+            label: isDone ? String(localized: "Time") : String(localized: "Estimated time"),
             figure: "\(minutes)",
-            unit: "min",
+            unit: String(localized: "min"),
             stats: [.init(
                 value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)",
                 label: TrainCount.noun(total, "exercise")
@@ -885,7 +887,7 @@ struct TodayWorkoutView: View {
             figureExplainer: isDone || plan.durationMinutes != nil ? nil : TrainExplainers.estimatedTime
         ) {
             TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)
-                .explains(TrainExplainers.setsDone.showing("\(plan.completedSets) of \(plan.totalSets)"))
+                .explains(TrainExplainers.setsDone.showing(String(localized: "\(plan.completedSets) of \(plan.totalSets)")))
         } footer: {
             recoveryStatusLine(plan: plan)
                 .explains(TrainExplainers.recoveryColour)
@@ -951,9 +953,13 @@ struct TodayWorkoutView: View {
                 guard let undo = viewModel.recordSessionRPECapturingUndo(value, modelContext: modelContext) else {
                     return
                 }
-                undoToast = ToastData(message: "Rated \(undo.rating) of 10", style: .info, actionTitle: "Undo") {
+                undoToast = ToastData(
+                    message: String(localized: "Rated \(undo.rating) of 10"),
+                    style: .info,
+                    actionTitle: String(localized: "Undo")
+                ) {
                     if !viewModel.undoSessionRPE(undo, modelContext: modelContext) {
-                        undoToast = ToastData(message: "Can't undo that now", style: .info)
+                        undoToast = ToastData(message: String(localized: "Can't undo that now"), style: .info)
                     }
                 }
             }
@@ -1036,7 +1042,7 @@ struct TodayWorkoutView: View {
     }
 
     private var addExerciseButton: some View {
-        TrainPlanAddButton(title: "Add exercise") {
+        TrainPlanAddButton(title: String(localized: "Add exercise")) {
             showAddExercise = true
         }
     }
@@ -1094,7 +1100,7 @@ struct TodayWorkoutView: View {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .font(Tide.label)
                     .accessibilityHidden(true)
-                Text(isCircuit ? "Circuit" : "Superset")
+                Text(isCircuit ? String(localized: "Circuit") : String(localized: "Superset"))
                     .font(Tide.bodyStrong)
             }
             .foregroundStyle(Color.accentColor)
@@ -1191,8 +1197,8 @@ struct TodayWorkoutView: View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             // Line 1: name + pain caution + chevron
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                Text(plannedExercise.exercise?.name ?? "Exercise")
-                    .accessibilityLabel((plannedExercise.exercise?.name ?? "Exercise").uppercased())
+                Text(plannedExercise.exercise?.name ?? String(localized: "Exercise"))
+                    .accessibilityLabel((plannedExercise.exercise?.name ?? String(localized: "Exercise")).uppercased())
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)
@@ -1268,7 +1274,11 @@ struct TodayWorkoutView: View {
                    firstWorking.targetRIR != nil
                 {
                     let zone = PrescriptionMath.zoneLabel(forReps: firstWorking.targetReps)
-                    TrainTag(text: zone.capitalized, color: zone == "HEAVY" ? Color.accentColor : TideTrain.caution)
+                    let zoneName = zone == "HEAVY"
+                        ? String(localized: "Heavy")
+                        : zone == "BUILD" ? String(localized: "Build")
+                        : zone == "PUMP" ? String(localized: "Pump") : zone.capitalized
+                    TrainTag(text: zoneName, color: zone == "HEAVY" ? Color.accentColor : TideTrain.caution)
                 }
                 if !metaParts.isEmpty {
                     Text(metaParts.joined(separator: " · "))
@@ -1296,7 +1306,7 @@ struct TodayWorkoutView: View {
             if plannedExercise.programNote != nil || plannedExercise.restSecondsOverride != nil {
                 Text([
                     plannedExercise.programNote,
-                    plannedExercise.restSecondsOverride.map { "Rest \($0)s" },
+                    plannedExercise.restSecondsOverride.map { String(localized: "Rest \($0)s") },
                 ].compactMap(\.self).joined(separator: " · "))
                     .font(Tide.caption)
                     .foregroundStyle(Color.accentColor)
@@ -1375,10 +1385,10 @@ struct TodayWorkoutView: View {
             }
 
             TrainDayCard(
-                label: "Rest day",
+                label: String(localized: "Rest day"),
                 symbol: "figure.yoga",
                 tint: TideTrain.positive,
-                title: "Your body builds muscle while you rest.",
+                title: String(localized: "Your body builds muscle while you rest."),
                 tomorrow: nextWorkoutType
             ) {
                 // Mobility flow button
@@ -1408,7 +1418,7 @@ struct TodayWorkoutView: View {
         // and what tomorrow is), then what to do, then the way to log it.
         VStack(spacing: Tide.s4) {
             TrainDayCard(
-                label: "Today",
+                label: String(localized: "Today"),
                 symbol: nonGymIcon(for: plan.type),
                 title: plan.type.displayName,
                 message: nonGymMessage(for: plan.type),
@@ -1418,7 +1428,12 @@ struct TodayWorkoutView: View {
             // Trainer program: the coach's own conditioning session, block by block.
             let trainerDay = viewModel.trainerDay(forKey: plan.programSessionKey, modelContext: modelContext)
             if let trainerDay {
-                trainerSessionCard(trainerDay, heading: "Your trainer's session", plan: plan, key: plan.programSessionKey)
+                trainerSessionCard(
+                    trainerDay,
+                    heading: String(localized: "Your trainer's session"),
+                    plan: plan,
+                    key: plan.programSessionKey
+                )
             }
 
             // §16 — venue propose-confirm, same placement as the gym path.
@@ -1500,7 +1515,7 @@ struct TodayWorkoutView: View {
             VStack(spacing: Tide.s3) {
                 activityStatsRow(summary)
                 confirmButton(
-                    title: "Confirm — that was \(plan.type.displayName.lowercased())",
+                    title: String(localized: "Confirm — that was \(plan.type.displayName.lowercased())"),
                     summary: summary
                 )
             }
@@ -1514,7 +1529,7 @@ struct TodayWorkoutView: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, Tide.s2)
-                confirmButton(title: "Yes, log it", summary: summary)
+                confirmButton(title: String(localized: "Yes, log it"), summary: summary)
                 Button {
                     HapticManager.impact(.light)
                     viewModel.dismissNonGymActivity()
@@ -1528,7 +1543,9 @@ struct TodayWorkoutView: View {
              .dismissed:
             if !hasTrainerSession {
                 confirmButton(
-                    title: plan.type == .football ? "Log that I played" : "Mark \(plan.type.displayName.lowercased()) done",
+                    title: plan
+                        .type == .football ? String(localized: "Log that I played") :
+                        String(localized: "Mark \(plan.type.displayName.lowercased()) done"),
                     summary: nil
                 )
             }
@@ -1563,10 +1580,10 @@ struct TodayWorkoutView: View {
                 alignment: .leading,
                 spacing: Tide.s3
             ) {
-                activityStat(value: String(format: "%.1f", s.strain), label: "Strain")
-                activityStat(value: "\(Int(s.durationMinutes))", unit: "min", label: "Duration")
-                activityStat(value: "\(Int(s.averageHeartRate))", unit: "bpm", label: "Avg HR")
-                activityStat(value: "\(Int(s.caloriesBurned))", unit: "kcal", label: "Cal")
+                activityStat(value: s.strain.tempoDecimal(1), label: String(localized: "Strain"))
+                activityStat(value: "\(Int(s.durationMinutes))", unit: String(localized: "min"), label: String(localized: "Duration"))
+                activityStat(value: "\(Int(s.averageHeartRate))", unit: String(localized: "bpm"), label: String(localized: "Avg HR"))
+                activityStat(value: "\(Int(s.caloriesBurned))", unit: "kcal", label: String(localized: "Cal"))
             }
             sweatHydrationNote(s)
         }
@@ -1589,10 +1606,14 @@ struct TodayWorkoutView: View {
                     Image(systemName: "drop.fill")
                         .font(Tide.label)
                         .foregroundStyle(Tide.water)
-                    Text(String(format: "~%.1f–%.1f L lost — drink to replace", range.lowerBound, range.upperBound))
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        String(
+                            localized: "~\(range.lowerBound.tempoDecimal(1))–\(range.upperBound.tempoDecimal(1)) L lost — drink to replace"
+                        )
+                    )
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 if needsElectrolytes {
                     Text("Add electrolytes, not just water.")
@@ -1650,13 +1671,13 @@ struct TodayWorkoutView: View {
 
     private func nonGymMessage(for type: WorkoutType) -> String {
         switch type {
-        case .football: "Football today. Bring the intensity on the pitch."
-        case .run: "Run day. Log it from Health — no sets to track here."
-        case .sprint: "Sprint work today. Warm up properly before you go."
-        case .conditioning: "Conditioning today. Push the engine, not the barbell."
-        case .pool: "Pool day. Easy laps — active recovery, not a race."
-        case .mobility: "Mobility today. Move well and recover — don't grind it."
-        default: "Training today."
+        case .football: String(localized: "Football today. Bring the intensity on the pitch.")
+        case .run: String(localized: "Run day. Log it from Health — no sets to track here.")
+        case .sprint: String(localized: "Sprint work today. Warm up properly before you go.")
+        case .conditioning: String(localized: "Conditioning today. Push the engine, not the barbell.")
+        case .pool: String(localized: "Pool day. Easy laps — active recovery, not a race.")
+        case .mobility: String(localized: "Mobility today. Move well and recover — don't grind it.")
+        default: String(localized: "Training today.")
         }
     }
 
@@ -1670,33 +1691,45 @@ struct TodayWorkoutView: View {
         case .pool:
             if plan.notes?.localizedCaseInsensitiveContains("pre-match") == true {
                 return (
-                    "Pool flush · \(mins) min",
-                    "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match."
+                    String(localized: "Pool flush · \(mins) min"),
+                    String(
+                        localized: "Very easy continuous swim. Loosen the legs and keep breathing smooth — nothing hard the day before a match."
+                    )
                 )
             }
             return (
-                "Continuous swim · \(mins) min",
-                "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired."
+                String(localized: "Continuous swim · \(mins) min"),
+                String(
+                    localized: "Steady, relaxed pace the whole way — one continuous effort, no intervals. Active recovery: you should finish looser, not tired."
+                )
             )
         case .run:
             return (
-                "Zone 2 easy run · \(mins) min",
-                "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue."
+                String(localized: "Zone 2 easy run · \(mins) min"),
+                String(
+                    localized: "Conversational pace — you should be able to talk in full sentences the whole way. Keep the heart rate easy; this builds the aerobic base without adding fatigue."
+                )
             )
         case .conditioning:
             return (
-                "Conditioning · \(mins) min",
-                "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell."
+                String(localized: "Conditioning · \(mins) min"),
+                String(
+                    localized: "5 min easy warm-up, then 6 × (1 min hard / 90 sec easy), 5 min cool-down. Bike, row, or run the intervals — push the engine, not the barbell."
+                )
             )
         case .sprint:
             return (
-                "Sprint work",
-                "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity."
+                String(localized: "Sprint work"),
+                String(
+                    localized: "Warm up thoroughly first. 10–12 × 20–30 m at 90–95%, walk back for full recovery between reps. Stop if form breaks — quality over quantity."
+                )
             )
         case .mobility:
             return (
-                "Mobility flow · \(mins) min",
-                "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind."
+                String(localized: "Mobility flow · \(mins) min"),
+                String(
+                    localized: "Slow, controlled full-body flow — hips, shoulders, thoracic spine. This is recovery, not a session to grind."
+                )
             )
         default:
             return nil
@@ -1713,7 +1746,7 @@ struct TodayWorkoutView: View {
 
     private var emptyState: some View {
         VStack(spacing: Tide.s4) {
-            TrainEmptyCard(systemImage: "figure.strengthtraining.traditional", title: "No workout planned")
+            TrainEmptyCard(systemImage: "figure.strengthtraining.traditional", title: String(localized: "No workout planned"))
 
             Button("Generate Today's Workout") {
                 Task {
@@ -1766,7 +1799,7 @@ struct TodayWorkoutView: View {
         if let w = history.bestSetWeight, w > 0 {
             return WeightFormat.text(kg: w, unit: unit)
         }
-        return "done"
+        return String(localized: "done")
     }
 
     /// Performance trend based on recent sessions.

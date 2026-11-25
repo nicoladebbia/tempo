@@ -82,7 +82,7 @@ struct TrainerReportSheet: View {
     /// "This Week", or "Last Week" on a Monday, when the report covers the
     /// week that just finished (see `TrainerReportBuilder.weekScopeLooksBack`).
     private var weekScopeLabel: String {
-        TrainerReportBuilder.weekScopeLooksBack(program: program, today: referenceDate) ? "Last Week" : "This Week"
+        TrainerReportBuilder.weekScopeLooksBack(program: program, today: referenceDate) ? String(localized: "Last Week") : String(localized: "This Week")
     }
 
     var body: some View {
@@ -91,13 +91,13 @@ struct TrainerReportSheet: View {
                 TrainPlanTabs(
                     items: [
                         (tag: TrainerReportScope.week, label: weekScopeLabel),
-                        (tag: TrainerReportScope.wholeProgram, label: "Whole Program"),
+                        (tag: TrainerReportScope.wholeProgram, label: String(localized: "Whole Program")),
                     ],
                     selection: $scope
                 )
 
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    TideSectionLabel(title: "Language")
+                    TideSectionLabel(title: String(localized: "Language"))
                     TrainPlanTabs(
                         items: TrainerReportLanguage.allCases.map { (tag: $0, label: $0.displayName) },
                         selection: $language
@@ -173,7 +173,7 @@ struct TrainerReportSheet: View {
                 }
             }
 
-            TrainPlanCard(label: "Sessions") {
+            TrainPlanCard(label: String(localized: "Sessions")) {
                 if document.sessions.isEmpty {
                     Text(document.strings.noSessionsText)
                         .font(Tide.caption)
@@ -219,7 +219,7 @@ struct TrainerReportSheet: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            TrainSetTicks(done: done, total: total, label: "Sessions")
+            TrainSetTicks(done: done, total: total, label: String(localized: "Sessions"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5)

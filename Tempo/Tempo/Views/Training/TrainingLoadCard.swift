@@ -91,7 +91,7 @@ struct TrainingLoadCard: View {
             } else {
                 chart(points)
                 Text(
-                    "Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(String(format: "%.1f", TrainingSafetyFloor.acwrCompositeMax)) injury risk climbs and the coach blocks two-a-days."
+                    "Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(TrainingSafetyFloor.acwrCompositeMax.tempoDecimal(1)) injury risk climbs and the coach blocks two-a-days."
                 )
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -105,11 +105,11 @@ struct TrainingLoadCard: View {
     private func currentReading(_ ratio: Double?) -> some View {
         if let current = ratio {
             FlowLayout(spacing: Tide.s3, lineSpacing: Tide.s1) {
-                TideNumber(String(format: "%.2f", current), size: Tide.numeralL, relativeTo: .largeTitle, color: zoneColor(current))
+                TideNumber(current.tempoDecimal(2), size: Tide.numeralL, relativeTo: .largeTitle, color: zoneColor(current))
                 TrainTag(text: zoneLabel(current), color: zoneColor(current))
             }
             .accessibilityElement(children: .combine)
-            .explains(TrainExplainers.trainingLoad.showing(String(format: "%.2f", current)))
+            .explains(TrainExplainers.trainingLoad.showing(current.tempoDecimal(2)))
         }
     }
 
@@ -164,17 +164,17 @@ struct TrainingLoadCard: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(height: TideTrainSession.chartHeight)
         .accessibilityLabel("Training load, acute to chronic ratio")
-        .accessibilityValue(points.last.map { String(format: "%.2f, %@", $0.ratio, zoneLabel($0.ratio)) } ?? "")
+        .accessibilityValue(points.last.map { String(localized: "\($0.ratio.tempoDecimal(2)), \(zoneLabel($0.ratio))") } ?? "")
     }
 
     private func zoneLabel(_ ratio: Double) -> String {
         if ratio > TrainingSafetyFloor.acwrCompositeMax {
-            return "High"
+            return String(localized: "High")
         }
         if ratio < Self.lowBound {
-            return "Low"
+            return String(localized: "Low")
         }
-        return "Sweet spot"
+        return String(localized: "Sweet spot")
     }
 
     private func zoneColor(_ ratio: Double) -> Color {

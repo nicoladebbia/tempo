@@ -37,10 +37,10 @@ enum PauseReason: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .sick: "Sick"
-        case .injured: "Injured"
-        case .travel: "Travel"
-        case .other: "Other"
+        case .sick: String(localized: "Sick")
+        case .injured: String(localized: "Injured")
+        case .travel: String(localized: "Travel")
+        case .other: String(localized: "Other")
         }
     }
 

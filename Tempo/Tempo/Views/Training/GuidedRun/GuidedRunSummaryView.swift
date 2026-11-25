@@ -107,15 +107,15 @@ struct GuidedRunSummaryView: View {
         }()
         var stats: [TrainDayHero<EmptyView, Text>.Stat] = []
         if timed != nil {
-            stats.append(.init(value: blocksDone, label: "Blocks"))
+            stats.append(.init(value: blocksDone, label: String(localized: "Blocks")))
         }
         if totalDistance > 0 {
-            stats.append(.init(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: "Distance"))
+            stats.append(.init(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: String(localized: "Distance")))
         }
         return TrainDayHero(
-            label: "Session complete",
+            label: String(localized: "Session complete"),
             figure: timed ?? blocksDone,
-            unit: timed == nil ? "blocks" : nil,
+            unit: timed == nil ? String(localized: "blocks", comment: "Unit under a number: blocks of a guided run") : nil,
             stats: stats
         ) {
             EmptyView()
@@ -142,7 +142,7 @@ struct GuidedRunSummaryView: View {
                 if let met = targetMet(block) {
                     Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .foregroundStyle(met ? TideTrain.positive : Tide.danger)
-                        .accessibilityLabel(met ? "Target met" : "Target missed")
+                        .accessibilityLabel(met ? String(localized: "Target met") : String(localized: "Target missed"))
                 }
             }
             Text(block.trainerText)
@@ -166,7 +166,7 @@ struct GuidedRunSummaryView: View {
         if !record.repTimesSeconds.isEmpty {
             repTimesGrid(block, record: record)
         } else if record.roundsCompleted > 0 {
-            Text("\(TrainCount.text(record.roundsCompleted, "round")) completed")
+            Text(String(localized: "\(record.roundsCompleted) rounds completed"))
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
         } else if record.durationSeconds != nil || record.distanceMeters != nil {
@@ -267,7 +267,7 @@ struct GuidedRunSummaryView: View {
 
     private var rpeSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionLabel("Effort (RPE)")
+            sectionLabel(String(localized: "Effort (RPE)"))
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: typeSize.isAccessibilitySize ? 3 : 5),
                 spacing: Tide.s2
@@ -288,7 +288,7 @@ struct GuidedRunSummaryView: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionLabel("Notes")
+            sectionLabel(String(localized: "Notes"))
             TextField("How did it feel?", text: $notes, axis: .vertical)
                 .font(Tide.body)
                 .lineLimit(2 ... 4)

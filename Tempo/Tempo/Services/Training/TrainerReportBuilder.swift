@@ -457,7 +457,7 @@ enum TrainerReportBuilder {
             id: "\(sessionKey)|\(isoKey(scheduledDate))",
             scheduledDate: scheduledDate,
             dateLabel: formatDate(scheduledDate, language: language, includeWeekday: true),
-            title: day.title ?? day.workoutType.displayName,
+            title: day.title ?? day.workoutType.englishName,
             status: status,
             statusLabel: statusLabel,
             completionFraction: completionFraction,

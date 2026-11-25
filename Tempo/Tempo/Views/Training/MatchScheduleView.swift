@@ -57,10 +57,10 @@ struct MatchScheduleView: View {
                 .trainPlanListRow()
 
                 if upcoming.isEmpty {
-                    TrainEmptyCard(systemImage: "soccerball", title: "No matches scheduled.")
+                    TrainEmptyCard(systemImage: "soccerball", title: String(localized: "No matches scheduled."))
                         .trainPlanListRow()
                 } else {
-                    TideSectionLabel(title: "Upcoming")
+                    TideSectionLabel(title: String(localized: "Upcoming"))
                         .trainPlanListRow()
                     ForEach(upcoming) { match in
                         matchRow(match)
@@ -126,7 +126,7 @@ struct MatchScheduleView: View {
     }
 
     private func matchTitle(_ match: Match) -> some View {
-        Text(match.opponent.map { "vs \($0)" } ?? "Match")
+        Text(match.opponent.map { String(localized: "vs \($0)") } ?? String(localized: "Match"))
             .font(Tide.title2)
             .foregroundStyle(Tide.text)
             .fixedSize(horizontal: false, vertical: true)
@@ -157,8 +157,8 @@ struct MatchScheduleView: View {
         guard let first = snapshots.first else {
             return
         }
-        let message = snapshots.count == 1 ? first.message : "Deleted \(TrainCount.text(snapshots.count, "match"))"
-        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+        let message = snapshots.count == 1 ? first.message : String(localized: "Deleted \(snapshots.count) matches")
+        toast = ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             for snapshot in snapshots {
                 snapshot.restore(in: modelContext)
             }
@@ -200,7 +200,7 @@ private struct MatchEntrySheet: View {
     var body: some View {
         NavigationStack {
             TrainPlanPage {
-                TrainPlanCard(label: "When") {
+                TrainPlanCard(label: String(localized: "When")) {
                     DatePicker(
                         "Kickoff",
                         selection: $kickoff,
@@ -211,15 +211,15 @@ private struct MatchEntrySheet: View {
                     .frame(minHeight: Tide.hit)
                 }
 
-                TrainPlanField(label: "Opponent (optional)") {
+                TrainPlanField(label: String(localized: "Opponent (optional)")) {
                     TextField("e.g. Inter Miami", text: $opponent)
                         .textInputAutocapitalization(.words)
                 }
 
                 TrainPlanCard {
                     TrainPlanToggleRow(
-                        title: "Competitive fixture",
-                        detail: "Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.",
+                        title: String(localized: "Competitive fixture"),
+                        detail: String(localized: "Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage."),
                         isOn: $competitive
                     )
                 }

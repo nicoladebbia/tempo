@@ -845,7 +845,7 @@ extension TrainingViewModel {
             // Learn the substitution — future plans prescribe this pick.
             rememberSwapPreference(from: oldID, to: newExercise.id, modelContext: modelContext)
         }
-        saveGuarded(modelContext, operation: "exercise swap")
+        saveGuarded(modelContext, operation: String(localized: "exercise swap"))
         HapticManager.selection()
         // Watch + Dashboard read the plan's exercises directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
@@ -872,7 +872,7 @@ extension TrainingViewModel {
             plannedExercise: planned,
             modelContext: modelContext
         )
-        saveGuarded(modelContext, operation: "added exercise")
+        saveGuarded(modelContext, operation: String(localized: "added exercise"))
         HapticManager.selection()
         // Watch + Dashboard read the plan's exercises directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)

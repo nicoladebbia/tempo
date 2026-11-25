@@ -246,7 +246,7 @@ final class WorkoutPlan {
 
     /// "<1 min" under a minute, otherwise "N min" at the nearest minute.
     nonisolated static func durationLabel(seconds: TimeInterval) -> String {
-        seconds < 60 ? "<1 min" : "\(Int((seconds / 60).rounded())) min"
+        seconds < 60 ? String(localized: "<1 min") : String(localized: "\(Int((seconds / 60).rounded())) min")
     }
 
     // MARK: - Init

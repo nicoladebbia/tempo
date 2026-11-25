@@ -113,11 +113,11 @@ enum TrainerProgramSourceNormalizer {
         var errorDescription: String? {
             switch self {
             case .noSources:
-                "Add at least one source first."
+                String(localized: "Add at least one source first.")
             case let .tooManyPages(max):
-                "That's \(max)+ pages across your sources — split it up and import in a couple of batches."
+                String(localized: "That's \(max)+ pages across your sources — split it up and import in a couple of batches.")
             case let .unreadableSource(name):
-                "Couldn't read \"\(name)\". Try a clearer photo or a different file."
+                String(localized: "Couldn't read \"\(name)\". Try a clearer photo or a different file.")
             }
         }
     }
@@ -182,7 +182,7 @@ enum TrainerProgramSourceNormalizer {
             }
         }
         guard !units.isEmpty else {
-            throw NormalizeError.unreadableSource(sources.first?.displayName ?? "that source")
+            throw NormalizeError.unreadableSource(sources.first?.displayName ?? String(localized: "that source"))
         }
         return units
     }

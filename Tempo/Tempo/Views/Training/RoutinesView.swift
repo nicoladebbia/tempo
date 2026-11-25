@@ -40,7 +40,7 @@ struct RoutinesView: View {
                 // Why "Use today" is off, said once at the top as its own card.
                 TrainBanner(
                     systemImage: "exclamationmark.circle.fill",
-                    label: "Not available today",
+                    label: String(localized: "Not available today"),
                     tint: TideTrain.caution,
                     message: blocker
                 ) {}
@@ -50,8 +50,8 @@ struct RoutinesView: View {
             if routines.isEmpty {
                 TrainEmptyCard(
                     systemImage: "list.bullet.rectangle",
-                    title: "No routines yet.",
-                    message: "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
+                    title: String(localized: "No routines yet."),
+                    message: String(localized: "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery.")
                 )
                 .trainPlanListRow()
             }
@@ -90,7 +90,7 @@ struct RoutinesView: View {
                     }
                     .buttonStyle(.tidePrimary)
                 } else {
-                    TrainPlanAddButton(title: "New routine") {
+                    TrainPlanAddButton(title: String(localized: "New routine")) {
                         creatingNew = true
                     }
                 }
@@ -135,7 +135,7 @@ struct RoutinesView: View {
                 if viewModel.applyRoutine(routine, modelContext: modelContext) {
                     dismiss()
                 } else {
-                    message = "Couldn't load that routine — its exercises are no longer in your library."
+                    message = String(localized: "Couldn't load that routine — its exercises are no longer in your library.")
                 }
             }
         } message: { _ in
@@ -221,7 +221,7 @@ struct RoutinesView: View {
         guard modelContext.saveOrAlert("routine change") else {
             return
         }
-        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "Deleted \(snapshot.name)"), style: .info, actionTitle: String(localized: "Undo")) {
             snapshot.restore(in: modelContext)
             modelContext.saveOrAlert("routine change")
         }
@@ -269,7 +269,7 @@ struct RoutineEditorView: View {
             return
         }
         items.remove(atOffsets: offsets)
-        toast = ToastData(message: removal.message, style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: removal.message, style: .info, actionTitle: String(localized: "Undo")) {
             withAnimation(Tide.snap) {
                 removal.restore(into: &items)
             }
@@ -309,7 +309,7 @@ struct RoutineEditorView: View {
                     }
                     .listRowBackground(Tide.fill)
                 } header: {
-                    TideSectionLabel(title: "Exercises")
+                    TideSectionLabel(title: String(localized: "Exercises"))
                 }
             }
             .listStyle(.insetGrouped)
@@ -335,7 +335,7 @@ struct RoutineEditorView: View {
                 .padding(.bottom, Tide.s2)
             }
             .environment(\.editMode, .constant(.active))
-            .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
+            .navigationTitle(routine == nil ? String(localized: "New Routine") : String(localized: "Edit Routine"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

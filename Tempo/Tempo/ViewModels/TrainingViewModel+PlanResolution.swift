@@ -279,7 +279,7 @@ extension TrainingViewModel {
            )
         {
             plan.type = .mobility
-            plan.notes = "Deload — full rest week. Move, stretch, recover."
+            plan.notes = String(localized: "Deload — full rest week. Move, stretch, recover.")
         }
         // Same trainer-program overlay as the weekly path — fix #6: seed the
         // sequence cursor / consecutive-lift guard from real progress so

@@ -57,7 +57,7 @@ struct PerSideRepsControl: View {
                 HapticManager.selection()
             } label: {
                 Label(
-                    splitEnabled ? "Same both sides" : "Log sides separately",
+                    splitEnabled ? String(localized: "Same both sides") : String(localized: "Log sides separately"),
                     systemImage: splitEnabled ? "arrow.triangle.merge" : "arrow.left.arrow.right"
                 )
             }
@@ -66,11 +66,11 @@ struct PerSideRepsControl: View {
             if splitEnabled {
                 TrainSessionField(
                     value: $right,
-                    label: "Reps — right",
+                    label: String(localized: "Reps — right"),
                     range: 1 ... 100,
                     step: 1,
                     format: "%.0f",
-                    unit: "reps / side"
+                    unit: String(localized: "reps / side")
                 )
                 .tideCard(padding: Tide.s4)
                 .transition(.opacity)

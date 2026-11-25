@@ -44,10 +44,10 @@ struct MissedTrainerSessionCard: View {
     private func card(for missed: TrainingViewModel.MissedTrainerSession) -> some View {
         // The day that got away: its weekday over its date, in caution.
         TrainAskCard(
-            label: "Missed on \(missed.date.formatted(.dateTime.weekday(.wide)))",
+            label: String(localized: "Missed on \(missed.date.formatted(.dateTime.weekday(.wide)))"),
             tint: TideTrain.caution,
             title: missed.day.title ?? missed.day.workoutType.displayName,
-            message: "Swap it in for today's session instead?"
+            message: String(localized: "Swap it in for today's session instead?")
         ) {
             TrainFigureTile(date: missed.date, tint: TideTrain.caution)
         } actions: {
