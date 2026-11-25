@@ -17,7 +17,11 @@ struct TempoShell: View {
     /// What the tab bar can select. `capture` is the "+": it never becomes the
     /// active tab, it opens the capture sheet.
     private enum Slot: Hashable {
-        case today, train, fuel, arena, capture
+        case today
+        case train
+        case fuel
+        case arena
+        case capture
 
         init(_ tab: AppTab) {
             switch tab {
@@ -73,6 +77,11 @@ struct TempoShell: View {
             .captureHost(isPresented: $appState.captureRequested, nutritionViewModel: nutritionViewModel)
             // The one place the workout screens are presented from.
             .workoutSessionHost()
+            // Fuel logs made from the "+" sheet or the Scan tile end with an Undo toast; it rests
+            // above the tab bar. Inside the Fuel tab its own host takes over (a second one does nothing).
+            .fuelLogToastHost(placement: .aboveTabBar)
+            // Search, and Settings or "Ask Tempo" opened from anywhere (search results, the Today checklist).
+            .appSearchHost()
             // The mood goes on last, outside the hosts: a cover or sheet the shell
             // presents inherits what its presenter has, so it needs the day's
             // colour there, not only on the tabs.

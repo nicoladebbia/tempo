@@ -85,6 +85,9 @@ struct RecoveryDayView: View {
 
                 // Subjective morning check-in (INTELLIGENT_TRAINING_SYSTEM §4.2)
                 MorningCheckInCard()
+
+                // The end of the page: one line on what to do next.
+                NextStepBar(place: .recoveryEnd)
             } else if case let .error(message) = viewModel.loadState {
                 RecoveryErrorPanel(message: message) {
                     Task { await viewModel.forceRefresh(modelContext: modelContext) }

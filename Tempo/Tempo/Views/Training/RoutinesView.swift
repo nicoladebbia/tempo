@@ -99,7 +99,7 @@ struct RoutinesView: View {
             .padding(.bottom, Tide.s2)
         }
         .navigationTitle("My Routines")
-        .tempoToast($toast)
+        .tempoToast($toast, placement: .bottom)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -251,7 +251,7 @@ struct RoutineEditorView: View {
 
     var body: some View {
         editorBody
-            .tempoToast($toast)
+            .tempoToast($toast, placement: .bottom)
             .persistenceAlert()
     }
 

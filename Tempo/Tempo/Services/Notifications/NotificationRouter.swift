@@ -96,9 +96,10 @@ enum NotificationRouter {
             return action == "VIEW_WORKOUT" ? .tab(.train) : .today(.recovery)
         case "BEDTIME_REMINDER":
             return .today(.recovery)
-        case "MORNING_BRIEFING",
-             "WEEKLY_SUMMARY":
+        case "MORNING_BRIEFING":
             return .tab(.today)
+        case "WEEKLY_SUMMARY":
+            return .today(.weekReview)
         case "ARENA_SOCIAL":
             return .tab(.arena)
         case "STREAK_WARNING",
@@ -151,7 +152,7 @@ enum NotificationRouter {
              "accountability_tier4":
             return .today(.lockdown)
         case "weekly_summary":
-            return .tab(.today)
+            return .today(.weekReview)
         case "leaderboard_change",
              "challenge_invite",
              "challenge_update",

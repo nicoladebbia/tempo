@@ -9,6 +9,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - CaptureAction
+
 /// What the capture sheet can start.
 enum CaptureAction: String, CaseIterable, Identifiable {
     case meal
@@ -16,7 +18,9 @@ enum CaptureAction: String, CaseIterable, Identifiable {
     case workout
     case focus
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
@@ -46,9 +50,13 @@ enum CaptureAction: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - CaptureSheet
+
 struct CaptureSheet: View {
     /// Called with the chosen action; the host closes the sheet and opens the flow.
     let onAction: (CaptureAction) -> Void
+    /// Called when "Ask Tempo" is tapped; the host closes the sheet and opens the chat.
+    var onAsk: () -> Void = {}
 
     @Environment(ServiceContainer.self)
     private var services
@@ -63,8 +71,12 @@ struct CaptureSheet: View {
     private var waterTotal = 0
     @State
     private var waterTaps = 0
+    /// "Added 250 ml" with its Undo. Hosted here, not on the shell, because
+    /// this sheet covers the shell's own toast.
+    @State
+    private var toast: ToastData?
 
-    static let waterStepMl = 250
+    nonisolated static let waterStepMl = 250
 
     /// Two tiles across; at accessibility sizes one full-width tile per row, so
     /// no title is broken mid-word.
@@ -87,6 +99,8 @@ struct CaptureSheet: View {
                         actionTile(action)
                     }
                 }
+
+                askRow
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s6)
@@ -98,6 +112,7 @@ struct CaptureSheet: View {
             reloadWater()
         }
         .sensoryFeedback(.success, trigger: waterTaps)
+        .tempoToast($toast, placement: .bottom)
     }
 
     // MARK: Water
@@ -140,17 +155,58 @@ struct CaptureSheet: View {
 
     /// Same store the Fuel screen uses, so every screen shows the same total.
     private func addWater() {
-        guard WaterStore(context: modelContext, healthKit: services.healthKit).add(ml: Self.waterStepMl) != nil else {
+        let store = WaterStore(context: modelContext, healthKit: services.healthKit)
+        guard let log = store.add(ml: Self.waterStepMl) else {
+            toast = ToastData(message: "Couldn't save that. Try again.", style: .error)
             return
         }
         waterTaps += 1
         reloadWater()
+        // Undo takes back exactly this entry, even if more were added since.
+        let id = log.id
+        toast = ToastData(
+            message: "Added \(Self.waterStepMl) ml of water.",
+            style: .success,
+            actionTitle: "Undo"
+        ) {
+            if store.remove(id: id) {
+                reloadWater()
+            } else {
+                toast = ToastData(message: "Couldn't undo that. Delete it from Water.", style: .error)
+            }
+        }
     }
 
     private func reloadWater() {
         withAnimation(Tide.snap) {
             waterTotal = WaterStore.total(in: modelContext)
         }
+    }
+
+    // MARK: Ask
+
+    /// A full-width row under the tiles: it opens the Coach chat, which is no
+    /// longer a tab of its own.
+    private var askRow: some View {
+        Button(action: onAsk) {
+            HStack(alignment: .center, spacing: Tide.s3) {
+                TideIconTile(systemName: "sparkles", tint: mood.accent, size: Tide.hit)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Ask Tempo").font(Tide.headline).foregroundStyle(Tide.text)
+                    Text("Your day, your plan, your numbers").font(Tide.caption).foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: Tide.s2)
+                Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(TideCardPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("capture.ask")
     }
 
     // MARK: Actions
@@ -182,7 +238,7 @@ struct CaptureSheet: View {
     }
 }
 
-// MARK: - Host
+// MARK: - CaptureHost
 
 /// Presents the capture sheet and, once it has closed, the flow that was picked.
 private struct CaptureHost: ViewModifier {
@@ -209,15 +265,25 @@ private struct CaptureHost: ViewModifier {
     private var focusModel: AccountabilityViewModel?
     @State
     private var showFocus = false
+    @State
+    private var pendingAsk = false
+    @State
+    private var showAsk = false
 
     func body(content: Content) -> some View {
         content
-            .tideCovered(isPresented || showMeal || showScan || showFocus)
+            .tideCovered(isPresented || showMeal || showScan || showFocus || showAsk)
             .sheet(isPresented: $isPresented, onDismiss: runPending) {
-                CaptureSheet { action in
-                    pending = action
-                    isPresented = false
-                }
+                CaptureSheet(
+                    onAction: { action in
+                        pending = action
+                        isPresented = false
+                    },
+                    onAsk: {
+                        pendingAsk = true
+                        isPresented = false
+                    }
+                )
                 .environment(\.tideMood, mood)
                 // The short sheet cannot hold the tiles at accessibility sizes.
                 .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.height(Tide.captureHeight), .large])
@@ -240,9 +306,21 @@ private struct CaptureHost: ViewModifier {
                     FocusTimerView(viewModel: focusModel)
                 }
             }
+            .sheet(isPresented: $showAsk) {
+                CoachChat()
+                    .environment(\.tideMood, mood)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+                    .preferredColorScheme(.dark)
+            }
     }
 
     private func runPending() {
+        if pendingAsk {
+            pendingAsk = false
+            showAsk = true
+            return
+        }
         guard let action = pending else {
             return
         }

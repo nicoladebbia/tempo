@@ -26,7 +26,7 @@ struct ExerciseLibraryView: View {
     @Environment(\.dynamicTypeSize)
     private var typeSize
     @State
-    private var searchText = ""
+    private var searchText: String
     @State
     private var selectedMuscleGroup: MuscleGroup?
     @State
@@ -34,6 +34,14 @@ struct ExerciseLibraryView: View {
     /// §10.6 — custom exercise creation sheet.
     @State
     private var showCreateExercise = false
+
+    /// `initialSearch` opens the library already searching (from app search).
+    init(initialSearch: String = "") {
+        self.initialSearch = initialSearch
+        _searchText = State(initialValue: initialSearch)
+    }
+
+    private let initialSearch: String
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -91,6 +99,10 @@ struct ExerciseLibraryView: View {
         .tidePage()
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
+        // Searching again from the app search while the library is already open.
+        .onChange(of: initialSearch) { _, new in
+            searchText = new
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {

@@ -27,6 +27,9 @@ struct NutritionTodayView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    /// A body-weight target shows under the calorie hero.
+    @Query(filter: #Predicate<Goal> { $0.isActive == true })
+    private var activeGoals: [Goal]
 
     /// When set, presents `MealFeedbackSheet` for this meal. Used by the
     /// review-pending chip on past eaten meals and the long-form review
@@ -107,6 +110,8 @@ struct NutritionTodayView: View {
             }
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .scrollEdgeEffectStyle(.soft, for: .top)
+            // Just logged a meal: one line on what comes next (nothing the rest of the time).
+            .nextStepBar(place: .afterMeal)
             // Meal logging now lives solely on the Log tab — the Today page's
             // floating "Log a Meal" FAB was removed (redundant entry point).
             .task {
@@ -294,6 +299,9 @@ struct NutritionTodayView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .accessibilityLabel("Target adjusted: \(note)")
+            }
+            if activeGoals.hasActive(of: [.bodyWeight]) {
+                GoalProgressChip(kinds: [.bodyWeight])
             }
         }
         .tideCard()

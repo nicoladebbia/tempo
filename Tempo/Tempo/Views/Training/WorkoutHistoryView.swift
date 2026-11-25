@@ -315,7 +315,7 @@ struct WorkoutHistoryView: View {
         } message: { workout in
             Text(Self.deleteConfirmationMessage(workout))
         }
-        .tempoToast($deleteToast)
+        .tempoToast($deleteToast, placement: .bottom)
         // A workout waiting out its Undo window is removed for good as soon as
         // this screen is left or the app goes to the background, so a delete
         // never survives only in memory.

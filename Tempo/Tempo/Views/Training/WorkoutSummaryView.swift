@@ -21,6 +21,8 @@ struct WorkoutSummaryView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
     @Environment(\.dynamicTypeSize)
@@ -69,6 +71,17 @@ struct WorkoutSummaryView: View {
 
                 // Stats
                 statsCard
+
+                // What to do next: saves the session, closes this page, then goes there.
+                NextStepBar(place: .workoutSummary) { step in
+                    Task {
+                        await viewModel.saveWorkout(modelContext: modelContext)
+                        if viewModel.saveErrorMessage == nil {
+                            dismiss()
+                            NextStepRouter.perform(step.action, appState: services.appState)
+                        }
+                    }
+                }
 
                 // Last-set feedback — the final working set goes straight to the
                 // summary (no rest, no cooldown screen), so its RPE/note is

@@ -67,12 +67,6 @@ struct LockdownTabView: View {
                                 Label("Streak Calendar", systemImage: "flame.fill")
                             }
 
-                            NavigationLink {
-                                WeeklyAccountabilityView()
-                            } label: {
-                                Label("Weekly Report Card", systemImage: "doc.text.fill")
-                            }
-
                             Button {
                                 showSetup = true
                             } label: {

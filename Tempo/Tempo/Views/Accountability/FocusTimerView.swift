@@ -24,6 +24,8 @@ struct FocusTimerView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Environment(\.scenePhase)
     private var scenePhase
     @Environment(\.tideMood)
@@ -993,6 +995,13 @@ struct FocusTimerView: View {
                     )
                 }
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+                // What comes next: saves the review, closes the timer, then goes there.
+                NextStepBar(place: .afterFocus, onOpen: { step in
+                    viewModel.finishFocusReview(modelContext: modelContext)
+                    dismiss()
+                    NextStepRouter.perform(step.action, appState: services.appState)
+                }, ignoresFreshness: true)
             }
             .padding(.horizontal, Tide.edge)
             .padding(.bottom, Tide.s4)

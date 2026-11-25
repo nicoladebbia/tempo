@@ -41,8 +41,10 @@ struct CoachChat: View {
                 CoachChatView(
                     viewModel: viewModel,
                     systemPromptBuilder: { buildSystemPrompt() },
+                    emptyStateSeeds: Self.askSeeds,
                     voice: voiceOverride ?? CoachVoiceController(),
-                    voiceMode: currentVoiceMode()
+                    voiceMode: currentVoiceMode(),
+                    title: "Ask Tempo"
                 )
             } else {
                 TideCoachSkeleton()
@@ -109,28 +111,42 @@ struct CoachChat: View {
         return snapshot.render()
     }
 
-    /// Live-state snapshot for today. Minimal: the meals planned and their
-    /// timing. Recovery, steps and the workout are not read here yet.
+    /// What the chat opens with when nothing has been said yet: questions
+    /// about the day, not commands.
+    static let askSeeds = [
+        "What should I eat next?",
+        "Should I train hard today?",
+        "How is my week going?",
+    ]
+
+    /// Live-state snapshot for today: the meals planned and their timing, and
+    /// the same recovery, sleep, steps, calories and session Today shows (read
+    /// from the copy Today saves, so the chat and the screen never disagree).
     private func liveSnapshot() -> TodayLiveSnapshot {
-        let todayMeals = CanonicalMeals.meals(on: Date(), in: modelContext)
+        let now = Date()
+        let todayMeals = CanonicalMeals.meals(on: now, in: modelContext)
         // Per-meal planned vs actual timing rows, sorted by mealNumber so
         // Coach reads breakfast, lunch, dinner.
         let timings = todayMeals
             .sorted { $0.mealNumber < $1.mealNumber }
             .compactMap(PlannedMealTimingEntry.from(_:))
+        let today = TodayCache.shared.load(now: now, calendar: .current)
+        let recovery = today?.recovery
+        let workout = today?.workout
+        let hasWorkout = workout.map { $0.status == .planned || $0.status == .completed } ?? false
         var snapshot = TodayLiveSnapshot(
-            date: Date(),
-            dayType: nil,
-            recoveryScore: nil,
-            recoveryZone: nil,
-            hrvMs: nil,
-            restingHR: nil,
-            sleepHoursLastNight: nil,
-            stepsSoFar: nil,
+            date: now,
+            dayType: workout?.status == .rest ? .rest : nil,
+            recoveryScore: recovery?.score.map(Double.init),
+            recoveryZone: recovery?.score.map { RecoveryZone(score: Double($0)).rawValue },
+            hrvMs: recovery?.hrv.map(Double.init),
+            restingHR: recovery?.restingHR.map(Double.init),
+            sleepHoursLastNight: recovery?.sleepHours,
+            stepsSoFar: today?.steps,
             plannedMealCount: todayMeals.count,
-            loggedKcalSoFar: 0,
-            targetKcal: nil,
-            workoutTitle: nil,
+            loggedKcalSoFar: today?.fuel.calories ?? 0,
+            targetKcal: today?.fuel.calorieTarget,
+            workoutTitle: hasWorkout ? workout?.name : nil,
             workoutTime: nil
         )
         snapshot.mealTimings = timings

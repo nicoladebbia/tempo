@@ -28,11 +28,7 @@ extension TodaySnapshot {
             let row = (try? context.fetch(FetchDescriptor<DailyRecovery>(
                 predicate: #Predicate { $0.date >= start && $0.date < end }
             )))?.first
-            let water = DailyNutritionTargets.today(
-                in: context,
-                whoopAvgTDEE: nil,
-                recoveryScore: DailyNutritionTargets.storedRecoveryScore(in: context, now: now)
-            ).hydrationMl
+            let water = DailyNutritionTargets.todayWaterTargetMl(in: context, now: now)
             return Owned(
                 waterTargetMl: water,
                 recoveryScore: row?.recoveryScore,

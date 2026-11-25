@@ -87,6 +87,11 @@ struct LockdownMainView: View {
 
                     // ...then what is still open, with what is finished under it.
                     nonNegotiableCards
+
+                    // Everything done: one line on what is next.
+                    if viewModel.isLeisureUnlocked {
+                        NextStepBar(place: .lockdownDone)
+                    }
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {

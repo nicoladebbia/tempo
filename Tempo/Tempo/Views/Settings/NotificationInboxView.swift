@@ -244,6 +244,9 @@ struct NotificationInboxView: View {
 /// A bell for a screen's toolbar: a dot when something today has not been opened, and the
 /// list of today's notifications behind it.
 struct NotificationBell: View {
+    /// A glass circle, like the other round controls on Today. Off in a toolbar.
+    var glass = false
+
     @Environment(\.tideMood)
     private var mood
     @Environment(\.scenePhase)
@@ -262,8 +265,10 @@ struct NotificationBell: View {
                 .font(Tide.bodyStrong)
                 .foregroundStyle(inbox.unreadCount > 0 ? mood.accent : Tide.text)
                 .frame(width: Tide.hit, height: Tide.hit)
+                .modifier(BellBackground(glass: glass))
                 .contentShape(.rect)
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(inbox.unreadCount > 0 ? "Notifications, \(inbox.unreadCount) not opened" : "Notifications")
         .accessibilityIdentifier("notificationBell")
         .sheet(isPresented: $showInbox) {
@@ -282,6 +287,20 @@ struct NotificationBell: View {
             if phase == .active {
                 Task { await inbox.refresh() }
             }
+        }
+    }
+}
+
+// MARK: - BellBackground
+
+private struct BellBackground: ViewModifier {
+    let glass: Bool
+
+    func body(content: Content) -> some View {
+        if glass {
+            content.glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+        } else {
+            content
         }
     }
 }

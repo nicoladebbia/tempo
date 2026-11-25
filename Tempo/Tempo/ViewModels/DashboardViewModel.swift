@@ -775,28 +775,9 @@ final class DashboardViewModel {
             return
         }
 
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return
-        }
-        let descriptor = FetchDescriptor<BodyComposition>(
-            predicate: #Predicate<BodyComposition> { $0.date >= today && $0.date < tomorrow }
-        )
-        if let existing = (try? context.fetch(descriptor))?.first {
-            existing.weightKg = data.weightKg
-            existing.bodyFatPercent = data.bodyFatPercent
-            existing.leanMassKg = data.leanMassKg
-            existing.measurementDate = data.measurementDate
-            existing.capturedAt = Date()
-        } else {
-            context.insert(BodyComposition(
-                date: today,
-                weightKg: data.weightKg,
-                bodyFatPercent: data.bodyFatPercent,
-                leanMassKg: data.leanMassKg,
-                measurementDate: data.measurementDate
-            ))
-        }
-        try? context.save()
+        // The one writer of the day's body row (Body progress uses it too): a reading Health
+        // did not give this time never blanks the one already stored.
+        BodyCompositionRefresh.store(data, on: today, in: context)
         UserDefaults.standard.set(today, forKey: guardKey)
         #if DEBUG
             print(
@@ -1029,6 +1010,8 @@ final class DashboardViewModel {
             return
         }
         fuel.hydrationMl = WaterStore.total(on: Date(), in: context)
+        // The one water target every screen shows (Fuel water card, Recovery, coach).
+        fuel.canonicalHydrationTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: context)
     }
 
     // MARK: - Meal Timing Refresh

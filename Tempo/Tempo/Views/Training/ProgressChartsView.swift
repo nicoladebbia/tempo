@@ -33,6 +33,8 @@ struct ProgressChartsView: View {
     private var activitySessions: [ActivitySession]
     @Query
     private var userSettings: [UserSettings]
+    @Query(filter: #Predicate<Goal> { $0.isActive == true })
+    private var activeGoals: [Goal]
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -137,6 +139,11 @@ struct ProgressChartsView: View {
 
     private var overviewTab: some View {
         VStack(spacing: Tide.s4) {
+            // The lift or run target, when there is one.
+            if activeGoals.hasActive(of: [.liftE1RM, .runTime]) {
+                GoalProgressChip(kinds: [.liftE1RM, .runTime])
+            }
+
             // §11.8 — the week-in-motion hero: this week's volume, delta vs
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
