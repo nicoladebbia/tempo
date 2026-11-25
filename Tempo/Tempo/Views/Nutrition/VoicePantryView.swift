@@ -486,12 +486,12 @@ struct VoicePantryView: View {
         let icon: String
         if item.isSet {
             let oldText = currentQuantity(name: item.name, unit: item.unit)
-                .map { "\(formatQuantity($0)) \(item.unit.displayName)" } ?? "—"
-            text = "\(oldText) → \(formatQuantity(item.quantity)) \(item.unit.displayName)"
+                .map { PantryQuantityFormatter.text(quantity: $0, unit: item.unit) } ?? "—"
+            text = "\(oldText) → \(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))"
             tint = Tide.Kitchen.warn
             icon = "arrow.triangle.2.circlepath"
         } else {
-            text = "+\(formatQuantity(item.quantity)) \(item.unit.displayName)"
+            text = "+\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))"
             tint = Tide.text2
             icon = "plus"
         }

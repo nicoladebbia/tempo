@@ -70,6 +70,14 @@ struct ScanBarcodeSurface: View {
                 blocked
             }
         }
+        // Without a live camera (denied, off, a simulator) the notice still tells
+        // you that a typed barcode only finds products you have checked before.
+        // With a camera the scanner draws its own, over the picture.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isOffline, permission != .authorized {
+                offlineBanner
+            }
+        }
         .task {
             // The Scan tap that opened this is the first moment we need it.
             if permission == .notDetermined {

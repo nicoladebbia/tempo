@@ -239,7 +239,7 @@ struct GroceryStoreModeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     // "4 breasts chicken" already carries its amount.
                     if !item.displayNameEmbedsQuantity {
-                        Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                        Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))
                             .font(Tide.body)
                             .foregroundStyle(Tide.text2)
                     }
@@ -277,9 +277,5 @@ struct GroceryStoreModeView: View {
         }
         .buttonStyle(.tidePrimary)
         .disabled(checkedCount == 0)
-    }
-
-    private func formatQuantity(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }

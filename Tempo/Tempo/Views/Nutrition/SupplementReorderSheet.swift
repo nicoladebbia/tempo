@@ -169,7 +169,7 @@ struct SupplementReorderSheet: View {
                     )
                     .accessibilityHidden(true)
                 }
-                Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings left in the container" : "Left in container: unknown")
+                Text(supplement.servingsRemaining > 0 ? "\(FuelWords.count(Int(supplement.servingsRemaining), "serving")) left in the container" : "Left in container: unknown")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
