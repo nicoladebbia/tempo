@@ -129,7 +129,7 @@ final class PlannedExercise {
             }
             return name
         }
-        return exerciseNameSnapshot ?? "Removed exercise"
+        return exerciseNameSnapshot ?? String(localized: "Removed exercise")
     }
 
     @Transient
@@ -162,9 +162,9 @@ final class PlannedExercise {
         }
         let logged = (sets ?? []).filter { !$0.isWarmup && $0.completed }.count
         guard logged > 0 else {
-            return "Skipped — pain"
+            return String(localized: "Skipped — pain")
         }
-        return "Stopped — pain after \(logged) \(logged == 1 ? "set" : "sets")"
+        return String(localized: "Stopped — pain after \(logged) sets")
     }
 
     @Transient
@@ -206,6 +206,39 @@ final class PlannedExercise {
         self.workoutPlan = workoutPlan
         self.exercise = exercise
         exerciseNameSnapshot = exercise?.name
+    }
+}
+
+// MARK: - Display
+
+extension PlannedExercise {
+    /// `loadAdjustmentNote` in the user's language. The note is stored as stable English
+    /// (the trainer report matches those exact phrases), so the language is applied here,
+    /// when it is shown. Several reasons are joined with " · ". A phrase this does not
+    /// know is shown as stored.
+    var displayLoadAdjustmentNote: String? {
+        loadAdjustmentNote.map(Self.localizedLoadAdjustmentNote)
+    }
+
+    static func localizedLoadAdjustmentNote(_ stored: String) -> String {
+        let yellowPrefix = "Recovery yellow −"
+        return stored.components(separatedBy: " · ").map { part -> String in
+            switch part {
+            case "Adjusted from your trainer's target":
+                return String(localized: "Adjusted from your trainer's target")
+            case "Pain note — capped at last session":
+                return String(localized: "Pain note — capped at last session")
+            case "Pain note — reduced 20%":
+                return String(localized: "Pain note — reduced 20%")
+            default:
+                if part.hasPrefix(yellowPrefix), part.hasSuffix("%"),
+                   let percent = Int(part.dropFirst(yellowPrefix.count).dropLast())
+                {
+                    return String(localized: "Recovery yellow −\(percent)%")
+                }
+                return part
+            }
+        }.joined(separator: " · ")
     }
 }
 

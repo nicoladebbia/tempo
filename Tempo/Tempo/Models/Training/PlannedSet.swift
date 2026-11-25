@@ -253,10 +253,10 @@ extension PlannedSet {
 
         var errorDescription: String? {
             switch self {
-            case .invalidReps: "Reps must be between 1 and 100."
-            case .invalidWeight: "Weight must be between 0 and 500 kg."
-            case .invalidRPE: "RPE must be between 1 and 10."
-            case .invalidRestSeconds: "Rest must be between 0 and 600 seconds."
+            case .invalidReps: String(localized: "Reps must be between 1 and 100.")
+            case .invalidWeight: String(localized: "Weight must be between 0 and 500 kg.")
+            case .invalidRPE: String(localized: "RPE must be between 1 and 10.")
+            case .invalidRestSeconds: String(localized: "Rest must be between 0 and 600 seconds.")
             }
         }
     }

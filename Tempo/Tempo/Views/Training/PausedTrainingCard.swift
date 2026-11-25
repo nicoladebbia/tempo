@@ -30,9 +30,9 @@ struct PausedTrainingCard: View {
         // A pause is a stretch of days, so the hero is that count, with a ring
         // that fills toward the planned return when there is one.
         TrainDayHero(
-            label: "Paused",
+            label: String(localized: "Paused"),
             figure: "\(daysPaused)",
-            unit: daysPaused == 1 ? "day" : "days",
+            unit: daysPaused == 1 ? String(localized: "day", comment: "Unit under a number, singular") : String(localized: "days", comment: "Unit under a number, plural"),
             caption: title,
             chips: [pause.reason.displayName]
         ) {
@@ -121,18 +121,18 @@ struct PausedTrainingCard: View {
 
     private var title: String {
         switch pause.reason {
-        case .sick: "Recover — training is on hold"
-        case .injured: "Recover — training is on hold"
-        case .travel: "Away — training is on hold"
-        case .other: "Training is on hold"
+        case .sick: String(localized: "Recover — training is on hold")
+        case .injured: String(localized: "Recover — training is on hold")
+        case .travel: String(localized: "Away — training is on hold")
+        case .other: String(localized: "Training is on hold")
         }
     }
 
     private var subtitle: String {
         if let end = pause.plannedEndDate {
-            return "Back on \(end.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))."
+            return String(localized: "Back on \(end.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))).")
         }
-        return "Resume whenever you're ready."
+        return String(localized: "Resume whenever you're ready.")
     }
 
     private func resume(decision: PauseResumeDecision) {

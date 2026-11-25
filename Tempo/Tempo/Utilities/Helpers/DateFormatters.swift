@@ -66,7 +66,7 @@ enum TempoDateFormatters {
     /// Header date: "Wed, May 13"
     static let dashboardHeader: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, MMM d"
+        formatter.dateFormat = String(localized: "EEE, MMM d", comment: "DATE_FORMAT")
         return formatter
     }()
 

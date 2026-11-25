@@ -52,7 +52,7 @@ struct TrainerChangesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Changes from your trainer")
+            TideSectionLabel(title: String(localized: "Changes from your trainer"))
                 .padding(.top, Tide.s2)
 
             if entries.isEmpty, upcomingSkips.isEmpty {
@@ -97,8 +97,8 @@ struct TrainerChangesSection: View {
     private var emptyCard: some View {
         TrainEmptyCard(
             systemImage: "text.bubble",
-            title: "No changes yet",
-            message: "When your trainer replies with changes, paste their message here and Tempo applies it to your program."
+            title: String(localized: "No changes yet"),
+            message: String(localized: "When your trainer replies with changes, paste their message here and Tempo applies it to your program.")
         )
     }
 
@@ -110,7 +110,7 @@ struct TrainerChangesSection: View {
             Text("Applied so far").tideLabel()
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber("\(totalEdits)", size: Tide.numeralM, relativeTo: .title)
-                Text("\(TrainCount.noun(totalEdits, "edit")) from your trainer")
+                Text(totalEdits == 1 ? String(localized: "edit from your trainer") : String(localized: "edits from your trainer"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -122,7 +122,7 @@ struct TrainerChangesSection: View {
             }
             if !upcomingSkips.isEmpty {
                 TrainTag(
-                    text: "\(TrainCount.text(upcomingSkips.count, "day")) skipped ahead",
+                    text: String(localized: "\(upcomingSkips.count) days skipped ahead"),
                     systemImage: "forward.fill",
                     color: TideTrain.caution
                 )
@@ -136,7 +136,7 @@ struct TrainerChangesSection: View {
     // MARK: - Skipped days
 
     private var skipsCard: some View {
-        TrainPlanCard(label: "Skipped, only that day") {
+        TrainPlanCard(label: String(localized: "Skipped, only that day")) {
             ForEach(Array(upcomingSkips.enumerated()), id: \.element.id) { index, skip in
                 if index > 0 {
                     TrainPlanDivider()
@@ -237,7 +237,7 @@ struct TrainerChangesSection: View {
                 showsAll.toggle()
             }
         } label: {
-            Text(showsAll ? "Show fewer" : "Show all \(entries.count) changes")
+            Text(showsAll ? String(localized: "Show fewer") : String(localized: "Show all \(entries.count) changes"))
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Color.accentColor)
                 .frame(maxWidth: .infinity, minHeight: Tide.hit)

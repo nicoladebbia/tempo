@@ -139,7 +139,7 @@ struct ProgressPhotoCompare: View {
         let days = abs(Calendar.current.dateComponents(
             [.day], from: Calendar.current.startOfDay(for: earlier.date), to: Calendar.current.startOfDay(for: later.date)
         ).day ?? 0)
-        return days == 1 ? "1 day apart" : "\(days) days apart"
+        return days == 1 ? String(localized: "1 day apart") : String(localized: "\(days) days apart")
     }
 
     var body: some View {
@@ -147,8 +147,8 @@ struct ProgressPhotoCompare: View {
             ScrollView {
                 VStack(spacing: Tide.s4) {
                     HStack(alignment: .top, spacing: Tide.s3) {
-                        side(title: "Earlier", photo: earlier, options: earlierOptions, selection: $earlierID)
-                        side(title: "Later", photo: later, options: laterOptions, selection: $laterID)
+                        side(title: String(localized: "Earlier"), photo: earlier, options: earlierOptions, selection: $earlierID)
+                        side(title: String(localized: "Later"), photo: later, options: laterOptions, selection: $laterID)
                     }
                     if let gap {
                         Text(gap)

@@ -214,15 +214,15 @@ struct PhotoAnalysisView: View {
                         EmptyView()
 
                     case .analyzing:
-                        FuelAIState(kind: .working("Identifying food items…"))
+                        FuelAIState(kind: .working(String(localized: "Identifying food items…")))
 
                     case .complete:
                         identifiedItemsList
 
                     case let .error(message):
                         FuelAIState(
-                            kind: .failed(title: "Analysis failed", message: message),
-                            actionTitle: "Retry",
+                            kind: .failed(title: String(localized: "Analysis failed"), message: message),
+                            actionTitle: String(localized: "Retry"),
                             action: { analyzePhoto() }
                         )
 
@@ -256,7 +256,7 @@ struct PhotoAnalysisView: View {
         let carbs = Int(identifiedItems.reduce(0.0) { $0 + $1.carbs * $1.servingMultiplier })
         let fat = Int(identifiedItems.reduce(0.0) { $0 + $1.fat * $1.servingMultiplier })
         return VStack(alignment: .leading, spacing: Tide.s2) {
-            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralM, relativeTo: .title)
+            TideNumber("\(kcal)", unit: String(localized: "kcal"), size: Tide.numeralM, relativeTo: .title)
             FuelMacroInline(protein: protein, carbs: carbs, fat: fat)
         }
         .padding(Tide.s3)
@@ -272,12 +272,12 @@ struct PhotoAnalysisView: View {
                 // The model found nothing, or every guess was removed.
                 FuelAIState(
                     kind: .empty(
-                        title: "No food found",
-                        message: "Nothing here looked like food. Add what is on the plate, or retake the photo closer and in better light."
+                        title: String(localized: "No food found"),
+                        message: String(localized: "Nothing here looked like food. Add what is on the plate, or retake the photo closer and in better light.")
                     )
                 )
             } else {
-                FuelSection(title: "Identified items", trailing: "\(identifiedItems.count) found") {
+                FuelSection(title: String(localized: "Identified items"), trailing: String(localized: "\(identifiedItems.count) found")) {
                     VStack(spacing: Tide.s3) {
                         ForEach($identifiedItems) { $item in
                             analyzedFoodRow(item: $item)
@@ -334,7 +334,7 @@ struct PhotoAnalysisView: View {
                             HapticManager.lightImpact()
                         } label: {
                             Label(
-                                "Not right? See \(value.alternatives.count) other \(value.alternatives.count == 1 ? "guess" : "guesses")",
+                                String(localized: "Not right? See \(value.alternatives.count) other guesses"),
                                 systemImage: "questionmark.circle"
                             )
                             .font(Tide.caption)
@@ -370,7 +370,7 @@ struct PhotoAnalysisView: View {
 
             // Calories as the figure, the macros under it.
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                TideNumber("\(value.scaledCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                TideNumber("\(value.scaledCalories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 FuelMacroInline(
                     protein: Int(value.protein * value.servingMultiplier),
                     carbs: Int(value.carbs * value.servingMultiplier),
@@ -414,7 +414,7 @@ struct PhotoAnalysisView: View {
                 ForEach(value.alternatives.prefix(2)) { alt in
                     answerChip(alt.name) { applyAlternative(alt, to: value.id) }
                 }
-                answerChip("Other…") {
+                answerChip(String(localized: "Other…")) {
                     renameText = ""
                     renameItemID = value.id
                 }
@@ -470,7 +470,7 @@ struct PhotoAnalysisView: View {
         guard let image = capturedImage,
               let imageData = image.jpegData(compressionQuality: 0.8)
         else {
-            analysisState = .error("Could not read photo data.")
+            analysisState = .error(String(localized: "Could not read photo data."))
             return
         }
 
@@ -590,8 +590,8 @@ private struct AddMissingItemSheet: View {
                     }
                 } footer: {
                     Text(known || name.isEmpty
-                        ? "Calories and macros come from Tempo's food table."
-                        : "Not in Tempo's food table. Type the calories for that amount.")
+                        ? String(localized: "Calories and macros come from Tempo's food table.")
+                        : String(localized: "Not in Tempo's food table. Type the calories for that amount."))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text3)
                 }
@@ -739,7 +739,7 @@ struct PhotoAlternativesSheet: View {
 
     private var currentRow: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Current")
+            TideSectionLabel(title: String(localized: "Current"))
             candidateCard(
                 name: primary.name,
                 portion: primary.estimatedPortion,
@@ -756,7 +756,7 @@ struct PhotoAlternativesSheet: View {
 
     private var candidatesList: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Alternatives")
+            TideSectionLabel(title: String(localized: "Alternatives"))
             VStack(spacing: Tide.s2) {
                 ForEach(primary.alternatives) { alt in
                     candidateCard(
@@ -804,7 +804,7 @@ struct PhotoAlternativesSheet: View {
                 FuelPill(text: confidenceBadgeLabel(confidence), color: confidenceBadgeColor(confidence))
             }
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                TideNumber("\(calories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 FuelMacroInline(protein: Int(protein), carbs: Int(carbs), fat: Int(fat))
             }
         }

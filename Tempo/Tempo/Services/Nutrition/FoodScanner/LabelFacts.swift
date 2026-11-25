@@ -23,9 +23,9 @@ enum LabelFacts {
 
         var label: String {
             switch self {
-            case .low: "Low"
-            case .medium: "Medium"
-            case .high: "High"
+            case .low: String(localized: "Low")
+            case .medium: String(localized: "Medium")
+            case .high: String(localized: "High")
             }
         }
     }

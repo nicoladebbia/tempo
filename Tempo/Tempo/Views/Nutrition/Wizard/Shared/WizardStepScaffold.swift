@@ -36,7 +36,7 @@ struct WizardStepScaffold<Content: View>: View {
         eyebrow: String? = nil,
         progress: Double,
         canGoBack: Bool,
-        primaryButtonLabel: String = "Next",
+        primaryButtonLabel: String = String(localized: "Next"),
         primaryButtonEnabled: Bool = true,
         onBack: @escaping () -> Void,
         onPrimary: @escaping () -> Void,
@@ -139,7 +139,7 @@ struct WizardStepScaffold<Content: View>: View {
                                 .font(Tide.bodyStrong)
                                 .frame(width: Tide.hit + Tide.s2)
                         } else {
-                            Text("Back")
+                            Text(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
                                 .font(Tide.bodyStrong)
                                 .padding(.horizontal, Tide.s5)
                         }
@@ -150,7 +150,7 @@ struct WizardStepScaffold<Content: View>: View {
                     .contentShape(.capsule)
                 }
                 .buttonStyle(FuelPressStyle())
-                .accessibilityLabel("Back")
+                .accessibilityLabel(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
             }
 
             Button {
@@ -174,6 +174,6 @@ extension WizardCoordinator {
         guard let index = visibleSteps.firstIndex(of: currentStep) else {
             return ""
         }
-        return "Step \(index + 1) of \(visibleSteps.count)"
+        return String(localized: "Step \(index + 1) of \(visibleSteps.count)")
     }
 }

@@ -107,10 +107,10 @@ struct ArenaEarnedView: View {
                 }
             }
         } side: {
-            Text("Unlocked").tideLabel()
+            Text(String(localized: "arena.unlocked-count", defaultValue: "Unlocked", comment: "Label over the number of unlocked achievements (plural in Italian)")).tideLabel()
             if let next = nextUp {
                 Text("Next up").tideLabel(Tide.text3)
-                Text(next.name)
+                Text(next.displayName)
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)
@@ -119,7 +119,7 @@ struct ArenaEarnedView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             } else {
-                Text(earnedCount == 0 ? "Train, study and eat well to unlock your first." : "Keep going.")
+                Text(earnedCount == 0 ? String(localized: "Train, study and eat well to unlock your first.") : String(localized: "Keep going."))
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -135,11 +135,11 @@ struct ArenaEarnedView: View {
         let all = days
         let visible = showsAllDays ? all : Array(all.prefix(Self.collapsedDays))
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "XP by day")
+            TideSectionLabel(title: String(localized: "XP by day"))
             if all.isEmpty {
                 TideEmptyPanel(
-                    systemImage: "bolt.slash", title: "No XP yet",
-                    message: "Finish a workout, a study session or log a meal and it shows up here."
+                    systemImage: "bolt.slash", title: String(localized: "No XP yet"),
+                    message: String(localized: "Finish a workout, a study session or log a meal and it shows up here.")
                 )
             } else {
                 ForEach(visible) { day in
@@ -150,7 +150,7 @@ struct ArenaEarnedView: View {
                     Button {
                         withAnimation(Tide.snap) { showsAllDays.toggle() }
                     } label: {
-                        Text(showsAllDays ? "Show fewer days" : "Show earlier days")
+                        Text(showsAllDays ? String(localized: "Show fewer days") : String(localized: "Show earlier days"))
                             .font(Tide.bodyStrong)
                             .foregroundStyle(mood.accent)
                             .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
@@ -210,10 +210,10 @@ struct ArenaEarnedView: View {
     /// "Today", "Yesterday", or "Monday 24 Nov".
     static func dayTitle(_ date: Date, now: Date = Date(), calendar: Calendar = ArenaCalendar.calendar()) -> String {
         if calendar.isDate(date, inSameDayAs: now) {
-            return "Today"
+            return String(localized: "Today")
         }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
-            return "Yesterday"
+            return String(localized: "Yesterday")
         }
         return date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
     }
@@ -222,7 +222,7 @@ struct ArenaEarnedView: View {
 
     private var achievementsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Achievements", trailing: "\(earnedCount) of \(tracked.count)")
+            TideSectionLabel(title: String(localized: "Achievements"), trailing: String(localized: "\(earnedCount) of \(tracked.count)"))
             if categories.count > 1 {
                 categoryFilter
             }
@@ -243,11 +243,11 @@ struct ArenaEarnedView: View {
     private var categoryFilter: some View {
         ScrollView(.horizontal) {
             HStack(spacing: Tide.s2) {
-                TideFilterChip(title: "All", isSelected: selectedCategory == nil) {
+                TideFilterChip(title: String(localized: "All"), isSelected: selectedCategory == nil) {
                     selectedCategory = nil
                 }
                 ForEach(categories, id: \.self) { category in
-                    TideFilterChip(title: category.rawValue.capitalized, isSelected: selectedCategory == category) {
+                    TideFilterChip(title: category.displayName, isSelected: selectedCategory == category) {
                         selectedCategory = category
                     }
                 }
@@ -305,7 +305,7 @@ struct ArenaEarnedView: View {
             }
 
             VStack(spacing: Tide.hair) {
-                Text(hiddenLocked ? "???" : achievement.name)
+                Text(hiddenLocked ? "???" : achievement.displayName)
                     .font(Tide.caption)
                     .foregroundStyle(achievement.isEarned ? Tide.text : Tide.text2)
                     .lineLimit(2)
@@ -320,8 +320,10 @@ struct ArenaEarnedView: View {
         .frame(maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            hiddenLocked ? "Hidden achievement"
-                : "\(achievement.name), \(achievement.rarity.tideName), \(achievement.isEarned ? "unlocked" : "locked")"
+            hiddenLocked ? String(localized: "Hidden achievement")
+                : achievement.isEarned
+                ? String(localized: "\(achievement.displayName), \(achievement.rarity.tideName), unlocked")
+                : String(localized: "\(achievement.displayName), \(achievement.rarity.tideName), locked")
         )
         .accessibilityHint("Shows details")
     }
@@ -365,11 +367,11 @@ struct ArenaEarnedView: View {
                     .accessibilityHidden(true)
 
                 VStack(spacing: Tide.s2) {
-                    Text(achievement.name)
+                    Text(achievement.displayName)
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.center)
-                    Text(achievement.achievementDescription)
+                    Text(achievement.displayDescription)
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .multilineTextAlignment(.center)
@@ -390,7 +392,7 @@ struct ArenaEarnedView: View {
                         }
                         Button {
                             ShareCard.present(.achievement(
-                                name: achievement.name, xp: achievement.effectiveXPReward,
+                                name: achievement.displayName, xp: achievement.effectiveXPReward,
                                 rarity: achievement.rarity.tideName, date: achievement.earnedAt ?? Date()
                             ))
                         } label: {
@@ -408,7 +410,7 @@ struct ArenaEarnedView: View {
                             VStack(spacing: Tide.s2) {
                                 TideLevelBar(progress: achievement.progressFraction, color: tint, height: Tide.bar)
                                 TideNumber(
-                                    "\(achievement.progressValue)", unit: "of \(achievement.targetValue)",
+                                    "\(achievement.progressValue)", unit: String(localized: "of \(achievement.targetValue)"),
                                     size: Tide.numeralS, relativeTo: .headline, weight: .semibold
                                 )
                             }

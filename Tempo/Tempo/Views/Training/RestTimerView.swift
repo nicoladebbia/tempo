@@ -135,7 +135,7 @@ struct RestTimerView: View {
     /// Primary button title: contextual on whether the next thing is another
     /// set of the same exercise or a brand-new exercise.
     private var skipButtonTitle: String {
-        viewModel.restContext.isExerciseTransition ? "Start Next Exercise →" : "Skip Rest →"
+        viewModel.restContext.isExerciseTransition ? String(localized: "Start Next Exercise →") : String(localized: "Skip Rest →")
     }
 
     @ViewBuilder

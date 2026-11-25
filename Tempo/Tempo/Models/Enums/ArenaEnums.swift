@@ -37,6 +37,20 @@ enum AchievementCategory: String, Codable, CaseIterable {
     case social
     case milestone
     case hidden
+
+    /// The word shown to the user; the raw value is the stable key for storage.
+    var displayName: String {
+        switch self {
+        case .training: String(localized: "Training")
+        case .study: String(localized: "Study")
+        case .nutrition: String(localized: "Nutrition")
+        case .recovery: String(localized: "Recovery")
+        case .consistency: String(localized: "Consistency")
+        case .social: String(localized: "Social")
+        case .milestone: String(localized: "Milestone")
+        case .hidden: String(localized: "Hidden")
+        }
+    }
 }
 
 // MARK: - League
@@ -49,7 +63,13 @@ enum League: String, Codable, CaseIterable {
     case champion
 
     var displayName: String {
-        rawValue.capitalized
+        switch self {
+        case .bronze: String(localized: "Bronze")
+        case .silver: String(localized: "Silver")
+        case .gold: String(localized: "Gold")
+        case .diamond: String(localized: "Diamond")
+        case .champion: String(localized: "Champion")
+        }
     }
 
     var iconName: String {
@@ -104,9 +124,9 @@ enum DailyXPGoal: Int, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .casual: "Casual"
-        case .regular: "Regular"
-        case .serious: "Serious"
+        case .casual: String(localized: "Casual")
+        case .regular: String(localized: "Regular")
+        case .serious: String(localized: "Serious")
         }
     }
 }

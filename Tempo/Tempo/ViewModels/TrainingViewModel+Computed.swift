@@ -116,8 +116,17 @@ extension TrainingViewModel {
         let isWarmup = i < sets.count && sets[i].isWarmup
         let group = sets.filter { $0.isWarmup == isWarmup }
         let number = sets.prefix(i + 1).filter { $0.isWarmup == isWarmup }.count
-        let noun = isWarmup ? "Warmup" : "Set"
-        return "\(capitalized ? noun : noun.lowercased()) \(max(number, 1)) of \(group.count)"
+        let position = max(number, 1)
+        let total = group.count
+        // Whole phrases, so each language orders the words its own way.
+        if isWarmup {
+            return capitalized
+                ? String(localized: "Warmup \(position) of \(total)")
+                : String(localized: "warmup \(position) of \(total)")
+        }
+        return capitalized
+            ? String(localized: "Set \(position) of \(total)")
+            : String(localized: "set \(position) of \(total)")
     }
 
     /// Context for the rest screen: what the user is resting *toward*.
@@ -146,8 +155,8 @@ extension TrainingViewModel {
             return RestContext(
                 exercise: ex,
                 isExerciseTransition: isTransition,
-                label: ex.map { "Next: \($0.name) · \(Self.setPositionText(in: targetSets, at: setIdx, capitalized: false))" }
-                    ?? "Up next",
+                label: ex.map { String(localized: "Next: \($0.name) · \(Self.setPositionText(in: targetSets, at: setIdx, capitalized: false))") }
+                    ?? String(localized: "Up next"),
                 instructions: isTransition ? ex?.instructions : nil,
                 cues: isTransition ? (ex?.cues ?? []) : []
             )
@@ -159,7 +168,7 @@ extension TrainingViewModel {
             return RestContext(
                 exercise: ex,
                 isExerciseTransition: true,
-                label: ex.map { "Up next: \($0.name)" } ?? "Up next",
+                label: ex.map { String(localized: "Up next: \($0.name)") } ?? String(localized: "Up next"),
                 instructions: ex?.instructions,
                 cues: ex?.cues ?? []
             )
@@ -172,7 +181,7 @@ extension TrainingViewModel {
             return RestContext(
                 exercise: ex,
                 isExerciseTransition: false,
-                label: ex.map { "\($0.name) · next: \(Self.setPositionText(in: sets, at: nextIndex, capitalized: false))" } ?? "",
+                label: ex.map { String(localized: "\($0.name) · next: \(Self.setPositionText(in: sets, at: nextIndex, capitalized: false))") } ?? "",
                 instructions: nil,
                 cues: []
             )
@@ -180,7 +189,7 @@ extension TrainingViewModel {
     }
 
     var workoutTypeDisplayName: String {
-        todayPlan?.type.displayName ?? "Rest"
+        todayPlan?.type.displayName ?? String(localized: "Rest")
     }
 
     var isRestDay: Bool {
@@ -238,12 +247,12 @@ extension TrainingViewModel {
             return nil
         }
         if adj >= 0.8 {
-            return "Volume reduced 20% — Yellow recovery"
+            return String(localized: "Volume reduced 20% — Yellow recovery")
         }
         if adj >= 0.75 {
-            return "Volume reduced 25%, lighter load — Yellow recovery"
+            return String(localized: "Volume reduced 25%, lighter load — Yellow recovery")
         }
-        return "Mobility session — Red recovery"
+        return String(localized: "Mobility session — Red recovery")
     }
 
     var stickyWeight: Double? {

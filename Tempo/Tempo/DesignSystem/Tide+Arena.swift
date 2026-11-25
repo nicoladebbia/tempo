@@ -60,7 +60,13 @@ extension AchievementRarity {
     }
 
     var tideName: String {
-        rawValue.capitalized
+        switch self {
+        case .common: String(localized: "Common")
+        case .uncommon: String(localized: "Uncommon")
+        case .rare: String(localized: "Rare")
+        case .epic: String(localized: "Epic")
+        case .legendary: String(localized: "Legendary")
+        }
     }
 }
 
@@ -134,7 +140,7 @@ struct TidePillPicker<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
     let title: (Value) -> String
-    var label = "Choose"
+    var label = String(localized: "Choose")
     var stacksThree = false
 
     @Environment(\.tideMood)
@@ -458,7 +464,7 @@ extension View {
 
 /// The round glass close button for a sheet's toolbar.
 struct TideCloseButton: View {
-    var label = "Close"
+    var label = String(localized: "Close")
     let action: () -> Void
 
     var body: some View {
@@ -598,7 +604,7 @@ struct TideOrdersCard: View {
 struct ArenaListSkeleton: View {
     var rows = 3
     /// What VoiceOver says while the list loads.
-    var label = "Loading"
+    var label = String(localized: "Loading")
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion

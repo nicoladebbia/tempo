@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "tiers": {
+    "gentle": {
+      "gentle": [
+        "Ehi, ti aspettano {remaining} non negoziabili. {done}/{total} fatti. Nessuna fretta, solo uno spintarello.",
+        "Controllo del pomeriggio. Sei a {done}/{total}. C'è ancora tempo.",
+        "Oggi ne restano {remaining}. Ce la fai: scegli la più facile e parti.",
+        "Promemoria gentile: {done} su {total} fatti. Qualunque cosa scegli ora va bene.",
+        "Sei a {done}/{total}. Continua al tuo ritmo."
+      ],
+      "firm": [
+        "Oggi restano {remaining} attività. {done}/{total} fatte finora. Hai tempo: scegline una e parti.",
+        "Pomeriggio. Sei a {done}/{total}. La giornata non è finita, ma corre.",
+        "{remaining} non negoziabili in attesa. {done} fatti. Torna al lavoro.",
+        "Metà giornata è andata. {done}/{total}. Ora inizia a colmare il divario.",
+        "Sei a {done}/{total}. Scegli la prossima e vai."
+      ],
+      "savage": [
+        "{remaining} attività. {done}/{total}. Il tempo se ne frega delle tue scuse.",
+        "Metà giornata. {done}/{total}. Così si presenta la mediocrità: cambiala.",
+        "{done} su {total}. Puoi fare meglio di così. Parti adesso.",
+        "Smetti di scrollare. {remaining} non negoziabili. Muoviti.",
+        "{done}/{total} non è finito. Alzati ed esegui."
+      ]
+    },
+    "firm": {
+      "gentle": [
+        "Attenzione: restano {remaining} attività, studio a {studyDone}/{studyTarget}. {timeRemaining} a stasera.",
+        "Si sta facendo tardi. Sei a {done}/{total}. Che ne dici di accelerare?",
+        "{timeRemaining} rimasti. {remaining} non negoziabili. Ce la puoi ancora fare."
+      ],
+      "firm": [
+        "{remaining} attività incomplete. Studio: {studyDone}/{studyTarget}. {timeRemaining} rimasti. Il tempo scorre.",
+        "Tardo pomeriggio. {done}/{total}. Studio {studyDone}/{studyTarget}. La sera sta arrivando.",
+        "Fra {timeRemaining} il tuo tempo è finito. {remaining} attività. Concentrati.",
+        "Studio fermo a {studyDone}/{studyTarget}. {timeRemaining} rimasti. Siediti e lavora."
+      ],
+      "savage": [
+        "{remaining} attività. Studio: {studyDone}/{studyTarget}. {timeRemaining} prima di aver bruciato la giornata. Muoviti.",
+        "Mancano {timeRemaining} alla fine. {done}/{total}. È il momento: esegui o accetta la sconfitta.",
+        "Studio {studyDone}/{studyTarget}. {timeRemaining} rimasti. Smettila di far finta che lo farai più tardi.",
+        "{remaining} non fatte. Ha vinto il tempo. Oppure hai vinto tu. Decidi adesso."
+      ]
+    },
+    "urgent": {
+      "gentle": [
+        "La sera è vicina. Studio a {studyDone}/{studyTarget}. {timeRemaining} rimasti. Ultimo sforzo?",
+        "{remaining} attività. {timeRemaining} a stasera. Puoi finire se parti subito.",
+        "Ultimo tratto. {studyDone}/{studyTarget}. Non lasciare che stasera diventi un rimpianto."
+      ],
+      "firm": [
+        "Studio: {studyDone}/{studyTarget}. {timeRemaining} prima di sera. FALLO ADESSO.",
+        "{remaining} attività. {timeRemaining} rimasti. Questa è la linea.",
+        "La sera si avvicina. {done}/{total}. La finestra si sta chiudendo.",
+        "{timeRemaining}. {remaining} non fatte. Basta rimandare."
+      ],
+      "savage": [
+        "{timeRemaining} prima di sprecare un'altra serata. Studio: {studyDone}/{studyTarget}. MUOVITI.",
+        "Fermo. Guarda l'orologio. {timeRemaining} rimasti. {remaining} attività. Scegli.",
+        "I tuoi amici stanno per scriverti. Racconterai di nuovo una bugia sul perché non puoi giocare?",
+        "{remaining} attività, {timeRemaining}. Adesso. Niente musica, niente scrolling, niente chiamate. Siediti."
+      ]
+    },
+    "critical": {
+      "gentle": [
+        "Ultima chiamata. {remaining} attività. La giornata sta finendo, ma non è ancora finita.",
+        "Ultimo avviso. {done}/{total}. Puoi ancora salvare la serata.",
+        "{remaining} non fatte. Il te di domani ti sta guardando."
+      ],
+      "firm": [
+        "Stai per sprecare un'altra serata. {remaining} attività non fatte. È la tua ultima occasione di oggi.",
+        "Ultimo avviso. {remaining} non negoziabili incompleti. La sera è arrivata.",
+        "Ultima occasione. {done}/{total}. Dopo questo, la giornata è persa."
+      ],
+      "savage": [
+        "Stai per sprecare un'altra serata. {remaining} attività non fatte. Ultima occasione.",
+        "È proprio la serata che avevi giurato di non ripetere. {remaining} non fatte.",
+        "Stai fregando te stesso, in diretta. {remaining} attività. Ultimo avviso.",
+        "Se non ti muovi adesso, domani mentirai sul perché."
+      ]
+    },
+    "allClear": {
+      "gentle": [
+        "TUTTO A POSTO. {total}/{total} fatti. Stasera te la sei guadagnata.",
+        "Giornata chiusa. Ogni non negoziabile è stato fatto. Goditi la soddisfazione.",
+        "{total}/{total}. La serata è tua. Goditela."
+      ],
+      "firm": [
+        "TUTTO A POSTO. {total}/{total} completati. Giorno {streakDays} della tua streak. La serata te la sei guadagnata.",
+        "Tutto chiuso. {total}/{total}. Streak di {streakDays} giorni viva. Vai a goderti la serata.",
+        "Fatto. Ogni non negoziabile è completato. Ora la serata è tua."
+      ],
+      "savage": [
+        "TUTTO A POSTO. {total}/{total}. Giorno {streakDays}. Il minimo indispensabile, ma è fatto. Domani non rendermela più difficile.",
+        "Fatto. {total}/{total}. La serata è tua: te la sei guadagnata nell'unico modo che conta.",
+        "Fatto. {streakDays} giorni. Presentati anche domani o tutto questo muore."
+      ]
+    }
+  }
+}

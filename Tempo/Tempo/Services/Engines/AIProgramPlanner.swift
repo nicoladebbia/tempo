@@ -129,7 +129,7 @@ final class AIProgramPlanner {
             let safe = min(clamped, plan.recoveryAdjustment)
             if abs(safe - plan.recoveryAdjustment) > 0.001 {
                 plan.recoveryAdjustment = safe
-                plan.notes = "AI-tuned volume (recovery trend)"
+                plan.notes = String(localized: "AI-tuned volume (recovery trend)")
             }
         }
         return floor

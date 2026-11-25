@@ -168,7 +168,7 @@ private struct OverrideSelectionView: View {
 
     var body: some View {
         TideScrollPage {
-            TideSectionLabel(title: "Override type")
+            TideSectionLabel(title: String(localized: "Override type"))
 
             // Six choices read as one list, not six cards.
             VStack(spacing: 0) {
@@ -280,38 +280,38 @@ private struct OverrideSelectionView: View {
             OverrideOption(
                 type: .restDayFull,
                 icon: "bed.double.fill",
-                title: "Full Rest Day",
-                description: "All non-negotiables suspended"
+                title: String(localized: "Full Rest Day"),
+                description: String(localized: "All non-negotiables suspended")
             ),
             OverrideOption(
                 type: .restDayReduced,
                 icon: "leaf.fill",
-                title: "Reduced Rest Day",
-                description: "Training skipped, study halved, meals remain"
+                title: String(localized: "Reduced Rest Day"),
+                description: String(localized: "Training skipped, study halved, meals remain")
             ),
             OverrideOption(
                 type: .sickDay,
                 icon: "cross.case.fill",
-                title: "Sick Day",
-                description: "Training skipped, study/meals reduced"
+                title: String(localized: "Sick Day"),
+                description: String(localized: "Training skipped, study/meals reduced")
             ),
             OverrideOption(
                 type: .mentalHealthDay,
                 icon: "brain.head.profile",
-                title: "Mental Health Day",
-                description: "Study & training reduced, meals at full"
+                title: String(localized: "Mental Health Day"),
+                description: String(localized: "Study & training reduced, meals at full")
             ),
             OverrideOption(
                 type: .injuryMode,
                 icon: "bandage.fill",
-                title: "Injury Mode",
-                description: "Training auto-skipped, everything else full"
+                title: String(localized: "Injury Mode"),
+                description: String(localized: "Training auto-skipped, everything else full")
             ),
             OverrideOption(
                 type: .vacationMode,
                 icon: "airplane",
-                title: "Vacation Mode",
-                description: "All suspended"
+                title: String(localized: "Vacation Mode"),
+                description: String(localized: "All suspended")
             ),
         ]
     }

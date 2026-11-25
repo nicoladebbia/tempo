@@ -24,19 +24,19 @@ enum CaptureAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .meal: "Meal"
-        case .scan: "Scan"
-        case .workout: "Workout"
-        case .focus: "Focus"
+        case .meal: String(localized: "Meal")
+        case .scan: String(localized: "Scan")
+        case .workout: String(localized: "Workout")
+        case .focus: String(localized: "Focus")
         }
     }
 
     var detail: String {
         switch self {
-        case .meal: "Search, type or say it"
-        case .scan: "Barcode, plate or label"
-        case .workout: "Open today's session"
-        case .focus: "Start the timer"
+        case .meal: String(localized: "Search, type or say it")
+        case .scan: String(localized: "Barcode, plate or label")
+        case .workout: String(localized: "Open today's session")
+        case .focus: String(localized: "Start the timer")
         }
     }
 
@@ -128,8 +128,8 @@ struct CaptureSheet: View {
             HStack(spacing: Tide.s4) {
                 TideIconTile(systemName: "drop.fill", tint: Tide.water, size: Tide.hit)
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    TideLabel("Water today")
-                    TideNumber(waterTotal.formatted(), unit: "ml", size: Tide.numeralSheet)
+                    TideLabel(String(localized: "Water today"))
+                    TideNumber(waterTotal.formatted(), unit: String(localized: "ml"), size: Tide.numeralSheet)
                 }
             }
             if !typeSize.isAccessibilitySize {
@@ -158,7 +158,7 @@ struct CaptureSheet: View {
     private func addWater() {
         let store = WaterStore(context: modelContext, healthKit: services.healthKit)
         guard let log = store.add(ml: Self.waterStepMl) else {
-            toast = ToastData(message: "Couldn't save that. Try again.", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't save that. Try again."), style: .error)
             return
         }
         waterTaps += 1
@@ -166,14 +166,14 @@ struct CaptureSheet: View {
         // Undo takes back exactly this entry, even if more were added since.
         let id = log.id
         toast = ToastData(
-            message: "Added \(Self.waterStepMl) ml of water.",
+            message: String(localized: "Added \(Self.waterStepMl) ml of water."),
             style: .success,
-            actionTitle: "Undo"
+            actionTitle: String(localized: "Undo")
         ) {
             if store.remove(id: id) {
                 reloadWater()
             } else {
-                toast = ToastData(message: "Couldn't undo that. Delete it from Water.", style: .error)
+                toast = ToastData(message: String(localized: "Couldn't undo that. Delete it from Water."), style: .error)
             }
         }
     }

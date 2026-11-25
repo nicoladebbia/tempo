@@ -41,10 +41,10 @@ enum ProgramTextExtractor {
 
         var errorDescription: String? {
             switch self {
-            case .invalidImage: "Could not read that photo."
-            case .noTextFound: "No text was found in that source."
-            case .pdfUnreadable: "Could not open that PDF."
-            case let .recognitionFailed(detail): "Text recognition failed: \(detail)"
+            case .invalidImage: String(localized: "Could not read that photo.")
+            case .noTextFound: String(localized: "No text was found in that source.")
+            case .pdfUnreadable: String(localized: "Could not open that PDF.")
+            case let .recognitionFailed(detail): String(localized: "Text recognition failed: \(detail)")
             }
         }
     }

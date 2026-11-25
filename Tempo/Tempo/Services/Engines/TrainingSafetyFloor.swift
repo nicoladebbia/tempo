@@ -195,7 +195,7 @@ enum TrainingSafetyFloor {
                 tier: .moderate,
                 session: clamped,
                 wasDowngraded: changed,
-                reason: changed ? "Yellow recovery — intensity capped." : "Yellow recovery — within limits."
+                reason: changed ? String(localized: "Yellow recovery — intensity capped.") : String(localized: "Yellow recovery — within limits.")
             )
         case .normal:
             let changed = matchClamped.changed || composite.changed
@@ -204,7 +204,7 @@ enum TrainingSafetyFloor {
                 tier: .normal,
                 session: composite.session,
                 wasDowngraded: changed,
-                reason: changed ? reason : "Clear to train as prescribed."
+                reason: changed ? reason : String(localized: "Clear to train as prescribed.")
             )
         }
     }
@@ -279,9 +279,9 @@ enum TrainingSafetyFloor {
             blocks: [
                 SessionBlockDTO(
                     kind: .mobility,
-                    label: "Mobility + easy movement",
-                    notes: "Body markers say recover. Light only.",
-                    cue: "Move easy, breathe, no load.",
+                    label: String(localized: "Mobility + easy movement"),
+                    notes: String(localized: "Body markers say recover. Light only."),
+                    cue: String(localized: "Move easy, breathe, no load."),
                     scheduledMin: nil,
                     split: nil, reps: nil, distanceM: nil, restSec: nil,
                     intensityPct: nil, durationSec: nil, stroke: nil,
@@ -289,7 +289,7 @@ enum TrainingSafetyFloor {
                 ),
             ],
             shortWhy: reason,
-            fullWhy: "Objective recovery markers are in the danger zone. Training hard today risks injury or illness — recovery is the prescription. Body data wins.",
+            fullWhy: String(localized: "Objective recovery markers are in the danger zone. Training hard today risks injury or illness — recovery is the prescription. Body data wins."),
             expectedStrain: nil,
             expectedSessionRPE: 2
         )
@@ -297,23 +297,23 @@ enum TrainingSafetyFloor {
 
     private static func severeReason(_ p: ReadinessPicture) -> String {
         if p.hasRecoveryScore, p.recoveryScore < recoveryRed {
-            return "Recovery red (\(Int(p.recoveryScore))). Recover today."
+            return String(localized: "Recovery red (\(Int(p.recoveryScore))). Recover today.")
         }
         if let debt = p.sleepDebt, debt >= sleepDebtSevere {
-            return "Sleep debt \(String(format: "%.1f", debt))h. Recover today."
+            return String(localized: "Sleep debt \(debt.tempoDecimal(1))h. Recover today.")
         }
         if let rd = p.respDeltaBrMin, rd >= respSevereBrMin {
-            return "Respiratory rate elevated — possible illness. Recover."
+            return String(localized: "Respiratory rate elevated — possible illness. Recover.")
         }
         if let td = p.skinTempDeltaC,
            td >= skinTempSevereDeltaC
         {
-            return "Skin temp +\(String(format: "%.1f", td))°C vs baseline — possible illness. Recover."
+            return String(localized: "Skin temp +\(td.tempoDecimal(1))°C vs baseline — possible illness. Recover.")
         }
         if let ox = p.spo2, ox < spo2SevereFloor {
-            return "Blood oxygen \(Int(ox))% — below your normal. Recover."
+            return String(localized: "Blood oxygen \(Int(ox))% — below your normal. Recover.")
         }
-        return "Body markers crashed. Recover today."
+        return String(localized: "Body markers crashed. Recover today.")
     }
 
     // MARK: - Match protection (separate schedule-driven gate)
@@ -336,7 +336,7 @@ enum TrainingSafetyFloor {
             return (s, false, "")
         }
         let clamped = clampIntensity(s, to: .easy)
-        return (clamped, true, "Match tomorrow — legs kept light (T-1 protection).")
+        return (clamped, true, String(localized: "Match tomorrow — legs kept light (T-1 protection)."))
     }
 
     // MARK: - Composite-day rules (§21.4 — the two-a-day interference gate)
@@ -366,11 +366,11 @@ enum TrainingSafetyFloor {
                 // behavior) let an all-legs two-a-day pass through untouched on
                 // match day; force the whole day down to the deterministic
                 // primer/recovery session instead.
-                reason = "Match today — leg loading before kickoff dropped; primer only."
+                reason = String(localized: "Match today — leg loading before kickoff dropped; primer only.")
                 return (recoverySession(reason: reason), true, reason)
             }
             if cleaned.flatMap(\.1).count != parts.flatMap(\.blocks).count {
-                reason = "Match today — leg loading before kickoff dropped."
+                reason = String(localized: "Match today — leg loading before kickoff dropped.")
                 parts = cleaned
                 if parts.count < 2 {
                     return (rebuild(s, parts: parts), true, reason)
@@ -406,7 +406,7 @@ enum TrainingSafetyFloor {
     ) -> String? {
         // ACWR over the line → no second part, full stop (whole-day budget).
         if let acwr = p.acuteChronicStrainRatio, acwr > acwrCompositeMax {
-            return "Training load already high (ACWR \(String(format: "%.1f", acwr))) — second session dropped."
+            return String(localized: "Training load already high (ACWR \(acwr.tempoDecimal(1))) — second session dropped.")
         }
 
         // §12 spacing: parts < 6h apart. Only verifiable when both are timed.
@@ -414,7 +414,7 @@ enum TrainingSafetyFloor {
            let prev = kept.compactMap(\.scheduledMin).max(),
            start - prev < compositeMinGapMin
         {
-            return "Sessions \(String(format: "%.1f", Double(start - prev) / 60))h apart — need ≥6h between parts. Second dropped."
+            return String(localized: "Sessions \((Double(start - prev) / 60).tempoDecimal(1))h apart — need ≥6h between parts. Second dropped.")
         }
 
         // Heavy lower-body + field sprint/agility never share a day.
@@ -424,13 +424,13 @@ enum TrainingSafetyFloor {
         let partPairsFieldWithLegs = legsAnywhere
             && (part.blocks.contains { $0.kind == .field } || keptBlocks.contains { $0.kind == .field })
         if isHard, partPairsFieldWithLegs {
-            return "Heavy legs + field work in one day — interference. Second session dropped."
+            return String(localized: "Heavy legs + field work in one day — interference. Second session dropped.")
         }
 
         // Hard + hard is illegal: on a hard day the second part must be
         // demonstrably easy (mobility/rest, or every block ≤75% intensity).
         if isHard, !isEasyPart(part.blocks) {
-            return "Two hard sessions in one day — second dropped. One hard effort per day."
+            return String(localized: "Two hard sessions in one day — second dropped. One hard effort per day.")
         }
 
         return nil

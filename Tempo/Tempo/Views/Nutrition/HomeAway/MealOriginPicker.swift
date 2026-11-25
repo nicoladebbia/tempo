@@ -48,8 +48,8 @@ struct MealOriginPicker: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             // Side by side; stacked at accessibility sizes so neither name shrinks.
             tileLayout {
-                tile(.kitchen, title: "Kitchen", icon: "refrigerator.fill")
-                tile(.out, title: "Ate out", icon: "takeoutbag.and.cup.and.straw.fill")
+                tile(.kitchen, title: String(localized: "Kitchen"), icon: "refrigerator.fill")
+                tile(.out, title: String(localized: "Ate out"), icon: "takeoutbag.and.cup.and.straw.fill")
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Where from")
@@ -73,7 +73,7 @@ struct MealOriginPicker: View {
             Button {
                 showHomeSetting = true
             } label: {
-                Label(home == nil ? "Set home" : "Change home", systemImage: "house")
+                Label(home == nil ? String(localized: "Set home") : String(localized: "Change home"), systemImage: "house")
                     .font(Tide.caption)
                     .foregroundStyle(mood.accent)
                     .frame(minHeight: Tide.hit, alignment: .leading)
@@ -112,20 +112,22 @@ struct MealOriginPicker: View {
             return nil
         }
         switch atHome {
-        case true?: return origin == .kitchen ? "You're home. From your kitchen?" : "You're home. Logged as eaten out."
-        case false?: return origin == .out ? "Not home. Logged as eaten out." : "Not home, but from your kitchen."
-        case nil: return "Can't tell where you are. Using your last choice."
+        case true?: return origin == .kitchen ? String(localized: "You're home. From your kitchen?") : String(localized: "You're home. Logged as eaten out.")
+        case false?: return origin == .out ? String(localized: "Not home. Logged as eaten out.") : String(localized: "Not home, but from your kitchen.")
+        case nil: return String(localized: "Can't tell where you are. Using your last choice.")
         }
     }
 
     private var detail: String {
         guard origin == .kitchen else {
-            return "Your pantry stays as it is."
+            return String(localized: "Your pantry stays as it is.")
         }
         let lines = PantryDecrementService.preview(foods: foods, modelContext: modelContext)
-        return lines.isEmpty
-            ? "Nothing in your pantry matches. Nothing comes off."
-            : "Comes off your pantry: " + lines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", ")
+        guard !lines.isEmpty else {
+            return String(localized: "Nothing in your pantry matches. Nothing comes off.")
+        }
+        let list = lines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", ")
+        return String(localized: "Comes off your pantry: \(list)")
     }
 
     private func refresh() async {

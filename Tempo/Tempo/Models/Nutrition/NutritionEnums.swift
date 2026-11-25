@@ -17,6 +17,17 @@ enum MealType: String, Codable, CaseIterable {
     case snack
 
     var displayName: String {
+        switch self {
+        case .breakfast: String(localized: "Breakfast")
+        case .lunch: String(localized: "Lunch")
+        case .dinner: String(localized: "Dinner")
+        case .snack: String(localized: "Snack")
+        }
+    }
+
+    /// Fixed English name for text that is stored (planned-meal names), compared
+    /// or sent to the AI, so it never changes with the app language.
+    var englishName: String {
         rawValue.capitalized
     }
 
@@ -54,15 +65,15 @@ enum MealSource: String, Codable {
 
     var displayName: String {
         switch self {
-        case .manual: "Manual Entry"
-        case .photo: "Photo Analysis"
-        case .barcode: "Barcode Scan"
-        case .voice: "Voice Input"
-        case .imported: "Imported"
-        case .usdaSearch: "USDA Search"
-        case .recentMeal: "Recent Meal"
-        case .naturalLanguage: "Natural Language"
-        case .preset: "Preset"
+        case .manual: String(localized: "Manual Entry")
+        case .photo: String(localized: "Photo Analysis")
+        case .barcode: String(localized: "Barcode Scan")
+        case .voice: String(localized: "Voice Input")
+        case .imported: String(localized: "Imported")
+        case .usdaSearch: String(localized: "USDA Search")
+        case .recentMeal: String(localized: "Recent Meal")
+        case .naturalLanguage: String(localized: "Natural Language")
+        case .preset: String(localized: "Preset")
         }
     }
 }
@@ -78,11 +89,11 @@ enum FoodDataSource: String, Codable {
 
     var displayName: String {
         switch self {
-        case .usda: "USDA"
-        case .openFoodFacts: "Open Food Facts"
-        case .claude: "AI Estimated"
-        case .manual: "Manual"
-        case .cached: "Cached"
+        case .usda: String(localized: "USDA")
+        case .openFoodFacts: String(localized: "Open Food Facts")
+        case .claude: String(localized: "AI Estimated")
+        case .manual: String(localized: "Manual")
+        case .cached: String(localized: "Cached")
         }
     }
 }
@@ -108,7 +119,12 @@ enum MealStatus: String, Codable, CaseIterable {
     case modified
 
     var displayName: String {
-        rawValue.capitalized
+        switch self {
+        case .planned: String(localized: "Planned")
+        case .eaten: String(localized: "Eaten")
+        case .skipped: String(localized: "Skipped")
+        case .modified: String(localized: "Modified")
+        }
     }
 }
 
@@ -122,6 +138,18 @@ enum DayType: String, Codable, CaseIterable {
     case rest
 
     var displayName: String {
+        switch self {
+        case .strength: String(localized: "Strength")
+        case .cardio: String(localized: "Cardio")
+        case .soccer: String(localized: "Soccer")
+        case .double: String(localized: "Double Session")
+        case .rest: String(localized: "Rest")
+        }
+    }
+
+    /// Fixed English name for text sent to the AI (coach tool output, prompts),
+    /// so it never changes with the app language. Use `displayName` on screen.
+    var englishName: String {
         switch self {
         case .strength: "Strength"
         case .cardio: "Cardio"
@@ -141,6 +169,15 @@ enum DietaryGoal: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .leanGain: String(localized: "Lean Gain")
+        case .cut: String(localized: "Cut")
+        case .maintain: String(localized: "Maintain")
+        }
+    }
+
+    /// Fixed English name for text sent to the AI, whatever the app language.
+    var englishName: String {
+        switch self {
         case .leanGain: "Lean Gain"
         case .cut: "Cut"
         case .maintain: "Maintain"
@@ -156,6 +193,15 @@ enum SkillLevel: String, Codable, CaseIterable {
     case advanced
 
     var displayName: String {
+        switch self {
+        case .beginner: String(localized: "Beginner")
+        case .intermediate: String(localized: "Intermediate")
+        case .advanced: String(localized: "Advanced")
+        }
+    }
+
+    /// Fixed English name for text sent to the AI, whatever the app language.
+    var englishName: String {
         rawValue.capitalized
     }
 }
@@ -168,6 +214,15 @@ enum CookingSkill: String, Codable, CaseIterable {
     case advanced
 
     var displayName: String {
+        switch self {
+        case .beginner: String(localized: "Beginner")
+        case .intermediate: String(localized: "Intermediate")
+        case .advanced: String(localized: "Advanced")
+        }
+    }
+
+    /// Fixed English name for text sent to the AI, whatever the app language.
+    var englishName: String {
         rawValue.capitalized
     }
 }
@@ -179,6 +234,9 @@ enum BiologicalSex: String, Codable, CaseIterable {
     case female
 
     var displayName: String {
-        rawValue.capitalized
+        switch self {
+        case .male: String(localized: "Male")
+        case .female: String(localized: "Female")
+        }
     }
 }

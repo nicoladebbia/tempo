@@ -28,7 +28,7 @@ struct GuidedRunCountdownScreen: View {
                 tint: secondsRemaining > 0 ? nil : TideTrain.positive,
                 diameter: TideTrainSession.restRing
             ) {
-                Text(secondsRemaining > 0 ? "\(secondsRemaining)" : "GO")
+                Text(secondsRemaining > 0 ? "\(secondsRemaining)" : String(localized: "GO"))
                     .font(Tide.numeral(min(figure, TideTrainSession.restRing * 0.5), .heavy))
                     .foregroundStyle(secondsRemaining > 0 ? Tide.text : TideTrain.positive)
                     .contentTransition(.numericText(countsDown: true))
@@ -45,7 +45,7 @@ struct GuidedRunCountdownScreen: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(secondsRemaining > 0 ? "Starting in \(secondsRemaining)" : "Go")
+        .accessibilityLabel(secondsRemaining > 0 ? String(localized: "Starting in \(secondsRemaining)") : String(localized: "Go"))
         .accessibilityIdentifier("guidedRunCountdownScreen")
     }
 }
@@ -104,7 +104,7 @@ struct GuidedRunWorkScreen: View {
             Text("Block \(step.blockIndex + 1)/\(step.blockCount) · \(step.blockName)")
                 .tideLabel(Color.accentColor)
             // A tick for every block of the run, filled as each one is done.
-            TrainSetTicks(done: step.blockIndex, total: step.blockCount, label: "Blocks")
+            TrainSetTicks(done: step.blockIndex, total: step.blockCount, label: String(localized: "Blocks"))
                 .padding(.vertical, Tide.s1)
             Text(step.blockTrainerText)
                 .font(Tide.body)
@@ -134,7 +134,7 @@ struct GuidedRunWorkScreen: View {
         let elapsed = session.elapsedInCurrentStep
         let overCap = capSeconds.map { elapsed > $0 } ?? false
         return TrainSessionHero(
-            label: "Rep \(index + 1)/\(of)",
+            label: String(localized: "Rep \(index + 1)/\(of)"),
             value: GuidedRunFormatting.clock(elapsed),
             progress: capSeconds.map { $0 > 0 ? elapsed / $0 : 0 },
             tint: overCap ? Tide.danger : nil,
@@ -158,7 +158,7 @@ struct GuidedRunWorkScreen: View {
 
     private func roundBody(index: Int, of: Int) -> some View {
         TrainSessionHero(
-            label: "Round",
+            label: String(localized: "Round"),
             value: "\(index + 1)",
             progress: of > 0 ? Double(index + 1) / Double(of) : nil
         ) {
@@ -244,20 +244,20 @@ struct GuidedRunWorkScreen: View {
     private func controls(_ kind: GuidedRunWorkKind) -> some View {
         VStack(spacing: Tide.s2) {
             LazyVGrid(columns: railColumns(kind), spacing: Tide.s2) {
-                secondaryButton(title: session.isPaused ? "Resume" : "Pause", systemImage: session.isPaused ? "play.fill" : "pause.fill") {
+                secondaryButton(title: session.isPaused ? String(localized: "Resume") : String(localized: "Pause"), systemImage: session.isPaused ? "play.fill" : "pause.fill") {
                     session.isPaused ? session.resume() : session.pause()
                 }
-                secondaryButton(title: "Skip rep", systemImage: "forward.fill", disabled: session.isPaused) {
+                secondaryButton(title: String(localized: "Skip rep"), systemImage: "forward.fill", disabled: session.isPaused) {
                     HapticManager.selection()
                     session.skipRep()
                 }
                 if isRepeatable(kind) {
-                    secondaryButton(title: "Add rep", systemImage: "plus", disabled: session.isPaused) {
+                    secondaryButton(title: String(localized: "Add rep"), systemImage: "plus", disabled: session.isPaused) {
                         HapticManager.selection()
                         session.addRep()
                     }
                 }
-                secondaryButton(title: "Skip block", systemImage: "forward.end.fill", disabled: session.isPaused) {
+                secondaryButton(title: String(localized: "Skip block"), systemImage: "forward.end.fill", disabled: session.isPaused) {
                     HapticManager.selection()
                     session.skipBlock()
                 }
@@ -348,7 +348,7 @@ struct GuidedRunRestScreen: View {
             ScrollView {
                 VStack(spacing: Tide.s5) {
                     TrainSessionHero(
-                        label: "Rest",
+                        label: String(localized: "Rest"),
                         labelTint: TideTrain.caution,
                         value: GuidedRunFormatting.clock(remaining),
                         progress: restTotal > 0 ? remaining / restTotal : nil,
@@ -388,7 +388,7 @@ struct GuidedRunRestScreen: View {
                     Button {
                         session.isPaused ? session.resume() : session.pause()
                     } label: {
-                        Text(session.isPaused ? "Resume" : "Pause")
+                        Text(session.isPaused ? String(localized: "Resume") : String(localized: "Pause"))
                             .frame(minHeight: TideTrain.bigButton - Tide.s2)
                     }
                     .buttonStyle(.tideGlass)
@@ -470,7 +470,7 @@ private struct GuidedRunTopBar: View {
                     .foregroundStyle(Tide.text2)
                     .frame(width: Tide.hit, height: Tide.hit)
             }
-            .accessibilityLabel(isMuted ? "Unmute cues" : "Mute cues")
+            .accessibilityLabel(isMuted ? String(localized: "Unmute cues") : String(localized: "Mute cues"))
         }
         .padding(.horizontal, Tide.s2)
     }

@@ -143,11 +143,11 @@ struct BodyQuadrantDetailView: View {
             return ""
         }
         switch score {
-        case 90 ... 100: return "Go break something. In a good way."
-        case 67 ..< 90: return "You're good to push it."
-        case 50 ..< 67: return "Yellow zone. Choose your battles."
-        case 34 ..< 50: return "Your body is waving a yellow flag."
-        default: return "Sit down. Seriously."
+        case 90 ... 100: return String(localized: "Go break something. In a good way.")
+        case 67 ..< 90: return String(localized: "You're good to push it.")
+        case 50 ..< 67: return String(localized: "Yellow zone. Choose your battles.")
+        case 34 ..< 50: return String(localized: "Your body is waving a yellow flag.")
+        default: return String(localized: "Sit down. Seriously.")
         }
     }
 
@@ -169,8 +169,8 @@ struct BodyQuadrantDetailView: View {
     private var noDataSection: some View {
         TideEmptyPanel(
             systemImage: "sensor.tag.radiowaves.forward.fill",
-            title: "No Whoop connected",
-            message: "Connect your Whoop to see recovery, HRV, sleep, and strain data."
+            title: String(localized: "No Whoop connected"),
+            message: String(localized: "Connect your Whoop to see recovery, HRV, sleep, and strain data.")
         )
         .tideCard()
     }
@@ -183,12 +183,12 @@ struct BodyQuadrantDetailView: View {
         RecoveryHero {
             TideDial(
                 score: data.recoveryScore.map { Int($0.rounded()) },
-                caption: "Recovery",
+                caption: String(localized: "Recovery"),
                 diameter: Tide.dialHero
             )
             .explains(
                 Explainer.bodyRecovery(zone: data.recoveryZone)
-                    .showing(data.recoveryScore.map { "\(Int($0.rounded())) percent" })
+                    .showing(data.recoveryScore.map { String(localized: "\(Int($0.rounded())) percent") })
             )
         } side: {
             if data.dataSource != .none {
@@ -214,8 +214,8 @@ struct BodyQuadrantDetailView: View {
                     .foregroundStyle(Tide.text)
                 Text(
                     data.dataSource == .healthKit
-                        ? "Health has no recovery score. Connect WHOOP for the full picture."
-                        : "Today's score lands once last night is processed."
+                        ? String(localized: "Health has no recovery score. Connect WHOOP for the full picture.")
+                        : String(localized: "Today's score lands once last night is processed.")
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -239,22 +239,22 @@ struct BodyQuadrantDetailView: View {
             spacing: Tide.s3
         ) {
             vitalTile(
-                label: "HRV", value: data.hrv.map { String(format: "%.0f", $0) }, unit: "ms",
+                label: String(localized: "HRV"), value: data.hrv.map { $0.tempoDecimal(0) }, unit: String(localized: "ms"),
                 explainer: .bodyHRV,
                 note: comparisonNote(current: data.hrv, baseline: baseline.hrv, higherIsBetter: true)
             )
             vitalTile(
-                label: "Resting HR", value: data.rhr.map { "\(Int($0))" }, unit: "bpm",
+                label: String(localized: "Resting HR"), value: data.rhr.map { "\(Int($0))" }, unit: String(localized: "bpm"),
                 explainer: .bodyRestingHeartRate,
                 note: comparisonNote(current: data.rhr, baseline: baseline.rhr, higherIsBetter: false)
             )
             vitalTile(
-                label: "Sleep", value: data.sleepHours.map { String(format: "%.1f", $0) }, unit: "h",
+                label: String(localized: "Sleep"), value: data.sleepHours.map { $0.tempoDecimal(1) }, unit: String(localized: "h", comment: "Hours unit, one letter"),
                 explainer: .bodySleep,
                 note: comparisonNote(current: data.sleepHours, baseline: baseline.sleepHours, higherIsBetter: true)
             )
             vitalTile(
-                label: "SpO2", value: data.spo2.map { "\(Int($0))" }, unit: "%",
+                label: String(localized: "SpO2"), value: data.spo2.map { "\(Int($0))" }, unit: "%",
                 explainer: .bodyOxygen,
                 note: oxygenNote
             )
@@ -290,27 +290,27 @@ struct BodyQuadrantDetailView: View {
     /// reading, and without enough days to average.
     private func comparisonNote(current: Double?, baseline: Double?, higherIsBetter: Bool) -> (String, Color) {
         guard let current else {
-            return ("No reading", Tide.text3)
+            return (String(localized: "No reading"), Tide.text3)
         }
         guard let baseline else {
-            return ("No baseline yet", Tide.text3)
+            return (String(localized: "No baseline yet"), Tide.text3)
         }
         let verdict = BodyHistory.verdict(current: current, baseline: baseline, higherIsBetter: higherIsBetter)
         switch verdict {
         case .same:
-            return ("Near average", Tide.text2)
+            return (String(localized: "Near average"), Tide.text2)
         case .better:
-            return (higherIsBetter ? "Above average" : "Below average", TideTone.mint)
+            return (higherIsBetter ? String(localized: "Above average") : String(localized: "Below average"), TideTone.mint)
         case .worse:
-            return (higherIsBetter ? "Below average" : "Above average", Tide.danger)
+            return (higherIsBetter ? String(localized: "Below average") : String(localized: "Above average"), Tide.danger)
         }
     }
 
     private var oxygenNote: (String, Color) {
         guard let spo2 = data.spo2 else {
-            return ("No reading", Tide.text3)
+            return (String(localized: "No reading"), Tide.text3)
         }
-        return spo2 >= 95 ? ("Normal", TideTone.mint) : ("Low", Tide.danger)
+        return spo2 >= 95 ? (String(localized: "Normal"), TideTone.mint) : (String(localized: "Low"), Tide.danger)
     }
 
     // MARK: - Recovery Trend
@@ -319,14 +319,14 @@ struct BodyQuadrantDetailView: View {
 
     private var trendSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Recovery trend", trailing: "7 days")
+            TideSectionLabel(title: String(localized: "Recovery trend"), trailing: String(localized: "7 days"))
 
             Group {
                 if week.count >= 2 {
                     TideLineChart(
                         data: [
                             TempoLineChartData(
-                                id: "recovery", label: "Recovery", color: TideTone.mint,
+                                id: "recovery", label: String(localized: "Recovery"), color: TideTone.mint,
                                 points: week.map { TempoLineChartData<String>.DataPoint(date: $0.date, value: $0.recovery) }
                             ),
                         ],
@@ -334,7 +334,7 @@ struct BodyQuadrantDetailView: View {
                         valueFormat: .number.precision(.fractionLength(0))
                     )
                 } else {
-                    RecoveryChartPlaceholder(message: "Need two days of recovery to draw a trend.")
+                    RecoveryChartPlaceholder(message: String(localized: "Need two days of recovery to draw a trend."))
                 }
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -348,14 +348,13 @@ struct BodyQuadrantDetailView: View {
 
     private var sleepSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Last night's sleep")
+            TideSectionLabel(title: String(localized: "Last night's sleep"))
 
             if let stages {
                 VStack(alignment: .leading, spacing: Tide.s4) {
                     RecoveryStagesBar(
                         segments: stageSegments(stages),
-                        accessibilityValue: "Deep \(SleepStageMinutes.formatted(stages.deep)), REM \(SleepStageMinutes.formatted(stages.rem)), "
-                            + "light \(SleepStageMinutes.formatted(stages.light)), awake \(SleepStageMinutes.formatted(stages.awake))"
+                        accessibilityValue: String(localized: "Deep \(SleepStageMinutes.formatted(stages.deep)), REM \(SleepStageMinutes.formatted(stages.rem)), light \(SleepStageMinutes.formatted(stages.light)), awake \(SleepStageMinutes.formatted(stages.awake))")
                     )
 
                     LazyVGrid(
@@ -365,10 +364,10 @@ struct BodyQuadrantDetailView: View {
                         ),
                         spacing: Tide.s3
                     ) {
-                        stageLegend(name: "Deep", minutes: stages.deep, color: TideSleepStage.deep)
-                        stageLegend(name: "REM", minutes: stages.rem, color: TideSleepStage.rem)
-                        stageLegend(name: "Light", minutes: stages.light, color: TideSleepStage.light)
-                        stageLegend(name: "Awake", minutes: stages.awake, color: TideSleepStage.awake)
+                        stageLegend(name: String(localized: "Deep"), minutes: stages.deep, color: TideSleepStage.deep)
+                        stageLegend(name: String(localized: "REM"), minutes: stages.rem, color: TideSleepStage.rem)
+                        stageLegend(name: String(localized: "Light"), minutes: stages.light, color: TideSleepStage.light)
+                        stageLegend(name: String(localized: "Awake"), minutes: stages.awake, color: TideSleepStage.awake)
                     }
 
                     if data.sleepPerformance != nil {
@@ -390,8 +389,8 @@ struct BodyQuadrantDetailView: View {
             } else {
                 TideEmptyPanel(
                     systemImage: "moon.zzz",
-                    title: "No sleep stages yet",
-                    message: "Last night's stages show up once WHOOP has processed it."
+                    title: String(localized: "No sleep stages yet"),
+                    message: String(localized: "Last night's stages show up once WHOOP has processed it.")
                 )
                 .tideCard()
             }
@@ -431,7 +430,7 @@ struct BodyQuadrantDetailView: View {
 
     private var strainSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Strain")
+            TideSectionLabel(title: String(localized: "Strain"))
 
             if let level = StrainLevel(strain: data.strain) {
                 RecoveryHero {
@@ -455,14 +454,14 @@ struct BodyQuadrantDetailView: View {
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(
-                    "Strain \(String(format: "%.1f", data.strain ?? 0)) out of 21, \(level.name)"
+                    "Strain \((data.strain ?? 0).tempoDecimal(1)) out of 21, \(level.name)"
                 )
-                .explains(Explainer.recoveryStrain.showing("\(String(format: "%.1f", data.strain ?? 0)) of 21"))
+                .explains(Explainer.recoveryStrain.showing(String(localized: "\((data.strain ?? 0).tempoDecimal(1)) of 21")))
             } else {
                 TideEmptyPanel(
                     systemImage: "flame",
-                    title: "No strain yet today",
-                    message: "Strain shows up as WHOOP records your day."
+                    title: String(localized: "No strain yet today"),
+                    message: String(localized: "Strain shows up as WHOOP records your day.")
                 )
                 .tideCard()
             }
@@ -481,33 +480,33 @@ struct BodyQuadrantDetailView: View {
         let yesterday = BodyHistory.day(1, before: Date()).flatMap { BodyHistory.reading(on: $0, in: readings) }
         let yesterdayCells = BodyHistory.changes(today: todayReading, other: yesterday, kinds: [.recovery, .hrv])
         if !yesterdayCells.isEmpty {
-            lines.append(ComparisonLine(title: "Yesterday", cells: yesterdayCells.map(changeCell)))
+            lines.append(ComparisonLine(title: String(localized: "Yesterday"), cells: yesterdayCells.map(changeCell)))
         }
 
         let lastWeek = BodyHistory.day(7, before: Date()).flatMap { BodyHistory.reading(on: $0, in: readings) }
         let weekCells = BodyHistory.changes(today: todayReading, other: lastWeek, kinds: [.recovery, .sleep])
         if !weekCells.isEmpty {
-            lines.append(ComparisonLine(title: "Last week", cells: weekCells.map(changeCell)))
+            lines.append(ComparisonLine(title: String(localized: "body.compare.last-week", defaultValue: "Last week", comment: "Row title in the body comparison table, short because the column is narrow"), cells: weekCells.map(changeCell)))
         }
 
         var averages = [ComparisonLine.Cell]()
         if let recovery = baseline.recovery {
-            averages.append(.init(label: "Recovery", value: "\(Int(recovery.rounded()))%", color: Tide.text))
+            averages.append(.init(label: String(localized: "Recovery"), value: "\(Int(recovery.rounded()))%", color: Tide.text))
         }
         if let hrv = baseline.hrv {
-            averages.append(.init(label: "HRV", value: "\(Int(hrv.rounded())) ms", color: Tide.text))
+            averages.append(.init(label: String(localized: "HRV"), value: String(localized: "\(Int(hrv.rounded())) ms"), color: Tide.text))
         }
         if !averages.isEmpty {
-            lines.append(ComparisonLine(title: "7-day average", cells: averages))
+            lines.append(ComparisonLine(title: String(localized: "7-day average"), cells: averages))
         }
         return lines
     }
 
     private func changeCell(_ change: BodyHistory.Change) -> ComparisonLine.Cell {
         let label = switch change.kind {
-        case .recovery: "Recovery"
-        case .hrv: "HRV"
-        case .sleep: "Sleep"
+        case .recovery: String(localized: "Recovery")
+        case .hrv: String(localized: "HRV")
+        case .sleep: String(localized: "Sleep")
         }
         let color: Color = switch change.verdict {
         case .better: TideTone.mint
@@ -519,14 +518,14 @@ struct BodyQuadrantDetailView: View {
 
     private var comparisonSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Compared with")
+            TideSectionLabel(title: String(localized: "Compared with"))
 
             let lines = comparisonLines
             if lines.isEmpty {
                 TideEmptyPanel(
                     systemImage: "chart.line.uptrend.xyaxis",
-                    title: "Not enough days yet",
-                    message: "Comparisons appear after a few days of readings."
+                    title: String(localized: "Not enough days yet"),
+                    message: String(localized: "Comparisons appear after a few days of readings.")
                 )
                 .tideCard()
             } else {
@@ -563,6 +562,7 @@ struct BodyQuadrantDetailView: View {
             HStack(spacing: Tide.s2) {
                 title
                     .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
                     .frame(width: Tide.hit * 2.4, alignment: .leading)
                 cells
             }

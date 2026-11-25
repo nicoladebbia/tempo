@@ -38,8 +38,8 @@ final class ArenaViewModel {
     var todayXP = 0
     var totalXP = 0
     var level = 1
-    var levelTitle = "Recruit"
-    var nextLevelTitle = "Recruit II"
+    var levelTitle = String(localized: "Recruit")
+    var nextLevelTitle = String(localized: "Recruit II")
     var xpProgress = 0.0
     var xpForNextLevel = 100
     var streakDays = 0
@@ -267,18 +267,18 @@ struct XPBreakdownRow: Identifiable {
 
     var label: String {
         switch source {
-        case .workout: "Workout"
-        case .study: "Study"
-        case .meal: "Meals"
-        case .sleep: "Sleep"
-        case .steps: "Steps"
-        case .nonNegotiable: "Tasks"
-        case .streak: "Streak"
-        case .challenge: "Challenge"
-        case .achievement: "Achievements"
-        case .perfectDay: "Perfect day"
-        case .penalty: "Penalty"
-        case .earlyBird: "Early bird"
+        case .workout: String(localized: "Workout")
+        case .study: String(localized: "Study")
+        case .meal: String(localized: "Meals")
+        case .sleep: String(localized: "Sleep")
+        case .steps: String(localized: "Steps")
+        case .nonNegotiable: String(localized: "Tasks")
+        case .streak: String(localized: "Streak")
+        case .challenge: String(localized: "Challenge")
+        case .achievement: String(localized: "Achievements")
+        case .perfectDay: String(localized: "Perfect day")
+        case .penalty: String(localized: "Penalty")
+        case .earlyBird: String(localized: "Early bird")
         }
     }
 }

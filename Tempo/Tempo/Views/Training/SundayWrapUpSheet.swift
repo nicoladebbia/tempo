@@ -120,13 +120,13 @@ struct SundayWrapUpSheet: View {
                 if let document {
                     sessionsSummaryCard(document)
                     if !topLiftLines.isEmpty {
-                        bulletCard(title: "TOP LIFTS", lines: topLiftLines)
+                        bulletCard(title: String(localized: "TOP LIFTS"), lines: topLiftLines)
                     }
                     if !topConditioningLines.isEmpty {
-                        bulletCard(title: "CONDITIONING", lines: topConditioningLines)
+                        bulletCard(title: String(localized: "CONDITIONING"), lines: topConditioningLines)
                     }
                     if !prLines.isEmpty {
-                        bulletCard(title: "PRS", lines: prLines)
+                        bulletCard(title: String(localized: "PRS"), lines: prLines)
                     }
                     if document.summary.scheduledCount == 0 {
                         Text("No sessions were scheduled this week.")
@@ -185,9 +185,9 @@ struct SundayWrapUpSheet: View {
         return VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Sessions").tideLabel()
             layout {
-                TrainStat(value: "\(summary.doneCount)", label: "done", color: TideTrain.positive)
-                TrainStat(value: "\(summary.missedCount)", label: "missed", color: summary.missedCount > 0 ? TideTrain.caution : Tide.text)
-                TrainStat(value: "\(summary.movedCount)", label: "moved")
+                TrainStat(value: "\(summary.doneCount)", label: String(localized: "done"), color: TideTrain.positive)
+                TrainStat(value: "\(summary.missedCount)", label: String(localized: "missed"), color: summary.missedCount > 0 ? TideTrain.caution : Tide.text)
+                TrainStat(value: "\(summary.movedCount)", label: String(localized: "moved"))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

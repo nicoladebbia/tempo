@@ -23,15 +23,15 @@ enum TrainerProgramDurationText {
             // on a date that's already passed — see TrainerProgramWeeklyUpload's header.
             let monday = TrainerProgramWeeklyUpload.effectiveWeekMonday(for: program, now: now)
             let sunday = weekEnd(of: monday)
-            return "Weekly program · this week ends \(format(sunday)) · next week's upload due Sunday"
+            return String(localized: "Weekly program · this week ends \(format(sunday)) · next week's upload due Sunday")
         case .block:
             if program.repeats {
-                return "\(program.weeks.count)-week block · repeats"
+                return String(localized: "\(program.weeks.count)-week block · repeats")
             }
             if let currentWeek = program.weekIndex(on: now) {
-                return "Week \(currentWeek + 1) of \(program.weeks.count) · ends \(format(blockEndDate(program)))"
+                return String(localized: "Week \(currentWeek + 1) of \(program.weeks.count) · ends \(format(blockEndDate(program)))")
             }
-            return "This block has finished."
+            return String(localized: "This block has finished.")
         }
     }
 
@@ -40,13 +40,13 @@ enum TrainerProgramDurationText {
         switch program.cadence {
         case .weekly:
             let monday = TrainerProgramWeeklyUpload.servedWeekMonday(for: program)
-            return "Weekly · week of \(format(monday)) – \(format(weekEnd(of: monday)))"
+            return String(localized: "Weekly · week of \(format(monday)) – \(format(weekEnd(of: monday)))")
         case .block:
             let start = format(program.startDate)
             guard !program.repeats else {
-                return "Block · started \(start)"
+                return String(localized: "Block · started \(start)")
             }
-            return "Block · \(start) – \(format(blockEndDate(program)))"
+            return String(localized: "Block · \(start) – \(format(blockEndDate(program)))")
         }
     }
 
@@ -61,15 +61,13 @@ enum TrainerProgramDurationText {
         TrainingCalendar.iso8601.date(byAdding: .day, value: 6, to: monday) ?? monday
     }
 
-    /// Fixed `en_US_POSIX` locale — this is a literal-format label ("Sun 18
-    /// Oct"), not a locale-adaptive display string, and must read the same
-    /// regardless of the device's language (Nicola runs Tempo in both
-    /// English and Italian).
+    /// Day-first label ("Sun 18 Oct" / "dom 18 ott"): the weekday and month
+    /// names follow the user's language, the order is the same in both.
     private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE d MMM"
         formatter.calendar = TrainingCalendar.iso8601
-        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.locale = Locale.autoupdatingCurrent
         return formatter
     }()
 

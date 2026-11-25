@@ -38,14 +38,14 @@ struct FriendSystemView: View {
             case .idle,
                  .loading:
                 TideScrollPage {
-                    ArenaListSkeleton(rows: 4, label: "Loading friends")
+                    ArenaListSkeleton(rows: 4, label: String(localized: "Loading friends"))
                 }
 
             case let .failed(message):
                 TideScrollPage {
                     TideEmptyPanel(
-                        systemImage: "wifi.exclamationmark", title: "Could not load your friends",
-                        message: message, actionTitle: "Try again"
+                        systemImage: "wifi.exclamationmark", title: String(localized: "Could not load your friends"),
+                        message: message, actionTitle: String(localized: "Try again")
                     ) { Task { await arena.refresh() } }
                         .tideCard()
                 }
@@ -91,9 +91,9 @@ struct FriendSystemView: View {
 
     private var emptyPage: some View {
         ArenaEmptyPage(
-            title: "Race someone",
-            message: "Send your link to a friend. When they say yes you are on each other's weekly leaderboard.",
-            actionTitle: "Invite a friend",
+            title: String(localized: "Race someone"),
+            message: String(localized: "Send your link to a friend. When they say yes you are on each other's weekly leaderboard."),
+            actionTitle: String(localized: "Invite a friend"),
             actionSystemImage: "person.badge.plus",
             action: { showInvite = true },
             art: { ArenaGhostAvatars() }
@@ -105,7 +105,7 @@ struct FriendSystemView: View {
     private var list: some View {
         TideScrollPage {
             if !arena.incomingRequests.isEmpty {
-                section("Requests", count: arena.incomingRequests.count) {
+                section(String(localized: "Requests"), count: arena.incomingRequests.count) {
                     ForEach(Array(arena.incomingRequests.enumerated()), id: \.element.id) { index, request in
                         if index > 0 {
                             TideDivider()
@@ -116,7 +116,7 @@ struct FriendSystemView: View {
             }
 
             if !arena.friends.isEmpty {
-                section("Friends", count: arena.friends.count) {
+                section(String(localized: "Friends"), count: arena.friends.count) {
                     ForEach(Array(arena.friends.enumerated()), id: \.element.id) { index, friend in
                         if index > 0 {
                             TideDivider()
@@ -127,7 +127,7 @@ struct FriendSystemView: View {
             }
 
             if !arena.outgoingRequests.isEmpty {
-                section("Waiting for an answer", count: arena.outgoingRequests.count) {
+                section(String(localized: "Waiting for an answer"), count: arena.outgoingRequests.count) {
                     ForEach(Array(arena.outgoingRequests.enumerated()), id: \.element.id) { index, request in
                         if index > 0 {
                             TideDivider()
@@ -183,12 +183,12 @@ struct FriendSystemView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(.rect)
-            .explains(Explainer.friendWeeklyXP.showing("\(friend.weeklyXP.formatted()) XP this week"))
+            .explains(Explainer.friendWeeklyXP.showing(String(localized: "\(friend.weeklyXP.formatted()) XP this week")))
             Menu {
                 Button("Remove friend", systemImage: "person.badge.minus", role: .destructive) {
                     undoToast = arena.removalToast(
                         ArenaRemoval(kind: .friend, id: friend.id),
-                        message: "\(friend.displayName) removed."
+                        message: String(localized: "\(friend.displayName) removed.")
                     )
                 }
             } label: {
@@ -231,7 +231,7 @@ struct FriendSystemView: View {
                 Button {
                     undoToast = arena.removalToast(
                         ArenaRemoval(kind: .request, id: request.id),
-                        message: "Request from \(request.displayName) declined."
+                        message: String(localized: "Request from \(request.displayName) declined.")
                     )
                 } label: {
                     Image(systemName: "xmark")
@@ -274,7 +274,7 @@ struct FriendSystemView: View {
                     .font(Tide.caption).foregroundStyle(Tide.text2)
             }
             Spacer(minLength: Tide.s2)
-            TideStatusPill(text: "Sent", tint: Tide.text2, systemImage: "paperplane.fill")
+            TideStatusPill(text: String(localized: "Sent"), tint: Tide.text2, systemImage: "paperplane.fill")
         }
         .frame(minHeight: Tide.hit + Tide.s3)
         .accessibilityElement(children: .combine)

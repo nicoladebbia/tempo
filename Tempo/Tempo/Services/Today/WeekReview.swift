@@ -94,13 +94,13 @@ struct WeekReview: Equatable {
             parts.append(WeekReviewWords.count(thisWeek.sessions, "session"))
         }
         if thisWeek.perfectDays > 0 {
-            parts.append(WeekReviewWords.count(thisWeek.perfectDays, "day") + " with every task done")
+            parts.append(String(localized: "\(WeekReviewWords.count(thisWeek.perfectDays, "day")) with every task done"))
         }
         if let recovery = thisWeek.avgRecovery {
-            parts.append("recovery \(recovery)%")
+            parts.append(String(localized: "recovery \(recovery)%"))
         }
         guard let first = parts.first else {
-            return "A look at how the week went."
+            return String(localized: "A look at how the week went.")
         }
         let line = ([first.prefix(1).uppercased() + first.dropFirst()] + parts.dropFirst()).joined(separator: ", ")
         return line + "."
@@ -177,40 +177,52 @@ enum WeekReviewWords {
     static func training(_ week: WeekTotals, _ last: WeekTotals) -> String {
         guard week.sessions > 0 else {
             return last.sessions > 0
-                ? "No session logged yet. Last week you did \(count(last.sessions, "session"))."
-                : "No session logged this week."
+                ? String(localized: "No session logged yet. Last week you did \(count(last.sessions, "session")).")
+                : String(localized: "No session logged this week.")
         }
-        let base = "\(count(week.sessions, "session")), \(duration(minutes: week.trainingMinutes)) in the gym"
+        let sessions = count(week.sessions, "session")
+        let gym = duration(minutes: week.trainingMinutes)
         guard last.sessions > 0 else {
-            return base + "."
+            return String(localized: "\(sessions), \(gym) in the gym.")
         }
-        return base + ", " + comparison(week.sessions - last.sessions, unit: "session") + "."
+        let versusLast = comparison(week.sessions - last.sessions, unit: "session")
+        return String(localized: "\(sessions), \(gym) in the gym, \(versusLast).")
     }
 
     static func food(_ week: WeekTotals, _ last: WeekTotals) -> String {
         guard let kcal = week.avgKcal, let protein = week.avgProtein else {
-            return "No meals logged this week."
+            return String(localized: "No meals logged this week.")
         }
-        var line = "Logged \(count(week.foodDays, "day")), averaging \(kcal.formatted())\u{00A0}kcal and \(protein)\u{00A0}g protein."
+        let days = count(week.foodDays, "day")
+        let kcalText = kcal.formatted()
+        var line = String(localized: "Logged \(days), averaging \(kcalText)\u{00A0}kcal and \(protein)\u{00A0}g protein.")
         if let lastProtein = last.avgProtein, lastProtein != protein {
             let move = protein - lastProtein
-            line += " Protein \(move > 0 ? "up" : "down") \(abs(move))\u{00A0}g on last week."
+            let change = move > 0
+                ? String(localized: "Protein up \(abs(move))\u{00A0}g on last week.")
+                : String(localized: "Protein down \(abs(move))\u{00A0}g on last week.")
+            line += " " + change
         }
         return line
     }
 
     static func recovery(_ week: WeekTotals, _ last: WeekTotals) -> String {
         guard let score = week.avgRecovery else {
-            return "No recovery readings this week."
+            return String(localized: "No recovery readings this week.")
         }
-        var line = "Recovery averaged \(score)%"
+        var line: String
         if let lastScore = last.avgRecovery, lastScore != score {
             let move = score - lastScore
-            line += ", \(move > 0 ? "up" : "down") \(abs(move)) \(abs(move) == 1 ? "point" : "points")"
+            let pointsText = points(abs(move))
+            line = move > 0
+                ? String(localized: "Recovery averaged \(score)%, up \(pointsText).")
+                : String(localized: "Recovery averaged \(score)%, down \(pointsText).")
+        } else {
+            line = String(localized: "Recovery averaged \(score)%.")
         }
-        line += "."
         if let sleep = week.avgSleepHours {
-            line += " You slept \(duration(minutes: Int((sleep * 60).rounded()))) a night."
+            let slept = duration(minutes: Int((sleep * 60).rounded()))
+            line += " " + String(localized: "You slept \(slept) a night.")
         }
         return line
     }
@@ -219,17 +231,19 @@ enum WeekReviewWords {
         var parts: [String] = []
         if week.tasksTotal > 0 {
             let rate = Int(((week.completionRate ?? 0) * 100).rounded())
-            var tasks = "\(week.tasksDone) of \(week.tasksTotal) tasks done (\(rate)%)"
+            var tasks = String(localized: "\(week.tasksDone) of \(week.tasksTotal) tasks done (\(rate)%)")
             if let lastRate = last.completionRate {
                 let move = rate - Int((lastRate * 100).rounded())
-                if move != 0 {
-                    tasks += ", \(move > 0 ? "up" : "down") \(abs(move)) points"
+                if move > 0 {
+                    tasks = String(localized: "\(week.tasksDone) of \(week.tasksTotal) tasks done (\(rate)%), up \(abs(move)) points")
+                } else if move < 0 {
+                    tasks = String(localized: "\(week.tasksDone) of \(week.tasksTotal) tasks done (\(rate)%), down \(abs(move)) points")
                 }
             }
             parts.append(tasks)
         }
         if week.studyMinutes > 0 {
-            var study = "\(duration(minutes: week.studyMinutes)) of study"
+            var study = String(localized: "\(duration(minutes: week.studyMinutes)) of study")
             if last.studyMinutes > 0, last.studyMinutes != week.studyMinutes {
                 let move = week.studyMinutes - last.studyMinutes
                 study += " (\(move > 0 ? "+" : "-")\(duration(minutes: abs(move))))"
@@ -237,7 +251,7 @@ enum WeekReviewWords {
             parts.append(study)
         }
         guard !parts.isEmpty else {
-            return "No tasks or study logged this week."
+            return String(localized: "No tasks or study logged this week.")
         }
         return parts.joined(separator: ", ") + "."
     }
@@ -245,7 +259,16 @@ enum WeekReviewWords {
     // MARK: Pieces
 
     static func count(_ value: Int, _ noun: String) -> String {
-        "\(value) \(noun)\(value == 1 ? "" : "s")"
+        switch noun {
+        case "session": String(localized: "\(value) sessions")
+        case "day": String(localized: "\(value) days")
+        default: "\(value) \(noun)\(value == 1 ? "" : "s")"
+        }
+    }
+
+    /// "1 point", "6 points".
+    static func points(_ value: Int) -> String {
+        String(localized: "\(value) points")
     }
 
     /// 135 -> "2h 15m", 300 -> "5h", 45 -> "45m".
@@ -253,18 +276,18 @@ enum WeekReviewWords {
         let hours = minutes / 60
         let rest = minutes % 60
         switch (hours, rest) {
-        case (0, _): return "\(rest)m"
-        case (_, 0): return "\(hours)h"
-        default: return "\(hours)h \(rest)m"
+        case (0, _): return String(localized: "\(rest)m")
+        case (_, 0): return String(localized: "\(hours)h")
+        default: return String(localized: "\(hours)h \(rest)m")
         }
     }
 
     /// "1 session more than last week", "2 sessions fewer than last week", "the same as last week".
     static func comparison(_ delta: Int, unit: String) -> String {
         switch delta {
-        case 0: "the same as last week"
-        case 1...: "\(count(delta, unit)) more than last week"
-        default: "\(count(-delta, unit)) fewer than last week"
+        case 0: String(localized: "the same as last week")
+        case 1...: String(localized: "\(count(delta, unit)) more than last week")
+        default: String(localized: "\(count(-delta, unit)) fewer than last week")
         }
     }
 }

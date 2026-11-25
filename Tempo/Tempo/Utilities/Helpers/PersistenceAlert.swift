@@ -12,6 +12,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - PersistenceAlert
+
 @MainActor
 @Observable
 final class PersistenceAlert {
@@ -20,7 +22,7 @@ final class PersistenceAlert {
     var message: String?
 
     func report(_ operation: String) {
-        message = "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage."
+        message = String(localized: "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage.")
     }
 }
 
@@ -29,16 +31,18 @@ extension ModelContext {
     /// whether the save landed.
     @MainActor
     @discardableResult
-    func saveOrAlert(_ operation: String) -> Bool {
+    func saveOrAlert(_ operation: LocalizedStringResource) -> Bool {
         for _ in 0 ..< 2 {
             if (try? save()) != nil {
                 return true
             }
         }
-        PersistenceAlert.shared.report(operation)
+        PersistenceAlert.shared.report(String(localized: operation))
         return false
     }
 }
+
+// MARK: - PersistenceAlertModifier
 
 private struct PersistenceAlertModifier: ViewModifier {
     @State
@@ -49,7 +53,11 @@ private struct PersistenceAlertModifier: ViewModifier {
             "Save failed",
             isPresented: Binding(
                 get: { alert.message != nil },
-                set: { if !$0 { alert.message = nil } }
+                set: {
+                    if !$0 {
+                        alert.message = nil
+                    }
+                }
             )
         ) {
             Button("OK", role: .cancel) {}

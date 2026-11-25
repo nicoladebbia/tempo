@@ -345,10 +345,10 @@ final class AuthService: NSObject {
 
         var errorDescription: String? {
             switch self {
-            case .notAuthenticated: "Not authenticated."
-            case .notConfigured: "Auth service not configured."
-            case .invalidCredential: "Invalid Apple credential."
-            case .signInCancelled: "Sign in cancelled."
+            case .notAuthenticated: String(localized: "Not authenticated.")
+            case .notConfigured: String(localized: "Auth service not configured.")
+            case .invalidCredential: String(localized: "Invalid Apple credential.")
+            case .signInCancelled: String(localized: "Sign in cancelled.")
             }
         }
     }

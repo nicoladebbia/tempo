@@ -46,7 +46,7 @@ extension TrainingViewModel {
         }
         plan.sessionRPE = undo.previousPlanRPE
         dailySession?.actualSessionRPE = undo.previousDailyRPE
-        saveGuarded(modelContext, operation: "session RPE")
+        saveGuarded(modelContext, operation: String(localized: "session RPE"))
         HapticManager.selection()
         return true
     }

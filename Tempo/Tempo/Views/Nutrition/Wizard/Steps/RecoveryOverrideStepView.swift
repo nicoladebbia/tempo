@@ -19,7 +19,7 @@ struct RecoveryOverrideStepView: View {
 
     var body: some View {
         WizardStepScaffold(
-            title: "Adjust around training?",
+            title: String(localized: "Adjust around training?"),
             subtitle: subtitleText,
             eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
@@ -54,9 +54,9 @@ struct RecoveryOverrideStepView: View {
 
     private var subtitleText: String {
         if let score = coordinator.snapshot.whoop?.recoveryScore {
-            return "Yesterday's recovery: \(Int(score)). Want the plan to lean into that?"
+            return String(localized: "Yesterday's recovery: \(Int(score)). Want the plan to lean into that?")
         }
-        return "Adjust calorie distribution based on training intensity this week?"
+        return String(localized: "Adjust calorie distribution based on training intensity this week?")
     }
 
     /// Yesterday's Whoop recovery as a lit ring: the number is the hero of this step.
@@ -65,13 +65,13 @@ struct RecoveryOverrideStepView: View {
         let band: String
         if score >= 67 {
             color = Tide.good
-            band = "Green"
+            band = String(localized: "Green")
         } else if score >= 34 {
             color = Tide.warn
-            band = "Yellow"
+            band = String(localized: "Yellow")
         } else {
             color = Tide.danger
-            band = "Red"
+            band = String(localized: "Red")
         }
         return HStack(spacing: Tide.s4) {
             ZStack {

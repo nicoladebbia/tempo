@@ -12,7 +12,7 @@ import SwiftUI
 
 struct TrainerComplianceBar: View {
     let stats: TrainerProgramHistoryStats.Stats
-    var emptyText = "No sessions scheduled yet."
+    var emptyText = String(localized: "No sessions scheduled yet.")
 
     var body: some View {
         if stats.scheduled > 0 {

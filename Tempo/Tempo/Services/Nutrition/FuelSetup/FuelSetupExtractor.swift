@@ -113,7 +113,7 @@ enum FuelSetupExtractor {
         case unreadable
 
         var errorDescription: String? {
-            "Couldn't turn that into a profile. Try again, or fill it in below."
+            String(localized: "Couldn't turn that into a profile. Try again, or fill it in below.")
         }
     }
 
@@ -135,13 +135,13 @@ enum FuelSetupExtractor {
     /// Friendly message for a failed call.
     static func message(for error: Error) -> String {
         switch error as? APIError {
-        case .subscriptionRequired?: "Talking it through uses AI — that's a Pro feature. Fill it in below instead."
-        case .aiConsentRequired?: "Allow AI features in Settings to use this, or fill it in below."
-        case .unauthorized?: "Sign in to use this, or fill it in below."
+        case .subscriptionRequired?: String(localized: "Talking it through uses AI — that's a Pro feature. Fill it in below instead.")
+        case .aiConsentRequired?: String(localized: "Allow AI features in Settings to use this, or fill it in below.")
+        case .unauthorized?: String(localized: "Sign in to use this, or fill it in below.")
         case .networkError?,
              .timeout?,
-             .connectionRefused?: "No connection. Try again, or fill it in below."
-        default: (error as? LocalizedError)?.errorDescription ?? "Something went wrong. Try again, or fill it in below."
+             .connectionRefused?: String(localized: "No connection. Try again, or fill it in below.")
+        default: (error as? LocalizedError)?.errorDescription ?? String(localized: "Something went wrong. Try again, or fill it in below.")
         }
     }
 
@@ -398,7 +398,7 @@ extension FuelSetupExtractor.Wire.Profile {
                 let kind = event.kind.flatMap(RoutineEvent.Kind.init(rawValue:)) ?? .other
                 return RoutineEvent(
                     kind: kind,
-                    title: event.title?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? kind.label,
+                    title: event.title?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? kind.englishLabel,
                     startMinutes: start,
                     endMinutes: RoutineTime.minutes(from: event.end),
                     placeID: placeID,
@@ -458,5 +458,19 @@ private extension String {
     var nilIfEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+// MARK: - RoutineEvent.Kind English name
+
+private extension RoutineEvent.Kind {
+    /// Stable English name stored as the default event title (the routine can
+    /// reach the AI prompt); `label` is the localized text for the screen.
+    var englishLabel: String {
+        switch self {
+        case .classOrWork: "Class / work"
+        case .mealOut: "Meal out"
+        case .other: "Other"
+        }
     }
 }

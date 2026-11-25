@@ -62,12 +62,12 @@ struct FuelSetupOverviewView: View {
                 if !remaining.isEmpty {
                     finishCard
                 }
-                FuelRowGroup(title: "Needed for your plan", trailing: requiredTrailing) {
+                FuelRowGroup(title: String(localized: "Needed for your plan"), trailing: requiredTrailing) {
                     ForEach(FuelSetupSection.allCases.filter(\.isRequired)) { section in
                         row(section)
                     }
                 }
-                FuelRowGroup(title: "Optional") {
+                FuelRowGroup(title: String(localized: "Optional")) {
                     ForEach(FuelSetupSection.allCases.filter { !$0.isRequired }) { section in
                         row(section)
                     }
@@ -96,8 +96,8 @@ struct FuelSetupOverviewView: View {
         FuelProgressHero(
             done: doneCount,
             total: FuelSetupSection.allCases.count,
-            title: "Your fuel profile",
-            caption: "Tap a section to change it. Each one saves on its own, or save everything at the bottom.",
+            title: String(localized: "Your fuel profile"),
+            caption: String(localized: "Tap a section to change it. Each one saves on its own, or save everything at the bottom."),
             tint: missing.isEmpty ? Tide.good : nil
         )
         .padding(.vertical, Tide.s2)
@@ -105,7 +105,7 @@ struct FuelSetupOverviewView: View {
 
     /// "1 left" over the required group while something blocks the plan.
     private var requiredTrailing: String? {
-        missing.isEmpty ? nil : "\(missing.count) left"
+        missing.isEmpty ? nil : String(localized: "\(missing.count) left")
     }
 
     /// "Finish setup · 3 left": chains through what's missing, required first.
@@ -124,8 +124,8 @@ struct FuelSetupOverviewView: View {
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(hasRequired
-                        ? "Next: \(list[0].title). Needed for your plan."
-                        : "Next: \(list[0].title). All optional, skip any.")
+                        ? String(localized: "Next: \(list[0].title). Needed for your plan.")
+                        : String(localized: "Next: \(list[0].title). All optional, skip any."))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
@@ -213,10 +213,10 @@ struct FuelSetupOverviewView: View {
                         if isMissing || isDirty {
                             HStack(spacing: Tide.s1) {
                                 if isMissing {
-                                    FuelPill(text: "Needed", color: Tide.warn)
+                                    FuelPill(text: String(localized: "Needed"), color: Tide.warn)
                                 }
                                 if isDirty {
-                                    FuelPill(text: section == .you && !locked.isEmpty ? "Update" : "Unsaved", color: mood.accent)
+                                    FuelPill(text: section == .you && !locked.isEmpty ? String(localized: "Update") : String(localized: "Unsaved"), color: mood.accent)
                                 }
                             }
                             .fixedSize()

@@ -112,7 +112,7 @@ enum NextStepEngine {
             // A session already started always wins; otherwise late in the
             // day the next meal is the more useful thing to show.
             if workout.inProgress || hour < lateHour || snapshot.nextMeal == nil || skipping.contains(.meal) {
-                return .workout(name: workout.name ?? "Workout", resume: workout.inProgress)
+                return .workout(name: workout.name ?? String(localized: "Workout"), resume: workout.inProgress)
             }
         }
         if !skipping.contains(.meal) {
@@ -161,45 +161,45 @@ enum NextStepEngine {
         switch action {
         case let .workout(name, _): name
         case let .meal(meal): meal.name
-        case .rest: "Rest day"
-        case .firstMeal: "Log today's first meal"
-        case .focus: "Study block"
-        case let .tasks(left): left == 1 ? "1 task left" : "\(left) tasks left"
-        case .setUpTasks: "Set your daily tasks"
-        case .allDone: "Day complete"
+        case .rest: String(localized: "Rest day")
+        case .firstMeal: String(localized: "Log today's first meal")
+        case .focus: String(localized: "Study block")
+        case let .tasks(left): left == 1 ? String(localized: "1 task left") : String(localized: "\(left) tasks left")
+        case .setUpTasks: String(localized: "Set your daily tasks")
+        case .allDone: String(localized: "Day complete")
         }
     }
 
     static func detail(for action: TodayNextAction) -> String {
         switch action {
         case let .workout(_, resume):
-            resume ? "You started this session. Pick it up where you left off." : "Today's session is ready."
+            resume ? String(localized: "You started this session. Pick it up where you left off.") : String(localized: "Today's session is ready.")
         case let .meal(meal):
-            "\(meal.calories.formatted()) kcal · \(meal.protein) g protein"
+            String(localized: "\(meal.calories.formatted()) kcal · \(meal.protein) g protein")
         case .rest:
-            "No session today. Recovery sets up tomorrow."
+            String(localized: "No session today. Recovery sets up tomorrow.")
         case .firstMeal:
-            "Nothing logged yet today. One meal starts your score and your targets."
+            String(localized: "Nothing logged yet today. One meal starts your score and your targets.")
         case let .focus(left):
-            "\(left) min left to reach today's study target."
+            String(localized: "\(left) min left to reach today's study target.")
         case .tasks:
-            "Finish them to unlock the day."
+            String(localized: "Finish them to unlock the day.")
         case .setUpTasks:
-            "Pick the few things you do every day, no matter what."
+            String(localized: "Pick the few things you do every day, no matter what.")
         case .allDone:
-            "Session, tasks and study are all done. Nothing else is due."
+            String(localized: "Session, tasks and study are all done. Nothing else is due.")
         }
     }
 
     static func button(for action: TodayNextAction) -> (title: String, icon: String)? {
         switch action {
-        case let .workout(_, resume): (resume ? "Resume session" : "Start session", "play.fill")
-        case .meal: ("Open meal", "fork.knife")
-        case .rest: ("Open recovery", "heart.fill")
-        case .firstMeal: ("Log a meal", "fork.knife")
-        case .focus: ("Start focus timer", "timer")
-        case .tasks: ("Open tasks", "checklist")
-        case .setUpTasks: ("Choose tasks", "plus")
+        case let .workout(_, resume): (resume ? String(localized: "Resume session") : String(localized: "Start session"), "play.fill")
+        case .meal: (String(localized: "Open meal"), "fork.knife")
+        case .rest: (String(localized: "Open recovery"), "heart.fill")
+        case .firstMeal: (String(localized: "Log a meal"), "fork.knife")
+        case .focus: (String(localized: "Start focus timer"), "timer")
+        case .tasks: (String(localized: "Open tasks"), "checklist")
+        case .setUpTasks: (String(localized: "Choose tasks"), "plus")
         case .allDone: nil
         }
     }
@@ -207,14 +207,14 @@ enum NextStepEngine {
     /// One short line, for places with room for a sentence and a button.
     static func line(for action: TodayNextAction) -> String {
         switch action {
-        case let .workout(name, resume): resume ? "Pick up \(name)." : "Next: \(name) session."
-        case let .meal(meal): "Next: \(meal.name) at \(meal.time)."
-        case .rest: "Next: a rest day. Check your recovery."
-        case .firstMeal: "Next: log your first meal."
-        case let .focus(left): "Next: \(left) min of study."
-        case let .tasks(left): left == 1 ? "Next: 1 task left." : "Next: \(left) tasks left."
-        case .setUpTasks: "Next: choose your daily tasks."
-        case .allDone: "Day complete."
+        case let .workout(name, resume): resume ? String(localized: "Pick up \(name).") : String(localized: "Next: \(name) session.")
+        case let .meal(meal): String(localized: "Next: \(meal.name) at \(meal.time).")
+        case .rest: String(localized: "Next: a rest day. Check your recovery.")
+        case .firstMeal: String(localized: "Next: log your first meal.")
+        case let .focus(left): String(localized: "Next: \(left) min of study.")
+        case let .tasks(left): left == 1 ? String(localized: "Next: 1 task left.") : String(localized: "Next: \(left) tasks left.")
+        case .setUpTasks: String(localized: "Next: choose your daily tasks.")
+        case .allDone: String(localized: "Day complete.")
         }
     }
 }

@@ -47,7 +47,7 @@ struct InlineSetFeedbackView: View {
             // RPE — 6–10 only (below 6 is warmup-easy, not worth logging).
             // Five large buttons instead of ten cramped/stretched ones.
             TrainSessionChoiceRow(
-                title: "RPE",
+                title: String(localized: "RPE"),
                 options: Array(6 ... 10),
                 selection: rpe,
                 label: { "\($0)" }
@@ -57,7 +57,7 @@ struct InlineSetFeedbackView: View {
             }
 
             TrainSessionChoiceRow(
-                title: "Breathing",
+                title: String(localized: "Breathing"),
                 options: BreathDifficulty.allCases,
                 selection: breath,
                 height: Tide.hit,
@@ -68,7 +68,7 @@ struct InlineSetFeedbackView: View {
             }
 
             TrainSessionChoiceRow(
-                title: "Form",
+                title: String(localized: "Form"),
                 options: FormQuality.allCases,
                 selection: form,
                 height: Tide.hit,

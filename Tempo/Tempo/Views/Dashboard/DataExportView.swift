@@ -61,7 +61,7 @@ struct DataExportView: View {
     /// How far back the file reaches, as one big figure with the choice under it.
     private var rangeHero: some View {
         TideSettingsHero {
-            TideLabel("Your data")
+            TideLabel(String(localized: "Your data"))
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber(
                     exportRange.figure.value, unit: exportRange.figure.unit,
@@ -74,7 +74,7 @@ struct DataExportView: View {
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             if typeSize.isAccessibilitySize {
-                SettingsControlRow(label: "Date Range", icon: "calendar") {
+                SettingsControlRow(label: String(localized: "Date Range"), icon: "calendar") {
                     rangePicker.pickerStyle(.menu)
                 }
                 .padding(.horizontal, -Tide.s4)
@@ -109,27 +109,27 @@ struct DataExportView: View {
             if let error = exportError {
                 exportStatusCard(
                     icon: "exclamationmark.triangle.fill", tint: Tide.danger,
-                    title: "Export failed", detail: error
+                    title: String(localized: "Export failed"), detail: error
                 )
             } else if let url = exportFileURL, !isExporting {
                 exportStatusCard(
                     icon: "checkmark.circle.fill", tint: mood.accent,
-                    title: "Export ready", detail: url.lastPathComponent
+                    title: String(localized: "Export ready"), detail: url.lastPathComponent
                 )
             }
 
-            SettingsFormCard(title: "Included data") {
-                exportInfoRow(icon: "person.fill", text: "Profile & biometrics")
+            SettingsFormCard(title: String(localized: "Included data")) {
+                exportInfoRow(icon: "person.fill", text: String(localized: "Profile & biometrics"))
                 SettingsRowDivider()
-                exportInfoRow(icon: "gearshape.fill", text: "Settings & preferences")
+                exportInfoRow(icon: "gearshape.fill", text: String(localized: "Settings & preferences"))
                 SettingsRowDivider()
-                exportInfoRow(icon: "dumbbell.fill", text: "Workout history")
+                exportInfoRow(icon: "dumbbell.fill", text: String(localized: "Workout history"))
                 SettingsRowDivider()
-                exportInfoRow(icon: "heart.fill", text: "Recovery data")
+                exportInfoRow(icon: "heart.fill", text: String(localized: "Recovery data"))
                 SettingsRowDivider()
-                exportInfoRow(icon: "brain.head.profile", text: "Study sessions")
+                exportInfoRow(icon: "brain.head.profile", text: String(localized: "Study sessions"))
                 SettingsRowDivider()
-                exportInfoRow(icon: "flame.fill", text: "Streaks & achievements")
+                exportInfoRow(icon: "flame.fill", text: String(localized: "Streaks & achievements"))
             }
         }
         .safeAreaBar(edge: .bottom) {
@@ -201,7 +201,7 @@ struct DataExportView: View {
                 }
             } catch {
                 await MainActor.run {
-                    exportError = "Export failed: \(error.localizedDescription)"
+                    exportError = String(localized: "Export failed: \(error.localizedDescription)")
                     isExporting = false
                 }
             }
@@ -212,7 +212,7 @@ struct DataExportView: View {
         var exportDict: [String: Any] = [:]
 
         exportDict["export_date"] = ISO8601DateFormatter().string(from: Date())
-        exportDict["export_range"] = exportRange.displayName
+        exportDict["export_range"] = exportRange.exportName
         exportDict["app_version"] = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
 
         // Profile
@@ -386,7 +386,8 @@ enum ExportRange: String, CaseIterable, Identifiable {
         rawValue
     }
 
-    var displayName: String {
+    /// The range as written into the exported file: English whatever the app language, like its keys.
+    var exportName: String {
         switch self {
         case .last7Days: "Last 7 Days"
         case .last30Days: "Last 30 Days"
@@ -395,23 +396,32 @@ enum ExportRange: String, CaseIterable, Identifiable {
         }
     }
 
+    var displayName: String {
+        switch self {
+        case .last7Days: String(localized: "Last 7 Days")
+        case .last30Days: String(localized: "Last 30 Days")
+        case .last90Days: String(localized: "Last 90 Days")
+        case .allTime: String(localized: "All Time")
+        }
+    }
+
     /// The label on the segmented control, short enough for four to share a row.
     var shortName: String {
         switch self {
-        case .last7Days: "7 days"
-        case .last30Days: "30 days"
-        case .last90Days: "90 days"
-        case .allTime: "All time"
+        case .last7Days: String(localized: "7 days")
+        case .last30Days: String(localized: "30 days")
+        case .last90Days: String(localized: "90 days")
+        case .allTime: String(localized: "All time")
         }
     }
 
     /// The big figure in the export hero.
     var figure: (value: String, unit: String) {
         switch self {
-        case .last7Days: ("7", "days")
-        case .last30Days: ("30", "days")
-        case .last90Days: ("90", "days")
-        case .allTime: ("All", "time")
+        case .last7Days: ("7", String(localized: "days"))
+        case .last30Days: ("30", String(localized: "days"))
+        case .last90Days: ("90", String(localized: "days"))
+        case .allTime: (String(localized: "All"), String(localized: "time"))
         }
     }
 

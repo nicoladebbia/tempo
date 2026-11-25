@@ -62,7 +62,7 @@ struct HomeLocationSettingView: View {
                 Button {
                     Task { await setHomeHere() }
                 } label: {
-                    Label(isWorking ? "Locating…" : "I'm home now", systemImage: "location.fill")
+                    Label(isWorking ? String(localized: "Locating…") : String(localized: "I'm home now"), systemImage: "location.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.tidePrimary)
@@ -108,7 +108,7 @@ struct HomeLocationSettingView: View {
                 .accessibilityHidden(true)
                 HStack(spacing: Tide.s3) {
                     VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(home.label ?? "Home set")
+                        Text(home.label ?? String(localized: "Home set"))
                             .font(Tide.bodyStrong)
                             .foregroundStyle(Tide.text)
                             .fixedSize(horizontal: false, vertical: true)
@@ -142,14 +142,14 @@ struct HomeLocationSettingView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("homeCurrent")
         } else {
-            FuelEmptyState(icon: "house", title: "No home set", message: "Set it so Tempo knows when you eat in.")
+            FuelEmptyState(icon: "house", title: String(localized: "No home set"), message: String(localized: "Set it so Tempo knows when you eat in."))
                 .accessibilityIdentifier("homeCurrent")
         }
     }
 
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Or search an address")
+            TideSectionLabel(title: String(localized: "Or search an address"))
                 .padding(.horizontal, Tide.s1)
             HStack(spacing: Tide.s2) {
                 Image(systemName: "magnifyingglass")
@@ -173,7 +173,7 @@ struct HomeLocationSettingView: View {
                         } label: {
                             HStack(spacing: Tide.s3) {
                                 VStack(alignment: .leading, spacing: Tide.hair) {
-                                    Text(item.name ?? "Address")
+                                    Text(item.name ?? String(localized: "Address"))
                                         .font(Tide.bodyStrong)
                                         .foregroundStyle(Tide.text)
                                         .multilineTextAlignment(.leading)
@@ -208,18 +208,18 @@ struct HomeLocationSettingView: View {
         message = nil
         defer { isWorking = false }
         guard await locationProvider.requestPermission() else {
-            message = "Location is off for Tempo. Turn it on in Settings, or search an address below."
+            message = String(localized: "Location is off for Tempo. Turn it on in Settings, or search an address below.")
             return
         }
         guard let fix = await locationProvider.fixIfAuthorized(timeout: 8) else {
-            message = "Couldn't get a fix. Try again, or search an address."
+            message = String(localized: "Couldn't get a fix. Try again, or search an address.")
             return
         }
         guard fix.horizontalAccuracy >= 0, fix.horizontalAccuracy <= HomeAwayDecider.maxUsableAccuracy else {
-            message = "That fix is too rough. Step outside or search an address."
+            message = String(localized: "That fix is too rough. Step outside or search an address.")
             return
         }
-        save(fix.coordinate, label: "Where I am now")
+        save(fix.coordinate, label: String(localized: "Where I am now"))
     }
 
     private func search() async {
@@ -230,7 +230,7 @@ struct HomeLocationSettingView: View {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = text
         results = await Array(((try? MKLocalSearch(request: request).start().mapItems) ?? []).prefix(5))
-        message = results.isEmpty ? "No match. Try a fuller address." : nil
+        message = results.isEmpty ? String(localized: "No match. Try a fuller address.") : nil
     }
 
     private func choose(_ item: MKMapItem) {

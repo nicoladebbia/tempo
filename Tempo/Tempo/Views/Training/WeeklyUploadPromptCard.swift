@@ -74,10 +74,10 @@ struct WeeklyUploadPromptCard: View {
         // over its Monday-to-Sunday range.
         let tile = Self.weekTile()
         return TrainAskCard(
-            label: "NEW WEEK",
+            label: String(localized: "NEW WEEK"),
             tint: TideTrain.violet,
             title: Self.title(for: program),
-            message: "Recap the week, send your trainer the report, and load what's next."
+            message: String(localized: "Recap the week, send your trainer the report, and load what's next.")
         ) {
             TrainFigureTile(label: tile.month, figure: tile.days, tint: TideTrain.violet)
         } actions: {
@@ -108,7 +108,6 @@ struct WeeklyUploadPromptCard: View {
         func format(_ pattern: String, _ date: Date) -> String {
             let f = DateFormatter()
             f.calendar = calendar
-            f.locale = Locale(identifier: "en_US_POSIX")
             f.timeZone = calendar.timeZone
             f.dateFormat = pattern
             return f.string(from: date)
@@ -130,11 +129,14 @@ struct WeeklyUploadPromptCard: View {
         calendar: Calendar = TrainingCalendar.iso8601
     ) -> String {
         let sunday = calendar.startOfDay(for: TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: now, calendar: calendar))
-        let which = sunday >= calendar.startOfDay(for: now) ? "this week" : "last week"
+        let isThisWeek = sunday >= calendar.startOfDay(for: now)
         guard let monday = calendar.date(byAdding: .day, value: -6, to: sunday) else {
-            return "Wrap up \(which)"
+            return isThisWeek ? String(localized: "Wrap up this week") : String(localized: "Wrap up last week")
         }
-        return "Wrap up \(which) · \(weekRange(monday: monday, sunday: sunday, calendar: calendar))"
+        let range = weekRange(monday: monday, sunday: sunday, calendar: calendar)
+        return isThisWeek
+            ? String(localized: "Wrap up this week · \(range)")
+            : String(localized: "Wrap up last week · \(range)")
     }
 
     /// The Mon–Sun week a wrap-up covers, e.g. "21–27 Sep".
@@ -148,7 +150,6 @@ struct WeeklyUploadPromptCard: View {
         func format(_ pattern: String, _ date: Date) -> String {
             let f = DateFormatter()
             f.calendar = calendar
-            f.locale = Locale(identifier: "en_US_POSIX")
             f.timeZone = calendar.timeZone
             f.dateFormat = pattern
             return f.string(from: date)

@@ -219,7 +219,7 @@ struct MuscleHeatmapView: View {
     var body: some View {
         VStack(spacing: Tide.s4) {
             TrainPlanTabs(
-                items: [(tag: false, label: "Front"), (tag: true, label: "Back")],
+                items: [(tag: false, label: String(localized: "Front")), (tag: true, label: String(localized: "Back"))],
                 selection: $showBack
             )
             .frame(maxWidth: TideTrain.tabsCompact)
@@ -256,9 +256,9 @@ struct MuscleHeatmapView: View {
         let hottest = trained.max { (heat[$0] ?? 0) < (heat[$1] ?? 0) }
         let untouched = tracked.filter { (heat[$0] ?? 0) == 0 }
         return VStack(alignment: .leading, spacing: Tide.s2) {
-            TideLabel("Last 7 days")
+            TideLabel(String(localized: "Last 7 days"))
             TideNumber(
-                "\(trained.count)", unit: "of \(tracked.count) muscles trained",
+                "\(trained.count)", unit: String(localized: "of \(tracked.count) muscles trained"),
                 size: Tide.numeralL, relativeTo: .largeTitle
             )
             .contentTransition(.numericText())
@@ -510,25 +510,25 @@ struct MuscleHeatmapView: View {
                         .lineLimit(1)
                     Spacer(minLength: Tide.s2)
                     if let change {
-                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                        TrainPlanDelta(fraction: change, suffix: String(localized: "vs last week"))
                     }
                 }
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     title
                         .fixedSize(horizontal: false, vertical: true)
                     if let change {
-                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                        TrainPlanDelta(fraction: change, suffix: String(localized: "vs last week"))
                     }
                 }
             }
 
             TrainStatGrid {
                 TrainStat(
-                    value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS,
+                    value: volumeLabel(volume), label: String(localized: "7-day volume"), size: Tide.numeralS,
                     explainer: TrainExplainers.heatVolume
                 )
                 TrainStat(
-                    value: "\(sets)", label: "working sets", size: Tide.numeralS,
+                    value: "\(sets)", label: String(localized: "working sets"), size: Tide.numeralS,
                     explainer: TrainExplainers.heatSets
                 )
                 TrainStat(value: "\(exercises.count)", label: TrainCount.noun(exercises.count, "session"), size: Tide.numeralS)

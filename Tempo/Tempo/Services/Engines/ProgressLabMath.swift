@@ -27,6 +27,11 @@ enum ProgressLabMath {
         case half = "6M"
         case all = "All"
 
+        /// The chip label; the raw value stays the English identifier.
+        var label: String {
+            self == .all ? String(localized: "All") : rawValue
+        }
+
         var days: Int? {
             switch self {
             case .month: 30

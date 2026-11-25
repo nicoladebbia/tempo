@@ -35,7 +35,7 @@ final class TrainerFeedbackService: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .signedOut:
-                "Sign in to read trainer changes with AI."
+                String(localized: "Sign in to read trainer changes with AI.")
             case let .api(error):
                 error.userMessage
             case let .parse(error):

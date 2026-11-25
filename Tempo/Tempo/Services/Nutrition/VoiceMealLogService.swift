@@ -105,9 +105,9 @@ enum VoiceMealLogError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .emptyTranscript: "I didn't catch that — try again."
-        case let .apiFailed(error): "Couldn't reach the assistant: \(error.localizedDescription)"
-        case let .parseFailed(detail): "Couldn't read the assistant's reply: \(detail)"
+        case .emptyTranscript: String(localized: "I didn't catch that — try again.")
+        case let .apiFailed(error): String(localized: "Couldn't reach the assistant: \(error.localizedDescription)")
+        case let .parseFailed(detail): String(localized: "Couldn't read the assistant's reply: \(detail)")
         }
     }
 }

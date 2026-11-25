@@ -29,14 +29,14 @@ enum FuelSetupSection: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .you: "You"
-        case .goal: "Goal"
-        case .meals: "Meals & eating window"
-        case .week: "Your week"
-        case .food: "Food"
-        case .cooking: "Cooking & kitchen"
-        case .shopping: "Shopping"
-        case .recovery: "Recovery"
+        case .you: String(localized: "You")
+        case .goal: String(localized: "Goal")
+        case .meals: String(localized: "Meals & eating window")
+        case .week: String(localized: "Your week")
+        case .food: String(localized: "Food")
+        case .cooking: String(localized: "Cooking & kitchen")
+        case .shopping: String(localized: "Shopping")
+        case .recovery: String(localized: "Recovery")
         }
     }
 
@@ -215,8 +215,11 @@ extension FuelSetupDraft {
         guard !names.isEmpty else {
             return nil
         }
-        let list = names.count == 1 ? names[0] : names.dropLast().joined(separator: ", ") + " and " + names[names.count - 1]
-        return "Finish \(list) to build your plan."
+        if names.count == 1 {
+            return String(localized: "Finish \(names[0]) to build your plan.")
+        }
+        let head = names.dropLast().joined(separator: ", ")
+        return String(localized: "Finish \(head) and \(names[names.count - 1]) to build your plan.")
     }
 
     /// The section after `section` in a finish chain, nil at the end.
@@ -282,7 +285,9 @@ extension FuelSetupDraft {
 
     // MARK: - Summaries
 
-    static let defaultsSummary = "Not set — we'll use sensible defaults"
+    static var defaultsSummary: String {
+        String(localized: "Not set — we'll use sensible defaults")
+    }
 
     /// One line for the overview card. A required section with no answers
     /// reads "Not set"; an optional one reads the neutral defaults line.
@@ -307,9 +312,9 @@ extension FuelSetupDraft {
         case .shopping:
             parts = shoppingSummaryParts()
         case .recovery:
-            parts = [recoveryAdjusted ? "Meals follow your recovery" : "Same meals every day"]
+            parts = [recoveryAdjusted ? String(localized: "Meals follow your recovery") : String(localized: "Same meals every day")]
         }
-        return parts.isEmpty ? "Not set" : parts.joined(separator: " · ")
+        return parts.isEmpty ? String(localized: "Not set") : parts.joined(separator: " · ")
     }
 
     private static func weightLabel(_ kg: Double, unit: WeightUnit) -> String {
@@ -319,8 +324,8 @@ extension FuelSetupDraft {
     private func youSummaryParts(unit: WeightUnit) -> [String] {
         [
             weightKg.map { Self.weightLabel($0, unit: unit) },
-            heightCm.map { "\(Int($0.rounded())) cm" },
-            age.map { "\($0) yrs" },
+            heightCm.map { String(localized: "\(Int($0.rounded())) cm") },
+            age.map { String(localized: "\($0) yrs") },
             sex?.displayName,
         ].compactMap { $0 }
     }
@@ -328,10 +333,10 @@ extension FuelSetupDraft {
     private func goalSummaryParts(unit: WeightUnit) -> [String] {
         var items: [String?] = [goal?.displayName]
         if let goal, goal != .maintain, let target = goalWeightKg {
-            items.append("to \(Self.weightLabel(target, unit: unit))")
+            items.append(String(localized: "to \(Self.weightLabel(target, unit: unit))"))
         }
         if let days = trainingDaysPerWeek {
-            items.append("\(days) training day\(days == 1 ? "" : "s")")
+            items.append(String(localized: "\(days) training days"))
         }
         return items.compactMap { $0 }
     }
@@ -342,7 +347,7 @@ extension FuelSetupDraft {
             items.append(FuelWords.count(mealsPerDay, "meal"))
         }
         if breakfastSkipped == true {
-            items.append("no breakfast")
+            items.append(String(localized: "no breakfast"))
         }
         if let start = eatingWindowStartMinutes, let end = eatingWindowEndMinutes {
             let startLabel = RoutineTime.string(start) ?? ""
@@ -357,10 +362,10 @@ extension FuelSetupDraft {
         if set == 0 {
             return []
         }
-        var items = ["\(set) of 7 days set"]
+        var items = [String(localized: "\(set) of 7 days set")]
         let training = routine.trainingDaysPerWeek
         if training > 0 {
-            items.append("\(training) training")
+            items.append(String(localized: "\(training) training"))
         }
         return items
     }
@@ -368,22 +373,22 @@ extension FuelSetupDraft {
     private func foodSummaryParts() -> [String] {
         var items = restrictions.sorted { $0.rawValue < $1.rawValue }.map(\.label)
         if !allergies.isEmpty {
-            items.append("\(allergies.count) allerg\(allergies.count == 1 ? "y" : "ies")")
+            items.append(String(localized: "\(allergies.count) allergies"))
         }
         if !dislikedFoods.isEmpty {
-            items.append("\(dislikedFoods.count) won't eat")
+            items.append(String(localized: "\(dislikedFoods.count) won't eat"))
         }
         if !favoriteFoods.isEmpty {
-            items.append("\(favoriteFoods.count) favourite\(favoriteFoods.count == 1 ? "" : "s")")
+            items.append(String(localized: "\(favoriteFoods.count) favourites"))
         }
         if !favoriteCuisines.isEmpty {
             items.append(favoriteCuisines.prefix(2).joined(separator: ", ") + (favoriteCuisines.count > 2 ? " +\(favoriteCuisines.count - 2)" : ""))
         }
         if let spiceLevel {
-            items.append("\(spiceLevel.displayName.lowercased()) spice")
+            items.append(Self.spiceSummary(spiceLevel))
         }
         if let breakfastStyle {
-            items.append("\(breakfastStyle.displayName.lowercased()) breakfasts")
+            items.append(Self.breakfastSummary(breakfastStyle))
         }
         if let snacksPerDay {
             items.append(SnackHabit.label(snacksPerDay))
@@ -391,20 +396,36 @@ extension FuelSetupDraft {
         if let appetite, appetite != .normal {
             items.append(appetite.displayName.lowercased())
         }
-        return items.isEmpty ? ["Eats everything"] : items
+        return items.isEmpty ? [String(localized: "Eats everything")] : items
+    }
+
+    private static func spiceSummary(_ level: SpiceLevel) -> String {
+        switch level {
+        case .mild: String(localized: "mild spice")
+        case .medium: String(localized: "medium spice")
+        case .hot: String(localized: "hot spice")
+        }
+    }
+
+    private static func breakfastSummary(_ style: BreakfastStyle) -> String {
+        switch style {
+        case .sweet: String(localized: "sweet breakfasts")
+        case .savoury: String(localized: "savoury breakfasts")
+        case .quick: String(localized: "quick breakfasts")
+        }
     }
 
     private func cookingSummaryParts() -> [String] {
         var items: [String?] = [cookingSkill?.displayName]
         if let days = cookableDaysPerWeek {
-            items.append("cooks \(days) day\(days == 1 ? "" : "s")")
+            items.append(String(localized: "cooks \(days) days"))
         }
         if let minutes = cookMinutesWeekday {
-            items.append("\(minutes) min weekdays")
+            items.append(String(localized: "\(minutes) min weekdays"))
         }
         let owned = equipment.values.filter { $0 }.count
         if !equipment.isEmpty {
-            items.append("\(owned) appliance\(owned == 1 ? "" : "s")")
+            items.append(String(localized: "\(owned) appliances"))
         }
         return items.compactMap { $0 }
     }
@@ -412,7 +433,7 @@ extension FuelSetupDraft {
     private func shoppingSummaryParts() -> [String] {
         var items: [String] = []
         if let budget = weeklyBudgetUSD {
-            items.append("$\(budget)/week")
+            items.append(String(localized: "$\(budget)/week"))
         }
         if !stores.isEmpty {
             items.append(stores.prefix(2).joined(separator: ", "))
@@ -531,9 +552,9 @@ extension FuelSetupDraft {
         let hours = gap / 60
         let minutes = gap % 60
         switch (hours, minutes) {
-        case (0, _): return "About every \(minutes) min"
-        case (_, 0): return "About every \(hours) h"
-        default: return "About every \(hours) h \(minutes) min"
+        case (0, _): return String(localized: "About every \(minutes) min")
+        case (_, 0): return String(localized: "About every \(hours) h")
+        default: return String(localized: "About every \(hours) h \(minutes) min")
         }
     }
 }

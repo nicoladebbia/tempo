@@ -115,9 +115,9 @@ struct ReceiptProductPickerView: View {
                     .accessibilityLabel("Searching")
                 } else if let searchError {
                     KitchenFailure(
-                        title: "Search didn't work",
+                        title: String(localized: "Search didn't work"),
                         message: searchError,
-                        retryTitle: "Try again",
+                        retryTitle: String(localized: "Try again"),
                         retry: { Task { await search() } }
                     )
                     .padding(Tide.edge)
@@ -125,8 +125,8 @@ struct ReceiptProductPickerView: View {
                 } else if results.isEmpty {
                     KitchenStateHero(
                         systemImage: "magnifyingglass",
-                        title: "No match",
-                        message: "No matching products found. You can keep the name as typed below."
+                        title: String(localized: "No match"),
+                        message: String(localized: "No matching products found. You can keep the name as typed below.")
                     )
                     .padding(Tide.edge)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -244,7 +244,7 @@ struct ReceiptProductPickerView: View {
                     .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
             }
             if isBest, let score, score >= 0.6 {
-                KitchenTag(text: "Best match", tint: Tide.Kitchen.good)
+                KitchenTag(text: String(localized: "Best match"), tint: Tide.Kitchen.good)
             }
         }
     }
@@ -295,7 +295,7 @@ struct ReceiptProductPickerView: View {
             }
             .sorted { $0.1 > $1.1 }
         } catch {
-            searchError = "Couldn't search right now. Check your connection and try again."
+            searchError = String(localized: "Couldn't search right now. Check your connection and try again.")
             results = []
         }
     }

@@ -37,19 +37,19 @@ enum GuidedRunFormatting {
     /// "12.4 km" / "7.7 mi" — one-decimal running total for stat headers.
     static func totalDistance(meters: Double, useMiles: Bool) -> String {
         useMiles
-            ? String(format: "%.1f mi", meters / 1609.344)
-            : String(format: "%.1f km", meters / 1000)
+            ? String(localized: "\((meters / 1609.344).tempoDecimal(1)) mi")
+            : String(localized: "\((meters / 1000).tempoDecimal(1)) km")
     }
 
     static func distance(meters: Double, useMiles: Bool) -> String {
         if useMiles {
             let miles = meters / 1609.344
-            return String(format: "%.2f mi", miles)
+            return String(localized: "\(miles.tempoDecimal(2)) mi")
         }
         if meters >= 1000 {
-            return String(format: "%.2f km", meters / 1000)
+            return String(localized: "\((meters / 1000).tempoDecimal(2)) km")
         }
-        return "\(Int(meters.rounded())) m"
+        return String(localized: "\(Int(meters.rounded())) m")
     }
 
     /// "5:12/km" / "8:23/mi" — nil when there isn't a meaningful pace yet.
@@ -59,7 +59,8 @@ enum GuidedRunFormatting {
         }
         let secondsPerUnit = useMiles ? secondsPerKm * 1.609344 : secondsPerKm
         let total = Int(secondsPerUnit.rounded())
-        return String(format: "%d:%02d/%@", total / 60, total % 60, useMiles ? "mi" : "km")
+        let clock = String(format: "%d:%02d", total / 60, total % 60)
+        return useMiles ? String(localized: "\(clock)/mi") : String(localized: "\(clock)/km")
     }
 
     /// Short description of a work step, used for the block list, the
@@ -67,20 +68,20 @@ enum GuidedRunFormatting {
     static func workDescription(_ kind: GuidedRunWorkKind) -> String {
         switch kind {
         case let .timedRep(rep):
-            var parts = ["Rep \(rep.index + 1)/\(rep.of)"]
+            var parts = [String(localized: "Rep \(rep.index + 1)/\(rep.of)")]
             if let distanceLabel = rep.distanceLabel {
                 parts.append(distanceLabel)
             }
             if let capSeconds = rep.capSeconds {
-                parts.append("cap \(repTime(capSeconds))")
+                parts.append(String(localized: "cap \(repTime(capSeconds))"))
             }
             return parts.joined(separator: " · ")
         case let .round(index, of):
-            return "Round \(index + 1)/\(of)"
+            return String(localized: "Round \(index + 1)/\(of)")
         case let .continuousDuration(targetSeconds):
-            return "\(Int((targetSeconds / 60).rounded())) min continuous"
+            return String(localized: "\(Int((targetSeconds / 60).rounded())) min continuous")
         case let .continuousDistance(_, targetLabel):
-            return "\(targetLabel) continuous"
+            return String(localized: "\(targetLabel) continuous")
         case let .freeform(text):
             return text
         }

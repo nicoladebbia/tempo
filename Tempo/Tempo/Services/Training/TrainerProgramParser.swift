@@ -51,7 +51,7 @@ enum TrainerProgramParser {
         guard sourceText.count > maxSourceCharacters else {
             return nil
         }
-        return "Your program was long, so only the first part was read. Check the days below and re-import the rest if anything is missing."
+        return String(localized: "Your program was long, so only the first part was read. Check the days below and re-import the rest if anything is missing.")
     }
 
     enum ParseError: Error, LocalizedError, Equatable {
@@ -61,9 +61,9 @@ enum TrainerProgramParser {
         var errorDescription: String? {
             switch self {
             case .invalidJSON:
-                "Couldn't read a program out of that. Try again, or paste it as plain text."
+                String(localized: "Couldn't read a program out of that. Try again, or paste it as plain text.")
             case .emptyProgram:
-                "No exercises found in that text."
+                String(localized: "No exercises found in that text.")
             }
         }
     }

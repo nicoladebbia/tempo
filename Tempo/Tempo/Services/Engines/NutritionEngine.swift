@@ -86,7 +86,7 @@ enum NutritionEngine {
                 calories = Int(Double(baseCalories) * 1.10)
                 hydration = Int(Double(baseHydrationMl) * 1.20)
                 mode = .repair
-                explanation = "Recovery is red. Extra protein and calories to accelerate repair."
+                explanation = String(localized: "Recovery is red. Extra protein and calories to accelerate repair.")
 
             case .green where isTrainingDay:
                 // Fuel mode: green recovery + training = load up on carbs
@@ -94,7 +94,7 @@ enum NutritionEngine {
                 calories = baseCalories + (carbs - baseCarbs) * 4 // adjust calories for extra carbs
                 hydration = Int(Double(baseHydrationMl) * 1.15)
                 mode = .fuel
-                explanation = "Green recovery + training day. Extra carbs to fuel performance."
+                explanation = String(localized: "Green recovery + training day. Extra carbs to fuel performance.")
 
             case .yellow where isTrainingDay:
                 // Moderate: slight carb bump, no protein change
@@ -104,27 +104,27 @@ enum NutritionEngine {
                 // carb ring and the calorie bar disagree.
                 calories = baseCalories + (carbs - baseCarbs) * 4
                 mode = .standard
-                explanation = "Yellow recovery with training. Slight carb increase."
+                explanation = String(localized: "Yellow recovery with training. Slight carb increase.")
 
             default:
                 if isRestDay {
                     calories = Int(Double(baseCalories) * 0.85)
                     carbs = Int(Double(baseCarbs) * 0.85)
                     mode = .rest
-                    explanation = "Rest day. Reduced calories to match lower energy expenditure."
+                    explanation = String(localized: "Rest day. Reduced calories to match lower energy expenditure.")
                 } else {
                     mode = .standard
-                    explanation = "Standard targets. No recovery adjustments needed."
+                    explanation = String(localized: "Standard targets. No recovery adjustments needed.")
                 }
             }
         } else if isRestDay {
             calories = Int(Double(baseCalories) * 0.85)
             carbs = Int(Double(baseCarbs) * 0.85)
             mode = .rest
-            explanation = "Rest day. Reduced calories to match lower energy expenditure."
+            explanation = String(localized: "Rest day. Reduced calories to match lower energy expenditure.")
         } else {
             mode = .standard
-            explanation = "Standard targets. No recovery adjustments needed."
+            explanation = String(localized: "Standard targets. No recovery adjustments needed.")
         }
 
         // Activity hydration: replace the old binary strain>14 ×1.15 cliff with
@@ -198,7 +198,7 @@ enum NutritionEngine {
         guard remaining > 0 else {
             return nil
         }
-        return "Need \(remaining)g more \(macroName.lowercased())"
+        return String(localized: "Need \(remaining)g more \(macroName.lowercased())")
     }
 
     // MARK: - Meal Timing Suggestions (Task 3)
@@ -230,13 +230,13 @@ enum NutritionEngine {
                 let timeString = formatHour(preWorkoutHour)
                 suggestions.append(MealTimingSuggestion(
                     icon: "fork.knife",
-                    text: "Eat a carb-rich meal by \(timeString) before your \(name) workout.",
+                    text: String(localized: "Eat a carb-rich meal by \(timeString) before your \(name) workout."),
                     priority: 1
                 ))
             } else if hour >= preWorkoutHour, hour < estimatedWorkoutHour {
                 suggestions.append(MealTimingSuggestion(
                     icon: "bolt.fill",
-                    text: "Quick carbs now: banana, rice cake, or energy bar before \(name).",
+                    text: String(localized: "Quick carbs now: banana, rice cake, or energy bar before \(name)."),
                     priority: 0
                 ))
             }
@@ -246,7 +246,7 @@ enum NutritionEngine {
         if workoutStatus == .completed {
             suggestions.append(MealTimingSuggestion(
                 icon: "clock.fill",
-                text: "Log a protein-rich meal within 1h of finishing your workout.",
+                text: String(localized: "Log a protein-rich meal within 1h of finishing your workout."),
                 priority: 0
             ))
         }
@@ -255,7 +255,7 @@ enum NutritionEngine {
         if hour >= wakeHour, hour < wakeHour + 2 {
             suggestions.append(MealTimingSuggestion(
                 icon: "sunrise.fill",
-                text: "Start with 30-40g protein at breakfast to kickstart muscle protein synthesis.",
+                text: String(localized: "Start with 30-40g protein at breakfast to kickstart muscle protein synthesis."),
                 priority: 2
             ))
         }
@@ -264,7 +264,7 @@ enum NutritionEngine {
         if hour >= 19, hour < 21 {
             suggestions.append(MealTimingSuggestion(
                 icon: "moon.fill",
-                text: "Last chance to hit your macro targets. Log dinner or a late snack.",
+                text: String(localized: "Last chance to hit your macro targets. Log dinner or a late snack."),
                 priority: 3
             ))
         }
@@ -300,9 +300,9 @@ enum NutritionEngine {
         let absBalance = abs(balance)
 
         let text = if balance >= 0 {
-            "+\(absBalance) kcal surplus"
+            String(localized: "+\(absBalance) kcal surplus")
         } else {
-            "-\(absBalance) kcal deficit"
+            String(localized: "-\(absBalance) kcal deficit")
         }
 
         let isHealthy: Bool = switch goal {
@@ -352,68 +352,68 @@ enum NutritionEngine {
 
         // 1. No meals logged yet
         if mealsLogged == 0, hour >= 9 {
-            return "No meals logged yet. You're behind. Log breakfast now and front-load your protein to stay on track."
+            return String(localized: "No meals logged yet. You're behind. Log breakfast now and front-load your protein to stay on track.")
         }
 
         // 2. Red recovery + low protein
         if recoveryZone == .red, proteinRatio < 0.6 {
-            return "Recovery is red and protein is only at \(proteinCurrent)g. Your body needs repair fuel. Prioritize chicken, fish, or eggs in your next meal."
+            return String(localized: "Recovery is red and protein is only at \(proteinCurrent)g. Your body needs repair fuel. Prioritize chicken, fish, or eggs in your next meal.")
         }
 
         // 3. Training day with low carbs
         if isTrainingDay, carbsRatio < 0.5, hour >= 12 {
-            return "Your carbs are at \(carbsCurrent)g on a training day. You need fuel to perform. Add rice, pasta, or sweet potato to your next meal."
+            return String(localized: "Your carbs are at \(carbsCurrent)g on a training day. You need fuel to perform. Add rice, pasta, or sweet potato to your next meal.")
         }
 
         // 4. Protein target hit
         if proteinRatio >= 1.0, carbsRatio < 0.8 {
-            return "Protein target hit at \(proteinCurrent)g. Now focus on getting your remaining \(carbsRemaining)g carbs in."
+            return String(localized: "Protein target hit at \(proteinCurrent)g. Now focus on getting your remaining \(carbsRemaining)g carbs in.")
         }
 
         // 5. All macros on track
         if proteinRatio >= 0.9, carbsRatio >= 0.9, fatRatio >= 0.85 {
-            return "Dialed in. All macros are within 10% of target. This is what consistency looks like."
+            return String(localized: "Dialed in. All macros are within 10% of target. This is what consistency looks like.")
         }
 
         // 6. Over on fat
         if fatRatio > 1.15 {
             let overFat = fatCurrent - fatTarget
-            return "Fat is \(overFat)g over target. Go lean for the rest of the day — grilled protein, vegetables, no sauces."
+            return String(localized: "Fat is \(overFat)g over target. Go lean for the rest of the day — grilled protein, vegetables, no sauces.")
         }
 
         // 7. Over on calories
         if calorieRatio > 1.1 {
-            return "You're \(caloriesCurrent - calorieTarget) kcal over target. No more calorie-dense foods today. Stick to lean protein and vegetables."
+            return String(localized: "You're \(caloriesCurrent - calorieTarget) kcal over target. No more calorie-dense foods today. Stick to lean protein and vegetables.")
         }
 
         // 8. Low protein, specific suggestion
         if proteinRemaining > 30 {
             let chickenGrams = Int(Double(proteinRemaining) / 0.31) // ~31g protein per 100g chicken
-            return "You've had \(proteinCurrent)g protein. Add \(chickenGrams)g chicken breast (\(proteinRemaining)g protein) to hit your target."
+            return String(localized: "You've had \(proteinCurrent)g protein. Add \(chickenGrams)g chicken breast (\(proteinRemaining)g protein) to hit your target.")
         }
 
         // 9. Low protein, close to target
         if proteinRemaining > 0, proteinRemaining <= 30 {
-            return "Almost there — \(proteinRemaining)g protein to go. A Greek yogurt (15g) or protein shake (25g) closes the gap."
+            return String(localized: "Almost there — \(proteinRemaining)g protein to go. A Greek yogurt (15g) or protein shake (25g) closes the gap.")
         }
 
         // 10. Evening, calories remaining
         if hour >= 18, caloriesRemaining > 300 {
-            return "Still \(caloriesRemaining) kcal to go tonight. Don't underfuel — a solid dinner with protein and carbs will help recovery."
+            return String(localized: "Still \(caloriesRemaining) kcal to go tonight. Don't underfuel — a solid dinner with protein and carbs will help recovery.")
         }
 
         // 11. Morning, good start
         if hour < 12, mealsLogged >= 1, proteinRatio >= 0.25 {
-            return "Good start. \(proteinCurrent)g protein logged this morning. Keep this pace and you'll hit all targets by dinner."
+            return String(localized: "Good start. \(proteinCurrent)g protein logged this morning. Keep this pace and you'll hit all targets by dinner.")
         }
 
         // 12. Rest day message
         if !isTrainingDay, calorieRatio >= 0.7 {
-            return "Rest day — calories are at \(Int(calorieRatio * 100))%. Keep portions moderate. Recovery happens at the table, not just in bed."
+            return String(localized: "Rest day — calories are at \(Int(calorieRatio * 100))%. Keep portions moderate. Recovery happens at the table, not just in bed.")
         }
 
         // Default
-        return "Stay on plan. You have \(caloriesRemaining) kcal and \(proteinRemaining)g protein remaining. Log your next meal."
+        return String(localized: "Stay on plan. You have \(caloriesRemaining) kcal and \(proteinRemaining)g protein remaining. Log your next meal.")
     }
 
     // MARK: - Hydration (Task 4)
@@ -451,17 +451,22 @@ enum NutritionEngine {
 
     // MARK: - Helpers
 
+    /// "4:00 PM" in English; the pattern is a localizable string so each language
+    /// writes the hour its own way ("16:00" in Italian). AM/PM are pinned so every
+    /// English locale reads the same.
     private static func formatHour(_ hour: Int) -> String {
         let h = hour % 24
-        if h == 0 {
-            return "12:00 AM"
+        let calendar = Calendar.current
+        var parts = calendar.dateComponents([.year, .month, .day], from: Date())
+        parts.hour = h
+        parts.minute = 0
+        guard let date = calendar.date(from: parts) else {
+            return "\(h):00"
         }
-        if h == 12 {
-            return "12:00 PM"
-        }
-        if h < 12 {
-            return "\(h):00 AM"
-        }
-        return "\(h - 12):00 PM"
+        let formatter = DateFormatter()
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
+        formatter.amSymbol = "AM"
+        formatter.pmSymbol = "PM"
+        return formatter.string(from: date)
     }
 }

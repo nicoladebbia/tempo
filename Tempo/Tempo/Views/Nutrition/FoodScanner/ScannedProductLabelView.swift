@@ -60,7 +60,7 @@ struct ScannedProductLabelView: View {
     }
 
     private var basisLabel: String {
-        basis == .perServing ? "per serving · \(FoodProductView.format(grams)) \(product.unit)" : "per 100 \(product.unit)"
+        basis == .perServing ? String(localized: "per serving · \(FoodProductView.format(grams)) \(product.unit)") : String(localized: "per 100 \(product.unit)")
     }
 
     var body: some View {
@@ -68,7 +68,7 @@ struct ScannedProductLabelView: View {
             VStack(alignment: .leading, spacing: Tide.s4) {
                 header
                 if let reason = product.implausibilityReason {
-                    warning(reason + " Check the label and fix it if it's wrong.")
+                    warning(String(localized: "\(reason) Check the label and fix it if it's wrong."))
                 }
                 if hasLabel {
                     if LabelFacts.servingGrams(of: product) != nil {
@@ -190,7 +190,7 @@ struct ScannedProductLabelView: View {
                 }
                 if let nova = product.novaGroup {
                     badge("NOVA \(nova)", color: nova >= 4 ? Tide.Kitchen.warn : (nova == 3 ? Tide.Kitchen.warn : Tide.Kitchen.good))
-                        .explains(.fuelNova.showing("Group \(nova)"))
+                        .explains(.fuelNova.showing(String(localized: "Group \(nova)")))
                 }
             }
             .padding(.top, Tide.hair)
@@ -218,7 +218,7 @@ struct ScannedProductLabelView: View {
     private var caloriesCard: some View {
         let split = FoodMacroSplit.compute(proteinGrams: shown.protein, carbsGrams: shown.carbs, fatGrams: shown.fat)
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            sectionTitle("Nutrition · \(basisLabel)")
+            sectionTitle(String(localized: "Nutrition · \(basisLabel)"))
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Image(systemName: "flame.fill")
                     .font(Tide.title2)
@@ -235,15 +235,15 @@ struct ScannedProductLabelView: View {
             if let split {
                 splitBar(split)
                 HStack(spacing: Tide.s2) {
-                    macroTile("Protein", "dumbbell.fill", shown.protein, Tide.protein)
-                    macroTile("Carbs", "bolt.fill", shown.carbs, Tide.carbs)
-                    macroTile("Fat", "drop.fill", shown.fat, Tide.fat)
+                    macroTile(String(localized: "Protein"), "dumbbell.fill", shown.protein, Tide.protein)
+                    macroTile(String(localized: "Carbs"), "bolt.fill", shown.carbs, Tide.carbs)
+                    macroTile(String(localized: "Fat"), "drop.fill", shown.fat, Tide.fat)
                 }
             }
             HStack(spacing: Tide.s4) {
-                detail("Sugars", "cube.fill", shown.sugars)
-                detail("Fiber", "leaf.fill", shown.fiber)
-                detail("Salt", "circle.dotted", shown.salt)
+                detail(String(localized: "Sugars"), "cube.fill", shown.sugars)
+                detail(String(localized: "Fiber"), "leaf.fill", shown.fiber)
+                detail(String(localized: "Salt"), "circle.dotted", shown.salt)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -264,8 +264,7 @@ struct ScannedProductLabelView: View {
         .frame(height: Tide.Kitchen.ringStroke)
         .clipShape(Capsule())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(split.slices.map { "\($0.label) \(Int(($0.percent * 100).rounded())) percent of calories" }
-            .joined(separator: ", "))
+        .accessibilityLabel(split.slices.map { String(localized: "\($0.label) \(Int(($0.percent * 100).rounded())) percent of calories") }.joined(separator: ", "))
     }
 
     private func macroTile(_ name: String, _ icon: String, _ value: Double?, _ color: Color) -> some View {
@@ -310,11 +309,11 @@ struct ScannedProductLabelView: View {
 
     private var levelsCard: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionTitle("Traffic lights · \(basisLabel)")
-            levelRow("Fat", "drop.fill", .fat, shown.fat)
-            levelRow("Saturates", "drop.halffull", .saturatedFat, shown.saturatedFat)
-            levelRow("Sugars", "cube.fill", .sugars, shown.sugars)
-            levelRow("Salt", "circle.dotted", .salt, shown.salt)
+            sectionTitle(String(localized: "Traffic lights · \(basisLabel)"))
+            levelRow(String(localized: "Fat"), "drop.fill", .fat, shown.fat)
+            levelRow(String(localized: "Saturates"), "drop.halffull", .saturatedFat, shown.saturatedFat)
+            levelRow(String(localized: "Sugars"), "cube.fill", .sugars, shown.sugars)
+            levelRow(String(localized: "Salt"), "circle.dotted", .salt, shown.salt)
             Text("Colours follow the UK traffic-light thresholds per 100 \(product.unit), whatever the view above.")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -352,7 +351,7 @@ struct ScannedProductLabelView: View {
         }
         .frame(minHeight: Tide.Kitchen.tile)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? "unknown") level")
+        .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? String(localized: "unknown")) level")
     }
 
     private static func pips(for level: LabelFacts.Level?) -> Int {
@@ -379,11 +378,19 @@ struct ScannedProductLabelView: View {
     private var fitCard: some View {
         let density = FoodFit.proteinPer100Kcal(product)
         // The protein-density line below already says it; drop the duplicate.
+        // FoodFit words these two lines itself; rebuild them (same catalog keys) so the match works in every language.
+        let densityLines: [String] = density.map { value in
+            let shown = value < 10 ? value.tempoDecimal(1) : String(Int(value.rounded()))
+            return [
+                String(localized: "High protein: \(shown) g per 100 kcal"),
+                String(localized: "Low protein: \(shown) g per 100 kcal"),
+            ]
+        } ?? []
         let checks = FoodFit.checks(for: product, grams: grams, context: fitContext)
-            .filter { !$0.text.hasPrefix("High protein") && !$0.text.hasPrefix("Low protein") }
+            .filter { !densityLines.contains($0.text) }
         if !checks.isEmpty || density != nil {
             VStack(alignment: .leading, spacing: Tide.s2) {
-                sectionTitle("Fits your plan? · \(FoodProductView.format(grams)) \(product.unit)")
+                sectionTitle(String(localized: "Fits your plan? · \(FoodProductView.format(grams)) \(product.unit)"))
                 if let density {
                     HStack(spacing: Tide.s2) {
                         Image(systemName: "dumbbell.fill")
@@ -425,18 +432,20 @@ struct ScannedProductLabelView: View {
         if !allergens.isEmpty || !traces.isEmpty || !text.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 if !allergens.isEmpty {
-                    sectionTitle("Allergens")
+                    sectionTitle(String(localized: "Allergens"))
                     FlowChips(items: allergens.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? "\(name) · your allergy" : name, flagged ? Tide.danger : Tide.Kitchen.warn, flagged)
+                        let shown = FoodProduct.localizedAllergenName(name)
+                        return (flagged ? String(localized: "\(shown) · your allergy") : shown, flagged ? Tide.danger : Tide.Kitchen.warn, flagged)
                     })
                 }
                 if !traces.isEmpty {
-                    sectionTitle("May contain")
+                    sectionTitle(String(localized: "May contain"))
                         .padding(.top, allergens.isEmpty ? 0 : Tide.s1)
                     FlowChips(items: traces.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? "\(name) · your allergy" : name, flagged ? Tide.danger : Tide.text2, flagged)
+                        let shown = FoodProduct.localizedAllergenName(name)
+                        return (flagged ? String(localized: "\(shown) · your allergy") : shown, flagged ? Tide.danger : Tide.text2, flagged)
                     })
                 }
                 if !text.isEmpty {
@@ -498,8 +507,8 @@ struct ScannedProductLabelView: View {
             KitchenStateHero(
                 systemImage: "doc.text.magnifyingglass",
                 tint: Tide.Kitchen.warn,
-                title: "No label data yet",
-                message: "We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you."
+                title: String(localized: "No label data yet"),
+                message: String(localized: "We don't have the nutrition table for this product. Photograph its label and Tempo reads it for you.")
             )
             Button {
                 showEditor = true

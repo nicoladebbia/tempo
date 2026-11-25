@@ -156,9 +156,9 @@ struct GuidedRunView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Tide.s5) {
                     TrainHeader(
-                        label: "Guided run",
+                        label: String(localized: "Guided run"),
                         title: heading,
-                        detail: plan.isEmpty ? nil : "\(plan.blocks.count) \(plan.blocks.count == 1 ? "block" : "blocks"), rests and cues handled for you."
+                        detail: plan.isEmpty ? nil : String(localized: "\(plan.blocks.count) blocks, rests and cues handled for you.")
                     ) {}
 
                     VStack(alignment: .leading, spacing: Tide.s3) {
@@ -170,8 +170,8 @@ struct GuidedRunView: View {
                     if plan.isEmpty {
                         TrainEmptyCard(
                             systemImage: "figure.run",
-                            title: "Nothing to guide here",
-                            message: "Log this one manually."
+                            title: String(localized: "Nothing to guide here"),
+                            message: String(localized: "Log this one manually.")
                         )
                     }
                 }
@@ -253,7 +253,7 @@ struct GuidedRunView: View {
                 }
             #endif
         } label: {
-            Text(plan.isEmpty ? "Nothing to run" : "Start guided run")
+            Text(plan.isEmpty ? String(localized: "Nothing to run") : String(localized: "Start guided run"))
                 .frame(minHeight: TideTrain.bigButton - Tide.s2)
         }
         .buttonStyle(.tidePrimary)

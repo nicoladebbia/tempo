@@ -30,13 +30,13 @@ enum TrainerTestResultMessage {
         guard newMaxKg > 0 else {
             return nil
         }
-        let base = "New max: \(exercise.name) \(formattedWeight(newMaxKg, unit: weightUnit))"
+        let base = String(localized: "New max: \(exercise.name) \(formattedWeight(newMaxKg, unit: weightUnit))")
         guard let program, let percent = firstPercent(for: exercise, in: program) else {
             return "\(base)."
         }
         let percentLabel = "\(Int((percent * 100).rounded()))%"
         let loadDisplay = formattedWeight(newMaxKg * percent, unit: weightUnit)
-        return "\(base) — your trainer's \(percentLabel) is now \(loadDisplay)."
+        return String(localized: "\(base) — your trainer's \(percentLabel) is now \(loadDisplay).")
     }
 
     /// The first %1RM the trainer wrote anywhere in the program for this
@@ -64,6 +64,6 @@ enum TrainerTestResultMessage {
 
     /// "New best: 30m in 4.30″" — a run/sprint test's timed baseline.
     static func runTestMessage(label: String, seconds: Double) -> String {
-        "New best: \(label) in \(ConditioningBaselineProvider.formattedSeconds(seconds))"
+        String(localized: "New best: \(label) in \(ConditioningBaselineProvider.formattedSeconds(seconds))")
     }
 }

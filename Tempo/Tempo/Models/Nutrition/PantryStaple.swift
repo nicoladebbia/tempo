@@ -19,9 +19,9 @@ enum StapleStatus: String, Codable, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .have: "Have"
-        case .runningLow: "Running low"
-        case .out: "Out"
+        case .have: String(localized: "Have")
+        case .runningLow: String(localized: "Running low")
+        case .out: String(localized: "Out")
         }
     }
 
@@ -101,31 +101,31 @@ extension PantryStaple {
     /// forced seed, so a vegan or gluten-free kitchen isn't handed soy
     /// sauce and flour it'll never buy.
     static let commonSuggestions: [(canonicalName: String, displayName: String)] = [
-        ("salt", "Salt"),
-        ("black pepper", "Black pepper"),
-        ("olive oil", "Olive oil"),
-        ("vegetable oil", "Vegetable oil"),
-        ("soy sauce", "Soy sauce"),
-        ("garlic powder", "Garlic powder"),
-        ("onion powder", "Onion powder"),
-        ("paprika", "Paprika"),
-        ("cumin", "Cumin"),
-        ("chili flakes", "Chili flakes"),
-        ("oregano", "Oregano"),
-        ("basil dried", "Dried basil"),
-        ("cinnamon", "Cinnamon"),
-        ("flour", "Flour"),
-        ("sugar", "Sugar"),
-        ("brown sugar", "Brown sugar"),
-        ("baking powder", "Baking powder"),
-        ("baking soda", "Baking soda"),
-        ("vanilla extract", "Vanilla extract"),
-        ("honey", "Honey"),
-        ("ketchup", "Ketchup"),
-        ("mustard", "Mustard"),
-        ("mayonnaise", "Mayonnaise"),
-        ("vinegar", "Vinegar"),
-        ("hot sauce", "Hot sauce"),
+        ("salt", String(localized: "Salt")),
+        ("black pepper", String(localized: "Black pepper")),
+        ("olive oil", String(localized: "Olive oil")),
+        ("vegetable oil", String(localized: "Vegetable oil")),
+        ("soy sauce", String(localized: "Soy sauce")),
+        ("garlic powder", String(localized: "Garlic powder")),
+        ("onion powder", String(localized: "Onion powder")),
+        ("paprika", String(localized: "Paprika")),
+        ("cumin", String(localized: "Cumin")),
+        ("chili flakes", String(localized: "Chili flakes")),
+        ("oregano", String(localized: "Oregano")),
+        ("basil dried", String(localized: "Dried basil")),
+        ("cinnamon", String(localized: "Cinnamon")),
+        ("flour", String(localized: "Flour")),
+        ("sugar", String(localized: "Sugar")),
+        ("brown sugar", String(localized: "Brown sugar")),
+        ("baking powder", String(localized: "Baking powder")),
+        ("baking soda", String(localized: "Baking soda")),
+        ("vanilla extract", String(localized: "Vanilla extract")),
+        ("honey", String(localized: "Honey")),
+        ("ketchup", String(localized: "Ketchup")),
+        ("mustard", String(localized: "Mustard")),
+        ("mayonnaise", String(localized: "Mayonnaise")),
+        ("vinegar", String(localized: "Vinegar")),
+        ("hot sauce", String(localized: "Hot sauce")),
     ]
 }
 
@@ -146,7 +146,16 @@ struct StapleDietFilter: Equatable, Sendable {
 
     static let none = StapleDietFilter()
 
-    init(avoidTerms: [String] = [], glutenFree: Bool = false, vegan: Bool = false, nutFree: Bool = false, avoidAddedSugars: Bool = false, lactoseFree: Bool = false, halal: Bool = false, shellfishAllergy: Bool = false) {
+    init(
+        avoidTerms: [String] = [],
+        glutenFree: Bool = false,
+        vegan: Bool = false,
+        nutFree: Bool = false,
+        avoidAddedSugars: Bool = false,
+        lactoseFree: Bool = false,
+        halal: Bool = false,
+        shellfishAllergy: Bool = false
+    ) {
         self.avoidTerms = avoidTerms.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         self.glutenFree = glutenFree
         self.vegan = vegan
@@ -213,10 +222,18 @@ struct StapleDietFilter: Equatable, Sendable {
         }
         let haystack = ([key, staple.displayName.lowercased()] + (Self.hiddenIngredients[key] ?? []))
         var terms = avoidTerms
-        if nutFree { terms += Self.nutTerms }
-        if lactoseFree { terms += Self.dairyTerms }
-        if halal { terms += Self.nonHalalTerms }
-        if shellfishAllergy { terms += Self.shellfishTerms }
+        if nutFree {
+            terms += Self.nutTerms
+        }
+        if lactoseFree {
+            terms += Self.dairyTerms
+        }
+        if halal {
+            terms += Self.nonHalalTerms
+        }
+        if shellfishAllergy {
+            terms += Self.shellfishTerms
+        }
         for term in terms {
             let variants = Set([term, PantryStorageGuesser.singular(term)])
             if haystack.contains(where: { text in variants.contains { Self.matches(term: $0, in: text) } }) {

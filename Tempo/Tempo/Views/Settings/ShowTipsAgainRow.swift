@@ -17,9 +17,9 @@ struct ShowTipsAgainRow: View {
     var body: some View {
         Button {
             FirstTips.resetAll()
-            toast = ToastData(message: "Tips will show again the next time you open each feature.", style: .success)
+            toast = ToastData(message: String(localized: "Tips will show again the next time you open each feature."), style: .success)
         } label: {
-            SettingsActionRow(icon: "lightbulb", title: "Show tips again", tint: Tide.text)
+            SettingsActionRow(icon: "lightbulb", title: String(localized: "Show tips again"), tint: Tide.text)
         }
         .buttonStyle(.tideSettingsRow)
         .accessibilityIdentifier("settingsShowTipsAgain")

@@ -48,13 +48,13 @@ struct PantryItemEditSheet: View {
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
 
-                KitchenFormSection("Item") {
+                KitchenFormSection(String(localized: "Item")) {
                     LabeledContent("Name", value: item.displayName)
                     TextField("Brand (optional)", text: $brand)
                         .textInputAutocapitalization(.words)
                 }
 
-                KitchenFormSection("Quantity") {
+                KitchenFormSection(String(localized: "Quantity")) {
                     HStack {
                         TextField("Quantity", text: $quantityText)
                             .keyboardType(.decimalPad)
@@ -67,7 +67,7 @@ struct PantryItemEditSheet: View {
                     }
                 }
 
-                KitchenFormSection("Storage") {
+                KitchenFormSection(String(localized: "Storage")) {
                     Picker("Location", selection: $storageLocation) {
                         ForEach(PantryStorageLocation.allCases, id: \.self) { loc in
                             Text(loc.displayName).tag(loc)
@@ -81,7 +81,7 @@ struct PantryItemEditSheet: View {
                     }
                 }
 
-                KitchenFormSection("Use by") {
+                KitchenFormSection(String(localized: "Use by")) {
                     Toggle("Track a use-by date", isOn: $hasUseBy)
                     if hasUseBy {
                         DatePicker("Use by", selection: $useBy, displayedComponents: .date)
@@ -119,14 +119,14 @@ struct PantryItemEditSheet: View {
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                 TideNumber(
-                    PantryQuantityFormatter.number(item.quantity),
+                    PantryQuantityFormatter.displayNumber(item.quantity),
                     unit: item.unit.displayName,
                     size: Tide.numeralM,
                     relativeTo: .title
                 )
                 if let days = item.daysUntilUseBy {
                     KitchenTag(
-                        text: days < 0 ? "Past use-by" : (days == 0 ? "Use today" : "\(days) \(days == 1 ? "day" : "days") left"),
+                        text: days < 0 ? String(localized: "Past use-by") : (days == 0 ? String(localized: "Use today") : String(localized: "\(days) days left")),
                         tint: days <= 1 ? Tide.danger : (days <= 3 ? Tide.Kitchen.warn : Tide.text2)
                     )
                 }

@@ -22,9 +22,9 @@ struct GoalSetupView: View {
 
     var body: some View {
         OnboardingScaffold(
-            title: "WHAT ARE YOU\nFIGHTING FOR?",
-            subtitle: "Pick one. You can change it in Settings.",
-            primaryTitle: "CONTINUE",
+            title: String(localized: "WHAT ARE YOU\nFIGHTING FOR?"),
+            subtitle: String(localized: "Pick one. You can change it in Settings."),
+            primaryTitle: String(localized: "CONTINUE"),
             primaryEnabled: viewModel.canContinue,
             primaryAction: { viewModel.advance() }
         ) {

@@ -85,7 +85,7 @@ struct TrainingTabView: View {
             }
         }
         .environment(\.offerExerciseUndo) { snapshot in
-            undoToast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+            undoToast = ToastData(message: String(localized: "Deleted \(snapshot.name)"), style: .info, actionTitle: String(localized: "Undo")) {
                 snapshot.restore(in: modelContext)
                 modelContext.saveOrAlert("exercise restore")
             }

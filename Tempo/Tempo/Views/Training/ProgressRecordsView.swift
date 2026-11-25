@@ -37,7 +37,7 @@ enum ProgressRecordsMath {
 
     /// The lift's name even once its exercise has been deleted.
     static func name(of record: PersonalRecord) -> String {
-        record.exercise?.name ?? record.exerciseNameSnapshot ?? "Removed exercise"
+        record.exercise?.name ?? record.exerciseNameSnapshot ?? String(localized: "Removed exercise")
     }
 
     private static func key(of record: PersonalRecord) -> String {
@@ -85,17 +85,19 @@ enum ProgressRecordsMath {
     static func kind(_ record: PersonalRecord) -> String {
         switch record.type {
         case .oneRepMax:
-            return "Estimated 1RM"
+            return String(localized: "Estimated 1RM")
         case .repMax:
             let reps = record.contextReps.map(String.init) ?? PRDisplay.repsFromContext(record.context)
             if let reps {
-                return "Heaviest weight, \(reps) \(reps == "1" ? "rep" : "reps")"
+                return reps == "1"
+                    ? String(localized: "Heaviest weight, \(reps) rep")
+                    : String(localized: "Heaviest weight, \(reps) reps")
             }
-            return "Heaviest weight"
+            return String(localized: "Heaviest weight")
         case .volume:
-            return "Best session volume"
+            return String(localized: "Best session volume")
         case .mostReps:
-            return "Most reps in a set"
+            return String(localized: "Most reps in a set")
         }
     }
 }
@@ -118,8 +120,8 @@ struct ProgressRecordsView: View {
         if records.isEmpty {
             TrainEmptyCard(
                 systemImage: "star",
-                title: "No records yet",
-                message: "Every time you lift more than ever before on a lift, it is saved here."
+                title: String(localized: "No records yet"),
+                message: String(localized: "Every time you lift more than ever before on a lift, it is saved here.")
             )
         } else {
             let best = ProgressRecordsMath.bestPerExercise(records)
@@ -137,12 +139,12 @@ struct ProgressRecordsView: View {
         let lastMonth = ProgressRecordsMath.count(records, lastDays: 30)
         let latest = records.first
         return TrainDayHero(
-            label: "Personal records",
+            label: String(localized: "Personal records"),
             figure: "\(records.count)",
             unit: TrainCount.noun(records.count, "record"),
-            caption: latest.map { "Latest: \(ProgressRecordsMath.name(of: $0)), \(PRDisplay.valueLabel($0, unit: weightUnit))" },
+            caption: latest.map { String(localized: "Latest: \(ProgressRecordsMath.name(of: $0)), \(PRDisplay.valueLabel($0, unit: weightUnit))") },
             stats: [
-                .init(value: "\(lastMonth)", label: "in the last 30 days"),
+                .init(value: "\(lastMonth)", label: String(localized: "in the last 30 days")),
                 .init(value: "\(best.count)", label: TrainCount.noun(best.count, "lift")),
             ],
             figureExplainer: TrainExplainers.personalRecord
@@ -163,7 +165,7 @@ struct ProgressRecordsView: View {
 
     private var latestCard: some View {
         let latest = ProgressRecordsMath.recent(records, limit: Self.latestCount)
-        return TrainPlanCard(label: "Latest") {
+        return TrainPlanCard(label: String(localized: "Latest")) {
             ForEach(Array(latest.enumerated()), id: \.element.id) { index, record in
                 if index > 0 {
                     TrainPlanDivider()
@@ -207,7 +209,7 @@ struct ProgressRecordsView: View {
 
     private func bestByLift(_ best: [ProgressRecordsMath.Best]) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Best by lift", trailing: TrainCount.text(best.count, "lift"))
+            TideSectionLabel(title: String(localized: "Best by lift"), trailing: TrainCount.text(best.count, "lift"))
                 .padding(.top, Tide.s2)
             LazyVStack(spacing: Tide.s2) {
                 ForEach(best) { row in

@@ -18,7 +18,7 @@ struct KitchenView: View {
             KitchenSegmented(
                 options: Array(KitchenSection.allCases),
                 selection: $viewModel.selectedKitchen
-            ) { $0 == .receipts ? "Spending" : $0.rawValue }
+            ) { $0 == .receipts ? String(localized: "Spending") : $0.displayName }
                 .padding(.horizontal, Tide.edge)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Kitchen section")

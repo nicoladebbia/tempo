@@ -25,10 +25,10 @@ enum ConnectionKind: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .whoop: "Whoop"
-        case .health: "Apple Health"
-        case .calendar: "Calendar"
-        case .location: "Weather (location)"
+        case .whoop: String(localized: "Whoop")
+        case .health: String(localized: "Apple Health")
+        case .calendar: String(localized: "Calendar")
+        case .location: String(localized: "Weather (location)")
         }
     }
 
@@ -44,10 +44,10 @@ enum ConnectionKind: String, CaseIterable, Identifiable, Sendable {
     /// What the connection is for, in one line, shown while it is off.
     var purpose: String {
         switch self {
-        case .whoop: "Recovery, sleep and strain from your band."
-        case .health: "Steps, heart rate and sleep in; your workouts and meals out."
-        case .calendar: "Plans training and meals around your day."
-        case .location: "Weather-aware training and hydration tips."
+        case .whoop: String(localized: "Recovery, sleep and strain from your band.")
+        case .health: String(localized: "Steps, heart rate and sleep in; your workouts and meals out.")
+        case .calendar: String(localized: "Plans training and meals around your day.")
+        case .location: String(localized: "Weather-aware training and hydration tips.")
         }
     }
 }
@@ -147,33 +147,33 @@ extension ConnectionStatus {
         case .connected:
             if isDemo {
                 return ConnectionStatus(
-                    kind: kind, statusText: "Demo data", tone: .attention,
-                    detail: "These numbers are samples, not yours. Connect your own band to see real ones.",
-                    buttonTitle: "Connect Whoop", action: .openWhoop
+                    kind: kind, statusText: String(localized: "Demo data"), tone: .attention,
+                    detail: String(localized: "These numbers are samples, not yours. Connect your own band to see real ones."),
+                    buttonTitle: String(localized: "Connect Whoop"), action: .openWhoop
                 )
             }
             return ConnectionStatus(
-                kind: kind, statusText: "Connected", tone: .ok,
-                detail: lastSyncText.map { "Last synced \($0)." } ?? "Recovery, sleep and strain are flowing in.",
-                buttonTitle: "Manage", action: .openWhoop
+                kind: kind, statusText: String(localized: "Connected"), tone: .ok,
+                detail: lastSyncText.map { String(localized: "Last synced \($0).") } ?? String(localized: "Recovery, sleep and strain are flowing in."),
+                buttonTitle: String(localized: "Manage"), action: .openWhoop
             )
         case .connecting:
             return ConnectionStatus(
-                kind: kind, statusText: "Connecting", tone: .off,
-                detail: "Finish signing in with Whoop.",
-                buttonTitle: "Open", action: .openWhoop
+                kind: kind, statusText: String(localized: "Connecting"), tone: .off,
+                detail: String(localized: "Finish signing in with Whoop."),
+                buttonTitle: String(localized: "Open"), action: .openWhoop
             )
         case let .error(message):
             return ConnectionStatus(
-                kind: kind, statusText: "Needs attention", tone: .attention,
-                detail: message.isEmpty ? "Whoop stopped answering. Reconnect to bring your data back." : message,
-                buttonTitle: "Fix connection", action: .openWhoop
+                kind: kind, statusText: String(localized: "Needs attention"), tone: .attention,
+                detail: message.isEmpty ? String(localized: "Whoop stopped answering. Reconnect to bring your data back.") : message,
+                buttonTitle: String(localized: "Fix connection"), action: .openWhoop
             )
         case .disconnected:
             return ConnectionStatus(
-                kind: kind, statusText: "Not connected", tone: .off,
-                detail: hasCredentials ? kind.purpose : "\(kind.purpose) Needs your Whoop developer keys.",
-                buttonTitle: "Connect", action: .openWhoop
+                kind: kind, statusText: String(localized: "Not connected"), tone: .off,
+                detail: hasCredentials ? kind.purpose : String(localized: "\(kind.purpose) Needs your Whoop developer keys."),
+                buttonTitle: String(localized: "Connect"), action: .openWhoop
             )
         }
     }
@@ -188,29 +188,29 @@ extension ConnectionStatus {
         let kind = ConnectionKind.health
         guard isAvailable else {
             return ConnectionStatus(
-                kind: kind, statusText: "Not available", tone: .off,
-                detail: "Apple Health isn't available on this device.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Not available"), tone: .off,
+                detail: String(localized: "Apple Health isn't available on this device."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         }
         guard hasAsked else {
             return ConnectionStatus(
-                kind: kind, statusText: "Not connected", tone: .off,
+                kind: kind, statusText: String(localized: "Not connected"), tone: .off,
                 detail: kind.purpose,
-                buttonTitle: "Connect", action: .askPermission
+                buttonTitle: String(localized: "Connect"), action: .askPermission
             )
         }
         if writeDenied {
             return ConnectionStatus(
-                kind: kind, statusText: "Needs attention", tone: .attention,
-                detail: "Tempo can't save workouts or meals to Health. Turn them on in Health settings.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Needs attention"), tone: .attention,
+                detail: String(localized: "Tempo can't save workouts or meals to Health. Turn them on in Health settings."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         }
         return ConnectionStatus(
-            kind: kind, statusText: "Connected", tone: .ok,
-            detail: "Steps, heart rate and sleep come in; workouts and meals go back out.",
-            buttonTitle: "Manage in Settings", action: .openSystemSettings
+            kind: kind, statusText: String(localized: "Connected"), tone: .ok,
+            detail: String(localized: "Steps, heart rate and sleep come in; workouts and meals go back out."),
+            buttonTitle: String(localized: "Manage in Settings"), action: .openSystemSettings
         )
     }
 
@@ -220,39 +220,39 @@ extension ConnectionStatus {
         switch access {
         case .granted:
             return ConnectionStatus(
-                kind: kind, statusText: "Connected", tone: .ok,
-                detail: "Tempo plans training and meals around your events.",
-                buttonTitle: "Manage in Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Connected"), tone: .ok,
+                detail: String(localized: "Tempo plans training and meals around your events."),
+                buttonTitle: String(localized: "Manage in Settings"), action: .openSystemSettings
             )
         case .limited:
             return ConnectionStatus(
-                kind: kind, statusText: "Needs attention", tone: .attention,
-                detail: "Tempo can add events but can't read them. Allow full access to plan around your day.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Needs attention"), tone: .attention,
+                detail: String(localized: "Tempo can add events but can't read them. Allow full access to plan around your day."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .denied:
             return ConnectionStatus(
-                kind: kind, statusText: "Turned off", tone: .attention,
-                detail: "Calendar access is off, so plans ignore your events. Turn it on in Settings.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Turned off"), tone: .attention,
+                detail: String(localized: "Calendar access is off, so plans ignore your events. Turn it on in Settings."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .restricted:
             return ConnectionStatus(
-                kind: kind, statusText: "Blocked", tone: .attention,
-                detail: "This device doesn't let apps use the calendar.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Blocked"), tone: .attention,
+                detail: String(localized: "This device doesn't let apps use the calendar."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .unavailable:
             return ConnectionStatus(
-                kind: kind, statusText: "Not available", tone: .off,
-                detail: "The calendar isn't available on this device.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Not available"), tone: .off,
+                detail: String(localized: "The calendar isn't available on this device."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .notAsked:
             return ConnectionStatus(
-                kind: kind, statusText: "Not connected", tone: .off,
+                kind: kind, statusText: String(localized: "Not connected"), tone: .off,
                 detail: kind.purpose,
-                buttonTitle: "Connect", action: .askPermission
+                buttonTitle: String(localized: "Connect"), action: .askPermission
             )
         }
     }
@@ -263,34 +263,34 @@ extension ConnectionStatus {
         switch access {
         case .granted:
             return ConnectionStatus(
-                kind: kind, statusText: "Allowed", tone: .ok,
-                detail: "Training and hydration tips follow your local weather.",
-                buttonTitle: "Manage in Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Allowed"), tone: .ok,
+                detail: String(localized: "Training and hydration tips follow your local weather."),
+                buttonTitle: String(localized: "Manage in Settings"), action: .openSystemSettings
             )
         case .denied,
              .limited:
             return ConnectionStatus(
-                kind: kind, statusText: "Turned off", tone: .attention,
-                detail: "Without location, weather tips are skipped. Turn it on in Settings.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Turned off"), tone: .attention,
+                detail: String(localized: "Without location, weather tips are skipped. Turn it on in Settings."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .restricted:
             return ConnectionStatus(
-                kind: kind, statusText: "Blocked", tone: .attention,
-                detail: "This device doesn't let apps use your location.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Blocked"), tone: .attention,
+                detail: String(localized: "This device doesn't let apps use your location."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .unavailable:
             return ConnectionStatus(
-                kind: kind, statusText: "Not available", tone: .off,
-                detail: "Location isn't available on this device.",
-                buttonTitle: "Open Settings", action: .openSystemSettings
+                kind: kind, statusText: String(localized: "Not available"), tone: .off,
+                detail: String(localized: "Location isn't available on this device."),
+                buttonTitle: String(localized: "Open Settings"), action: .openSystemSettings
             )
         case .notAsked:
             return ConnectionStatus(
-                kind: kind, statusText: "Not allowed", tone: .off,
+                kind: kind, statusText: String(localized: "Not allowed"), tone: .off,
                 detail: kind.purpose,
-                buttonTitle: "Allow", action: .askPermission
+                buttonTitle: String(localized: "Allow"), action: .askPermission
             )
         }
     }
@@ -304,13 +304,13 @@ extension ConnectionStatus {
     static func summary(_ statuses: [ConnectionStatus]) -> String {
         let needing = statuses.filter { $0.tone == .attention }.count
         if needing > 0 {
-            return needing == 1 ? "1 needs attention" : "\(needing) need attention"
+            return needing == 1 ? String(localized: "1 needs attention") : String(localized: "\(needing) need attention")
         }
         let on = statuses.filter(\.isConnected).count
         if on == 0 {
-            return "Nothing connected yet"
+            return String(localized: "Nothing connected yet")
         }
-        return on == statuses.count ? "All connected" : "\(on) of \(statuses.count) connected"
+        return on == statuses.count ? String(localized: "All connected") : String(localized: "\(on) of \(statuses.count) connected")
     }
 
     /// The colour of the summary: amber when something needs the user, green

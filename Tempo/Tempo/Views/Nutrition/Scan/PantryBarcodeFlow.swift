@@ -40,7 +40,7 @@ struct PantryBarcodeFlow: View {
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
-                    detail: scanned.isEmpty ? nil : "\(scanned.count) added — scan another or tap Done"
+                    detail: scanned.isEmpty ? nil : String(localized: "\(scanned.count) added — scan another or tap Done")
                 ) { barcode in
                     lookUp(barcode)
                 }
@@ -49,16 +49,16 @@ struct PantryBarcodeFlow: View {
             case let .notFound(code):
                 messageContent(
                     icon: "barcode.viewfinder",
-                    title: "Not in the database",
-                    message: "Barcode \(code) isn't recognized. Add it manually instead."
+                    title: String(localized: "Not in the database"),
+                    message: String(localized: "Barcode \(code) isn't recognized. Add it manually instead.")
                 )
             case let .failed(_, message):
-                messageContent(icon: "wifi.exclamationmark", title: "Lookup failed", message: message)
+                messageContent(icon: "wifi.exclamationmark", title: String(localized: "Lookup failed"), message: message)
             }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(scanned.isEmpty ? "Done" : "Done (\(scanned.count))") {
+                Button(scanned.isEmpty ? String(localized: "Done") : String(localized: "Done (\(scanned.count))")) {
                     onFinished(scanned)
                 }
                 .fontWeight(.semibold)
@@ -76,7 +76,7 @@ struct PantryBarcodeFlow: View {
         KitchenStatePage {
             KitchenStateHero(
                 systemImage: "barcode.viewfinder",
-                title: "Looking up \(code)…",
+                title: String(localized: "Looking up \(code)…"),
                 working: true
             )
         }
@@ -84,7 +84,7 @@ struct PantryBarcodeFlow: View {
 
     private func messageContent(icon: String, title: String, message: String) -> some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .primary) {
+            KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .primary) {
                 scanState = .scanning
             },
         ]) {

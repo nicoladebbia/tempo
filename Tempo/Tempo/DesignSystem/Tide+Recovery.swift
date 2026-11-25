@@ -558,7 +558,7 @@ extension Tide {
 /// Reduce Motion is on.
 struct RecoverySkeleton: View {
     /// What VoiceOver says while the page loads.
-    var label = "Loading"
+    var label = String(localized: "Loading")
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
@@ -645,9 +645,9 @@ struct RecoveryErrorPanel: View {
     var body: some View {
         TideEmptyPanel(
             systemImage: "wifi.exclamationmark",
-            title: "Recovery isn't loading",
+            title: String(localized: "Recovery isn't loading"),
             message: message,
-            actionTitle: "Try again",
+            actionTitle: String(localized: "Try again"),
             action: retry
         )
         .tideCard()

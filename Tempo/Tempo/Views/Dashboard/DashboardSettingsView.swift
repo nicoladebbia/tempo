@@ -67,32 +67,32 @@ struct DashboardSettingsView: View {
         TideSettingsPage {
             profileHeaderCard
 
-            SettingsGroupCard(title: "You & your day") {
+            SettingsGroupCard(title: String(localized: "You & your day")) {
                 NavigationLink {
                     ScheduleSettingsDetailView()
                 } label: {
-                    SettingsNavRow(icon: "clock.fill", title: "Schedule", subtitle: scheduleSubtitle)
+                    SettingsNavRow(icon: "clock.fill", title: String(localized: "Schedule"), subtitle: scheduleSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
 
                 NavigationLink {
                     TrainingSettingsDetailView()
                 } label: {
-                    SettingsNavRow(icon: "dumbbell.fill", title: "Training", subtitle: trainingSubtitle)
+                    SettingsNavRow(icon: "dumbbell.fill", title: String(localized: "Training"), subtitle: trainingSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
 
                 NavigationLink {
                     FocusTimerSettingsDetailView()
                 } label: {
-                    SettingsNavRow(icon: "timer", title: "Focus Timer", subtitle: focusSubtitle)
+                    SettingsNavRow(icon: "timer", title: String(localized: "Focus Timer"), subtitle: focusSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
 
                 NavigationLink {
                     ModesSettingsDetailView()
                 } label: {
-                    SettingsNavRow(icon: "bolt.fill", title: "Modes", subtitle: modesSubtitle)
+                    SettingsNavRow(icon: "bolt.fill", title: String(localized: "Modes"), subtitle: modesSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
 
@@ -100,7 +100,7 @@ struct DashboardSettingsView: View {
                     FuelSetupView(embedded: true)
                 } label: {
                     SettingsStatusRow(
-                        icon: "fork.knife", title: "Diet Profile",
+                        icon: "fork.knife", title: String(localized: "Diet Profile"),
                         status: dietProfileStatusText, statusColor: dietProfileStatusColor
                     )
                 }
@@ -111,7 +111,7 @@ struct DashboardSettingsView: View {
                 } label: {
                     SettingsNavRow(
                         icon: "calendar.badge.clock",
-                        title: "Weekly habits", subtitle: "Sunday planning, routine, what we've learned"
+                        title: String(localized: "Weekly habits"), subtitle: String(localized: "Sunday planning, routine, what we've learned")
                     )
                 }
                 .buttonStyle(.tideSettingsRow)
@@ -121,7 +121,7 @@ struct DashboardSettingsView: View {
                     SetupChecklistPage()
                 } label: {
                     SettingsStatusRow(
-                        icon: "checklist", title: "Get set up",
+                        icon: "checklist", title: String(localized: "Get set up"),
                         status: setupStatusText, statusColor: setupStatusColor
                     )
                 }
@@ -129,12 +129,12 @@ struct DashboardSettingsView: View {
                 .accessibilityIdentifier("settingsGetSetUp")
             }
 
-            SettingsGroupCard(title: "Connections & alerts") {
+            SettingsGroupCard(title: String(localized: "Connections & alerts")) {
                 NavigationLink {
                     ConnectionsView()
                 } label: {
                     SettingsStatusRow(
-                        icon: "link", title: "Connections",
+                        icon: "link", title: String(localized: "Connections"),
                         status: connectionsSummary, statusColor: connectionsSummaryColor
                     )
                 }
@@ -145,7 +145,7 @@ struct DashboardSettingsView: View {
                     NotificationInboxView(onOpen: { dismiss() })
                 } label: {
                     SettingsStatusRow(
-                        icon: "tray.fill", title: "Today's notifications",
+                        icon: "tray.fill", title: String(localized: "Today's notifications"),
                         status: inboxStatus, statusColor: inboxStatusColor
                     )
                 }
@@ -155,7 +155,7 @@ struct DashboardSettingsView: View {
                 NavigationLink {
                     NotificationSettingsView()
                 } label: {
-                    SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
+                    SettingsNavRow(icon: "bell.fill", title: String(localized: "Notifications"), subtitle: notificationsSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
                 .accessibilityIdentifier("settingsNotifications")
@@ -163,11 +163,11 @@ struct DashboardSettingsView: View {
 
             AIFeaturesSettingsCard()
 
-            SettingsGroupCard(title: "Account & data") {
+            SettingsGroupCard(title: String(localized: "Account & data")) {
                 NavigationLink {
                     SubscriptionDetailView(plan: plan)
                 } label: {
-                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
+                    SettingsNavRow(icon: "crown.fill", title: String(localized: "Subscription"), subtitle: subscriptionStatusText)
                 }
                 .buttonStyle(.tideSettingsRow)
 
@@ -176,11 +176,11 @@ struct DashboardSettingsView: View {
                 } label: {
                     SettingsNavRow(
                         icon: "person.crop.circle",
-                        title: "Account",
+                        title: String(localized: "Account"),
                         subtitle: services.authService.authState == .unauthenticated
                             || services.authService.authState == .expired
-                            ? "Not signed in — tap to sign in"
-                            : "Sign-in, member since, delete"
+                            ? String(localized: "Not signed in — tap to sign in")
+                            : String(localized: "Sign-in, member since, delete")
                     )
                 }
                 .buttonStyle(.tideSettingsRow)
@@ -188,7 +188,7 @@ struct DashboardSettingsView: View {
                 NavigationLink {
                     DataExportView()
                 } label: {
-                    SettingsNavRow(icon: "square.and.arrow.up", title: "Export My Data")
+                    SettingsNavRow(icon: "square.and.arrow.up", title: String(localized: "Export My Data"))
                 }
                 .buttonStyle(.tideSettingsRow)
 
@@ -196,13 +196,13 @@ struct DashboardSettingsView: View {
 
                 if let supportURL = URL(string: "https://tempo.app/support") {
                     Link(destination: supportURL) {
-                        SettingsActionRow(icon: "questionmark.circle", title: "Support", tint: Tide.text)
+                        SettingsActionRow(icon: "questionmark.circle", title: String(localized: "Support"), tint: Tide.text)
                     }
                     .buttonStyle(.tideSettingsRow)
                 }
 
                 SettingsActionRow(
-                    icon: "number", title: "Version", tint: Tide.text,
+                    icon: "number", title: String(localized: "Version"), tint: Tide.text,
                     trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
                 )
             }
@@ -288,7 +288,7 @@ struct DashboardSettingsView: View {
                     }
 
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(profile?.displayName ?? "Athlete")
+                    Text(profile?.displayName ?? String(localized: "Athlete"))
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
@@ -331,54 +331,54 @@ struct DashboardSettingsView: View {
 
     private var scheduleSubtitle: String {
         guard let s = settings else {
-            return "Not set up"
+            return String(localized: "Not set up")
         }
         // leisureTimeMinutes is a TIME-OF-DAY (validated 0..<1440 alongside
         // wake/bedtime as invalidTimeOfDay), NOT a duration — render as a clock.
-        return "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(timeString(fromMinutes: s.leisureTimeMinutes))"
+        return String(localized: "Wake \(timeString(fromMinutes: s.wakeTimeMinutes)) · Bed \(timeString(fromMinutes: s.bedtimeTargetMinutes)) · Leisure \(timeString(fromMinutes: s.leisureTimeMinutes))")
     }
 
     private var trainingSubtitle: String {
         guard let s = settings else {
-            return "Not set up"
+            return String(localized: "Not set up")
         }
         let days = s.footballDaysRaw.nonzeroBitCount
-        let football = days == 0 ? "no football" : "\(days) football day\(days == 1 ? "" : "s")"
+        let football = days == 0 ? String(localized: "no football") : String(localized: "\(days) football days")
         return "\(s.trainingSplit.displayName) · \(football) · \(s.weightUnitRaw)"
     }
 
     private var focusSubtitle: String {
         guard let s = settings else {
-            return "Not set up"
+            return String(localized: "Not set up")
         }
-        return "\(s.pomodoroDuration) / \(s.breakDuration) / \(s.longBreakDuration) min"
+        return String(localized: "\(s.pomodoroDuration) / \(s.breakDuration) / \(s.longBreakDuration) min")
     }
 
     private var modesSubtitle: String {
         guard let s = settings else {
-            return "None active"
+            return String(localized: "None active")
         }
         var active: [String] = []
         if s.weekendMode {
-            active.append("Weekend")
+            active.append(String(localized: "Weekend"))
         }
         if s.examMode {
-            active.append("Exam")
+            active.append(String(localized: "Exam"))
         }
-        return active.isEmpty ? "None active" : active.joined(separator: " · ")
+        return active.isEmpty ? String(localized: "None active") : active.joined(separator: " · ")
     }
 
     /// The level the reminder switches add up to, and quiet hours when they are on.
     private var notificationsSubtitle: String {
         guard let settings else {
-            return "Default"
+            return String(localized: "Default")
         }
         let policy = NotificationPolicy(settings: settings)
-        let level = policy.level?.title ?? "Custom"
+        let level = policy.level?.title ?? String(localized: "Custom")
         guard let quiet = policy.quietHours else {
             return level
         }
-        return "\(level) · quiet \(Self.clock(quiet.startMinutes))–\(Self.clock(quiet.endMinutes))"
+        return String(localized: "\(level) · quiet \(Self.clock(quiet.startMinutes))–\(Self.clock(quiet.endMinutes))")
     }
 
     private static func clock(_ minutes: Int) -> String {
@@ -388,9 +388,9 @@ struct DashboardSettingsView: View {
     private var inboxStatus: String {
         let inbox = NotificationInbox.shared
         if inbox.items.isEmpty {
-            return "None today"
+            return String(localized: "None today")
         }
-        return inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "All read"
+        return inbox.unreadCount > 0 ? String(localized: "\(inbox.unreadCount) new") : String(localized: "All read")
     }
 
     private var inboxStatusColor: Color {
@@ -405,8 +405,8 @@ struct DashboardSettingsView: View {
     private var profileStatsLine: String {
         let level = profile?.currentLevel ?? 1
         let xp = profile?.totalXP ?? 0
-        let xpStr = xp >= 1000 ? String(format: "%.1fk XP", Double(xp) / 1000) : "\(xp) XP"
-        return "Lvl \(level) · \(xpStr)"
+        let xpStr = xp >= 1000 ? String(localized: "\((Double(xp) / 1000).tempoDecimal(1))k XP") : String(localized: "\(xp) XP")
+        return String(localized: "Lvl \(level) · \(xpStr)")
     }
 
     // MARK: - Subscription
@@ -485,7 +485,7 @@ struct DashboardSettingsView: View {
             predicate: #Predicate { $0.isActive == true }
         )
         let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        return count > 0 ? "Configured" : "Not Set Up"
+        return count > 0 ? String(localized: "Configured") : String(localized: "Not Set Up")
     }
 
     /// The "Get set up" lines, from the same real state the Today card reads.
@@ -500,7 +500,7 @@ struct DashboardSettingsView: View {
 
     private var setupStatusText: String {
         let checklist = setupChecklist
-        return checklist.doneCount == checklist.total ? "All done" : "\(checklist.doneCount) of \(checklist.total)"
+        return checklist.doneCount == checklist.total ? String(localized: "All done") : String(localized: "\(checklist.doneCount) of \(checklist.total)")
     }
 
     private var setupStatusColor: Color {
@@ -617,7 +617,7 @@ struct ProfileSettingsDetailView: View {
                 }
 
             VStack(spacing: Tide.hair) {
-                Text(displayName.isEmpty ? "Athlete" : displayName)
+                Text(displayName.isEmpty ? String(localized: "Athlete") : displayName)
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
@@ -651,20 +651,20 @@ struct ProfileSettingsDetailView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
             : AnyLayout(HStackLayout(spacing: 0))
         return layout {
-            statCell(value: "\(profile?.currentLevel ?? 1)", label: "Level")
+            statCell(value: "\(profile?.currentLevel ?? 1)", label: String(localized: "Level"))
             statDivider
-            statCell(value: streakDisplay, label: "Streak")
+            statCell(value: streakDisplay, label: String(localized: "Streak"))
             statDivider
-            statCell(value: xpDisplay, label: "Total XP")
+            statCell(value: xpDisplay, label: String(localized: "Total XP"))
             statDivider
-            statCell(value: memberSince, label: "Member")
+            statCell(value: memberSince, label: String(localized: "Member"))
         }
         .tideCard(padding: Tide.s4)
     }
 
     private var streakDisplay: String {
         let current = overallStreak?.currentCount ?? 0
-        return current == 0 ? "—" : "\(current)d"
+        return current == 0 ? "—" : String(localized: "\(current)d")
     }
 
     private func statCell(value: String, label: String) -> some View {
@@ -692,7 +692,7 @@ struct ProfileSettingsDetailView: View {
 
     private var xpDisplay: String {
         let xp = profile?.totalXP ?? 0
-        return xp >= 1000 ? String(format: "%.1fk", Double(xp) / 1000) : "\(xp)"
+        return xp >= 1000 ? String(localized: "\((Double(xp) / 1000).tempoDecimal(1))k") : "\(xp)"
     }
 
     private var memberSince: String {
@@ -700,32 +700,32 @@ struct ProfileSettingsDetailView: View {
             return "—"
         }
         let f = DateFormatter()
-        f.dateFormat = "MMM ''yy"
+        f.dateFormat = String(localized: "MMM ''yy", comment: "DATE_FORMAT")
         return f.string(from: created)
     }
 
     // MARK: - Training summary (read-only, surfaced from UserSettings)
 
     private var trainingSummaryCard: some View {
-        SettingsFormCard(title: "Training") {
+        SettingsFormCard(title: String(localized: "Training")) {
             SettingsInfoRow(
-                label: "Split", value: settings?.trainingSplit.displayName ?? "—",
+                label: String(localized: "Split"), value: settings?.trainingSplit.displayName ?? "—",
                 icon: "dumbbell.fill"
             )
             SettingsRowDivider()
             SettingsInfoRow(
-                label: "Football days", value: footballSummary,
+                label: String(localized: "Football days"), value: footballSummary,
                 icon: "sportscourt.fill"
             )
             SettingsRowDivider()
             SettingsInfoRow(
-                label: "Weight unit", value: (settings?.weightUnitRaw ?? "kg").uppercased(),
+                label: String(localized: "Weight unit"), value: (settings?.weightUnitRaw ?? "kg").uppercased(),
                 icon: "scalemass.fill"
             )
             if let longest = overallStreak?.longestCount, longest > 0 {
                 SettingsRowDivider()
                 SettingsInfoRow(
-                    label: "Longest streak", value: "\(longest) days",
+                    label: String(localized: "Longest streak"), value: String(localized: "\(longest) days"),
                     icon: "flame.fill", iconTint: Tide.streak
                 )
             }
@@ -734,20 +734,20 @@ struct ProfileSettingsDetailView: View {
 
     private var footballSummary: String {
         let days = settings?.footballDaysRaw.nonzeroBitCount ?? 0
-        return days == 0 ? "None" : "\(days)/week"
+        return days == 0 ? String(localized: "None") : "\(days)/week"
     }
 
     // MARK: - Identity (editable)
 
     private var identityCard: some View {
-        SettingsFormCard(title: "Identity") {
-            labeledField(label: "Display Name", text: $displayName, placeholder: "Your name") { newValue in
+        SettingsFormCard(title: String(localized: "Identity")) {
+            labeledField(label: String(localized: "Display Name"), text: $displayName, placeholder: String(localized: "Your name")) { newValue in
                 profile?.displayName = newValue
                 touch()
             }
             SettingsRowDivider(underTitle: false)
             labeledField(
-                label: "Username", text: $username, placeholder: "username",
+                label: String(localized: "Username"), text: $username, placeholder: String(localized: "username"),
                 prefix: "@", autocapitalize: false
             ) { newValue in
                 profile?.username = newValue
@@ -766,7 +766,7 @@ struct ProfileSettingsDetailView: View {
             NavigationLink {
                 GoalEditorView()
             } label: {
-                SettingsNavRow(icon: "target", title: "Target and date", subtitle: goalTargetSubtitle)
+                SettingsNavRow(icon: "target", title: String(localized: "Target and date"), subtitle: goalTargetSubtitle)
             }
             .buttonStyle(.tideSettingsRow)
             .accessibilityIdentifier("settingsGoalTarget")
@@ -775,15 +775,15 @@ struct ProfileSettingsDetailView: View {
 
     private var goalTargetSubtitle: String {
         guard let goal = activeGoals.first else {
-            return "A weight, a lift or a run time, and when"
+            return String(localized: "A weight, a lift or a run time, and when")
         }
         let by = goal.targetDate.formatted(.dateTime.day().month(.abbreviated))
-        return "\(GoalFormat.headline(for: goal, unit: settings?.weightUnit ?? .kg)) by \(by)"
+        return String(localized: "\(GoalFormat.headline(for: goal, unit: settings?.weightUnit ?? .kg)) by \(by)")
     }
 
     /// The goal picked in onboarding, changeable here.
     private var goalRow: some View {
-        SettingsControlRow(label: "Goal") {
+        SettingsControlRow(label: String(localized: "Goal")) {
             Picker(
                 "Goal",
                 selection: Binding(
@@ -808,10 +808,10 @@ struct ProfileSettingsDetailView: View {
     }
 
     private var identityLabelRow: some View {
-        SettingsControlRow(label: "Identity") {
+        SettingsControlRow(label: String(localized: "Identity")) {
             Picker("Identity", selection: $identityLabel) {
                 ForEach(identityOptions, id: \.self) { option in
-                    Text(option).tag(option)
+                    Text(OnboardingViewModel.identityDisplayName(option)).tag(option)
                 }
             }
             .labelsHidden()
@@ -833,27 +833,27 @@ struct ProfileSettingsDetailView: View {
     /// them lives there, not on the profile screen.
     private var biometricsCard: some View {
         SettingsFormCard(
-            title: "Biometrics",
-            footnote: "Biometrics come from your Diet Profile. Update them there with “Refresh from Health.”"
+            title: String(localized: "Biometrics"),
+            footnote: String(localized: "Biometrics come from your Diet Profile. Update them there with “Refresh from Health.”")
         ) {
             if let d = dietProfile {
                 SettingsInfoRow(
-                    label: "Weight",
-                    value: String(format: "%.1f kg", d.currentWeightKg),
+                    label: String(localized: "Weight"),
+                    value: String(localized: "\(d.currentWeightKg.tempoDecimal(1)) kg"),
                     icon: "scalemass"
                 )
                 SettingsRowDivider()
                 SettingsInfoRow(
-                    label: "Height",
-                    value: String(format: "%.0f cm", d.heightCm),
+                    label: String(localized: "Height"),
+                    value: String(localized: "\(d.heightCm.tempoDecimal(0)) cm"),
                     icon: "ruler"
                 )
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Age", value: "\(d.age)", icon: "calendar")
+                SettingsInfoRow(label: String(localized: "Age"), value: "\(d.age)", icon: "calendar")
                 SettingsRowDivider()
                 SettingsInfoRow(
-                    label: "Est. BMR",
-                    value: "\(Int(bmr(from: d))) kcal",
+                    label: String(localized: "Est. BMR"),
+                    value: String(localized: "\(Int(bmr(from: d))) kcal"),
                     icon: "flame"
                 )
             } else {
@@ -862,7 +862,7 @@ struct ProfileSettingsDetailView: View {
                 } label: {
                     SettingsNavRow(
                         icon: "heart.text.square",
-                        title: "Set up biometrics", subtitle: "In Diet Profile → Refresh from Health"
+                        title: String(localized: "Set up biometrics"), subtitle: String(localized: "In Diet Profile → Refresh from Health")
                     )
                 }
                 .buttonStyle(.tideSettingsRow)

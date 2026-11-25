@@ -56,23 +56,23 @@ enum AIBlocker: Equatable {
 
     var title: String {
         switch self {
-        case .proRequired: "Pro feature"
-        case .aiConsentRequired: "AI is off"
+        case .proRequired: String(localized: "Pro feature")
+        case .aiConsentRequired: String(localized: "AI is off")
         }
     }
 
     var message: String {
         switch self {
-        case .proRequired: "AI features are part of Tempo Pro."
-        case .aiConsentRequired: "AI features are off. Turning them on sends what you ask about, such as your training, sleep and food data, to Anthropic, only when you use an AI feature. It is never used to train their models. You can turn it off again in Settings."
+        case .proRequired: String(localized: "AI features are part of Tempo Pro.")
+        case .aiConsentRequired: String(localized: "AI features are off. Turning them on sends what you ask about, such as your training, sleep and food data, to Anthropic, only when you use an AI feature. It is never used to train their models. You can turn it off again in Settings.")
         }
     }
 
     /// Button label for the fix.
     var actionTitle: String {
         switch self {
-        case .proRequired: "See Pro"
-        case .aiConsentRequired: "Turn on AI"
+        case .proRequired: String(localized: "See Pro")
+        case .aiConsentRequired: String(localized: "Turn on AI")
         }
     }
 
@@ -98,17 +98,17 @@ enum AIBlocker: Equatable {
 extension NutritionError: LocalizedError {
     var errorDescription: String? {
         switch self {
-        case .foodNotFound, .barcodeNotFound: "We couldn't find that food."
+        case .foodNotFound, .barcodeNotFound: String(localized: "We couldn't find that food.")
         case let .searchFailed(detail): detail
-        case .apiKeyMissing, .contextUnavailable: "Something went wrong. Please try again."
-        case .rateLimited: "Too many requests. Please wait a moment."
-        case .networkError: "Network error. Check your connection and try again."
-        case let .photoAnalysisFailed(detail): "Couldn't read that photo: \(detail)"
-        case .noFoodDetected: "No food found in that photo. Try a closer shot."
-        case .unclearPhoto: "That photo is too unclear. Try better light."
-        case .invalidResponse: "Received unexpected data from the server."
-        case .mealNotFound: "That meal could not be found."
-        case let .healthKitWriteFailed(detail): "Couldn't save to Health: \(detail)"
+        case .apiKeyMissing, .contextUnavailable: String(localized: "Something went wrong. Please try again.")
+        case .rateLimited: String(localized: "Too many requests. Please wait a moment.")
+        case .networkError: String(localized: "Network error. Check your connection and try again.")
+        case let .photoAnalysisFailed(detail): String(localized: "Couldn't read that photo: \(detail)")
+        case .noFoodDetected: String(localized: "No food found in that photo. Try a closer shot.")
+        case .unclearPhoto: String(localized: "That photo is too unclear. Try better light.")
+        case .invalidResponse: String(localized: "Received unexpected data from the server.")
+        case .mealNotFound: String(localized: "That meal could not be found.")
+        case let .healthKitWriteFailed(detail): String(localized: "Couldn't save to Health: \(detail)")
         }
     }
 }

@@ -44,7 +44,7 @@ struct CoachChat: View {
                     emptyStateSeeds: Self.askSeeds,
                     voice: voiceOverride ?? CoachVoiceController(),
                     voiceMode: currentVoiceMode(),
-                    title: "Ask Tempo"
+                    title: String(localized: "Ask Tempo")
                 )
             } else {
                 TideCoachSkeleton()
@@ -114,9 +114,9 @@ struct CoachChat: View {
     /// What the chat opens with when nothing has been said yet: questions
     /// about the day, not commands.
     static let askSeeds = [
-        "What should I eat next?",
-        "Should I train hard today?",
-        "How is my week going?",
+        String(localized: "What should I eat next?"),
+        String(localized: "Should I train hard today?"),
+        String(localized: "How is my week going?"),
     ]
 
     /// Live-state snapshot for today: the meals planned and their timing, and

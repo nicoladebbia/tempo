@@ -77,7 +77,9 @@ struct StreakDotsView: View {
     }
 
     private var accessibilityText: String {
-        "\(activeStreak) day streak, \(activeStreak > 0 ? "active" : "inactive")"
+        activeStreak > 0
+            ? String(localized: "\(activeStreak) day streak, active")
+            : String(localized: "\(activeStreak) day streak, inactive")
     }
 }
 

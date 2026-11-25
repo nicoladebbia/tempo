@@ -16,7 +16,7 @@ import Foundation
 extension FuelQuadrantData {
     /// Caption under the calorie hero: "kcal of 2,400".
     var caloriesCaption: String {
-        "kcal of \(formattedCalorieTarget)"
+        String(localized: "kcal of \(formattedCalorieTarget)")
     }
 
     /// "142 / 180g" for a macro row. A missing intake reads as 0 — the card
@@ -32,12 +32,12 @@ extension FuelQuadrantData {
     /// was eaten, else a nudge to log one.
     var cardFootnote: String {
         if let nextMeal {
-            return "Next: \(nextMeal.mealName) · \(nextMeal.scheduledTime)"
+            return String(localized: "Next: \(nextMeal.displayMealName) · \(nextMeal.scheduledTime)")
         }
         if lastEatenAt != nil {
-            return "Last meal \(formattedLastEaten)"
+            return String(localized: "Last meal \(formattedLastEaten)")
         }
-        return "No meals logged yet"
+        return String(localized: "No meals logged yet")
     }
 }
 
@@ -47,9 +47,9 @@ extension MoveQuadrantData {
     /// Hero line: today's session name, or the day's state when there's none.
     var workoutHeadline: String {
         switch workoutStatus {
-        case .completed, .planned: workoutName ?? "Workout"
-        case .restDay: "Rest Day"
-        case .none: "No workout"
+        case .completed, .planned: workoutName ?? String(localized: "Workout")
+        case .restDay: String(localized: "Rest Day")
+        case .none: String(localized: "No workout")
         }
     }
 
@@ -57,17 +57,17 @@ extension MoveQuadrantData {
     var workoutCaption: String {
         switch workoutStatus {
         case .completed:
-            workoutDurationMinutes == nil ? "Done" : "Done · \(formattedWorkoutDuration)"
+            workoutDurationMinutes == nil ? String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)") : String(localized: "Done · \(formattedWorkoutDuration)")
         case .planned:
-            workoutDurationMinutes.map { "Planned · ~\($0) min" } ?? "Planned for today"
-        case .restDay: "Recovery is training."
-        case .none: "Add one or skip."
+            workoutDurationMinutes.map { String(localized: "Planned · ~\($0) min") } ?? String(localized: "Planned for today")
+        case .restDay: String(localized: "Recovery is training.")
+        case .none: String(localized: "Add one or skip.")
         }
     }
 
     /// Footer line under the steps bar: "Goal 10,000".
     var stepsGoalText: String {
-        "Goal \(NumberFormatter.localizedString(from: NSNumber(value: stepsTarget), number: .decimal))"
+        String(localized: "Goal \(NumberFormatter.localizedString(from: NSNumber(value: stepsTarget), number: .decimal))")
     }
 }
 
@@ -80,14 +80,14 @@ extension MindQuadrantData {
 
     /// Caption under the study-time hero.
     var studyCaption: String {
-        hasHitStudyTarget ? "Target hit" : "Study today"
+        hasHitStudyTarget ? String(localized: "Target hit") : String(localized: "Study today")
     }
 
     /// Footer line under the study bar: "45% of target".
     var studyProgressText: String {
         guard studyTargetMinutes > 0 else {
-            return "No target set"
+            return String(localized: "No target set")
         }
-        return "\(Int((studyProgress * 100).rounded()))% of target"
+        return String(localized: "\(Int((studyProgress * 100).rounded()))% of target")
     }
 }

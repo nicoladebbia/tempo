@@ -40,16 +40,16 @@ struct MealFeedbackSheet: View {
                 VStack(alignment: .leading, spacing: Tide.s5) {
                     stars
                     noteField(
-                        "Overall", prompt: "Loved this. Or didn't.", text: $overallNote, lines: 2 ... 4
+                        String(localized: "Overall"), prompt: String(localized: "Loved this. Or didn't."), text: $overallNote, lines: 2 ... 4
                     )
                     noteField(
-                        "Portion", prompt: "Too big, too small, just right…", text: $portionNote, lines: 1 ... 3,
-                        footnote: "If 100g feels right instead of 300g, say so. Plans will adapt."
+                        String(localized: "Portion"), prompt: String(localized: "Too big, too small, just right…"), text: $portionNote, lines: 1 ... 3,
+                        footnote: String(localized: "If 100g feels right instead of 300g, say so. Plans will adapt.")
                     )
                     noteField(
-                        "Next time", prompt: "Add lemon. Swap rice for quinoa. Less salt.", text: $suggestedChange,
+                        String(localized: "Next time"), prompt: String(localized: "Add lemon. Swap rice for quinoa. Less salt."), text: $suggestedChange,
                         lines: 1 ... 3,
-                        footnote: "Specific changes you want applied when this dish comes around again."
+                        footnote: String(localized: "Specific changes you want applied when this dish comes around again.")
                     )
                 }
                 .padding(.horizontal, Tide.edge)
@@ -60,7 +60,7 @@ struct MealFeedbackSheet: View {
             .scrollDismissesKeyboard(.interactively)
             // The one action sits under the thumb, in the standard button.
             .fuelBottomBar {
-                Button(existing == nil ? "Save" : "Update") {
+                Button(existing == nil ? String(localized: "Save") : String(localized: "Update")) {
                     save()
                     dismiss()
                 }
@@ -69,7 +69,7 @@ struct MealFeedbackSheet: View {
                 .accessibilityIdentifier("mealFeedbackSave")
             }
             .tidePage()
-            .navigationTitle(meal.mealName)
+            .navigationTitle(meal.displayMealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -85,7 +85,7 @@ struct MealFeedbackSheet: View {
     /// Five big stars in one card: the quickest way to say how it was.
     private var stars: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "How was it?")
+            TideSectionLabel(title: String(localized: "How was it?"))
                 .padding(.horizontal, Tide.s1)
             HStack(spacing: Tide.s1) {
                 ForEach(1 ... 5, id: \.self) { star in
@@ -101,7 +101,7 @@ struct MealFeedbackSheet: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(star) \(star == 1 ? "star" : "stars")")
+                    .accessibilityLabel(star == 1 ? String(localized: "1 star") : String(localized: "\(star) stars"))
                     .accessibilityAddTraits(star == rating ? .isSelected : [])
                 }
             }

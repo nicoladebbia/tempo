@@ -121,7 +121,7 @@ struct PlannedMealCardView: View {
             .frame(width: Tide.icon, alignment: .leading)
             .accessibilityHidden(true)
         let title = VStack(alignment: .leading, spacing: Tide.hair) {
-            Text(meal.mealName)
+            Text(meal.displayMealName)
                 .font(Tide.bodyStrong)
                 .foregroundStyle(Tide.text)
                 .lineLimit(2)
@@ -244,7 +244,7 @@ struct PlannedMealCardView: View {
     }
 
     private var kcalFigure: some View {
-        TideNumber("\(Int(meal.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+        TideNumber("\(Int(meal.totalCalories.rounded()))", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
     }
 
     private var macros: some View {
@@ -269,7 +269,7 @@ struct PlannedMealCardView: View {
                 .contentShape(.rect)
         }
         .buttonStyle(FuelPressStyle())
-        .accessibilityLabel("Leave feedback for \(meal.mealName)")
+        .accessibilityLabel("Leave feedback for \(meal.displayMealName)")
     }
 
     // MARK: - Helpers
@@ -280,6 +280,29 @@ struct PlannedMealCardView: View {
 
     private var mealIconColor: Color {
         FuelMealStyle.tone(for: meal.status, accent: mood.accent)
+    }
+}
+
+// MARK: - Display name
+
+extension PlannedMeal {
+    /// What the screen shows for `mealName`. The stored name stays English ("Breakfast"), because
+    /// it is saved, compared and sent to the AI; the four standard slot names are shown in the
+    /// app language and any other name (an AI-made "Post-workout shake", "Meal 3") as stored.
+    var displayMealName: String {
+        Self.displayName(forMealName: mealName)
+    }
+
+    static func displayName(forMealName name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        if let type = MealType.allCases.first(where: { $0.englishName.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+            return type.displayName
+        }
+        // The one entry that ticking supplements adds to the day's totals.
+        if trimmed.caseInsensitiveCompare("Supplements") == .orderedSame {
+            return String(localized: "Supplements")
+        }
+        return name
     }
 }
 

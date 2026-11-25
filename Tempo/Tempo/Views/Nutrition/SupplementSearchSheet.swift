@@ -60,7 +60,7 @@ struct SupplementSearchSheet: View {
                     searchField
 
                     if !commonMatches.isEmpty {
-                        KitchenGroup(title: "Common supplements") {
+                        KitchenGroup(title: String(localized: "Common supplements")) {
                             ForEach(commonMatches) { item in
                                 Button {
                                     onPick(Self.dto(from: item))
@@ -76,7 +76,7 @@ struct SupplementSearchSheet: View {
                     }
 
                     if !hits.isEmpty {
-                        KitchenGroup(title: "Supplements") {
+                        KitchenGroup(title: String(localized: "Supplements")) {
                             ForEach(hits) { hit in
                                 Button {
                                     open(hit)
@@ -198,7 +198,7 @@ struct SupplementSearchSheet: View {
         } else if trimmed.count >= 2, !isSearching, hits.isEmpty, commonMatches.isEmpty {
             KitchenNotice(
                 systemImage: "magnifyingglass",
-                text: "Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label.",
+                text: String(localized: "Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label."),
                 tint: Tide.text2
             )
         } else if trimmed.count < 2 {
@@ -269,7 +269,7 @@ struct SupplementSearchSheet: View {
         } catch {
             guard !Task.isCancelled else { return }
             hits = []
-            message = "Couldn't reach the supplement databases. Check your connection, or type it yourself."
+            message = String(localized: "Couldn't reach the supplement databases. Check your connection, or type it yourself.")
         }
     }
 
@@ -281,7 +281,7 @@ struct SupplementSearchSheet: View {
                 let dto = try await service.label(id: hit.id)
                 onPick(dto)
             } catch {
-                message = "Couldn't open that label. Try again, or type it yourself."
+                message = String(localized: "Couldn't open that label. Try again, or type it yourself.")
             }
         }
     }

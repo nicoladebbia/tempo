@@ -75,7 +75,7 @@ struct RunHistoryView: View {
     /// Distance as the number and the unit apart, so the number can be big.
     private func distanceParts(meters: Double, decimals: Int = 1) -> (value: String, unit: String) {
         let value = useMiles ? meters / 1609.344 : meters / 1000
-        return (String(format: "%.\(decimals)f", value), useMiles ? "mi" : "km")
+        return (value.tempoDecimal(decimals), useMiles ? String(localized: "mi") : String(localized: "km"))
     }
 
     /// Distance per week for the last four weeks, oldest first.
@@ -106,7 +106,7 @@ struct RunHistoryView: View {
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideLabel("Last 30 days")
+            TideLabel(String(localized: "Last 30 days"))
             TideNumber(total.value, unit: total.unit, size: Tide.numeralL, relativeTo: .largeTitle)
                 .contentTransition(.numericText())
             if !recentRuns.isEmpty {
@@ -114,10 +114,10 @@ struct RunHistoryView: View {
                     .accessibilityHidden(true)
             }
             layout {
-                TrainStat(value: "\(recentRuns.count)", label: "Runs")
+                TrainStat(value: "\(recentRuns.count)", label: String(localized: "Runs"))
                 TrainStat(
                     value: GuidedRunFormatting.pace(secondsPerKm: bestPace, useMiles: useMiles) ?? "—",
-                    label: "Best pace"
+                    label: String(localized: "Best pace")
                 )
             }
         }
@@ -176,8 +176,8 @@ struct RunHistoryView: View {
     private var emptyState: some View {
         TrainEmptyCard(
             systemImage: "figure.run",
-            title: "No runs yet",
-            message: "Record a run with your Watch, Whoop, or any app that saves to Health — it shows up here."
+            title: String(localized: "No runs yet"),
+            message: String(localized: "Record a run with your Watch, Whoop, or any app that saves to Health — it shows up here.")
         )
         .padding(.top, Tide.s4)
     }
@@ -189,7 +189,8 @@ struct RunHistoryView: View {
     static func paceLabel(_ secondsPerKm: Double) -> String {
         let mins = Int(secondsPerKm) / 60
         let secs = Int(secondsPerKm) % 60
-        return String(format: "%d:%02d /km", mins, secs)
+        let clock = String(format: "%d:%02d", mins, secs)
+        return String(localized: "\(clock) /km")
     }
 }
 
@@ -225,19 +226,19 @@ struct RunDetailView: View {
                     spacing: Tide.s2
                 ) {
                     if let hr = run.avgHR {
-                        detailCell(icon: "heart.fill", label: "Avg HR", value: "\(Int(hr)) bpm")
+                        detailCell(icon: "heart.fill", label: String(localized: "Avg HR"), value: String(localized: "\(Int(hr)) bpm"))
                     }
                     if let max = run.maxHR {
-                        detailCell(icon: "bolt.heart", label: "Max HR", value: "\(Int(max)) bpm")
+                        detailCell(icon: "bolt.heart", label: String(localized: "Max HR"), value: String(localized: "\(Int(max)) bpm"))
                     }
                     if let cal = run.calories {
-                        detailCell(icon: "flame", label: "Calories", value: "\(Int(cal))")
+                        detailCell(icon: "flame", label: String(localized: "Calories"), value: "\(Int(cal))")
                     }
                     if let elev = run.elevationGainMeters {
-                        detailCell(icon: "arrow.up.right", label: "Elevation", value: "\(Int(elev)) m")
+                        detailCell(icon: "arrow.up.right", label: String(localized: "Elevation"), value: String(localized: "\(Int(elev)) m"))
                     }
                     if let cadence = run.avgCadence {
-                        detailCell(icon: "metronome", label: "Cadence", value: "\(Int(cadence)) spm")
+                        detailCell(icon: "metronome", label: String(localized: "Cadence"), value: String(localized: "\(Int(cadence)) spm"))
                     }
                 }
 
@@ -265,15 +266,15 @@ struct RunDetailView: View {
             Text(run.date, format: .dateTime.weekday(.wide).month(.wide).day().hour().minute())
                 .tideLabel()
             TideNumber(
-                String(format: "%.2f", distance), unit: miles ? "mi" : "km",
+                distance.tempoDecimal(2), unit: miles ? String(localized: "mi") : String(localized: "km"),
                 size: Tide.numeralL, relativeTo: .largeTitle
             )
             TrainSessionRule()
             layout {
-                TrainStat(value: run.durationFormatted, label: "Time")
+                TrainStat(value: run.durationFormatted, label: String(localized: "Time"))
                 TrainStat(
                     value: GuidedRunFormatting.pace(secondsPerKm: run.avgPaceSecondsPerKm, useMiles: miles) ?? "—",
-                    label: "Avg pace"
+                    label: String(localized: "Avg pace")
                 )
             }
         }

@@ -28,9 +28,9 @@ enum WorkoutCSVService {
         var errorDescription: String? {
             switch self {
             case .unrecognizedFormat:
-                "Unrecognized CSV format. Export from Strong or Hevy, or use columns: date, exercise, weight, reps."
+                String(localized: "Unrecognized CSV format. Export from Strong or Hevy, or use columns: date, exercise, weight, reps.")
             case .noWorkouts:
-                "No importable sets found in this file."
+                String(localized: "No importable sets found in this file.")
             }
         }
     }
@@ -51,18 +51,19 @@ enum WorkoutCSVService {
 
         var label: String {
             if workouts == 0, duplicates > 0 {
-                return "Nothing new — all \(duplicates) workouts were already in Tempo."
+                return String(localized: "Nothing new — all \(duplicates) workouts were already in Tempo.")
             }
-            var parts = ["\(workouts) workouts", "\(sets) sets"]
+            var parts = [String(localized: "\(workouts) workouts"), String(localized: "\(sets) sets")]
             if newExercises > 0 {
-                parts.append("\(newExercises) new exercises")
+                parts.append(String(localized: "\(newExercises) new exercises"))
             }
             if duplicates > 0 {
-                parts.append("\(duplicates) already in Tempo")
+                parts.append(String(localized: "\(duplicates) already in Tempo"))
             }
-            var text = "\(format.rawValue): " + parts.joined(separator: ", ") + "."
+            let list = parts.joined(separator: ", ")
+            var text = String(localized: "\(format.rawValue): \(list).", comment: "CSV import result: the file format, then a list of counts")
             if let unit {
-                text += " Weights read as \(unit.abbreviation)."
+                text += " " + String(localized: "Weights read as \(unit.abbreviation).")
             }
             return text
         }
@@ -374,7 +375,7 @@ enum WorkoutCSVService {
             plan.durationMinutes = groupSets.compactMap(\.durationMinutes).max()
             plan.finishedAt = plan.durationMinutes.map { key.start.addingTimeInterval(Double($0) * 60) }
                 ?? key.start
-            plan.notes = "Imported from \(format.rawValue)"
+            plan.notes = String(localized: "Imported from \(format.rawValue)")
             plan.importBatchID = batchID
             // Tell the caller the batch id before the first row exists: the
             // context autosaves in the background (every yield above is a
@@ -568,7 +569,7 @@ enum WorkoutCSVService {
         ]
         for plan in plans.filter({ $0.status == .completed }).sorted(by: { $0.date < $1.date }) {
             let date = formatter.string(from: plan.startedAt ?? plan.date)
-            let name = plan.type.displayName
+            let name = plan.type.englishName
             let duration = plan.durationMinutes.map { minutes in
                 minutes >= 60 ? (minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m") : "\(minutes)m"
             } ?? ""
@@ -587,7 +588,7 @@ enum WorkoutCSVService {
                     let assistedLift = bodyweightLift && isAssistedName(exercise.name)
                     let load = bodyweightLift ? set.addedLoadKg.map { assistedLift ? -$0 : $0 } : set.actualWeight
                     let weight = (load.flatMap { $0 > 0 ? $0 : nil })
-                        .map { WeightFormat.number(kg: $0, unit: unit) } ?? ""
+                        .map { WeightFormat.invariantNumber(kg: $0, unit: unit) } ?? ""
                     let rpe = set.rpe.map(String.init) ?? ""
                     // §6.4 — a drop step is exported as a set like any other
                     // (it counts toward volume/history), just annotated so

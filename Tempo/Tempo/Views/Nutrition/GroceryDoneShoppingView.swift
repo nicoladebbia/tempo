@@ -50,8 +50,8 @@ struct GroceryDoneShoppingView: View {
                     Section {
                         KitchenEmpty(
                             systemImage: "cart",
-                            title: "Nothing checked off yet",
-                            message: "Tick items on the list or in Store Mode first."
+                            title: String(localized: "Nothing checked off yet"),
+                            message: String(localized: "Tick items on the list or in Store Mode first.")
                         )
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
@@ -91,8 +91,8 @@ struct GroceryDoneShoppingView: View {
     /// The trip, turned into stock: how many of the ticked items are going in.
     private var header: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Into your pantry", trailing: includedCount == rows.count ? "All of it" : "\(rows.count - includedCount) left out")
-            TideNumber("\(includedCount)", unit: includedCount == 1 ? "item" : "items", size: Tide.numeralL, relativeTo: .largeTitle)
+            TideSectionLabel(title: String(localized: "Into your pantry"), trailing: includedCount == rows.count ? String(localized: "All of it") : String(localized: "\(rows.count - includedCount) left out"))
+            TideNumber("\(includedCount)", unit: includedCount == 1 ? String(localized: "item") : String(localized: "items"), size: Tide.numeralL, relativeTo: .largeTitle)
             TideLevelBar(
                 progress: Double(includedCount) / Double(max(rows.count, 1)),
                 color: mood.accent,
@@ -147,7 +147,7 @@ struct GroceryDoneShoppingView: View {
                     Spacer()
                     Text("$")
                         .foregroundStyle(Tide.text2)
-                    TextField("0.00", text: row.priceText)
+                    TextField(0.0.tempoDecimal(2), text: row.priceText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: Tide.Kitchen.row + Tide.s6)

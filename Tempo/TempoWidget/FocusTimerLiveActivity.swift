@@ -16,15 +16,15 @@ import WidgetKit
 
 private extension FocusTimerActivityAttributes.ContentState {
     var title: String {
-        subject ?? "Focus"
+        subject ?? String(localized: "Focus")
     }
 
     var phaseText: String {
-        isPaused ? "Paused" : phaseLabel
+        isPaused ? String(localized: "Paused") : phaseLabel
     }
 
     var sessionText: String {
-        "Session \(sessionIndex) of \(totalSessions)"
+        String(localized: "Session \(sessionIndex) of \(totalSessions)")
     }
 }
 
@@ -43,7 +43,7 @@ struct FocusTimerLiveActivity: Widget {
                     HStack(spacing: Tide.s1) {
                         Image(systemName: "book.fill")
                             .foregroundStyle(tone)
-                        WidgetLabel("Focus", color: tone)
+                        WidgetLabel(String(localized: "Focus"), color: tone)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -106,9 +106,9 @@ private struct FocusReadout: View {
 
     var body: some View {
         if state.isPaused {
-            ActivityReadout(label: "Timer") { Text("Paused").font(Tide.headline) }
+            ActivityReadout(label: String(localized: "Timer")) { Text("Paused").font(Tide.headline) }
         } else {
-            ActivityReadout(label: "Left", tone: ActivityTone.focus) {
+            ActivityReadout(label: String(localized: "Left"), tone: ActivityTone.focus) {
                 Text.countdown(to: state.phaseEndsAt)
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)

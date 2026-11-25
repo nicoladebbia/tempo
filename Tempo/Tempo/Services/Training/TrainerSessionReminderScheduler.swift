@@ -157,16 +157,24 @@ enum TrainerSessionReminderScheduler {
         guard day.isStrength else {
             let detail = day.exercises.first?.detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
                 ?? day.notes?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                ?? "Today's session from your trainer."
-            return ("\(label) today", detail)
+                ?? String(localized: "Today's session from your trainer.")
+            return (String(localized: "\(label) today"), detail)
         }
 
         let supersets = Set(day.exercises.compactMap(\.group)).count
         let minutes = Self.estimatedMinutes(for: day)
-        let detail = supersets > 0
-            ? "\(supersets) superset\(supersets == 1 ? "" : "s"), ~\(minutes) min"
-            : "\(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s"), ~\(minutes) min"
-        return ("\(label) at \(time)", detail)
+        let exerciseCount = day.exercises.count
+        let detail: String
+        if supersets > 0 {
+            detail = supersets == 1
+                ? String(localized: "\(supersets) superset, ~\(minutes) min")
+                : String(localized: "\(supersets) supersets, ~\(minutes) min")
+        } else {
+            detail = exerciseCount == 1
+                ? String(localized: "\(exerciseCount) exercise, ~\(minutes) min")
+                : String(localized: "\(exerciseCount) exercises, ~\(minutes) min")
+        }
+        return (String(localized: "\(label) at \(time)"), detail)
     }
 
     /// Rough estimate from sets alone (this runs on the raw imported

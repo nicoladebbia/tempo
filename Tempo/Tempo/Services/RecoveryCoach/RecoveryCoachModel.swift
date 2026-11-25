@@ -46,9 +46,9 @@ final class RecoveryCoachModel {
 
         var title: String {
             switch self {
-            case .sessions: "Finding your session"
-            case .health: "Reading your weigh-ins from Health"
-            case .coach: "Working out your numbers"
+            case .sessions: String(localized: "Finding your session")
+            case .health: String(localized: "Reading your weigh-ins from Health")
+            case .coach: String(localized: "Working out your numbers")
             }
         }
     }
@@ -237,7 +237,7 @@ final class RecoveryCoachModel {
                 health = try await healthKit.fetchBodyMassSamples(from: window.from, to: window.to)
             } catch {
                 logger.error("body mass read failed: \(error.localizedDescription, privacy: .public)")
-                healthNote = "Couldn't read Apple Health. You can enter your weight by hand."
+                healthNote = String(localized: "Couldn't read Apple Health. You can enter your weight by hand.")
             }
         }
         guard mine == generation else {
@@ -317,7 +317,7 @@ final class RecoveryCoachModel {
         if let api = error as? APIError, let text = api.errorDescription, !text.isEmpty {
             return text
         }
-        return "Couldn't reach Tempo. Check your connection and try again."
+        return String(localized: "Couldn't reach Tempo. Check your connection and try again.")
     }
 
     // MARK: - Edits
@@ -393,17 +393,17 @@ final class RecoveryCoachModel {
         case .ready:
             return nil
         case .implausible:
-            return ("Weigh yourself again", "The two weights don't look right together. Step on the scale again, in the same clothes.")
+            return (String(localized: "Weigh yourself again"), String(localized: "The two weights don't look right together. Step on the scale again, in the same clothes."))
         case .needsWeighIn:
             if result.missingPost {
                 return (
-                    "Weigh yourself now",
-                    "Your \(session.label.lowercased()) ended \(Self.ago(session.end, now: now())). Before you drink, step on the scale so I can see what you sweated out."
+                    String(localized: "Weigh yourself now"),
+                    String(localized: "Your \(session.label.lowercased()) ended \(Self.ago(session.end, now: now())). Before you drink, step on the scale so I can see what you sweated out.")
                 )
             }
             return (
-                "Add your weight from before",
-                "I need one weight from the 3 hours before the session. Enter it if you remember it."
+                String(localized: "Add your weight from before"),
+                String(localized: "I need one weight from the 3 hours before the session. Enter it if you remember it.")
             )
         }
     }
@@ -411,11 +411,11 @@ final class RecoveryCoachModel {
     static func ago(_ date: Date, now: Date) -> String {
         let minutes = max(0, Int(now.timeIntervalSince(date) / 60))
         if minutes < 2 {
-            return "just now"
+            return String(localized: "just now")
         }
         if minutes < 90 {
-            return "\(minutes) min ago"
+            return String(localized: "\(minutes) min ago")
         }
-        return "\(minutes / 60) h ago"
+        return String(localized: "\(minutes / 60) h ago")
     }
 }

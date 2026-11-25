@@ -23,7 +23,7 @@ enum SideRepsFormat {
         guard perSide else {
             return "\(reps)"
         }
-        return "\(reps) / side"
+        return String(localized: "\(reps) / side")
     }
 
     /// A LOGGED set's reps: the plain count, "N / side" when both sides
@@ -34,9 +34,9 @@ enum SideRepsFormat {
             return "\(actual)"
         }
         if let left, let right, left != right {
-            return "L \(left) / R \(right)"
+            return String(localized: "L \(left) / R \(right)")
         }
-        return "\(actual) / side"
+        return String(localized: "\(actual) / side")
     }
 
     /// A per-side dumbbell/kettlebell load reads as "20kg / hand" so it's
@@ -47,6 +47,6 @@ enum SideRepsFormat {
         guard perSide, equipment == .dumbbell || equipment == .kettlebell else {
             return text
         }
-        return "\(text) / hand"
+        return String(localized: "\(text) / hand")
     }
 }

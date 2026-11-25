@@ -48,7 +48,7 @@ struct RecoveryAIInsightView: View {
             // Weekly recap first (reflection on last week), Mondays only.
             if isLoadingWeekly || Self.text(weeklyRecap) != nil {
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    TideSectionLabel(title: "Last week")
+                    TideSectionLabel(title: String(localized: "Last week"))
                     insightCard {
                         if isLoadingWeekly {
                             loadingSkeleton
@@ -66,7 +66,7 @@ struct RecoveryAIInsightView: View {
             // Daily read (action for today).
             VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack {
-                    TideSectionLabel(title: "Today's read")
+                    TideSectionLabel(title: String(localized: "Today's read"))
                     #if DEBUG
                         // DEBUG-only: each tap is a paid Haiku call. Never ship
                         // to users — they'd spam it and drive API cost up. The

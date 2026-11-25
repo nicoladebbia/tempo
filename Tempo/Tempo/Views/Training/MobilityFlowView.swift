@@ -251,10 +251,10 @@ struct MobilityFlowPlayerView: View {
         TrainSessionStateView(
             systemImage: "checkmark.circle.fill",
             tint: TideTrain.positive,
-            title: "Flow complete",
+            title: String(localized: "Flow complete"),
             message: dayMarkedDone
-                ? "Mobility day logged. That counts."
-                : "Recovery work done. Your future sessions thank you."
+                ? String(localized: "Mobility day logged. That counts.")
+                : String(localized: "Recovery work done. Your future sessions thank you.")
         ) {
             Button {
                 dismiss()

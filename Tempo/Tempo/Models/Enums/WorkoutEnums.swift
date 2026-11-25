@@ -30,6 +30,26 @@ enum WorkoutType: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .push: String(localized: "Push")
+        case .pull: String(localized: "Pull")
+        case .legs: String(localized: "Legs")
+        case .upper: String(localized: "Upper")
+        case .lower: String(localized: "Lower")
+        case .fullBody: String(localized: "Full Body")
+        case .football: String(localized: "Football")
+        case .run: String(localized: "Run")
+        case .sprint: String(localized: "Sprint")
+        case .conditioning: String(localized: "Conditioning")
+        case .pool: String(localized: "Pool")
+        case .mobility: String(localized: "Mobility")
+        case .rest: String(localized: "Rest")
+        }
+    }
+
+    /// Fixed English name for text that is sent to the AI, exported or stored,
+    /// so it never changes with the app language. Use `displayName` on screen.
+    var englishName: String {
+        switch self {
         case .push: "Push"
         case .pull: "Pull"
         case .legs: "Legs"
@@ -107,8 +127,19 @@ enum MuscleGroup: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .fullBody: "Full Body"
-        default: rawValue.capitalized
+        case .chest: String(localized: "Chest")
+        case .back: String(localized: "Back")
+        case .shoulders: String(localized: "Shoulders")
+        case .biceps: String(localized: "Biceps")
+        case .triceps: String(localized: "Triceps")
+        case .forearms: String(localized: "Forearms")
+        case .quads: String(localized: "Quads")
+        case .hamstrings: String(localized: "Hamstrings")
+        case .glutes: String(localized: "Glutes")
+        case .calves: String(localized: "Calves")
+        case .core: String(localized: "Core")
+        case .fullBody: String(localized: "Full Body")
+        case .cardio: String(localized: "Cardio")
         }
     }
 }
@@ -129,6 +160,25 @@ enum Equipment: String, Codable, CaseIterable {
     case pullUpBar = "pull_up_bar"
     case bench
     case none
+
+    /// The word shown to the user. English matches the old capitalised raw value.
+    var displayName: String {
+        switch self {
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbell")
+        case .cable: String(localized: "Cable")
+        case .machine: String(localized: "Machine")
+        case .bodyweight: String(localized: "Bodyweight")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .resistanceBand: String(localized: "Resistance Band")
+        case .smithMachine: String(localized: "Smith Machine")
+        case .ezBar: String(localized: "Ez Bar")
+        case .trapBar: String(localized: "Trap Bar")
+        case .pullUpBar: String(localized: "Pull Up Bar")
+        case .bench: String(localized: "Bench")
+        case .none: String(localized: "None")
+        }
+    }
 }
 
 extension Equipment {
@@ -168,18 +218,18 @@ enum DeloadStyle: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .intensityCut: "Lighter weights"
-        case .volumeCut: "Fewer sets"
-        case .fullRest: "Full rest"
+        case .intensityCut: String(localized: "Lighter weights")
+        case .volumeCut: String(localized: "Fewer sets")
+        case .fullRest: String(localized: "Full rest")
         }
     }
 
     /// One-line description for the deload banner + settings footnote.
     var blurb: String {
         switch self {
-        case .intensityCut: "Weights reduced 40% — same reps, lighter load."
-        case .volumeCut: "Half the working sets — same weights, less volume."
-        case .fullRest: "No lifting this week — mobility and recovery only."
+        case .intensityCut: String(localized: "Weights reduced 40% — same reps, lighter load.")
+        case .volumeCut: String(localized: "Half the working sets — same weights, less volume.")
+        case .fullRest: String(localized: "No lifting this week — mobility and recovery only.")
         }
     }
 }

@@ -15,9 +15,20 @@ enum WeightFormat {
         number(WeightUnit.kg.convert(kg, to: unit))
     }
 
-    /// Number only for a value already in the display unit.
+    /// Number only for a value already in the display unit, in the phone's number format
+    /// ("62.5" in English, "62,5" in Italian).
     static func number(_ displayValue: Double) -> String {
         let rounded = (displayValue * 10).rounded() / 10
+        if rounded == rounded.rounded() {
+            return String(Int(rounded))
+        }
+        return rounded.tempoDecimal(1)
+    }
+
+    /// The same number with a "." decimal whatever the phone's language: for files and text that
+    /// is read back by a program (the CSV export).
+    static func invariantNumber(kg: Double, unit: WeightUnit) -> String {
+        let rounded = (WeightUnit.kg.convert(kg, to: unit) * 10).rounded() / 10
         if rounded == rounded.rounded() {
             return String(Int(rounded))
         }
@@ -33,7 +44,7 @@ enum WeightFormat {
     /// a bodyweight set never reads "0 kg".
     static func load(kg: Double?, unit: WeightUnit) -> String {
         guard let kg, kg > 0 else {
-            return "BW"
+            return String(localized: "BW")
         }
         return text(kg: kg, unit: unit)
     }
@@ -42,10 +53,11 @@ enum WeightFormat {
     /// Never the effective bodyweight total — that moves with the lifter's weight.
     static func bodyweightLoad(addedKg: Double?, unit: WeightUnit) -> String {
         guard let addedKg, abs(addedKg) >= 0.05 else {
-            return "BW"
+            return String(localized: "BW")
         }
         let sign = addedKg > 0 ? "+" : "−"
-        return "BW \(sign) \(text(kg: abs(addedKg), unit: unit))"
+        let bodyweight = String(localized: "BW")
+        return "\(bodyweight) \(sign) \(text(kg: abs(addedKg), unit: unit))"
     }
 
     /// A history row's top-set load, equipment-aware: bodyweight-style lifts
@@ -61,15 +73,16 @@ enum WeightFormat {
             return compactLoad(kg: kg, unit: unit)
         }
         guard let addedKg, abs(addedKg) >= 0.05 else {
-            return "BW"
+            return String(localized: "BW")
         }
-        return "BW\(addedKg > 0 ? "+" : "−")\(number(kg: abs(addedKg), unit: unit))"
+        let sign = addedKg > 0 ? "+" : "−"
+        return "\(String(localized: "BW"))\(sign)\(number(kg: abs(addedKg), unit: unit))"
     }
 
     /// Compact load for tight chips: "62.5", or "BW".
     static func compactLoad(kg: Double?, unit: WeightUnit) -> String {
         guard let kg, kg > 0 else {
-            return "BW"
+            return String(localized: "BW")
         }
         return number(kg: kg, unit: unit)
     }
@@ -78,7 +91,7 @@ enum WeightFormat {
     static func volumeText(kg: Double, unit: WeightUnit) -> String {
         let value = WeightUnit.kg.convert(kg, to: unit)
         if value >= 1000 {
-            return String(format: "%.1fk %@", value / 1000, unit.abbreviation)
+            return String(localized: "\((value / 1000).tempoDecimal(1))k \(unit.abbreviation)")
         }
         return "\(Int(value.rounded())) \(unit.abbreviation)"
     }
@@ -96,15 +109,16 @@ enum WeightFormat {
     }
 
     private static func trimmed(_ value: Double, decimals: Int) -> String {
-        let text = String(format: "%.\(decimals)f", value)
-        guard text.contains(".") else {
+        let text = value.tempoDecimal(decimals)
+        let separator = Locale.current.decimalSeparator ?? "."
+        guard text.contains(separator) else {
             return text
         }
         var out = text
         while out.hasSuffix("0") {
             out.removeLast()
         }
-        if out.hasSuffix(".") {
+        if out.hasSuffix(separator) {
             out.removeLast()
         }
         return out

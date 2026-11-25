@@ -37,13 +37,13 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         var statusLabel: String {
             switch self {
             case .idle: ""
-            case .calculating: "Crunching your numbers…"
-            case .generating: "Drafting the week…"
-            case .validating: "Double-checking macros…"
-            case .saving: "Locking it in…"
-            case .attachingRecipes: "Writing recipes for every meal…"
+            case .calculating: String(localized: "Crunching your numbers…")
+            case .generating: String(localized: "Drafting the week…")
+            case .validating: String(localized: "Double-checking macros…")
+            case .saving: String(localized: "Locking it in…")
+            case .attachingRecipes: String(localized: "Writing recipes for every meal…")
             case let .failed(msg): msg
-            case .complete: "Done."
+            case .complete: String(localized: "Done.")
             }
         }
     }
@@ -170,7 +170,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // by the last four weeks of logged intake vs weight trend when there's enough.
         let expenditure = AdaptiveExpenditure.observe(in: modelContext)
         if let expenditure {
-            logger.info("[Diag.Plan] observed expenditure \(Int(expenditure.kcal)) kcal (trust \(expenditure.confidence), \(expenditure.loggedDays) days, \(expenditure.trendKgPerWeek) kg/wk)")
+            logger
+                .info(
+                    "[Diag.Plan] observed expenditure \(Int(expenditure.kcal)) kcal (trust \(expenditure.confidence), \(expenditure.loggedDays) days, \(expenditure.trendKgPerWeek) kg/wk)"
+                )
         }
         let tdeeResult = TDEECalculator.calculate(
             weightKg: profile.currentWeightKg,
@@ -238,7 +241,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let cookWeekday = mealsPrefSettings?.cookTimeWeekdayMins
         let cookWeekend = mealsPrefSettings?.cookTimeWeekendMins
         if mealsPerDay != nil || cookWeekday != nil || cookWeekend != nil {
-            logger.info("[Diag.Plan] meal prefs: mealsPerDay=\(mealsPerDay ?? 0) cookWeekday=\(cookWeekday ?? 0) cookWeekend=\(cookWeekend ?? 0)")
+            logger
+                .info(
+                    "[Diag.Plan] meal prefs: mealsPerDay=\(mealsPerDay ?? 0) cookWeekday=\(cookWeekday ?? 0) cookWeekend=\(cookWeekend ?? 0)"
+                )
         }
 
         // Available kitchen appliances (display names) so the AI only programs
@@ -275,7 +281,6 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             targets: tdeeResult.dayTypeTargets,
             intake: intake
         )
-
     }
 
     /// Steps 4–7: parse the plan JSON (from Sonnet directly, or the server job
@@ -410,7 +415,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             // we flag a Dinner that sits before a Snack by mealNumber instead).
             if let dinner = dayMeals.first(where: { $0.mealName.lowercased().contains("dinner") }),
                let dinnerMin = Self.minutesOfDay(from: dinner.scheduledTime),
-               dinnerMin < 19 * 60 {
+               dinnerMin < 19 * 60
+            {
                 logger.warning("[Diag.Plan] ⚠️ \(label): dinner at \(dinner.scheduledTime) is before 19:00")
                 orderViolations += 1
             }
@@ -421,7 +427,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let allFoodNames = meals.flatMap { $0.foods.map { $0.name.lowercased() } }
         let distinct = Set(allFoodNames)
         var counts: [String: Int] = [:]
-        for name in allFoodNames { counts[name, default: 0] += 1 }
+        for name in allFoodNames {
+            counts[name, default: 0] += 1
+        }
         let top = counts.sorted { $0.value > $1.value }.prefix(5)
             .map { "\($0.key)×\($0.value)" }.joined(separator: ", ")
         logger.info("[Diag.Plan] Variety: \(distinct.count) distinct foods across \(allFoodNames.count) slots. Most repeated: \(top)")
@@ -478,7 +486,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             /// food it no longer contains.
             let signature: String
         }
-        let skillLevel = profile.cookingSkill.displayName
+        let skillLevel = profile.cookingSkill.englishName
         // Recipe-level exclusions need to include the user's permanent
         // dislikes + allergies as well as this week's temporary
         // exclusions. Previously we only passed `temporaryExclusions`,
@@ -530,7 +538,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 }
                 var local: [UUID: ParsedRecipe] = [:]
                 for await (id, parsed) in group {
-                    if let parsed { local[id] = parsed }
+                    if let parsed {
+                        local[id] = parsed
+                    }
                 }
                 return local
             }
@@ -770,7 +780,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 .filter { $0.actualEatenAt != nil }
             var minutesByMealNumber: [Int: [Int]] = [:]
             for meal in meals {
-                guard let eaten = meal.actualEatenAt else { continue }
+                guard let eaten = meal.actualEatenAt else {
+                    continue
+                }
                 let comps = calendar.dateComponents([.hour, .minute], from: eaten)
                 minutesByMealNumber[meal.mealNumber, default: []]
                     .append((comps.hour ?? 0) * 60 + (comps.minute ?? 0))
@@ -780,18 +792,18 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
         }
 
-        // For each of the 4 canonical slots, prefer the learned time;
-        // otherwise fall back to wake-anchored defaults with soft
-        // ceilings. We ALWAYS return a value (never nil) so the backend's
-        // own 08:00/12:30/16:00/19:30 defaults never fire — those ignore
-        // the user's wake entirely. Soft ceilings only bind when no
-        // learned signal exists; a late calendar event (soccer) is
-        // handled at display/shift time, not here.
-        //
-        //   1 Breakfast : wake + 60m
-        //   2 Lunch     : wake + 300m, capped at 13:30
-        //   3 Snack     : wake + 480m, capped at 16:30
-        //   4 Dinner    : wake + 720m, capped at 21:00
+        /// For each of the 4 canonical slots, prefer the learned time;
+        /// otherwise fall back to wake-anchored defaults with soft
+        /// ceilings. We ALWAYS return a value (never nil) so the backend's
+        /// own 08:00/12:30/16:00/19:30 defaults never fire — those ignore
+        /// the user's wake entirely. Soft ceilings only bind when no
+        /// learned signal exists; a late calendar event (soccer) is
+        /// handled at display/shift time, not here.
+        ///
+        ///   1 Breakfast : wake + 60m
+        ///   2 Lunch     : wake + 300m, capped at 13:30
+        ///   3 Snack     : wake + 480m, capped at 16:30
+        ///   4 Dinner    : wake + 720m, capped at 21:00
         func clampToCeiling(_ minutes: Int, ceiling: Int) -> Int {
             min(minutes, ceiling)
         }
@@ -844,7 +856,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         let items = ((try? modelContext.fetch(descriptor)) ?? []).filter(\.isInStock)
         return items
             .compactMap { item -> (String, Int)? in
-                guard let days = item.daysUntilUseBy, (0...7).contains(days) else {
+                guard let days = item.daysUntilUseBy, (0 ... 7).contains(days) else {
                     return nil
                 }
                 return (item.canonicalName, days)
@@ -883,9 +895,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     quantity: item.quantity,
                     unit: item.unit,
                     canonicalName: item.canonicalName,
-                    purchased: item.weighsPurchaseUnit
+                    purchased: item.weighsPurchaseUnit,
+                    english: true
                 )
-                return "\(item.canonicalName) — \(qty) [\(item.storageLocation.displayName)]"
+                return "\(item.canonicalName) — \(qty) [\(item.storageLocation.englishName)]"
             }
     }
 
@@ -907,7 +920,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         )) ?? []
         return rows
             .compactMap(\.kind)
-            .map(\.displayName)
+            .map(\.englishName)
             .sorted()
     }
 
@@ -935,7 +948,8 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             byAdding: .day,
             value: -windowDays,
             to: calendar.startOfDay(for: Date())
-        ) else {
+        )
+        else {
             return nil
         }
         let descriptor = FetchDescriptor<MealFeedback>(
@@ -951,11 +965,15 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         // Group by recipe (denormalized recipeID survives meal deletion).
         var recipeBuckets: [UUID: [MealFeedback]] = [:]
         for row in rows {
-            guard let recipeID = row.recipeID else { continue }
+            guard let recipeID = row.recipeID else {
+                continue
+            }
             recipeBuckets[recipeID, default: []].append(row)
         }
         let recipes: [MealPlanPrompts.FeedbackDigest.RecipeSignal] = recipeBuckets.compactMap { _, bucket in
-            guard let first = bucket.first else { return nil }
+            guard let first = bucket.first else {
+                return nil
+            }
             let ratings = bucket.compactMap(\.rating).map(Double.init)
             let avg = ratings.isEmpty ? nil : ratings.reduce(0, +) / Double(ratings.count)
             // Aggregate post-meal feel chips by raw value so the prompt
@@ -995,7 +1013,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                 var acc = ingredientBuckets[note.ingredientName, default: IngredientAccumulator()]
                 switch note.sentiment {
                 case .liked: acc.liked += 1
-                case .disliked, .wrongForm, .portionTooBig, .portionTooSmall: acc.disliked += 1
+                case .disliked,
+                     .wrongForm,
+                     .portionTooBig,
+                     .portionTooSmall: acc.disliked += 1
                 case .neutral: break
                 }
                 if let text = note.note, !text.isEmpty {
@@ -1008,7 +1029,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
         }
         let ingredients: [MealPlanPrompts.FeedbackDigest.IngredientSignal] = ingredientBuckets
             .compactMap { name, acc in
-                guard acc.liked + acc.disliked + acc.notes.count > 0 else { return nil }
+                guard acc.liked + acc.disliked + acc.notes.count > 0 else {
+                    return nil
+                }
                 return MealPlanPrompts.FeedbackDigest.IngredientSignal(
                     ingredientName: name,
                     perRecipeNotes: acc.notes,
@@ -1026,9 +1049,9 @@ final class MealPlanGeneratorService: @unchecked Sendable {
     private func buildPreferences(from profile: DietaryProfile) -> String {
         var prefs: [String] = []
         prefs.append("Training frequency: \(profile.trainingFrequency)x/week")
-        prefs.append("Goal: \(profile.primaryGoal.displayName)")
-        prefs.append("Skill level: \(profile.skillLevel.displayName)")
-        prefs.append("Cooking skill: \(profile.cookingSkill.displayName)")
+        prefs.append("Goal: \(profile.primaryGoal.englishName)")
+        prefs.append("Skill level: \(profile.skillLevel.englishName)")
+        prefs.append("Cooking skill: \(profile.cookingSkill.englishName)")
         return prefs.joined(separator: ". ")
     }
 
@@ -1048,7 +1071,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
                     model: "sonnet",
                     system: system,
                     userMessage: prompt,
-                    maxTokens: 32_768,
+                    maxTokens: 32768,
                     temperature: 0.3,
                     caller: feature
                 )
@@ -1075,7 +1098,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             }
         }
 
-        state = .failed("AI generation failed")
+        state = .failed(String(localized: "AI generation failed"))
         throw MealPlanGeneratorError.generationFailed(lastError ?? APIError.unknown(statusCode: -1))
     }
 
@@ -1117,7 +1140,7 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             )
         logger.error("[meal_plan_generation] Response prefix: \(response.prefix(300))")
         logger.error("[meal_plan_generation] Response suffix: \(response.suffix(300))")
-        state = .failed("Could not parse meal plan response")
+        state = .failed(String(localized: "Could not parse meal plan response"))
         throw MealPlanGeneratorError.parsingFailed("Could not parse meal plan JSON")
     }
 
@@ -1302,7 +1325,10 @@ final class MealPlanGeneratorService: @unchecked Sendable {
             return meals
         }
 
-        logger.info("Scaling meals: \(Int(totalCal)) -> \(target.calories) kcal (protein-rich x\(String(format: "%.2f", factors.rich)), other x\(String(format: "%.2f", factors.other)))")
+        logger
+            .info(
+                "Scaling meals: \(Int(totalCal)) -> \(target.calories) kcal (protein-rich x\(String(format: "%.2f", factors.rich)), other x\(String(format: "%.2f", factors.other)))"
+            )
 
         return meals.map { meal in
             let scaledFoods = meal.foods.map { food in
@@ -1683,31 +1709,32 @@ enum MealPlanGeneratorError: Error, LocalizedError {
             if let apiError = error as? APIError {
                 switch apiError {
                 case .unauthorized:
-                    "Sign-in expired. Please log in again."
+                    String(localized: "Sign-in expired. Please log in again.")
                 case .subscriptionRequired:
                     PlanGenerationBlocker.proRequired.message
                 case .aiConsentRequired:
                     PlanGenerationBlocker.aiConsentRequired.message
                 case .rateLimited:
-                    "AI rate limit reached. Wait a moment and try again."
+                    String(localized: "AI rate limit reached. Wait a moment and try again.")
                 case .timeout:
-                    "AI request timed out. Check your internet connection and try again."
+                    String(localized: "AI request timed out. Check your internet connection and try again.")
                 case let .networkError(msg):
-                    "Network error: \(msg)"
-                case .serverError, .unknown:
-                    "AI service temporarily unavailable. Try again in a moment."
+                    String(localized: "Network error: \(msg)")
+                case .serverError,
+                     .unknown:
+                    String(localized: "AI service temporarily unavailable. Try again in a moment.")
                 default:
-                    "AI generation failed. Please try again."
+                    String(localized: "AI generation failed. Please try again.")
                 }
             } else {
-                "AI generation failed. Please try again."
+                String(localized: "AI generation failed. Please try again.")
             }
         case .parsingFailed:
-            "Could not parse the meal plan response. Try generating again."
+            String(localized: "Could not parse the meal plan response. Try generating again.")
         case let .validationFailed(msg):
-            "Meal plan validation failed: \(msg)"
+            String(localized: "Meal plan validation failed: \(msg)")
         case let .persistenceFailed(msg):
-            "Could not save meal plan: \(msg)"
+            String(localized: "Could not save meal plan: \(msg)")
         }
     }
 }
@@ -1719,7 +1746,9 @@ extension Array {
     /// preserving order. Used by attachRecipes to throttle the
     /// concurrent Haiku fan-out.
     func chunked(into size: Int) -> [[Element]] {
-        guard size > 0 else { return [self] }
+        guard size > 0 else {
+            return [self]
+        }
         return stride(from: 0, to: count, by: size).map {
             Array(self[$0 ..< Swift.min($0 + size, count)])
         }

@@ -59,9 +59,9 @@ struct MacrosWidgetView: View {
 
     private var macros: [Macro] {
         [
-            Macro(id: "protein", name: "Protein", grams: snapshot?.protein, target: snapshot?.proteinTarget, color: Tide.protein),
-            Macro(id: "carbs", name: "Carbs", grams: snapshot?.carbs, target: snapshot?.carbsTarget, color: Tide.carbs),
-            Macro(id: "fat", name: "Fat", grams: snapshot?.fat, target: snapshot?.fatTarget, color: Tide.fat),
+            Macro(id: "protein", name: String(localized: "Protein"), grams: snapshot?.protein, target: snapshot?.proteinTarget, color: Tide.protein),
+            Macro(id: "carbs", name: String(localized: "Carbs"), grams: snapshot?.carbs, target: snapshot?.carbsTarget, color: Tide.carbs),
+            Macro(id: "fat", name: String(localized: "Fat"), grams: snapshot?.fat, target: snapshot?.fatTarget, color: Tide.fat),
         ]
     }
 
@@ -84,7 +84,7 @@ struct MacrosWidgetView: View {
     }
 
     private var empty: some View {
-        WidgetEmptyState(symbol: "fork.knife", title: "No meals yet", hint: "Log a meal and your macros appear here.")
+        WidgetEmptyState(symbol: "fork.knife", title: String(localized: "No meals yet"), hint: String(localized: "Log a meal and your macros appear here."))
             .padding(Tide.s4)
     }
 
@@ -110,7 +110,7 @@ struct MacrosWidgetView: View {
     private var small: some View {
         if hasFuel {
             VStack(alignment: .leading, spacing: Tide.s2) {
-                WidgetLabel("Calories")
+                WidgetLabel(String(localized: "Calories"))
                 WidgetFigure(
                     value: WidgetSnapshot.text(snapshot?.calories),
                     unit: snapshot?.calorieTarget.map { "/ \($0.formatted())" } ?? "kcal",
@@ -137,7 +137,7 @@ struct MacrosWidgetView: View {
                     WidgetRing(progress: caloriesFraction, color: entry.mood.accent, lineWidth: Tide.s2)
                     VStack(spacing: 0) {
                         WidgetFigure(value: WidgetSnapshot.text(snapshot?.calories), size: Tide.numeralS * 1.3)
-                        Text(snapshot?.calorieTarget.map { "of \($0.formatted()) kcal" } ?? "kcal")
+                        Text(snapshot?.calorieTarget.map { String(localized: "of \($0.formatted()) kcal") } ?? "kcal")
                             .font(Tide.label)
                             .foregroundStyle(Tide.text2)
                             .lineLimit(1)
@@ -170,7 +170,7 @@ struct MacrosWidgetView: View {
         .gaugeStyle(.accessoryCircular)
         .accessibilityLabel("Calories")
         .accessibilityValue(
-            snapshot?.calorieTarget.map { "\(WidgetSnapshot.text(snapshot?.calories)) of \($0) kilocalories" } ?? "No target yet"
+            snapshot?.calorieTarget.map { String(localized: "\(WidgetSnapshot.text(snapshot?.calories)) of \($0) kilocalories") } ?? String(localized: "No target yet")
         )
     }
 
@@ -178,7 +178,7 @@ struct MacrosWidgetView: View {
         VStack(alignment: .leading, spacing: Tide.s1) {
             Label {
                 Text(snapshot?.calorieTarget
-                    .map { "\(WidgetSnapshot.text(snapshot?.calories)) of \($0.formatted()) kcal" } ?? "No meals yet")
+                    .map { String(localized: "\(WidgetSnapshot.text(snapshot?.calories)) of \($0.formatted()) kcal") } ?? String(localized: "No meals yet"))
             } icon: {
                 Image(systemName: "fork.knife")
             }
@@ -197,7 +197,7 @@ struct MacrosWidgetView: View {
 
     private var inline: some View {
         Label(
-            snapshot?.calories.map { "\($0.formatted()) kcal · P \(WidgetSnapshot.text(snapshot?.protein)) g" } ?? "No meals yet",
+            snapshot?.calories.map { String(localized: "\($0.formatted()) kcal · P \(WidgetSnapshot.text(snapshot?.protein)) g") } ?? String(localized: "No meals yet"),
             systemImage: "fork.knife"
         )
     }

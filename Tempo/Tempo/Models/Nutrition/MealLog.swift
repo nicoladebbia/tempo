@@ -78,16 +78,13 @@ final class MealLog {
     @Transient
     var formattedTime: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return formatter.string(from: loggedAt)
     }
 
     @Transient
     var formattedCalories: String {
-        NumberFormatter.localizedString(
-            from: NSNumber(value: Int(totalCalories)),
-            number: .decimal
-        ) + " kcal"
+        String(localized: "\(NumberFormatter.localizedString(from: NSNumber(value: Int(totalCalories)), number: .decimal)) kcal")
     }
 
     @Transient

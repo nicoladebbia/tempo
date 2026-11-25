@@ -23,6 +23,18 @@ enum NutritionSection: String, CaseIterable, Identifiable {
     var id: String {
         rawValue
     }
+
+    /// Title for the section picker. `rawValue` stays English: it is the
+    /// stable id (saved by the scan resume state, used by routing and tests).
+    var displayName: String {
+        switch self {
+        case .today: String(localized: "Today")
+        case .plan: String(localized: "Plan")
+        case .log: String(localized: "Log")
+        case .kitchen: String(localized: "Kitchen")
+        case .coach: String(localized: "Coach")
+        }
+    }
 }
 
 // MARK: - KitchenSection
@@ -36,6 +48,16 @@ enum KitchenSection: String, CaseIterable, Identifiable {
 
     var id: String {
         rawValue
+    }
+
+    /// Title for the Kitchen segmented control. `rawValue` stays English (id).
+    var displayName: String {
+        switch self {
+        case .pantry: String(localized: "Pantry")
+        case .groceries: String(localized: "Groceries")
+        case .receipts: String(localized: "Receipts")
+        case .supplements: String(localized: "Supplements")
+        }
     }
 }
 
@@ -60,9 +82,11 @@ struct PantryGapAlert: Identifiable, Equatable {
         // "Missing" = not in the pantry = you need to BUY it. So this routes to
         // the grocery list, not the pantry (you don't already have these).
         if missingIngredients.count == 1 {
-            return "This plan needs \(missingIngredients[0]), which isn't in your pantry. Add it to your grocery list?"
+            return String(localized: "This plan needs \(missingIngredients[0]), which isn't in your pantry. Add it to your grocery list?")
         }
-        return "This plan needs \(missingIngredients.count) items you don't have in your pantry. Add them to your grocery list to buy?"
+        return String(
+            localized: "This plan needs \(missingIngredients.count) items you don't have in your pantry. Add them to your grocery list to buy?"
+        )
     }
 }
 
@@ -508,7 +532,7 @@ final class NutritionTabViewModel {
 
             loadState = .loaded
         } catch {
-            loadState = .error("Failed to load nutrition data: \(error.localizedDescription)")
+            loadState = .error(String(localized: "Failed to load nutrition data: \(error.localizedDescription)"))
         }
     }
 
@@ -726,8 +750,9 @@ final class NutritionTabViewModel {
         guard let result else {
             return
         }
-        let sourceTag = result.source == .ai ? "Coach" : "Fallback"
-        lastRedistributionBanner = "\(sourceTag): \(result.reasoning)"
+        lastRedistributionBanner = result.source == .ai
+            ? String(localized: "Coach: \(result.reasoning)")
+            : String(localized: "Fallback: \(result.reasoning)")
         HapticManager.notification(.success)
     }
 
@@ -1328,7 +1353,7 @@ final class NutritionTabViewModel {
         mealSuggestionsTask?.cancel()
         guard let coach = coachService else {
             isLoadingMealSuggestions = false
-            mealSuggestionError = "Coach unavailable"
+            mealSuggestionError = String(localized: "Coach unavailable")
             return
         }
         mealSuggestionsTask = Task { [coach] in

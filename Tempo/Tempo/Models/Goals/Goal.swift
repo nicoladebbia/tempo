@@ -26,9 +26,9 @@ enum GoalKind: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .bodyWeight: "Body weight"
-        case .liftE1RM: "Lift"
-        case .runTime: "Run time"
+        case .bodyWeight: String(localized: "Body weight")
+        case .liftE1RM: String(localized: "Lift")
+        case .runTime: String(localized: "Run time")
         }
     }
 

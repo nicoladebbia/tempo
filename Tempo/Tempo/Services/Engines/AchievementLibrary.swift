@@ -9,7 +9,7 @@
 import Foundation
 import SwiftData
 
-// MARK: - Achievement Library
+// MARK: - AchievementLibrary
 
 // Pre-defined achievements that get loaded into SwiftData on first launch.
 // 25 achievements across all categories, inspired by Duolingo/Strava/Habitica.
@@ -26,8 +26,10 @@ struct AchievementLibrary {
         for def in allAchievements {
             let achievement = Achievement(
                 badgeID: def.badgeID,
-                name: def.name,
-                description: def.description,
+                // Stored as the stable English key; the language is applied when it is shown
+                // (see `localizedName` / `localizedDescription`).
+                name: def.name.key,
+                description: def.description.key,
                 category: def.category,
                 rarity: def.rarity,
                 xpReward: def.xpReward,
@@ -40,12 +42,35 @@ struct AchievementLibrary {
         try context.save()
     }
 
+    // MARK: - Display text
+
+    private static let definitionsByID: [String: AchievementDef] =
+        Dictionary(allAchievements.map { ($0.badgeID, $0) }, uniquingKeysWith: { first, _ in first })
+
+    /// The badge name in the user's language. The stored row keeps the English name, so
+    /// the language is applied here, when it is shown. A name the library does not know
+    /// (a renamed or custom badge) is shown as stored.
+    static func localizedName(forBadgeID badgeID: String, fallback: String) -> String {
+        guard let def = definitionsByID[badgeID], def.name.key == fallback else {
+            return fallback
+        }
+        return String(localized: def.name)
+    }
+
+    /// The badge description in the user's language; same rules as `localizedName`.
+    static func localizedDescription(forBadgeID badgeID: String, fallback: String) -> String {
+        guard let def = definitionsByID[badgeID], def.description.key == fallback else {
+            return fallback
+        }
+        return String(localized: def.description)
+    }
+
     // MARK: - Achievement Definitions
 
     struct AchievementDef {
         let badgeID: String
-        let name: String
-        let description: String
+        let name: LocalizedStringResource
+        let description: LocalizedStringResource
         let category: AchievementCategory
         let rarity: AchievementRarity
         let xpReward: Int
@@ -54,8 +79,8 @@ struct AchievementLibrary {
 
         init(
             badgeID: String,
-            name: String,
-            description: String,
+            name: LocalizedStringResource,
+            description: LocalizedStringResource,
             category: AchievementCategory,
             rarity: AchievementRarity,
             xpReward: Int,
@@ -340,4 +365,19 @@ struct AchievementLibrary {
             isHidden: true
         ),
     ]
+}
+
+// MARK: - Display text
+
+@MainActor
+extension Achievement {
+    /// The name in the user's language. The stored text stays the English key.
+    var displayName: String {
+        AchievementLibrary.localizedName(forBadgeID: badgeID, fallback: name)
+    }
+
+    /// The description in the user's language. The stored text stays the English key.
+    var displayDescription: String {
+        AchievementLibrary.localizedDescription(forBadgeID: badgeID, fallback: achievementDescription)
+    }
 }

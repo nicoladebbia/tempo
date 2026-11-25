@@ -125,19 +125,19 @@ struct ActiveWorkoutView: View {
                 let approx = PlateMath.isExact(plates: plates, perSide: perSide) ? "" : "≈"
                 let plateStr = approx + PlateMath.label(values: plates)
                 if bar > 0 {
-                    return "\(plateStr) per side + \(barStr) \(unit) bar"
+                    return String(localized: "\(plateStr) per side + \(barStr) \(unit) bar")
                 }
-                return "\(plateStr) per side"
+                return String(localized: "\(plateStr) per side")
             }
         }
 
         if bar > 0 {
             // Empty bar: "Empty 45 lbs bar", never "0 lbs/side".
             return perSide > 0
-                ? "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar"
-                : "Empty \(barStr) \(unit) bar"
+                ? String(localized: "\(perSideStr) \(unit)/side + \(barStr) \(unit) bar")
+                : String(localized: "Empty \(barStr) \(unit) bar")
         }
-        return "\(perSideStr) \(unit)/side"
+        return String(localized: "\(perSideStr) \(unit)/side")
     }
 
     /// Whether the current lift is bodyweight-loaded (pull-up/dip) — logged as a
@@ -178,14 +178,12 @@ struct ActiveWorkoutView: View {
     private var bodyweightEffectiveHint: String {
         let unit = weightUnit.abbreviation
         let effStr = WeightFormat.number(kg: bodyweightEffectiveKg, unit: weightUnit)
-        let tag = if inputAddedLoad > 0 {
-            "weighted"
+        if inputAddedLoad > 0 {
+            return String(localized: "= \(effStr) \(unit) effective · weighted")
         } else if inputAddedLoad < 0 {
-            "assisted"
-        } else {
-            "bodyweight"
+            return String(localized: "= \(effStr) \(unit) effective · assisted")
         }
-        return "= \(effStr) \(unit) effective · \(tag)"
+        return String(localized: "= \(effStr) \(unit) effective · bodyweight")
     }
 
     @State
@@ -238,7 +236,7 @@ struct ActiveWorkoutView: View {
                 // §15 fix — the weight shown here comes from `pr.value`
                 // converted to the user's unit (PRDisplay), never from the
                 // engine's kg-only, unit-unaware `context` string.
-                Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.valueLabel(pr, unit: weightUnit))")
+                Text("\(pr.exercise?.name ?? String(localized: "Exercise")) · \(PRDisplay.valueLabel(pr, unit: weightUnit))")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text)
             }
@@ -545,12 +543,12 @@ struct ActiveWorkoutView: View {
                 if isBodyweightLift, bodyweightKg <= 0 {
                     TrainStepper(
                         value: $bodyweightPromptDisplayValue,
-                        label: "Your bodyweight",
+                        label: String(localized: "Your bodyweight"),
                         range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
                         step: weightStep,
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation,
-                        caption: "Needed to log this lift. Saved to your profile for pull-ups, dips and similar lifts.",
+                        caption: String(localized: "Needed to log this lift. Saved to your profile for pull-ups, dips and similar lifts."),
                         onTapValue: { activeEntryField = .bodyweight }
                     )
                     .tideCard(padding: Tide.s4)
@@ -601,7 +599,7 @@ struct ActiveWorkoutView: View {
                 // weight belt/vest. Effective load = bodyweight ± this.
                 TrainSessionField(
                     value: $inputAddedLoad,
-                    label: "Added load",
+                    label: String(localized: "Added load"),
                     range: -weightRangeMax ... weightRangeMax,
                     step: weightStep,
                     format: weightUnit == .kg ? "%+.1f" : "%+.0f",
@@ -615,7 +613,7 @@ struct ActiveWorkoutView: View {
                 // there's no ambiguity about what to actually put on.
                 TrainSessionField(
                     value: $inputWeight,
-                    label: currentEquipment.isBarLoaded ? "Weight, total with bar" : "Weight",
+                    label: currentEquipment.isBarLoaded ? String(localized: "Weight, total with bar") : String(localized: "Weight"),
                     range: weightRangeMin ... weightRangeMax,
                     step: weightStep,
                     format: weightUnit == .kg ? "%.1f" : "%.0f",
@@ -627,11 +625,11 @@ struct ActiveWorkoutView: View {
         } secondary: {
             TrainSessionField(
                 value: $inputReps,
-                label: isPerSideExercise ? "REPS — LEFT" : "Reps",
+                label: isPerSideExercise ? String(localized: "REPS — LEFT") : String(localized: "Reps"),
                 range: 1 ... 100,
                 step: 1,
                 format: "%.0f",
-                unit: isPerSideExercise ? "reps / side" : "reps",
+                unit: isPerSideExercise ? String(localized: "reps / side") : String(localized: "reps"),
                 reserveLabel: true,
                 onTapValue: { activeEntryField = .reps }
             )
@@ -663,7 +661,7 @@ struct ActiveWorkoutView: View {
     /// or what a bodyweight set adds up to.
     private var loadHint: (text: String, color: Color)? {
         if isBodyweightLift {
-            return ("Minus is assisted, plus is weighted. \(bodyweightEffectiveHint)", Tide.text2)
+            return (String(localized: "Minus is assisted, plus is weighted. \(bodyweightEffectiveHint)"), Tide.text2)
         }
         if currentSetIsCalibration {
             return (calibrationPromptText, TideTrain.caution)
@@ -677,8 +675,8 @@ struct ActiveWorkoutView: View {
             return nil
         }
         return rir == 0
-            ? "All out — nothing left in the tank"
-            : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank"
+            ? String(localized: "All out — nothing left in the tank")
+            : String(localized: "Effort: leave \(rir) reps in the tank")
     }
 
     /// One-line condition chips (ramp / pain / superset / drop) — the old
@@ -717,25 +715,25 @@ struct ActiveWorkoutView: View {
             let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
             chip(
                 "flame",
-                isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
+                isTrainerDay ? String(localized: "TEMPO WARM-UP — doesn't count") : String(localized: "RAMP-UP — doesn't count"),
                 Color.accentColor
             )
             .explains(TrainExplainers.rampUp)
         }
         if currentSetIsCalibration {
-            chip("ruler", "CALIBRATION SET", TideTrain.caution)
+            chip("ruler", String(localized: "CALIBRATION SET"), TideTrain.caution)
                 .explains(TrainExplainers.calibration)
         }
         if painFlagged {
-            chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", TideTrain.caution)
+            chip("exclamationmark.triangle.fill", String(localized: "Pain flagged — weight held, go easy"), TideTrain.caution)
         }
         if let partner = viewModel.currentSupersetPartnerName {
-            let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
+            let label = viewModel.currentGroupIsCircuit ? String(localized: "Circuit") : String(localized: "Superset")
             chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.accentColor)
         }
         // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
         if let dropIndex {
-            chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", TideTrain.caution)
+            chip("arrow.down.circle.fill", String(localized: "DROP \(dropIndex) — no rest, to failure"), TideTrain.caution)
                 .explains(TrainExplainers.dropSet)
         }
     }
@@ -768,7 +766,7 @@ struct ActiveWorkoutView: View {
             return "\(WeightFormat.bodyweightLoad(addedKg: prior.bestSetAddedLoadKg, unit: weightUnit)) × \(r)"
         }
         guard let w = prior.bestSetWeight, w > 0 else {
-            return "BW × \(r)"
+            return String(localized: "BW × \(r)")
         }
         return "\(displayWeight(w)) × \(r)"
     }
@@ -782,7 +780,7 @@ struct ActiveWorkoutView: View {
         // No external load: 0 is "just bodyweight" on a bodyweight lift, and
         // "no weight prescribed yet" on a loaded one — never "0 × 10".
         if w <= 0 {
-            return isBodyweightLift ? "BW × \(reps)" : "\(reps) \(TrainCount.noun(set.targetReps, "rep"))"
+            return isBodyweightLift ? String(localized: "BW × \(reps)") : "\(reps) \(TrainCount.noun(set.targetReps, "rep"))"
         }
         return "\(displayWeight(w)) × \(reps)"
     }
@@ -855,8 +853,8 @@ struct ActiveWorkoutView: View {
         } else {
             "\(undo.reps)"
         }
-        let message = "Logged \(load) x \(reps)"
-        undoToast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+        let message = String(localized: "Logged \(load) x \(reps)")
+        undoToast = ToastData(message: message, style: .success, actionTitle: String(localized: "Undo")) {
             let typed = RestoredEntry(
                 setID: undo.setID,
                 weight: WeightUnit.kg.convert(undo.weightKg, to: weightUnit),
@@ -867,7 +865,7 @@ struct ActiveWorkoutView: View {
             restoredEntry = typed
             guard viewModel.undoLoggedSet(undo, modelContext: modelContext) else {
                 restoredEntry = nil
-                undoToast = ToastData(message: "Can't undo that now", style: .info)
+                undoToast = ToastData(message: String(localized: "Can't undo that now"), style: .info)
                 return
             }
             loadCurrentSetInputs()
@@ -876,18 +874,18 @@ struct ActiveWorkoutView: View {
 
     /// Few-second Undo after a set or a warm-up ramp is skipped.
     private func offerUndo(_ undo: TrainingViewModel.SkippedSetsUndo) {
-        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: String(localized: "Undo")) {
             if !viewModel.undoSkippedSets(undo, modelContext: modelContext) {
-                undoToast = ToastData(message: "Can't undo that now", style: .info)
+                undoToast = ToastData(message: String(localized: "Can't undo that now"), style: .info)
             }
         }
     }
 
     /// Few-second Undo after the "−" button takes a set out.
     private func offerUndo(_ undo: TrainingViewModel.RemovedSetUndo) {
-        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: String(localized: "Undo")) {
             if !viewModel.undoRemovedSet(undo, modelContext: modelContext) {
-                undoToast = ToastData(message: "Can't undo that now", style: .info)
+                undoToast = ToastData(message: String(localized: "Can't undo that now"), style: .info)
             }
         }
     }
@@ -907,9 +905,9 @@ struct ActiveWorkoutView: View {
     /// what you did last time, what today asks, what your ceiling is.
     private var contextStrip: some View {
         TrainSessionContext(cells: [
-            .init(label: "Last", value: lastSessionStat ?? "—"),
-            .init(label: "Target", value: targetStat ?? "—", highlight: true, explainer: TrainExplainers.target),
-            .init(label: "Best e1RM", value: bestE1RMStat ?? "—", explainer: TrainExplainers.bestE1RM),
+            .init(label: String(localized: "Last"), value: lastSessionStat ?? "—"),
+            .init(label: String(localized: "Target"), value: targetStat ?? "—", highlight: true, explainer: TrainExplainers.target),
+            .init(label: String(localized: "Best e1RM"), value: bestE1RMStat ?? "—", explainer: TrainExplainers.bestE1RM),
         ])
     }
 
@@ -937,7 +935,7 @@ struct ActiveWorkoutView: View {
                 HapticManager.selection()
             } label: {
                 Label(
-                    viewModel.currentSetHasPendingDrop ? "Remove Drop" : "+ Drop Set",
+                    viewModel.currentSetHasPendingDrop ? String(localized: "Remove Drop") : String(localized: "+ Drop Set"),
                     systemImage: viewModel.currentSetHasPendingDrop ? "minus.circle" : "arrow.down.circle"
                 )
                 .font(Tide.bodyStrong)
@@ -973,7 +971,7 @@ struct ActiveWorkoutView: View {
                         undoToast = nil
                     }
                 } label: {
-                    Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
+                    Text(currentSetIsWarmup ? String(localized: "Skip Ramp") : String(localized: "Skip"))
                         .frame(minHeight: TideTrain.bigButton - Tide.s2)
                 }
                 .buttonStyle(.tideGlass)
@@ -1009,21 +1007,21 @@ struct ActiveWorkoutView: View {
     /// §5 — "Calibration — pick a weight you could do ~N more reps with".
     private var calibrationPromptText: String {
         guard let rir = viewModel.currentSet?.targetRIR, rir > 0 else {
-            return "Calibration — pick a weight for this exercise"
+            return String(localized: "Calibration — pick a weight for this exercise")
         }
-        return "Calibration — pick a weight you could do ~\(rir) more rep\(rir == 1 ? "" : "s") with"
+        return String(localized: "Calibration — pick a weight you could do ~\(rir) more reps with")
     }
 
     /// §6.4 — names the drop step explicitly ("Finish Drop 2") so the
     /// no-rest continuation reads as deliberate, not a UI glitch.
     private var finishButtonLabel: String {
         if currentSetIsWarmup {
-            return "Finish Warm-Up"
+            return String(localized: "Finish Warm-Up")
         }
         if let dropIndex = viewModel.currentSet?.dropStepIndex {
-            return "Finish Drop \(dropIndex)"
+            return String(localized: "Finish Drop \(dropIndex)")
         }
-        return "Finish Set"
+        return String(localized: "Finish Set")
     }
 
     // MARK: - Warmup Content
@@ -1114,7 +1112,7 @@ struct ActiveWorkoutView: View {
                     viewModel.skipWarmupMove()
                     HapticManager.notification(.success)
                 } label: {
-                    Text(isTimed ? "Skip →" : "Done — Next →")
+                    Text(isTimed ? String(localized: "Skip →") : String(localized: "Done — Next →"))
                 }
                 .buttonStyle(.tidePrimary)
 
@@ -1204,7 +1202,7 @@ struct ActiveWorkoutView: View {
         if let w = set.targetWeight, w > 0 {
             return "\(WeightFormat.text(kg: w, unit: weightUnit)) × \(reps)"
         }
-        return "Bodyweight × \(reps)"
+        return String(localized: "Bodyweight × \(reps)")
     }
 
     // MARK: - Exercise Header
@@ -1282,11 +1280,11 @@ struct ActiveWorkoutView: View {
     private var headerButtons: some View {
         GlassEffectContainer(spacing: Tide.s2) {
             HStack(spacing: Tide.s2) {
-                TrainIconButton(systemImage: "info.circle", label: "How to") {
+                TrainIconButton(systemImage: "info.circle", label: String(localized: "How to")) {
                     showHowTo = true
                 }
                 // "This hurts" flow — see PainReportSheet.swift.
-                TrainIconButton(systemImage: "bandage", label: "This hurts", tint: Tide.danger) {
+                TrainIconButton(systemImage: "bandage", label: String(localized: "This hurts"), tint: Tide.danger) {
                     showPainReport = true
                 }
             }
@@ -1299,7 +1297,7 @@ struct ActiveWorkoutView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Tide.s2) {
                 Text("Up next").tideLabel()
-                Text(upNextName ?? "Last exercise — finish strong")
+                Text(upNextName ?? String(localized: "Last exercise — finish strong"))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)
@@ -1308,7 +1306,7 @@ struct ActiveWorkoutView: View {
             }
             VStack(alignment: .leading, spacing: Tide.s1) {
                 Text("Up next").tideLabel()
-                Text(upNextName ?? "Last exercise — finish strong")
+                Text(upNextName ?? String(localized: "Last exercise — finish strong"))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text2)
                 dropSetControl
@@ -1409,7 +1407,7 @@ struct ActiveWorkoutView: View {
                 }
                 // Where it sits in the day: a tick per exercise, filled as each is done.
                 VStack(spacing: Tide.s1) {
-                    TrainSetTicks(done: toIndex, total: exercises.count, label: "Exercises")
+                    TrainSetTicks(done: toIndex, total: exercises.count, label: String(localized: "Exercises"))
                     Text("\(toIndex + 1) of \(exercises.count)")
                         .font(TideTrain.figure(.caption, weight: .semibold))
                         .foregroundStyle(Tide.text3)
@@ -1429,7 +1427,7 @@ struct ActiveWorkoutView: View {
     private var pausedOverlay: some View {
         TrainSessionStateView(
             systemImage: "pause.fill",
-            title: "PAUSED",
+            title: String(localized: "PAUSED"),
             figure: viewModel.formattedElapsedTime
         ) {
             Button {
@@ -1457,8 +1455,8 @@ struct ActiveWorkoutView: View {
     private var interruptedCallOverlay: some View {
         TrainSessionStateView(
             systemImage: "phone.fill",
-            title: "On a call",
-            message: "Workout paused — it resumes by itself when you hang up."
+            title: String(localized: "On a call"),
+            message: String(localized: "Workout paused — it resumes by itself when you hang up.")
         ) {
             Button {
                 viewModel.handleCallChange(callEnded: true)
@@ -1475,8 +1473,8 @@ struct ActiveWorkoutView: View {
         TrainSessionStateView(
             systemImage: "arrow.counterclockwise",
             tint: TideTrain.caution,
-            title: "Resume Your Workout?",
-            message: "It looks like a workout was in progress."
+            title: String(localized: "Resume Your Workout?"),
+            message: String(localized: "It looks like a workout was in progress.")
         ) {
             Button {
                 viewModel.resumeFromCrash()
@@ -1520,7 +1518,7 @@ struct ActiveWorkoutView: View {
         switch field {
         case .weight:
             NumericEntrySheet(
-                title: "Weight",
+                title: String(localized: "Weight"),
                 unit: weightUnit.abbreviation,
                 initialValue: inputWeight,
                 range: weightRangeMin ... weightRangeMax,
@@ -1536,7 +1534,7 @@ struct ActiveWorkoutView: View {
             )
         case .addedLoad:
             NumericEntrySheet(
-                title: "Added Load",
+                title: String(localized: "Added Load"),
                 unit: weightUnit.abbreviation,
                 initialValue: inputAddedLoad,
                 range: -weightRangeMax ... weightRangeMax,
@@ -1549,8 +1547,8 @@ struct ActiveWorkoutView: View {
             )
         case .reps:
             NumericEntrySheet(
-                title: "Reps",
-                unit: "reps",
+                title: String(localized: "Reps"),
+                unit: String(localized: "reps"),
                 initialValue: inputReps,
                 range: 1 ... 100,
                 wheelValues: NumericEntrySheet.intWheelValues(1 ... 100),
@@ -1562,7 +1560,7 @@ struct ActiveWorkoutView: View {
             let lower = WeightUnit.kg.convert(30, to: weightUnit)
             let upper = WeightUnit.kg.convert(300, to: weightUnit)
             NumericEntrySheet(
-                title: "Bodyweight",
+                title: String(localized: "Bodyweight"),
                 unit: weightUnit.abbreviation,
                 initialValue: bodyweightPromptDisplayValue,
                 range: lower ... upper,
@@ -1705,7 +1703,7 @@ enum PlateMath {
         values.map { v in
             // Up to 2 decimals, no trailing zeros: 1.25, 2.5, 5 (never "%.2g" → "1.2").
             let r = (v * 100).rounded() / 100
-            return r == r.rounded() ? String(format: "%.0f", r) : String(r)
+            return r.formatted(.number.precision(.fractionLength(0 ... 2)).grouping(.never))
         }
         .joined(separator: " + ")
     }

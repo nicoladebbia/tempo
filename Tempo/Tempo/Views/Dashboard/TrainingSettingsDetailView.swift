@@ -39,7 +39,10 @@ struct TrainingSettingsDetailView: View {
     }
 
     /// Mon-first to match the ActiveDays bitmask (index 0 = Monday = 1<<0).
-    private let footballDayLabels = ["M", "T", "W", "T", "F", "S", "S"]
+    private let footballDayLabels: [String] = {
+        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        return Array(symbols[1...]) + [symbols[0]]
+    }()
 
     @Environment(\.dynamicTypeSize)
     private var typeSize
@@ -73,7 +76,7 @@ struct TrainingSettingsDetailView: View {
             VStack(spacing: Tide.s4) {
                 settingsHero
 
-                SettingsFormCard(title: "Programme") {
+                SettingsFormCard(title: String(localized: "Programme")) {
                     // Whole-row Menu — fixes the round-1 bug where the bare
                     // .labelsHidden() menu Picker had a tiny dead tap target.
                     // (Segmented is unusable here: 5 long split names won't fit.)
@@ -87,7 +90,7 @@ struct TrainingSettingsDetailView: View {
                         menuRowLabel(
                             icon: "dumbbell.fill",
                             tint: Color.accentColor,
-                            title: "Split",
+                            title: String(localized: "Split"),
                             value: trainingSplit.displayName
                         )
                     }
@@ -120,7 +123,7 @@ struct TrainingSettingsDetailView: View {
 
                     SettingsRowDivider()
 
-                    SettingsControlRow(label: "Weight Unit", icon: "scalemass.fill", iconTint: Tide.water) {
+                    SettingsControlRow(label: String(localized: "Weight Unit"), icon: "scalemass.fill", iconTint: Tide.water) {
                         Picker("", selection: Binding(
                             get: { settings?.weightUnit ?? .kg },
                             set: { newValue in
@@ -152,15 +155,15 @@ struct TrainingSettingsDetailView: View {
                             }
                         )) {
                             ForEach(["Beginner", "Intermediate", "Advanced"], id: \.self) { level in
-                                Text(level).tag(level)
+                                Text(experienceTitle(level)).tag(level)
                             }
                         }
                     } label: {
                         menuRowLabel(
                             icon: "figure.strengthtraining.traditional",
                             tint: TideTrain.caution,
-                            title: "Experience",
-                            value: settings?.experienceLevelRaw ?? "Beginner"
+                            title: String(localized: "Experience"),
+                            value: experienceTitle(settings?.experienceLevelRaw ?? "Beginner")
                         )
                     }
 
@@ -178,7 +181,7 @@ struct TrainingSettingsDetailView: View {
                         menuRowLabel(
                             icon: "clock.fill",
                             tint: Tide.water,
-                            title: "Usual training time",
+                            title: String(localized: "Usual training time"),
                             value: trainingTime.label
                         )
                     }
@@ -190,8 +193,8 @@ struct TrainingSettingsDetailView: View {
 
                 // Football days — editable chips (Mon=1<<0 … Sun=1<<6).
                 SettingsFormCard(
-                    title: "Football days",
-                    footnote: "Tempo plans recovery and meal timing around your match/training days."
+                    title: String(localized: "Football days"),
+                    footnote: String(localized: "Tempo plans recovery and meal timing around your match/training days.")
                 ) {
                     HStack(spacing: Tide.s1) {
                         ForEach(Array(footballDayLabels.enumerated()), id: \.offset) { index, dayLabel in
@@ -218,12 +221,12 @@ struct TrainingSettingsDetailView: View {
                 // Drives the daily coach's CONTEXT line + the weekly AI goal;
                 // deliberately does NOT touch the deterministic split/schedule.
                 SettingsFormCard(
-                    title: "Training block",
+                    title: String(localized: "Training block"),
                     footnote: currentEmphasis == .physique
-                        ? "Physique block — hypertrophy primary, soccer held at maintenance. Drives the daily coach and weekly AI plan."
-                        : "Soccer block — speed and conditioning primary, strength held at maintenance. Drives the daily coach and weekly AI plan."
+                        ? String(localized: "Physique block — hypertrophy primary, soccer held at maintenance. Drives the daily coach and weekly AI plan.")
+                        : String(localized: "Soccer block — speed and conditioning primary, strength held at maintenance. Drives the daily coach and weekly AI plan.")
                 ) {
-                    SettingsControlRow(label: "Emphasis", icon: "target", iconTint: Tide.water) {
+                    SettingsControlRow(label: String(localized: "Emphasis"), icon: "target", iconTint: Tide.water) {
                         Picker("", selection: Binding(
                             get: { currentEmphasis },
                             set: { applyBlockEmphasis($0) }
@@ -241,9 +244,9 @@ struct TrainingSettingsDetailView: View {
                 // from the official account-data export (4 CSVs). Additive;
                 // re-running is safe (existing days/workouts are skipped).
                 SettingsFormCard(
-                    title: "Whoop history",
+                    title: String(localized: "Whoop history"),
                     footnote: whoopImportResult
-                        ?? "Import your Whoop account-data export (CSV files). Seeds baselines, training history, venue patterns, and personal habit insights."
+                        ?? String(localized: "Import your Whoop account-data export (CSV files). Seeds baselines, training history, venue patterns, and personal habit insights.")
                 ) {
                     Button {
                         showWhoopImporter = true
@@ -270,19 +273,19 @@ struct TrainingSettingsDetailView: View {
                     switch result {
                     case let .success(urls):
                         let summary = WhoopExportImporter.importFiles(urls, modelContext: modelContext)
-                        whoopImportResult = "Imported: \(summary.label)."
+                        whoopImportResult = String(localized: "Imported: \(summary.label).")
                     case let .failure(error):
-                        whoopImportResult = "Import failed: \(error.localizedDescription)"
+                        whoopImportResult = String(localized: "Import failed: \(error.localizedDescription)")
                     }
                 }
 
                 SettingsFormCard(
-                    title: "Deload",
+                    title: String(localized: "Deload"),
                     footnote: autoDeload
-                        ? "Every \(deloadWeeks) weeks: \(deloadStyle.blurb)"
-                        : "Auto-deload is off — you'll manage recovery weeks manually."
+                        ? String(localized: "Every \(deloadWeeks) weeks: \(deloadStyle.blurb)")
+                        : String(localized: "Auto-deload is off — you'll manage recovery weeks manually.")
                 ) {
-                    SettingsControlRow(label: "Auto Deload", icon: "arrow.down.right.circle", iconTint: TideTrain.caution) {
+                    SettingsControlRow(label: String(localized: "Auto Deload"), icon: "arrow.down.right.circle", iconTint: TideTrain.caution) {
                         Toggle("", isOn: $autoDeload)
                             .labelsHidden()
                             .tint(Color.accentColor)
@@ -294,7 +297,7 @@ struct TrainingSettingsDetailView: View {
 
                     if autoDeload {
                         SettingsRowDivider()
-                        SettingsControlRow(label: "Every", icon: "calendar", iconTint: TideTrain.violet) {
+                        SettingsControlRow(label: String(localized: "Every"), icon: "calendar", iconTint: TideTrain.violet) {
                             Stepper("\(deloadWeeks) weeks", value: $deloadWeeks, in: 3 ... 8)
                                 .font(Tide.body)
                                 .foregroundStyle(Tide.text2)
@@ -307,7 +310,7 @@ struct TrainingSettingsDetailView: View {
 
                         SettingsRowDivider()
                         // §19.3 — the three deload styles.
-                        SettingsControlRow(label: "Style", icon: "dial.low", iconTint: Color.accentColor) {
+                        SettingsControlRow(label: String(localized: "Style"), icon: "dial.low", iconTint: Color.accentColor) {
                             Picker("", selection: $deloadStyle) {
                                 ForEach(DeloadStyle.allCases, id: \.self) { style in
                                     Text(style.displayName).tag(style)
@@ -324,12 +327,12 @@ struct TrainingSettingsDetailView: View {
                 }
 
                 SettingsFormCard(
-                    title: "Rest Timer",
+                    title: String(localized: "Rest Timer"),
                     footnote: autoStartRest
-                        ? "Rest starts automatically after each set. Default \(formatRest(defaultRestSeconds)) — override it per exercise on any exercise's detail screen."
-                        : "Rest timer is off — you advance to the next set yourself."
+                        ? String(localized: "Rest starts automatically after each set. Default \(formatRest(defaultRestSeconds)) — override it per exercise on any exercise's detail screen.")
+                        : String(localized: "Rest timer is off — you advance to the next set yourself.")
                 ) {
-                    SettingsControlRow(label: "Auto-start timer", icon: "timer", iconTint: Color.accentColor) {
+                    SettingsControlRow(label: String(localized: "Auto-start timer"), icon: "timer", iconTint: Color.accentColor) {
                         Toggle("", isOn: $autoStartRest)
                             .labelsHidden()
                             .tint(Color.accentColor)
@@ -341,7 +344,7 @@ struct TrainingSettingsDetailView: View {
 
                     if autoStartRest {
                         SettingsRowDivider()
-                        SettingsControlRow(label: "Default rest", icon: "clock.arrow.circlepath", iconTint: TideTrain.violet) {
+                        SettingsControlRow(label: String(localized: "Default rest"), icon: "clock.arrow.circlepath", iconTint: TideTrain.violet) {
                             Stepper(formatRest(defaultRestSeconds), value: $defaultRestSeconds, in: 30 ... 300, step: 15)
                                 .font(Tide.body)
                                 .foregroundStyle(Tide.text2)
@@ -385,8 +388,8 @@ struct TrainingSettingsDetailView: View {
             FlowLayout(spacing: Tide.s1, lineSpacing: Tide.s1) {
                 TrainTag(
                     text: footballCount == 0
-                        ? "No football days"
-                        : "\(footballCount) football day\(footballCount == 1 ? "" : "s") / week",
+                        ? String(localized: "No football days")
+                        : String(localized: "\(footballCount) football days / week"),
                     systemImage: "soccerball",
                     color: footballCount == 0 ? Tide.text2 : TideTrain.positive
                 )
@@ -396,12 +399,12 @@ struct TrainingSettingsDetailView: View {
                     color: Tide.water
                 )
                 TrainTag(
-                    text: autoDeload ? "Deload every \(deloadWeeks) wk" : "Deload off",
+                    text: autoDeload ? String(localized: "Deload every \(deloadWeeks) wk") : String(localized: "Deload off"),
                     systemImage: "arrow.down.right.circle",
                     color: autoDeload ? TideTrain.caution : Tide.text2
                 )
                 TrainTag(
-                    text: autoStartRest ? "Rest \(formatRest(defaultRestSeconds))" : "Rest timer off",
+                    text: autoStartRest ? String(localized: "Rest \(formatRest(defaultRestSeconds))") : String(localized: "Rest timer off"),
                     systemImage: "timer",
                     color: autoStartRest ? Color.accentColor : Tide.text2
                 )
@@ -460,13 +463,23 @@ struct TrainingSettingsDetailView: View {
     }
 
     /// Compact m/s label for a rest duration (e.g. 45→"45s", 90→"1m 30s", 120→"2m").
+    /// The stored level stays English; only what is shown follows the language.
+    private func experienceTitle(_ raw: String) -> String {
+        switch raw {
+        case "Beginner": String(localized: "Beginner")
+        case "Intermediate": String(localized: "Intermediate")
+        case "Advanced": String(localized: "Advanced")
+        default: raw
+        }
+    }
+
     private func formatRest(_ seconds: Int) -> String {
         if seconds < 60 {
-            return "\(seconds)s"
+            return String(localized: "\(seconds)s")
         }
         let m = seconds / 60
         let s = seconds % 60
-        return s == 0 ? "\(m)m" : "\(m)m \(s)s"
+        return s == 0 ? String(localized: "\(m)m") : String(localized: "\(m)m \(s)s")
     }
 
     /// Declares a new open-ended block starting today (§14 Decision 1). The
@@ -547,7 +560,7 @@ struct CustomSplitEditorView: View {
     }
 
     private let dayNames = [
-        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+        String(localized: "Monday"), String(localized: "Tuesday"), String(localized: "Wednesday"), String(localized: "Thursday"), String(localized: "Friday"), String(localized: "Saturday"), String(localized: "Sunday"),
     ]
 
     /// Types the user can assign per day. Football is auto (from the football
@@ -575,8 +588,8 @@ struct CustomSplitEditorView: View {
             VStack(spacing: Tide.s2) {
                 weekSummary
                 SettingsFormCard(
-                    title: "Your week",
-                    footnote: "Assign each day. Football days are set on the Training screen and lock here. Recovery and deload still adjust these automatically."
+                    title: String(localized: "Your week"),
+                    footnote: String(localized: "Assign each day. Football days are set on the Training screen and lock here. Recovery and deload still adjust these automatically.")
                 ) {
                     ForEach(0 ..< 7, id: \.self) { i in
                         if i > 0 {
@@ -612,11 +625,11 @@ struct CustomSplitEditorView: View {
             Text("This week's shape").tideLabel()
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber("\(trainingDays)", size: Tide.numeralM, relativeTo: .title)
-                Text(trainingDays == 1 ? "training day of 7" : "training days of 7")
+                Text(trainingDays == 1 ? String(localized: "training day of 7") : String(localized: "training days of 7"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
-            TrainSetTicks(done: trainingDays, total: 7, label: "Training days")
+            TrainSetTicks(done: trainingDays, total: 7, label: String(localized: "Training days"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5)

@@ -81,8 +81,8 @@ struct FoodProductActionBar: View {
                     .accessibilityIdentifier("foodCheckLog")
 
                     HStack(spacing: Tide.s3) {
-                        secondaryButton("Pantry", label: "Add to pantry", systemImage: "refrigerator", id: "foodCheckPantry", action: addToPantry)
-                        secondaryButton("List", label: "Add to list", systemImage: "cart.badge.plus", id: "foodCheckList", action: addToList)
+                        secondaryButton(String(localized: "Pantry"), label: String(localized: "Add to pantry"), systemImage: "refrigerator", id: "foodCheckPantry", action: addToPantry)
+                        secondaryButton(String(localized: "List"), label: String(localized: "Add to list"), systemImage: "cart.badge.plus", id: "foodCheckList", action: addToList)
                     }
                 }
             }
@@ -176,7 +176,7 @@ struct FoodProductActionBar: View {
             HapticManager.notification(.success)
             onLogged?()
             toast = FuelLogToast.logged(
-                "\(mealType.displayName) logged. \(Int(logged.calories.rounded())) kcal, \(Int(logged.protein.rounded())) g protein.",
+                String(localized: "\(mealType.displayName) logged. \(Int(logged.calories.rounded())) kcal, \(Int(logged.protein.rounded())) g protein."),
                 result: result,
                 modelContext: modelContext,
                 notifications: services.notifications
@@ -184,7 +184,7 @@ struct FoodProductActionBar: View {
         } catch {
             HapticManager.notification(.error)
             showLogSheet = false
-            toast = ToastData(message: "Couldn't log it: \(error.localizedDescription)", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't log it: \(error.localizedDescription)"), style: .error)
         }
     }
 
@@ -194,7 +194,7 @@ struct FoodProductActionBar: View {
             let context = modelContext
             HapticManager.notification(.success)
             toast = ToastData(
-                message: "\(added.item.displayName) is in your pantry.", style: .success, actionTitle: "Undo"
+                message: String(localized: "\(added.item.displayName) is in your pantry."), style: .success, actionTitle: String(localized: "Undo")
             ) {
                 KitchenUndo.restorePantry(added.undo, in: context)
                 refreshInventory()
@@ -202,7 +202,7 @@ struct FoodProductActionBar: View {
             refreshInventory()
         } catch {
             HapticManager.notification(.error)
-            toast = ToastData(message: "Couldn't add it to the pantry: \(error.localizedDescription)", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't add it to the pantry: \(error.localizedDescription)"), style: .error)
         }
     }
 
@@ -213,7 +213,7 @@ struct FoodProductActionBar: View {
             switch added.outcome {
             case .added:
                 HapticManager.notification(.success)
-                toast = ToastData(message: "\(product.name) is on your list.", style: .success, actionTitle: "Undo") {
+                toast = ToastData(message: String(localized: "\(product.name) is on your list."), style: .success, actionTitle: String(localized: "Undo")) {
                     if let id = added.itemID {
                         FoodProductActions.removeFromList(itemID: id, modelContext: context)
                     }
@@ -221,18 +221,18 @@ struct FoodProductActionBar: View {
                 }
             case .alreadyOnList:
                 HapticManager.lightImpact()
-                toast = ToastData(message: "Already on your list.", style: .info)
+                toast = ToastData(message: String(localized: "Already on your list."), style: .info)
             case .noList:
                 HapticManager.warning()
                 toast = ToastData(
-                    message: "You have no grocery list yet. Build your weekly plan first, then add it.",
+                    message: String(localized: "You have no grocery list yet. Build your weekly plan first, then add it."),
                     style: .warning
                 )
             }
             refreshInventory()
         } catch {
             HapticManager.notification(.error)
-            toast = ToastData(message: "Couldn't add it to the list: \(error.localizedDescription)", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't add it to the list: \(error.localizedDescription)"), style: .error)
         }
     }
 

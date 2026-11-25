@@ -100,7 +100,7 @@ struct PantryView: View {
             HomeLocationSettingView()
         }
         .confirmationDialog(
-            "Empty the whole pantry?",
+            String(localized: "Empty the whole pantry?"),
             isPresented: $confirmEmpty,
             titleVisibility: .visible
         ) {
@@ -173,7 +173,7 @@ struct PantryView: View {
 
     /// Always-findable entry once the peek card is gone (skipped / done).
     private var staplesChip: some View {
-        TideChip(title: "Staples · \(viewModel.stapleState.staples.count)", systemImage: "leaf") {
+        TideChip(title: String(localized: "Staples · \(viewModel.stapleState.staples.count)"), systemImage: "leaf") {
             viewModel.applyStapleEvent(.reopen)
             staplesDetent = .large
             showStaples = true
@@ -196,7 +196,7 @@ struct PantryView: View {
                 KitchenGlassIcon(systemImage: HomeLocationStore().home == nil ? "house" : "house.fill")
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
+            .accessibilityLabel(HomeLocationStore().home == nil ? String(localized: "Set home") : String(localized: "Home location"))
             .accessibilityIdentifier("pantryHomeButton")
             Menu {
                 Button("Add item", systemImage: "plus") {
@@ -242,12 +242,12 @@ struct PantryView: View {
                 if soon > 0 || staples > 0 {
                     VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s2) {
                         if soon > 0 {
-                            heroFigure("Use soon", value: soon, color: Tide.Kitchen.warn)
+                            heroFigure(String(localized: "Use soon"), value: soon, color: Tide.Kitchen.warn)
                                 .frame(minHeight: Tide.hit)
                                 .explains(.fuelPantryUseSoon.showing("\(soon)"))
                         }
                         if staples > 0 {
-                            heroFigure("Staples", value: staples, color: Tide.text)
+                            heroFigure(String(localized: "Staples"), value: staples, color: Tide.text)
                         }
                     }
                 }
@@ -308,7 +308,7 @@ struct PantryView: View {
     private var staplesSection: some View {
         if !viewModel.stapleState.staples.isEmpty {
             KitchenGroup(
-                title: "Staples",
+                title: String(localized: "Staples"),
                 systemImage: "leaf",
                 trailing: "\(viewModel.stapleState.staples.count)"
             ) {
@@ -359,7 +359,7 @@ struct PantryView: View {
 
     private var expiringSoonSection: some View {
         KitchenGroup(
-            title: "Expiring soon",
+            title: String(localized: "Expiring soon"),
             systemImage: "exclamationmark.triangle.fill",
             tint: Tide.Kitchen.warn
         ) {
@@ -422,7 +422,7 @@ struct PantryView: View {
                                         KitchenTag(text: item.brand)
                                     }
                                     if item.isDepleted {
-                                        KitchenTag(text: "Used up", tint: Tide.text3)
+                                        KitchenTag(text: String(localized: "Used up"), tint: Tide.text3)
                                     }
                                 }
                             }
@@ -500,7 +500,7 @@ struct PantryView: View {
         if item.useBy != nil || item.purchaseSource == .receiptScan || paid > 0 {
             HStack(spacing: Tide.s2) {
                 if let useBy = item.useBy {
-                    let by = "by \(useBy.formatted(date: .abbreviated, time: .omitted))"
+                    let by = String(localized: "by \(useBy.formatted(date: .abbreviated, time: .omitted))")
                     Text(showsLocation ? "\(item.storageLocation.displayName) · \(by)" : by)
                         .foregroundStyle(item.isExpiringSoon ? Tide.Kitchen.warn : Tide.text2)
                 }
@@ -509,7 +509,7 @@ struct PantryView: View {
                         .accessibilityLabel("From a receipt")
                 }
                 if paid > 0 {
-                    Text(String(format: "$%.2f", paid))
+                    Text("$" + paid.tempoDecimal(2))
                 }
             }
             .font(Tide.caption)
@@ -520,9 +520,9 @@ struct PantryView: View {
     private var emptyState: some View {
         KitchenEmpty(
             systemImage: "tray",
-            title: "No pantry items yet",
-            message: "Scan a grocery receipt or add items manually to start.",
-            actionTitle: "Add an item"
+            title: String(localized: "No pantry items yet"),
+            message: String(localized: "Scan a grocery receipt or add items manually to start."),
+            actionTitle: String(localized: "Add an item")
         ) {
             showManualAddSheet = true
         }
@@ -584,7 +584,7 @@ struct PantryManualAddSheet: View {
     }
 
     private var canAddCurrent: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && (Double(quantityText) ?? 0) > 0
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && (WeightFormat.parseDecimal(quantityText) ?? 0) > 0
     }
 
     var body: some View {
@@ -662,9 +662,9 @@ struct PantryManualAddSheet: View {
                     .kitchenField()
             }
             KitchenPair {
-                KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+                KitchenNumberField(label: String(localized: "Quantity"), placeholder: String(localized: "Qty"), text: $quantityText)
             } second: {
-                KitchenNumberField(label: "Price paid", unit: "USD", placeholder: "Optional", text: $priceText)
+                KitchenNumberField(label: String(localized: "Price paid"), unit: "USD", placeholder: String(localized: "Optional"), text: $priceText)
             }
             HStack {
                 Text("Unit")
@@ -744,7 +744,7 @@ struct PantryManualAddSheet: View {
             Spacer()
             if let paid = item.totalPaidUSD, paid > 0 {
                 TideNumber(
-                    String(format: "$%.2f", paid), size: Tide.numeralS, relativeTo: .body,
+                    "$" + paid.tempoDecimal(2), size: Tide.numeralS, relativeTo: .body,
                     weight: .semibold
                 )
             }
@@ -754,18 +754,18 @@ struct PantryManualAddSheet: View {
     // MARK: - Computed labels
 
     private var stagedTitle: String {
-        staged.isEmpty ? "Add to Pantry" : "Add to Pantry · \(staged.count)"
+        staged.isEmpty ? String(localized: "Add to Pantry") : String(localized: "Add to Pantry · \(staged.count)")
     }
 
     private var saveButtonTitle: String {
         let pending = canAddCurrent ? staged.count + 1 : staged.count
-        return pending <= 1 ? "Save" : "Save \(pending)"
+        return pending <= 1 ? String(localized: "Save") : String(localized: "Save \(pending)")
     }
 
     // MARK: - Actions
 
     private func stageCurrentRow() {
-        guard canAddCurrent, let qty = Double(quantityText) else {
+        guard canAddCurrent, let qty = WeightFormat.parseDecimal(quantityText) else {
             return
         }
         staged.append(StagedPantryItem(
@@ -816,6 +816,6 @@ struct PantryManualAddSheet: View {
                 .background(transcriber.isListening ? mood.accent : Color.clear, in: .circle)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start voice input")
+        .accessibilityLabel(transcriber.isListening ? String(localized: "Stop listening") : String(localized: "Start voice input"))
     }
 }

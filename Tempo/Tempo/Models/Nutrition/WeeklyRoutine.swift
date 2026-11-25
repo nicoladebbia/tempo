@@ -98,7 +98,13 @@ struct DayRoutine: Codable, Equatable, Sendable, Identifiable {
         String(name.prefix(3))
     }
 
-    static let names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    static var names: [String] {
+        [
+            String(localized: "Monday"), String(localized: "Tuesday"), String(localized: "Wednesday"),
+            String(localized: "Thursday"), String(localized: "Friday"), String(localized: "Saturday"),
+            String(localized: "Sunday"),
+        ]
+    }
 }
 
 // MARK: - TrainingSlot
@@ -120,9 +126,9 @@ struct RoutineEvent: Codable, Equatable, Sendable, Identifiable {
 
         var label: String {
             switch self {
-            case .classOrWork: "Class / work"
-            case .mealOut: "Meal out"
-            case .other: "Other"
+            case .classOrWork: String(localized: "Class / work")
+            case .mealOut: String(localized: "Meal out")
+            case .other: String(localized: "Other")
             }
         }
     }

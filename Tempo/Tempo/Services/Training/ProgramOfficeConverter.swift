@@ -29,8 +29,8 @@ final class ProgramOfficeConverter: NSObject, WKNavigationDelegate {
 
         var errorDescription: String? {
             switch self {
-            case let .loadFailed(detail): "Could not open that file: \(detail)"
-            case .emptyOutput: "That file has no readable content."
+            case let .loadFailed(detail): String(localized: "Could not open that file: \(detail)")
+            case .emptyOutput: String(localized: "That file has no readable content.")
             }
         }
     }

@@ -37,11 +37,11 @@ enum TrainingVenue: String, Codable, Sendable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .gym: "Gym"
-        case .field: "Field"
-        case .pool: "Pool"
-        case .home: "Home"
-        case .outdoor: "Outdoor"
+        case .gym: String(localized: "Gym")
+        case .field: String(localized: "Field")
+        case .pool: String(localized: "Pool")
+        case .home: String(localized: "Home")
+        case .outdoor: String(localized: "Outdoor")
         }
     }
 }

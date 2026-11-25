@@ -89,9 +89,9 @@ struct SupplementPicksView: View {
 
     private func errorState(_ message: String) -> some View {
         KitchenFailure(
-            title: "Picks unavailable",
+            title: String(localized: "Picks unavailable"),
             message: message,
-            retryTitle: "Try Again",
+            retryTitle: String(localized: "Try Again"),
             retry: { Task { await loadPicks() } }
         )
     }
@@ -136,15 +136,15 @@ struct SupplementPicksView: View {
     private var unverifiedBanner: some View {
         KitchenNotice(
             systemImage: "sparkles",
-            text: "AI suggestions, not verified. Double-check any certification claim yourself before buying."
+            text: String(localized: "AI suggestions, not verified. Double-check any certification claim yourself before buying.")
         )
     }
 
     private var emptyPicksState: some View {
         KitchenEmpty(
             systemImage: "magnifyingglass",
-            title: "No picks right now",
-            message: "No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself."
+            title: String(localized: "No picks right now"),
+            message: String(localized: "No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself.")
         )
     }
 
@@ -177,8 +177,8 @@ struct SupplementPicksView: View {
             if let price = pick.approxPricePerServingUSD {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     TideNumber(
-                        String(format: "$%.2f", price),
-                        unit: "/serving",
+                        "$" + price.tempoDecimal(2),
+                        unit: String(localized: "/serving"),
                         size: Tide.numeralS,
                         relativeTo: .headline
                     )
@@ -208,7 +208,7 @@ struct SupplementPicksView: View {
         guard let price = pick.approxPricePerServingUSD else {
             return ""
         }
-        let priceText = String(format: "~$%.2f/serving", price)
+        let priceText = String(localized: "~$\(price.tempoDecimal(2))/serving")
         guard let priceAsOf = pick.priceAsOf, let formatted = Self.formatPriceAsOf(priceAsOf) else {
             return priceText
         }
@@ -261,16 +261,16 @@ struct SupplementPicksView: View {
             case .denied:
                 KitchenNotice(
                     systemImage: "location.slash",
-                    text: "Location access is off, so we can't search nearby. Enable it in Settings to find stores.",
+                    text: String(localized: "Location access is off, so we can't search nearby. Enable it in Settings to find stores."),
                     tint: Tide.text2
                 )
 
             case .failed:
                 KitchenNotice(
                     systemImage: "wifi.exclamationmark",
-                    text: "Couldn't search nearby stores right now.",
+                    text: String(localized: "Couldn't search nearby stores right now."),
                     tint: Tide.text2,
-                    actionTitle: "Try again",
+                    actionTitle: String(localized: "Try again"),
                     action: { Task { await loadNearby() } }
                 )
 
@@ -337,7 +337,7 @@ struct SupplementPicksView: View {
             let service = SupplementPicksService(apiClient: services.apiClient)
             picks = try await service.fetchPicks(kind: supplement.kind, name: supplement.name)
         } catch {
-            loadErrorMessage = "Couldn't load picks. Check your connection and try again."
+            loadErrorMessage = String(localized: "Couldn't load picks. Check your connection and try again.")
         }
         isLoading = false
     }
@@ -366,13 +366,12 @@ struct SupplementPicksView: View {
             return nil
         }
         let outputFormatter = DateFormatter()
-        outputFormatter.locale = Locale(identifier: "en_US_POSIX")
-        outputFormatter.dateFormat = "MMM yyyy"
+        outputFormatter.dateFormat = String(localized: "MMM yyyy", comment: "DATE_FORMAT")
         return outputFormatter.string(from: date)
     }
 
     private static func formatDistance(_ meters: Double) -> String {
         let miles = meters / 1609.34
-        return String(format: "%.1f mi", miles)
+        return String(localized: "\(miles.tempoDecimal(1)) mi")
     }
 }

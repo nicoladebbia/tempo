@@ -11,17 +11,16 @@ import SwiftUI
 extension TodayWorkoutView {
     func equipmentHint(_ equipment: Equipment) -> String {
         switch equipment {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .cable: "Cable Machine"
-        case .machine: "Machine"
-        case .bodyweight: "Bodyweight"
-        case .kettlebell: "Kettlebell"
-        case .pullUpBar: "Pull-Up Bar"
-        case .ezBar: "EZ Bar"
-        case .none: "No equipment"
-        // Raw values are snake_case ("pull_up_bar" rendered "Pull_Up_Bar").
-        default: equipment.rawValue.replacingOccurrences(of: "_", with: " ").capitalized
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbell")
+        case .cable: String(localized: "Cable Machine")
+        case .machine: String(localized: "Machine")
+        case .bodyweight: String(localized: "Bodyweight")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .pullUpBar: String(localized: "Pull-Up Bar")
+        case .ezBar: String(localized: "EZ Bar")
+        case .none: String(localized: "No equipment")
+        default: equipment.displayName
         }
     }
 

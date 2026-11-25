@@ -57,10 +57,10 @@ struct MatchProposalCard: View {
         // The ask is about one day, so the card opens on that day: its weekday
         // over its date, in the caution tint a match always carries.
         TrainAskCard(
-            label: "Found on your calendar",
+            label: String(localized: "Found on your calendar"),
             tint: TideTrain.caution,
-            title: "\u{201C}\(event.title)\u{201D} — \(dayLabel(event.startDate)). Match day?",
-            message: "Confirming locks it into the match schedule and re-plans the days around it."
+            title: proposalTitle(event),
+            message: String(localized: "Confirming locks it into the match schedule and re-plans the days around it.")
         ) {
             TrainFigureTile(date: event.startDate, tint: TideTrain.caution)
         } actions: {
@@ -149,15 +149,18 @@ struct MatchProposalCard: View {
         return "\(safeTitle)|\(f.string(from: event.startDate))"
     }
 
-    private func dayLabel(_ date: Date) -> String {
+    /// The whole question as one sentence per case, so a translation keeps its own word order.
+    private func proposalTitle(_ event: CalendarEvent) -> String {
+        let date = event.startDate
         if cal.isDateInToday(date) {
-            return "today"
+            return String(localized: "\u{201C}\(event.title)\u{201D} — today. Match day?")
         }
         if cal.isDateInTomorrow(date) {
-            return "tomorrow"
+            return String(localized: "\u{201C}\(event.title)\u{201D} — tomorrow. Match day?")
         }
         let f = DateFormatter()
         f.dateFormat = "EEEE"
-        return f.string(from: date)
+        let weekday = f.string(from: date)
+        return String(localized: "\u{201C}\(event.title)\u{201D} — \(weekday). Match day?")
     }
 }

@@ -24,26 +24,26 @@ extension TodayWorkoutView {
     func recoveryText(plan: WorkoutPlan) -> String {
         let adj = plan.recoveryAdjustment
         if adj >= 1.0 {
-            return "Green Recovery"
+            return String(localized: "Green Recovery")
         }
         if adj >= 0.6 {
-            return "Yellow Recovery"
+            return String(localized: "Yellow Recovery")
         }
-        return "Red Recovery"
+        return String(localized: "Red Recovery")
     }
 
     func adjustmentLabel(plan: WorkoutPlan) -> String {
         let adj = plan.recoveryAdjustment
         if adj >= 1.0 {
-            return "Full Volume"
+            return String(localized: "Full Volume")
         }
         if adj >= 0.8 {
-            return "-20% Volume"
+            return String(localized: "-20% Volume")
         }
         if adj >= 0.75 {
-            return "-20% Volume, Lighter Load"
+            return String(localized: "-20% Volume, Lighter Load")
         }
-        return "Swapped to Mobility"
+        return String(localized: "Swapped to Mobility")
     }
 
     func estimatedDuration(plan: WorkoutPlan) -> Int {
@@ -103,21 +103,22 @@ extension TodayWorkoutView {
         } else if leadSet.isCalibration {
             // §5 — a trainer % with no reliable max: no weight to show yet,
             // the first set calibrates it live.
-            text = "\(setCount) x \(reps) · calibrate first set"
+            text = String(localized: "\(setCount) x \(reps) · calibrate first set")
         } else {
-            text = "\(setCount) x \(reps) (BW)"
+            text = String(localized: "\(setCount) x \(reps) (BW)")
         }
 
         // §11.12 — effort target rides the prescription line when the
         // e1RM-anchored path set one.
         if let rir = leadSet.targetRIR, !leadSet.isCalibration {
-            text += " · RIR \(rir)"
+            text += " · \(String(localized: "RIR \(rir)"))"
         }
 
         if !warmupSets.isEmpty {
             // §13 — every warmup on a trainer day is one Tempo added; the
             // trainer never wrote it.
-            text += " + \(warmupSets.count) \(isTrainerDay ? "Tempo warm-up" : "warmup")"
+            let warmupCount = warmupSets.count
+            text += " + " + (isTrainerDay ? String(localized: "\(warmupCount) Tempo warm-up") : String(localized: "\(warmupCount) warmup"))
         }
 
         return text
@@ -126,12 +127,12 @@ extension TodayWorkoutView {
     /// "(BW)", "@ BW +10kg", or "@ BW −15kg assist" for a bodyweight-loaded lift.
     static func bodyweightLoadText(addedKg: Double?, unit: WeightUnit) -> String {
         guard let addedKg, abs(addedKg) >= 0.5 else {
-            return "(BW)"
+            return String(localized: "(BW)")
         }
         let display = weightText(abs(WeightUnit.kg.convert(addedKg, to: unit)))
         return addedKg > 0
-            ? "@ BW +\(display)\(unit.abbreviation)"
-            : "@ BW −\(display)\(unit.abbreviation) assist"
+            ? String(localized: "@ BW +\(display)\(unit.abbreviation)")
+            : String(localized: "@ BW −\(display)\(unit.abbreviation) assist")
     }
 
     /// 22.5 stays "22.5" (Int() used to truncate it to "22"); whole numbers drop the decimal.

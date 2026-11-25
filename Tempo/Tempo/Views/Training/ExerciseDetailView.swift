@@ -53,6 +53,15 @@ struct ExerciseDetailView: View {
         case ninetyDays = "90D"
         case all = "ALL"
 
+        /// The chip label; the raw value stays the English identifier.
+        var label: String {
+            switch self {
+            case .thirtyDays: String(localized: "30D", comment: "Chart range chip: last 30 days")
+            case .ninetyDays: String(localized: "90D", comment: "Chart range chip: last 90 days")
+            case .all: String(localized: "ALL", comment: "Chart range chip: everything")
+            }
+        }
+
         var days: Int? {
             switch self {
             case .thirtyDays: 30
@@ -218,7 +227,7 @@ struct ExerciseDetailView: View {
     private var pillRow: some View {
         TrainTag(text: exercise.muscleGroup.displayName, color: Color.accentColor)
         TrainTag(text: equipmentLabel)
-        TrainTag(text: exercise.isCompound ? "Compound" : "Isolation")
+        TrainTag(text: exercise.isCompound ? String(localized: "Compound") : String(localized: "Isolation"))
     }
 
     /// Plain-language one-liner for whichever pills are most likely to confuse
@@ -230,8 +239,8 @@ struct ExerciseDetailView: View {
     private var beginnerExplainer: some View {
         let equipmentTip = equipmentExplainer
         let movementTip = exercise.isCompound
-            ? "Compound — works multiple muscle groups at once. Heaviest, most efficient lifts."
-            : "Isolation — targets one muscle. Lighter, used for shaping or weak points."
+            ? String(localized: "Compound — works multiple muscle groups at once. Heaviest, most efficient lifts.")
+            : String(localized: "Isolation — targets one muscle. Lighter, used for shaping or weak points.")
         VStack(alignment: .leading, spacing: Tide.hair) {
             if let equipmentTip {
                 Text(equipmentTip)
@@ -250,18 +259,18 @@ struct ExerciseDetailView: View {
 
     private var equipmentExplainer: String? {
         switch exercise.equipment {
-        case .barbell: "Barbell — long metal bar you load with plates on each end. Used for the heaviest lifts."
-        case .dumbbell: "Dumbbell — short handheld weights, one per hand. Better for balance and one-arm work."
-        case .cable: "Cable — adjustable pulley with a handle. Constant tension through the whole movement."
-        case .machine: "Machine — fixed path with selectable weight stack. Easier to learn; safer for going heavy alone."
-        case .bodyweight: "Bodyweight — no equipment, you ARE the load. Scales by adjusting leverage or reps."
-        case .kettlebell: "Kettlebell — ball-shaped weight with a handle. Great for swings and ballistic moves."
-        case .resistanceBand: "Band — elastic; tension increases as you stretch it. Light option for assistance or warm-ups."
-        case .smithMachine: "Smith Machine — barbell locked on vertical rails. Stable, but limits natural movement path."
-        case .ezBar: "EZ Bar — short curved barbell. Easier on the wrists for curls and skullcrushers."
-        case .trapBar: "Trap Bar — hexagonal bar you stand inside. Easier-on-the-back deadlift variant."
-        case .pullUpBar: "Pull-Up Bar — overhead bar. Hang and pull yourself up; the canonical upper-body bodyweight test."
-        case .bench: "Bench — flat or adjustable padded bench. Lets you press, row, or step up from a stable base."
+        case .barbell: String(localized: "Barbell — long metal bar you load with plates on each end. Used for the heaviest lifts.")
+        case .dumbbell: String(localized: "Dumbbell — short handheld weights, one per hand. Better for balance and one-arm work.")
+        case .cable: String(localized: "Cable — adjustable pulley with a handle. Constant tension through the whole movement.")
+        case .machine: String(localized: "Machine — fixed path with selectable weight stack. Easier to learn; safer for going heavy alone.")
+        case .bodyweight: String(localized: "Bodyweight — no equipment, you ARE the load. Scales by adjusting leverage or reps.")
+        case .kettlebell: String(localized: "Kettlebell — ball-shaped weight with a handle. Great for swings and ballistic moves.")
+        case .resistanceBand: String(localized: "Band — elastic; tension increases as you stretch it. Light option for assistance or warm-ups.")
+        case .smithMachine: String(localized: "Smith Machine — barbell locked on vertical rails. Stable, but limits natural movement path.")
+        case .ezBar: String(localized: "EZ Bar — short curved barbell. Easier on the wrists for curls and skullcrushers.")
+        case .trapBar: String(localized: "Trap Bar — hexagonal bar you stand inside. Easier-on-the-back deadlift variant.")
+        case .pullUpBar: String(localized: "Pull-Up Bar — overhead bar. Hang and pull yourself up; the canonical upper-body bodyweight test.")
+        case .bench: String(localized: "Bench — flat or adjustable padded bench. Lets you press, row, or step up from a stable base.")
         case .none: nil
         }
     }
@@ -280,11 +289,11 @@ struct ExerciseDetailView: View {
         let volume30d = thirtyDayHistory.reduce(0.0) { $0 + $1.totalVolume }
         let sessions30d = thirtyDayHistory.count
 
-        return TrainPlanCard(label: "Your stats") {
+        return TrainPlanCard(label: String(localized: "Your stats")) {
             // The one number the lift is judged by leads, larger than the rest.
             TrainStat(
                 value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
-                label: "Current 1RM",
+                label: String(localized: "Current 1RM"),
                 size: Tide.numeralM,
                 explainer: TrainExplainers.currentE1RM
             )
@@ -297,18 +306,18 @@ struct ExerciseDetailView: View {
             TrainStatGrid(minimum: TideTrain.statColumn * 1.4, rowSpacing: Tide.s4) {
                 TrainStat(
                     value: bestSetText(bestSet),
-                    label: "Best Set",
+                    label: String(localized: "Best Set"),
                     size: Tide.numeralS
                 )
                 TrainStat(
                     value: volume30d > 0 ? formatVolume(volume30d) : "—",
-                    label: "Volume (30d)",
+                    label: String(localized: "Volume (30d)"),
                     size: Tide.numeralS,
                     explainer: TrainExplainers.volume30
                 )
                 TrainStat(
                     value: sessions30d > 0 ? "\(sessions30d)" : "—",
-                    label: "Sessions (30d)",
+                    label: String(localized: "Sessions (30d)"),
                     size: Tide.numeralS
                 )
             }
@@ -378,14 +387,14 @@ struct ExerciseDetailView: View {
                 }
                 TrainPlanTrendChart(points: points, scrub: $scrubDate)
             } else {
-                TrainEmptyCard(systemImage: "chart.line.uptrend.xyaxis", title: "No history yet")
+                TrainEmptyCard(systemImage: "chart.line.uptrend.xyaxis", title: String(localized: "No history yet"))
             }
         }
     }
 
     private var rangeTabs: some View {
         TrainPlanTabs(
-            items: ChartRange.allCases.map { (tag: $0, label: $0.rawValue) },
+            items: ChartRange.allCases.map { (tag: $0, label: $0.label) },
             selection: $chartRange
         )
         .onChange(of: chartRange) {
@@ -398,7 +407,7 @@ struct ExerciseDetailView: View {
     // Per WIREFRAMES.md Screen 20 — Numbered step-by-step instructions
 
     private func instructionsSection(_ instructions: String) -> some View {
-        TrainPlanCard(label: "Instructions") {
+        TrainPlanCard(label: String(localized: "Instructions")) {
             Text(instructions)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -409,7 +418,7 @@ struct ExerciseDetailView: View {
     // MARK: - Technique
 
     private func techniqueSection(_ technique: ExerciseTechnique) -> some View {
-        TrainPlanCard(label: "Technique") {
+        TrainPlanCard(label: String(localized: "Technique")) {
             ExerciseTechniqueLines(technique: technique)
         }
         .accessibilityIdentifier("exercise-technique")
@@ -419,7 +428,7 @@ struct ExerciseDetailView: View {
 
     /// The library's own cues, for a lift the form guide does not cover.
     private var cuesSection: some View {
-        TrainPlanCard(label: "Coaching cues") {
+        TrainPlanCard(label: String(localized: "Coaching cues")) {
             ForEach(Array(exercise.cues.enumerated()), id: \.offset) { index, cue in
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                     Text("\(index + 1)")
@@ -440,7 +449,7 @@ struct ExerciseDetailView: View {
     // MARK: - Rest Timer Customization
 
     private var restTimerSection: some View {
-        TrainPlanCard(label: "Rest timer") {
+        TrainPlanCard(label: String(localized: "Rest timer")) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text("Preferred rest between sets")
                     .font(Tide.body)
@@ -493,11 +502,11 @@ struct ExerciseDetailView: View {
         let min = seconds / 60
         let sec = seconds % 60
         if min > 0, sec > 0 {
-            return "\(min)m \(sec)s"
+            return String(localized: "rest.duration.min-sec", defaultValue: "\(min)m \(sec)s", comment: "Rest time, minutes and seconds (the shared 48m tile keys stay short)")
         } else if min > 0 {
-            return "\(min)m"
+            return String(localized: "rest.duration.min", defaultValue: "\(min)m", comment: "Rest time in whole minutes")
         }
-        return "\(sec)s"
+        return String(localized: "rest.duration.sec", defaultValue: "\(sec)s", comment: "Rest time in seconds")
     }
 
     // MARK: - Helpers
@@ -528,19 +537,19 @@ struct ExerciseDetailView: View {
 
     private var equipmentLabel: String {
         switch exercise.equipment {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbell"
-        case .cable: "Cable"
-        case .machine: "Machine"
-        case .bodyweight: "Bodyweight"
-        case .kettlebell: "Kettlebell"
-        case .resistanceBand: "Band"
-        case .smithMachine: "Smith"
-        case .ezBar: "EZ Bar"
-        case .trapBar: "Trap Bar"
-        case .pullUpBar: "Pull-Up Bar"
-        case .bench: "Bench"
-        case .none: "None"
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbell")
+        case .cable: String(localized: "Cable")
+        case .machine: String(localized: "Machine")
+        case .bodyweight: String(localized: "Bodyweight")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .resistanceBand: String(localized: "Band")
+        case .smithMachine: String(localized: "Smith")
+        case .ezBar: String(localized: "EZ Bar")
+        case .trapBar: String(localized: "Trap Bar")
+        case .pullUpBar: String(localized: "Pull-Up Bar")
+        case .bench: String(localized: "Bench")
+        case .none: String(localized: "None")
         }
     }
 }

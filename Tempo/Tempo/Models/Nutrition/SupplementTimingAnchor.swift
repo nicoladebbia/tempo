@@ -20,6 +20,20 @@ enum SupplementTimingAnchor: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
+        case .wake: String(localized: "On waking")
+        case .breakfast: String(localized: "With breakfast")
+        case .lunch: String(localized: "With lunch")
+        case .dinner: String(localized: "With dinner")
+        case .preTraining: String(localized: "Before training")
+        case .postTraining: String(localized: "After training")
+        case .bedtime: String(localized: "Before bed")
+        }
+    }
+
+    /// Fixed English name for the "user fixed timing" line sent to the AI,
+    /// whatever the app language. Use `displayName` on screen.
+    var englishName: String {
+        switch self {
         case .wake: "On waking"
         case .breakfast: "With breakfast"
         case .lunch: "With lunch"
@@ -36,9 +50,12 @@ enum SupplementTimingAnchor: String, Codable, CaseIterable, Sendable {
     /// training, pre-workout before it.
     static func defaultAnchor(for kind: SupplementKind) -> SupplementTimingAnchor {
         switch kind {
-        case .creatine, .multivitamin, .vitamin: .breakfast
+        case .creatine,
+             .multivitamin,
+             .vitamin: .breakfast
         case .omega3: .dinner
-        case .protein, .electrolytes: .postTraining
+        case .protein,
+             .electrolytes: .postTraining
         case .preworkout: .preTraining
         case .other: .breakfast
         }

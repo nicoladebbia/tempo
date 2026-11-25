@@ -112,7 +112,7 @@ enum TrainerFeedbackApplier {
                 ResolvedTrainerFeedbackEdit(
                     summary: fallbackSummary($0),
                     action: nil,
-                    matchFailureReason: "No current program week to apply this to."
+                    matchFailureReason: String(localized: "No current program week to apply this to.")
                 )
             }
         }
@@ -240,7 +240,7 @@ enum TrainerFeedbackApplier {
         weekIndex: Int
     ) -> [ResolvedTrainerFeedbackEdit] {
         guard let rawName = raw.exerciseName, !rawName.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return [unmatched(raw, reason: "Which exercise?")]
+            return [unmatched(raw, reason: String(localized: "Which exercise?"))]
         }
         let candidateDayIndices = dayIndices(matchingWeekday: raw.weekday, in: week)
         var matches: [(dayIndex: Int, exerciseIndex: Int)] = []
@@ -250,7 +250,7 @@ enum TrainerFeedbackApplier {
             }
         }
         guard !matches.isEmpty else {
-            return [unmatched(raw, reason: "Couldn't find \"\(rawName)\" this week.")]
+            return [unmatched(raw, reason: String(localized: "Couldn't find \"\(rawName)\" this week."))]
         }
 
         return matches.flatMap { dayIndex, exerciseIndex -> [ResolvedTrainerFeedbackEdit] in
@@ -259,7 +259,7 @@ enum TrainerFeedbackApplier {
             switch raw.type {
             case .removeExercise:
                 return [ResolvedTrainerFeedbackEdit(
-                    summary: "\(exercise.name): removed",
+                    summary: String(localized: "\(exercise.name): removed"),
                     action: .removeExercise(weekIndex: weekIndex, dayIndex: dayIndex, exerciseID: exercise.id)
                 )]
             default:
@@ -276,7 +276,7 @@ enum TrainerFeedbackApplier {
                 if let refusal {
                     results.append(unmatched(raw, reason: refusal))
                 } else if diffs.isEmpty {
-                    results.append(unmatched(raw, reason: "Nothing to change on \"\(exercise.name)\"."))
+                    results.append(unmatched(raw, reason: String(localized: "Nothing to change on \"\(exercise.name)\".")))
                 }
                 return results
             }
@@ -294,19 +294,19 @@ enum TrainerFeedbackApplier {
         var diffs: [String] = []
 
         if let sets = raw.sets, sets != exercise.sets {
-            diffs.append("\(exercise.sets) sets → \(sets) sets")
+            diffs.append(String(localized: "\(exercise.sets) sets → \(sets) sets"))
             changes.sets = sets
         }
         if let repsLow = raw.repsLow, repsLow != exercise.repsLow {
-            diffs.append("\(exercise.repsLow) reps → \(repsLow) reps")
+            diffs.append(String(localized: "\(exercise.repsLow) reps → \(repsLow) reps"))
             changes.repsLow = repsLow
         }
         if let repsHigh = raw.repsHigh, repsHigh != exercise.repsHigh {
-            diffs.append("\(exercise.repsHigh.map(String.init) ?? "—") reps high → \(repsHigh) reps high")
+            diffs.append(String(localized: "\(exercise.repsHigh.map(String.init) ?? "—") reps high → \(repsHigh) reps high"))
             changes.repsHigh = repsHigh
         }
         if let restSeconds = raw.restSeconds, restSeconds != exercise.restSeconds {
-            diffs.append("rest \(exercise.restSeconds.map(String.init) ?? "—")s → \(restSeconds)s")
+            diffs.append(String(localized: "rest \(exercise.restSeconds.map(String.init) ?? "—")s → \(restSeconds)s"))
             changes.restSeconds = restSeconds
         }
         if let weightKg = raw.weightKg, weightKg > 0 {
@@ -315,14 +315,14 @@ enum TrainerFeedbackApplier {
         } else if let delta = raw.weightDeltaKg, delta != 0 {
             guard let base = exercise.weightKg, base > 0 else {
                 let signed = (delta > 0 ? "+" : "-") + formattedKg(abs(delta))
-                return (changes, diffs, "\(exercise.name) has no fixed weight, so \(signed) can't be applied. Set a weight first.")
+                return (changes, diffs, String(localized: "\(exercise.name) has no fixed weight, so \(signed) can't be applied. Set a weight first."))
             }
             let new = max(0, base + delta)
             diffs.append("\(formattedKg(base)) → \(formattedKg(new))")
             changes.weightDeltaKg = delta
         }
         if let notes = raw.notes, !notes.isEmpty {
-            diffs.append("note: \"\(notes)\"")
+            diffs.append(String(localized: "note: \"\(notes)\""))
             changes.notes = notes
         }
         return (changes, diffs, nil)
@@ -336,11 +336,11 @@ enum TrainerFeedbackApplier {
         weekIndex: Int
     ) -> ResolvedTrainerFeedbackEdit {
         guard let name = raw.exerciseName, !name.trimmingCharacters(in: .whitespaces).isEmpty else {
-            return unmatched(raw, reason: "Which exercise to add?")
+            return unmatched(raw, reason: String(localized: "Which exercise to add?"))
         }
         let candidates = dayIndices(matchingWeekday: raw.weekday, in: week)
         guard let dayIndex = uniqueDay(candidates, week: week, hintName: name) else {
-            return unmatched(raw, reason: candidates.isEmpty ? "No session that day." : "Say which day to add it to.")
+            return unmatched(raw, reason: candidates.isEmpty ? String(localized: "No session that day.") : String(localized: "Say which day to add it to."))
         }
         let newExercise = ProgramExercise(
             name: name,
@@ -354,7 +354,7 @@ enum TrainerFeedbackApplier {
         )
         let dayLabel = TrainerProgramView.shortWeekdayName(week.days[dayIndex].weekday)
         return ResolvedTrainerFeedbackEdit(
-            summary: "\(dayLabel) \(week.days[dayIndex].title ?? "session"): added \(name)",
+            summary: String(localized: "\(dayLabel) \(week.days[dayIndex].title ?? String(localized: "session")): added \(name)"),
             action: .addExercise(weekIndex: weekIndex, dayIndex: dayIndex, exercise: newExercise)
         )
     }
@@ -369,15 +369,15 @@ enum TrainerFeedbackApplier {
         weekMonday: Date
     ) -> ResolvedTrainerFeedbackEdit {
         guard raw.weekday != nil else {
-            return unmatched(raw, reason: "Which day?")
+            return unmatched(raw, reason: String(localized: "Which day?"))
         }
         let candidates = dayIndices(matchingWeekday: raw.weekday, in: week)
         guard let dayIndex = uniqueDay(candidates, week: week, hintName: raw.exerciseName) else {
             return unmatched(
                 raw,
                 reason: candidates.isEmpty
-                    ? "No session on that day."
-                    : "More than one session that day — couldn't tell which."
+                    ? String(localized: "No session on that day.")
+                    : String(localized: "More than one session that day — couldn't tell which.")
             )
         }
         let day = week.days[dayIndex]
@@ -391,25 +391,25 @@ enum TrainerFeedbackApplier {
             {
                 // Only that date: a repeating program is back to normal next week.
                 return ResolvedTrainerFeedbackEdit(
-                    summary: "\(dayLabel): skipped this \(TrainerProgramView.shortWeekdayName(day.weekday))\(reasonSuffix)",
+                    summary: String(localized: "\(dayLabel): skipped this \(TrainerProgramView.shortWeekdayName(day.weekday))\(reasonSuffix)"),
                     action: .skipDate(weekIndex: weekIndex, dayIndex: dayIndex, date: date)
                 )
             }
             return ResolvedTrainerFeedbackEdit(
-                summary: "\(dayLabel): skipped\(reasonSuffix)",
+                summary: String(localized: "\(dayLabel): skipped\(reasonSuffix)"),
                 action: .skipDay(weekIndex: weekIndex, dayIndex: dayIndex)
             )
         case .moveDay:
             guard let newWeekday = raw.moveToWeekday, (1 ... 7).contains(newWeekday) else {
-                return unmatched(raw, reason: "Move it to which day?")
+                return unmatched(raw, reason: String(localized: "Move it to which day?"))
             }
             let newLabel = TrainerProgramView.shortWeekdayName(newWeekday)
             return ResolvedTrainerFeedbackEdit(
-                summary: "\(dayLabel): moved \(TrainerProgramView.shortWeekdayName(day.weekday)) → \(newLabel)",
+                summary: String(localized: "\(dayLabel): moved \(TrainerProgramView.shortWeekdayName(day.weekday)) → \(newLabel)"),
                 action: .moveDay(weekIndex: weekIndex, dayIndex: dayIndex, newWeekday: newWeekday)
             )
         default:
-            return unmatched(raw, reason: "Unrecognized change.")
+            return unmatched(raw, reason: String(localized: "Unrecognized change."))
         }
     }
 
@@ -456,24 +456,24 @@ enum TrainerFeedbackApplier {
     }
 
     private static func unmatched(_ raw: RawTrainerFeedbackEdit, reason: String) -> ResolvedTrainerFeedbackEdit {
-        ResolvedTrainerFeedbackEdit(summary: fallbackSummary(raw), action: nil, matchFailureReason: "Couldn't match — \(reason)")
+        ResolvedTrainerFeedbackEdit(summary: fallbackSummary(raw), action: nil, matchFailureReason: String(localized: "Couldn't match — \(reason)"))
     }
 
     private static func fallbackSummary(_ raw: RawTrainerFeedbackEdit) -> String {
-        let name = raw.exerciseName ?? "session"
+        let name = raw.exerciseName ?? String(localized: "session")
         return switch raw.type {
-        case .updateExercise: "Change \(name)"
-        case .removeExercise: "Remove \(name)"
-        case .addExercise: "Add \(name)"
-        case .skipSession: "Skip \(name)"
-        case .moveDay: "Move \(name)"
+        case .updateExercise: String(localized: "Change \(name)")
+        case .removeExercise: String(localized: "Remove \(name)")
+        case .addExercise: String(localized: "Add \(name)")
+        case .skipSession: String(localized: "Skip \(name)")
+        case .moveDay: String(localized: "Move \(name)")
         }
     }
 
     private static func formattedKg(_ kg: Double?) -> String {
         guard let kg, kg > 0 else {
-            return "unset"
+            return String(localized: "unset")
         }
-        return kg == kg.rounded() ? "\(Int(kg)) kg" : String(format: "%.1f kg", kg)
+        return kg == kg.rounded() ? "\(Int(kg)) kg" : "\(kg.tempoDecimal(1)) kg"
     }
 }

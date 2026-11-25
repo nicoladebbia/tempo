@@ -69,57 +69,65 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             makeCategory(
                 id: "MORNING_BRIEFING",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_DAY", title: "View Day", options: .foreground),
-                    UNNotificationAction(identifier: "START_WORKOUT", title: "Start Workout", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_DAY", title: String(localized: "View Day"), options: .foreground),
+                    UNNotificationAction(identifier: "START_WORKOUT", title: String(localized: "Start Workout"), options: .foreground),
                 ]
             ),
             // Accountability — Gentle
             makeCategory(
                 id: "ACCOUNTABILITY_GENTLE",
                 actions: [
-                    UNNotificationAction(identifier: "START_STUDY", title: "Start Study", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
+                    UNNotificationAction(identifier: "START_STUDY", title: String(localized: "Start Study"), options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: String(localized: "View Tasks"), options: .foreground),
                 ]
             ),
             // Accountability — Firm
             makeCategory(
                 id: "ACCOUNTABILITY_FIRM",
                 actions: [
-                    UNNotificationAction(identifier: "START_NOW", title: "Start Now", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
+                    UNNotificationAction(identifier: "START_NOW", title: String(localized: "Start Now"), options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: String(localized: "View Tasks"), options: .foreground),
                 ]
             ),
             // Accountability — Urgent
             makeCategory(
                 id: "ACCOUNTABILITY_URGENT",
                 actions: [
-                    UNNotificationAction(identifier: "START_STUDY_TIMER", title: "Start Study Timer", options: .foreground),
-                    UNNotificationAction(identifier: "IM_ON_IT", title: "I'm On It"),
+                    UNNotificationAction(
+                        identifier: "START_STUDY_TIMER",
+                        title: String(localized: "Start Study Timer"),
+                        options: .foreground
+                    ),
+                    UNNotificationAction(identifier: "IM_ON_IT", title: String(localized: "I'm On It")),
                 ]
             ),
             // Accountability — Final Warning
             makeCategory(
                 id: "ACCOUNTABILITY_FINAL",
                 actions: [
-                    UNNotificationAction(identifier: "START_NOW", title: "Start Now", options: .foreground),
-                    UNNotificationAction(identifier: "OVERRIDE", title: "Override", options: [.foreground, .destructive]),
+                    UNNotificationAction(identifier: "START_NOW", title: String(localized: "Start Now"), options: .foreground),
+                    UNNotificationAction(
+                        identifier: "OVERRIDE",
+                        title: String(localized: "Override"),
+                        options: [.foreground, .destructive]
+                    ),
                 ]
             ),
             // Accountability — All Clear
             makeCategory(
                 id: "ACCOUNTABILITY_CLEAR",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_STATS", title: "View Stats", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_STATS", title: String(localized: "View Stats"), options: .foreground),
                 ]
             ),
             // Sunday "plan next week?" — Yes builds it without opening the app.
             makeCategory(
                 id: WeeklyPlanReminder.categoryID,
                 actions: [
-                    UNNotificationAction(identifier: WeeklyPlanReminder.buildActionID, title: "Yes, build it"),
+                    UNNotificationAction(identifier: WeeklyPlanReminder.buildActionID, title: String(localized: "Yes, build it")),
                     UNNotificationAction(
                         identifier: WeeklyPlanReminder.checkInActionID,
-                        title: "Something's different",
+                        title: String(localized: "Something's different"),
                         options: .foreground
                     ),
                 ]
@@ -130,8 +138,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             makeCategory(
                 id: "MEAL_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "LOG_MEAL", title: "Log Meal", options: .foreground),
-                    UNNotificationAction(identifier: "DELAY_30MIN", title: "Delay 30min"),
+                    UNNotificationAction(identifier: "LOG_MEAL", title: String(localized: "Log Meal"), options: .foreground),
+                    UNNotificationAction(identifier: "DELAY_30MIN", title: String(localized: "Delay 30min")),
                 ]
             ),
             // Overdue meal check-in: answer without opening the app. Both go
@@ -139,92 +147,96 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             makeCategory(
                 id: "OVERDUE_MEAL_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: Self.overdueAteActionID, title: "Ate it"),
-                    UNNotificationAction(identifier: Self.overdueSkippedActionID, title: "Skipped"),
+                    UNNotificationAction(identifier: Self.overdueAteActionID, title: String(localized: "Ate it")),
+                    UNNotificationAction(identifier: Self.overdueSkippedActionID, title: String(localized: "Skipped")),
                 ]
             ),
             // Training Reminder
             makeCategory(
                 id: "TRAINING_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: "View Workout", options: .foreground),
-                    UNNotificationAction(identifier: "SKIP_TODAY", title: "Skip Today", options: .destructive),
+                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: String(localized: "View Workout"), options: .foreground),
+                    UNNotificationAction(identifier: "SKIP_TODAY", title: String(localized: "Skip Today"), options: .destructive),
                 ]
             ),
             // Recovery Report
             makeCategory(
                 id: "RECOVERY_REPORT",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_RECOVERY", title: "View Recovery", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: "View Workout", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_RECOVERY", title: String(localized: "View Recovery"), options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_WORKOUT", title: String(localized: "View Workout"), options: .foreground),
                 ]
             ),
             // Bedtime Reminder
             makeCategory(
                 id: "BEDTIME_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "WIND_DOWN", title: "Wind Down", options: .foreground),
+                    UNNotificationAction(identifier: "WIND_DOWN", title: String(localized: "Wind Down"), options: .foreground),
                 ]
             ),
             // Defrost Reminder (Phase C)
             makeCategory(
                 id: "DEFROST_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_MEAL", title: "View Meal", options: .foreground),
-                    UNNotificationAction(identifier: "DONE", title: "Done"),
+                    UNNotificationAction(identifier: "VIEW_MEAL", title: String(localized: "View Meal"), options: .foreground),
+                    UNNotificationAction(identifier: "DONE", title: String(localized: "Done")),
                 ]
             ),
             // Prep-Start Reminder (Phase polish)
             makeCategory(
                 id: "PREP_START_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_MEAL", title: "View Meal", options: .foreground),
-                    UNNotificationAction(identifier: "DELAY_15MIN", title: "Delay 15 min"),
+                    UNNotificationAction(identifier: "VIEW_MEAL", title: String(localized: "View Meal"), options: .foreground),
+                    UNNotificationAction(identifier: "DELAY_15MIN", title: String(localized: "Delay 15 min")),
                 ]
             ),
             // Arena Social
             makeCategory(
                 id: "ARENA_SOCIAL",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_ARENA", title: "View Arena", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_ARENA", title: String(localized: "View Arena"), options: .foreground),
                 ]
             ),
             // Weekly Summary
             makeCategory(
                 id: "WEEKLY_SUMMARY",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_REPORT", title: "View Report", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_REPORT", title: String(localized: "View Report"), options: .foreground),
                 ]
             ),
             // Use It Up (pantry expiry — Phase Pantry Smarts)
             makeCategory(
                 id: "USE_IT_UP",
                 actions: [
-                    UNNotificationAction(identifier: "VIEW_PANTRY", title: "View Pantry", options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_PANTRY", title: String(localized: "View Pantry"), options: .foreground),
                 ]
             ),
             // Streak Warning
             makeCategory(
                 id: "STREAK_WARNING",
                 actions: [
-                    UNNotificationAction(identifier: "SAVE_STREAK", title: "Save Streak", options: .foreground),
-                    UNNotificationAction(identifier: "VIEW_TASKS", title: "View Tasks", options: .foreground),
+                    UNNotificationAction(identifier: "SAVE_STREAK", title: String(localized: "Save Streak"), options: .foreground),
+                    UNNotificationAction(identifier: "VIEW_TASKS", title: String(localized: "View Tasks"), options: .foreground),
                 ]
             ),
             // Supplement dose reminder (Lane 1 — timing engine)
             makeCategory(
                 id: "SUPPLEMENT_REMINDER",
                 actions: [
-                    UNNotificationAction(identifier: "SUPPLEMENT_TAKEN", title: "Taken"),
-                    UNNotificationAction(identifier: "SUPPLEMENT_SNOOZE_15", title: "Snooze 15 min"),
+                    UNNotificationAction(identifier: "SUPPLEMENT_TAKEN", title: String(localized: "Taken")),
+                    UNNotificationAction(identifier: "SUPPLEMENT_SNOOZE_15", title: String(localized: "Snooze 15 min")),
                 ]
             ),
             // Supplement running-low alert
             makeCategory(
                 id: "SUPPLEMENT_REORDER",
                 actions: [
-                    UNNotificationAction(identifier: "SUPPLEMENT_ADD_TO_LIST", title: "Add to grocery list", options: .foreground),
-                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: "Restocked", options: .foreground),
+                    UNNotificationAction(
+                        identifier: "SUPPLEMENT_ADD_TO_LIST",
+                        title: String(localized: "Add to grocery list"),
+                        options: .foreground
+                    ),
+                    UNNotificationAction(identifier: "SUPPLEMENT_RESTOCKED", title: String(localized: "Restocked"), options: .foreground),
                 ]
             ),
         ]
@@ -250,9 +262,9 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
 
         let body = if let score = content.recoveryScore {
-            "Recovery: \(Int(score))%. \(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
+            String(localized: "Recovery: \(Int(score))%. \(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority).")
         } else {
-            "\(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority)."
+            String(localized: "\(content.nonNegotiablesCount) tasks today. Top priority: \(content.topPriority).")
         }
 
         scheduleNotification(
@@ -283,22 +295,22 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
             categoryID = "ACCOUNTABILITY_GENTLE"
             interruptionLevel = .active
             budgetCost = 1.0
-            title = "Accountability Check"
+            title = String(localized: "Accountability Check")
         case .firm:
             categoryID = "ACCOUNTABILITY_FIRM"
             interruptionLevel = .timeSensitive
             budgetCost = 0.5
-            title = "Time Check"
+            title = String(localized: "Time Check")
         case .urgent:
             categoryID = "ACCOUNTABILITY_URGENT"
             interruptionLevel = .timeSensitive
             budgetCost = 0.5
-            title = "URGENT"
+            title = String(localized: "URGENT")
         case .critical:
             categoryID = "ACCOUNTABILITY_FINAL"
             interruptionLevel = .timeSensitive
             budgetCost = 1.0
-            title = "FINAL WARNING"
+            title = String(localized: "FINAL WARNING")
         }
 
         scheduleNotification(
@@ -321,8 +333,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         scheduleNotification(
             id: "meal_\(mealName.lowercased())_\(dateKey(time))",
-            title: "Fuel Up",
-            body: "Time for \(mealName). Don't skip it.",
+            title: String(localized: "Fuel Up"),
+            body: String(localized: "Time for \(mealName). Don't skip it."),
             date: time,
             categoryID: "MEAL_REMINDER",
             threadID: "tempo.meals.\(dateKey(time))",
@@ -348,8 +360,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
     private func mealReminderRequest(_ reminder: MealReminderRequest) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = "Fuel Up"
-        content.body = "\(reminder.mealName) in \(MealReminderPlanner.leadMinutes) min. Don't skip it."
+        content.title = String(localized: "Fuel Up")
+        content.body = String(localized: "\(PlannedMeal.displayName(forMealName: reminder.mealName)) in \(MealReminderPlanner.leadMinutes) min. Don't skip it.")
         content.categoryIdentifier = "MEAL_REMINDER"
         content.threadIdentifier = "tempo.meals.\(dateKey(reminder.fireDate))"
         content.interruptionLevel = .active
@@ -445,11 +457,13 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         guard isWithinPreScheduleWindow(fireDate) else {
             return
         }
-        let leadDescriptor = leadTimeHours == 1 ? "an hour" : "\(leadTimeHours) hours"
+        let defrostBody = leadTimeHours == 1
+            ? String(localized: "\(mealName) is in an hour. Defrost it now or skip the meal — your call.")
+            : String(localized: "\(mealName) is in \(leadTimeHours) hours. Defrost it now or skip the meal — your call.")
         scheduleNotification(
             id: Self.defrostReminderID(mealID: mealID, ingredientID: ingredientID),
-            title: "Move \(ingredientName) out of the freezer.",
-            body: "\(mealName) is in \(leadDescriptor). Defrost it now or skip the meal — your call.",
+            title: String(localized: "Move \(ingredientName) out of the freezer."),
+            body: defrostBody,
             date: fireDate,
             categoryID: "DEFROST_REMINDER",
             threadID: "tempo.defrost.\(mealID.uuidString)",
@@ -494,8 +508,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
         scheduleNotification(
             id: Self.prepStartReminderID(mealID: mealID),
-            title: "Start prepping \(mealName).",
-            body: "It's go time. Knife down the phone first, soldier.",
+            title: String(localized: "Start prepping \(mealName)."),
+            body: String(localized: "It's go time. Knife down the phone first, soldier."),
             date: prepStartDate,
             categoryID: "PREP_START_REMINDER",
             threadID: "tempo.prepstart.\(mealID.uuidString)",
@@ -537,8 +551,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         }
         scheduleNotification(
             id: Self.overdueMealReminderID(mealID: mealID),
-            title: "Hey, have you done your \(mealName.lowercased())?",
-            body: "It was scheduled \(lateMinutes) min ago. Tap to mark it eaten or skip.",
+            title: String(localized: "Hey, have you done your \(mealName.lowercased())?"),
+            body: String(localized: "It was scheduled \(lateMinutes) min ago. Tap to mark it eaten or skip."),
             date: fireDate,
             categoryID: "OVERDUE_MEAL_REMINDER",
             threadID: "tempo.overdue.\(mealID.uuidString)",
@@ -732,8 +746,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     func scheduleWeeklyUploadSundayReminder(programName: String, fireDate: Date) {
         scheduleWeeklyUploadReminder(
             id: Self.weeklyUploadSundayReminderID,
-            title: "New week from your trainer",
-            body: "Week's done — wrap it up: send your trainer the report and load next week.",
+            title: String(localized: "New week from your trainer"),
+            body: String(localized: "Week's done — wrap it up: send your trainer the report and load next week."),
             fireDate: fireDate
         )
     }
@@ -741,8 +755,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     func scheduleWeeklyUploadMondayReminder(programName: String, fireDate: Date) {
         scheduleWeeklyUploadReminder(
             id: Self.weeklyUploadMondayReminderID,
-            title: "Still no new program from your trainer",
-            body: "\(programName) is running on last week's plan. Get the new one in.",
+            title: String(localized: "Still no new program from your trainer"),
+            body: String(localized: "\(programName) is running on last week's plan. Get the new one in."),
             fireDate: fireDate
         )
     }
@@ -802,8 +816,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
         let fireDate = Date().addingTimeInterval(5)
         scheduleNotification(
             id: Self.missedLogReminderID,
-            title: "Did you eat yesterday?",
-            body: "Your log came up almost empty with meals left unmarked. If you ate, log it — I'm not carrying a fake deficit into today.",
+            title: String(localized: "Did you eat yesterday?"),
+            body: String(
+                localized: "Your log came up almost empty with meals left unmarked. If you ate, log it — I'm not carrying a fake deficit into today."
+            ),
             date: fireDate,
             categoryID: "MEAL_REMINDER",
             threadID: "tempo.missedlog",
@@ -826,7 +842,7 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
     func scheduleUseItUpReminder(body: String, fireDate: Date) {
         scheduleNotification(
             id: Self.useItUpReminderID,
-            title: "Use it up",
+            title: String(localized: "Use it up"),
             body: body,
             date: fireDate,
             categoryID: "USE_IT_UP",
@@ -853,9 +869,15 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         let body: String
         if recoveryScore < 34 {
-            body = "Your recovery is RED today (\(recoveryScore)%). Consider rest or light mobility. Don't push through this."
+            body =
+                String(
+                    localized: "Your recovery is RED today (\(recoveryScore)%). Consider rest or light mobility. Don't push through this."
+                )
         } else if recoveryScore < 67 {
-            body = "Yellow recovery (\(recoveryScore)%). Adjust intensity down 20% — not commitment, just volume. Stay smart."
+            body =
+                String(
+                    localized: "Yellow recovery (\(recoveryScore)%). Adjust intensity down 20% — not commitment, just volume. Stay smart."
+                )
         } else {
             return // Green recovery: no notification needed
         }
@@ -888,8 +910,10 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         scheduleNotification(
             id: "streak_warning_\(dateKey(time))",
-            title: "STREAK AT RISK",
-            body: "Your \(streakDays)-day streak is at risk! Complete \(tasksRemaining) more task\(tasksRemaining == 1 ? "" : "s") to keep it alive.",
+            title: String(localized: "STREAK AT RISK"),
+            body: tasksRemaining == 1
+                ? String(localized: "Your \(streakDays)-day streak is at risk! Complete \(tasksRemaining) more task to keep it alive.")
+                : String(localized: "Your \(streakDays)-day streak is at risk! Complete \(tasksRemaining) more tasks to keep it alive."),
             date: time,
             categoryID: "STREAK_WARNING",
             threadID: "tempo.streak.\(dateKey(time))",
@@ -910,8 +934,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         scheduleNotification(
             id: "training_\(dateKey(time))",
-            title: "Training Time",
-            body: "\(workoutType) day. Your workout is ready. Get after it.",
+            title: String(localized: "Training Time"),
+            body: String(localized: "\(workoutType) day. Your workout is ready. Get after it."),
             date: time,
             categoryID: "TRAINING_REMINDER",
             threadID: "tempo.training.\(dateKey(time))",
@@ -928,8 +952,8 @@ final class NotificationService: NotificationServiceProtocol, @unchecked Sendabl
 
         scheduleNotification(
             id: "bedtime_\(dateKey(time))",
-            title: "Lights Out",
-            body: "Hit the rack. Recovery starts now.",
+            title: String(localized: "Lights Out"),
+            body: String(localized: "Hit the rack. Recovery starts now."),
             date: time,
             categoryID: "BEDTIME_REMINDER",
             threadID: "tempo.bedtime.\(dateKey(time))",

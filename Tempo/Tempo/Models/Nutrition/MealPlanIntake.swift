@@ -55,7 +55,9 @@ struct MealPlanIntake: Sendable, Equatable {
     static func eatingWindow(fromOnboarding dailyPlan: UserDailyPlanProfile) -> EatingWindow? {
         let start = dailyPlan.eatingWindowStartMinutes
         let end = dailyPlan.eatingWindowEndMinutes
-        guard start >= 0, end > start, end <= 24 * 60 else { return nil }
+        guard start >= 0, end > start, end <= 24 * 60 else {
+            return nil
+        }
         let window = EatingWindow(
             firstMealHour: Int((Double(start) / 60).rounded(.up)),
             lastMealHour: min(23, end / 60)
@@ -70,7 +72,9 @@ struct MealPlanIntake: Sendable, Equatable {
     ///    their only source).
     /// Used to pre-fill the wizard and, in the generator, for every plan.
     func applyingOnboarding(_ dailyPlan: UserDailyPlanProfile?, settings: UserSettings?) -> MealPlanIntake {
-        guard let dailyPlan else { return self }
+        guard let dailyPlan else {
+            return self
+        }
         var copy = self
         if !Self.hasPersistedEatingWindow(settings), let window = Self.eatingWindow(fromOnboarding: dailyPlan) {
             copy.eatingWindow = window
@@ -290,9 +294,9 @@ struct WeeklyTrainingSchedule: Sendable, Equatable {
     static func build(from week: [DayTrainingSchedule]) -> WeeklyTrainingSchedule {
         var byWeekday: [Int: String] = [:]
         for day in week {
-            var label = day.mainType.displayName
+            var label = day.mainType.englishName
             if let secondary = day.secondaryType {
-                label += " + \(secondary.displayName)"
+                label += " + \(secondary.englishName)"
             }
             byWeekday[day.weekday] = label
         }
@@ -313,9 +317,9 @@ enum LeftoverTolerance: String, Sendable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .freshDaily: "Fresh every day"
-        case .twoToThreeDayBatches: "2-3 day batches"
-        case .fullWeekPrep: "Full-week prep"
+        case .freshDaily: String(localized: "Fresh every day")
+        case .twoToThreeDayBatches: String(localized: "2-3 day batches")
+        case .fullWeekPrep: String(localized: "Full-week prep")
         }
     }
 

@@ -98,33 +98,33 @@ struct MonthlyReviewView: View {
 
             MonthlyReviewQuestion(
                 number: 1,
-                title: "What went well?",
+                title: String(localized: "What went well?"),
                 text: $wentWell,
-                placeholder: "Streaks, sessions that clicked, habits that held…"
+                placeholder: String(localized: "Streaks, sessions that clicked, habits that held…")
             )
             MonthlyReviewQuestion(
                 number: 2,
-                title: "What did you skip — and why?",
+                title: String(localized: "What did you skip — and why?"),
                 text: $struggles,
-                placeholder: "The honest version. PS5 nights count."
+                placeholder: String(localized: "The honest version. PS5 nights count.")
             )
             MonthlyReviewQuestion(
                 number: 3,
-                title: "Injuries or niggles?",
+                title: String(localized: "Injuries or niggles?"),
                 text: $niggles,
-                placeholder: "Anything next month's plan should route around."
+                placeholder: String(localized: "Anything next month's plan should route around.")
             )
             MonthlyReviewQuestion(
                 number: 4,
-                title: "Feel different?",
+                title: String(localized: "Feel different?"),
                 text: $subjectiveProgress,
-                placeholder: "Faster, stronger, leaner — what no sensor sees."
+                placeholder: String(localized: "Faster, stronger, leaner — what no sensor sees.")
             )
             MonthlyReviewQuestion(
                 number: 5,
-                title: "Goals for next month?",
+                title: String(localized: "Goals for next month?"),
                 text: $goalsNextMonth,
-                placeholder: "Concrete beats vague."
+                placeholder: String(localized: "Concrete beats vague.")
             )
 
             VStack(alignment: .leading, spacing: Tide.s3) {
@@ -148,7 +148,7 @@ struct MonthlyReviewView: View {
                     ),
                     spacing: Tide.s2
                 ) {
-                    emphasisButton(nil, label: "Keep current")
+                    emphasisButton(nil, label: String(localized: "Keep current"))
                     ForEach(BlockEmphasis.allCases, id: \.self) { e in
                         emphasisButton(e, label: e.displayName)
                     }
@@ -159,9 +159,9 @@ struct MonthlyReviewView: View {
             if generationFailed {
                 TrainBanner(
                     systemImage: "exclamationmark.triangle.fill",
-                    label: "Saved",
+                    label: String(localized: "Saved"),
                     tint: TideTrain.caution,
-                    message: "Interview saved. Report generation failed — it'll retry next time you open the app."
+                    message: String(localized: "Interview saved. Report generation failed — it'll retry next time you open the app.")
                 ) {}
             }
         }
@@ -191,12 +191,12 @@ struct MonthlyReviewView: View {
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(typeSize.isAccessibilitySize
-                    ? "\(answeredCount) of 5 answered"
-                    : "Five honest answers. The plan reads them.")
+                    ? String(localized: "\(answeredCount) of 5 answered")
+                    : String(localized: "Five honest answers. The plan reads them."))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
-                TrainSetTicks(done: answeredCount, total: 5, label: "Questions")
+                TrainSetTicks(done: answeredCount, total: 5, label: String(localized: "Questions"))
                     .padding(.top, Tide.s1)
             }
         }
@@ -216,7 +216,7 @@ struct MonthlyReviewView: View {
                 if isGenerating {
                     ProgressView().tint(Tide.ink)
                 }
-                Text(isGenerating ? "Writing your report…" : "File the report")
+                Text(isGenerating ? String(localized: "Writing your report…") : String(localized: "File the report"))
             }
             .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
         }

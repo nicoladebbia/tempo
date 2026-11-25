@@ -19,8 +19,8 @@ struct CookingCapacityStepView: View {
 
     var body: some View {
         WizardStepScaffold(
-            title: "Real cook count.",
-            subtitle: "How many days this week can you actually cook? Not optimistic — real.",
+            title: String(localized: "Real cook count."),
+            subtitle: String(localized: "How many days this week can you actually cook? Not optimistic — real."),
             eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
@@ -33,7 +33,7 @@ struct CookingCapacityStepView: View {
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     TideNumber(
                         "\(coordinator.intake.cookableDaysThisWeek)",
-                        unit: coordinator.intake.cookableDaysThisWeek == 1 ? "day" : "days",
+                        unit: coordinator.intake.cookableDaysThisWeek == 1 ? String(localized: "day") : String(localized: "days"),
                         size: Tide.numeralL
                     )
                     .contentTransition(.numericText())
@@ -67,7 +67,7 @@ struct CookingCapacityStepView: View {
 
     private func tile(for day: Int) -> some View {
         let selected = coordinator.intake.cookableDaysThisWeek == day
-        let unit = day == 1 ? "day" : "days"
+        let unit = day == 1 ? String(localized: "day") : String(localized: "days")
         return Button {
             HapticManager.selection()
             coordinator.intake.cookableDaysThisWeek = day
@@ -93,11 +93,11 @@ struct CookingCapacityStepView: View {
 
     private var footerLabel: String {
         switch coordinator.intake.cookableDaysThisWeek {
-        case 0: "Zero cooking days. Plan will lean on no-cook foods + leftovers."
-        case 1 ... 2: "Light cooking week. Batches and quick assemblies."
-        case 3 ... 4: "Standard. Most plans land here."
-        case 5 ... 6: "Heavy cook week. Variety will be high."
-        case 7: "Cooking every day. Solid commitment."
+        case 0: String(localized: "Zero cooking days. Plan will lean on no-cook foods + leftovers.")
+        case 1 ... 2: String(localized: "Light cooking week. Batches and quick assemblies.")
+        case 3 ... 4: String(localized: "Standard. Most plans land here.")
+        case 5 ... 6: String(localized: "Heavy cook week. Variety will be high.")
+        case 7: String(localized: "Cooking every day. Solid commitment.")
         default: ""
         }
     }

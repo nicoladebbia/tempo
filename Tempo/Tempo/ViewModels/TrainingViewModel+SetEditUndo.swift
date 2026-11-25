@@ -25,7 +25,7 @@ extension TrainingViewModel {
         let lastLoggedSetID: UUID?
 
         var message: String {
-            snapshot.isWarmup ? "Removed a warm-up set" : "Removed a set"
+            snapshot.isWarmup ? String(localized: "Removed a warm-up set") : String(localized: "Removed a set")
         }
     }
 
@@ -97,7 +97,7 @@ extension TrainingViewModel {
                 sessionState = .exercise(.setActive(exerciseIndex: undo.exerciseIndex, setIndex: position))
             }
         }
-        saveGuarded(modelContext, operation: "undo remove set")
+        saveGuarded(modelContext, operation: String(localized: "undo remove set"))
         HapticManager.selection()
         return true
     }

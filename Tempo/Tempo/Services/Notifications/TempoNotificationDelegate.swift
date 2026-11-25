@@ -78,7 +78,7 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
             return
         case ("MEAL_REMINDER", "DELAY_30MIN"):
             let snoozedBody = (userInfo[NotificationService.mealNameUserInfoKey] as? String)
-                .map { "Time for \($0). Don't skip it." } ?? body
+                .map { String(localized: "Time for \($0). Don't skip it.") } ?? body
             await snooze(title: title, body: snoozedBody, category: category, minutes: 30, mealID: mealID)
             return
         case ("OVERDUE_MEAL_REMINDER", NotificationService.overdueAteActionID):
@@ -159,8 +159,8 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
             try await WeeklyPlanService.shared.requestWeek(modelContext: container.mainContext, deps: PlanDeps(services))
         } catch {
             logger.error("Sunday build failed to start: \(error.localizedDescription, privacy: .public)")
-            let reason = (error as? LocalizedError)?.errorDescription ?? "Open Tempo to try again."
-            await WeeklyPlanReminder.notify(title: "Couldn't start next week's plan", body: reason)
+            let reason = (error as? LocalizedError)?.errorDescription ?? String(localized: "Open Tempo to try again.")
+            await WeeklyPlanReminder.notify(title: String(localized: "Couldn't start next week's plan"), body: reason)
         }
     }
 

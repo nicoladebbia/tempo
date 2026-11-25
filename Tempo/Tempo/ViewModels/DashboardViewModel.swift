@@ -119,11 +119,11 @@ final class DashboardViewModel {
 
                 var recommendation: String?
                 if tempC > 30 {
-                    recommendation = "Stay hydrated -- target 3.5L today"
+                    recommendation = String(localized: "Stay hydrated -- target 3.5L today")
                 } else if isRaining {
-                    recommendation = "Indoor workout recommended"
+                    recommendation = String(localized: "Indoor workout recommended")
                 } else if tempC < 5 {
-                    recommendation = "Layer up for outdoor activity"
+                    recommendation = String(localized: "Layer up for outdoor activity")
                 }
 
                 #if DEBUG
@@ -1043,11 +1043,11 @@ final class DashboardViewModel {
         }
         guard !insights.isEmpty else {
             return DashboardInsight(
-                text: "All systems normal. Execute the plan.",
+                text: String(localized: "All systems normal. Execute the plan."),
                 icon: "checkmark.shield.fill",
-                detailTitle: "Status: Operational",
-                detailFinding: "Recovery, sleep, nutrition, and training are all within normal ranges.",
-                detailRecommendation: "Stay the course. Hit every target and stack another win."
+                detailTitle: String(localized: "Status: Operational"),
+                detailFinding: String(localized: "Recovery, sleep, nutrition, and training are all within normal ranges."),
+                detailRecommendation: String(localized: "Stay the course. Hit every target and stack another win.")
             )
         }
         return insights[insightIndex % insights.count]
@@ -1090,11 +1090,11 @@ final class DashboardViewModel {
         // 1. Low recovery warning
         if let recovery = body.recoveryScore, recovery < 40 {
             result.append(DashboardInsight(
-                text: "Your recovery is \(Int(recovery))%. Consider a lighter workout today.",
+                text: String(localized: "Your recovery is \(Int(recovery))%. Consider a lighter workout today."),
                 icon: "exclamationmark.triangle.fill",
-                detailTitle: "Low Recovery Alert",
-                detailFinding: "Your recovery score is \(Int(recovery))%, which is in the red zone. Training hard today increases injury risk and delays adaptation.",
-                detailRecommendation: "Swap today's session for mobility work or a light walk. Sleep 8+ hours tonight to bounce back."
+                detailTitle: String(localized: "Low Recovery Alert"),
+                detailFinding: String(localized: "Your recovery score is \(Int(recovery))%, which is in the red zone. Training hard today increases injury risk and delays adaptation."),
+                detailRecommendation: String(localized: "Swap today's session for mobility work or a light walk. Sleep 8+ hours tonight to bounce back.")
             ))
         }
 
@@ -1104,32 +1104,32 @@ final class DashboardViewModel {
             let mealsPlanned = fuel.mealsPlanned ?? 3
             if mealsLogged < mealsPlanned {
                 result.append(DashboardInsight(
-                    text: "Poor sleep + missed meals. When you sleep < 7h, you log fewer meals.",
+                    text: String(localized: "Poor sleep + missed meals. When you sleep < 7h, you log fewer meals."),
                     icon: "moon.zzz.fill",
-                    detailTitle: "Sleep-Nutrition Link",
-                    detailFinding: "You got \(String(format: "%.1f", sleep))h of sleep and have only logged \(mealsLogged)/\(mealsPlanned) meals. Sleep deprivation disrupts hunger hormones and decision-making, leading to skipped meals or poor choices.",
-                    detailRecommendation: "Set reminders for your remaining meals today. Prioritize protein-rich options — they require less willpower when you're tired. Hit 8+ hours tonight."
+                    detailTitle: String(localized: "Sleep-Nutrition Link"),
+                    detailFinding: String(localized: "You got \(sleep.tempoDecimal(1))h of sleep and have only logged \(mealsLogged)/\(mealsPlanned) meals. Sleep deprivation disrupts hunger hormones and decision-making, leading to skipped meals or poor choices."),
+                    detailRecommendation: String(localized: "Set reminders for your remaining meals today. Prioritize protein-rich options — they require less willpower when you're tired. Hit 8+ hours tonight.")
                 ))
             } else {
                 result.append(DashboardInsight(
-                    text: "You slept \(String(format: "%.1f", sleep))h. Prioritize an early bedtime tonight.",
+                    text: String(localized: "You slept \(sleep.tempoDecimal(1))h. Prioritize an early bedtime tonight."),
                     icon: "moon.zzz.fill",
-                    detailTitle: "Sleep Deficit",
-                    detailFinding: "You got \(String(format: "%.1f", sleep)) hours of sleep. Cognitive performance and muscle recovery both drop significantly below 7 hours.",
-                    detailRecommendation: "Set an alarm for 10 PM tonight. No screens after 9 PM. Your body does its best repair work between 10 PM and 2 AM."
+                    detailTitle: String(localized: "Sleep Deficit"),
+                    detailFinding: String(localized: "You got \(sleep.tempoDecimal(1)) hours of sleep. Cognitive performance and muscle recovery both drop significantly below 7 hours."),
+                    detailRecommendation: String(localized: "Set an alarm for 10 PM tonight. No screens after 9 PM. Your body does its best repair work between 10 PM and 2 AM.")
                 ))
             }
         }
 
         // 3. Recovery vs training cross-pattern
         if let recovery = body.recoveryScore, recovery < 60, move.workoutStatus == .planned {
-            let workoutName = move.workoutName ?? "Workout"
+            let workoutName = move.workoutName ?? String(localized: "Workout")
             result.append(DashboardInsight(
-                text: "Recovery at \(Int(recovery))% with \(workoutName) planned. Reduce volume or intensity.",
+                text: String(localized: "Recovery at \(Int(recovery))% with \(workoutName) planned. Reduce volume or intensity."),
                 icon: "waveform.path.ecg",
-                detailTitle: "Recovery vs Training Tension",
-                detailFinding: "Your recovery (\(Int(recovery))%) is below optimal for a full training session. Pushing through yellow/red recovery repeatedly leads to overtraining and plateaus.",
-                detailRecommendation: "Do the session but cut volume by 20-30%. Focus on technique over load. If recovery stays low for 3+ days, take an extra rest day."
+                detailTitle: String(localized: "Recovery vs Training Tension"),
+                detailFinding: String(localized: "Your recovery (\(Int(recovery))%) is below optimal for a full training session. Pushing through yellow/red recovery repeatedly leads to overtraining and plateaus."),
+                detailRecommendation: String(localized: "Do the session but cut volume by 20-30%. Focus on technique over load. If recovery stays low for 3+ days, take an extra rest day.")
             ))
         }
 
@@ -1137,11 +1137,11 @@ final class DashboardViewModel {
         if let sleep = body.sleepHours, sleep >= 8 {
             if mind.studyMinutesToday == 0, mind.studyTargetMinutes > 0 {
                 result.append(DashboardInsight(
-                    text: "Great sleep (\(String(format: "%.1f", sleep))h). Your brain is primed for deep focus today.",
+                    text: String(localized: "Great sleep (\(sleep.tempoDecimal(1))h). Your brain is primed for deep focus today."),
                     icon: "brain.head.profile",
-                    detailTitle: "Sleep-Study Advantage",
-                    detailFinding: "You slept \(String(format: "%.1f", sleep)) hours. Research shows you study 40min more effectively on days with 8+ hours of sleep. Memory consolidation and focus are at peak levels.",
-                    detailRecommendation: "Start your study session now while cognitive function is highest. Tackle the hardest material first — your brain can handle it today."
+                    detailTitle: String(localized: "Sleep-Study Advantage"),
+                    detailFinding: String(localized: "You slept \(sleep.tempoDecimal(1)) hours. Research shows you study 40min more effectively on days with 8+ hours of sleep. Memory consolidation and focus are at peak levels."),
+                    detailRecommendation: String(localized: "Start your study session now while cognitive function is highest. Tackle the hardest material first — your brain can handle it today.")
                 ))
             }
         }
@@ -1149,22 +1149,22 @@ final class DashboardViewModel {
         // 5. Streak celebration
         if mind.currentStreakDays > 7 {
             result.append(DashboardInsight(
-                text: "\(mind.currentStreakDays)-day streak. Habits are becoming automatic.",
+                text: String(localized: "\(mind.currentStreakDays)-day streak. Habits are becoming automatic."),
                 icon: "flame.fill",
-                detailTitle: "Streak Momentum",
-                detailFinding: "You've maintained consistency for \(mind.currentStreakDays) days straight. Habits formed over 21+ days have an 80% chance of sticking permanently.",
-                detailRecommendation: "Don't break the chain. Even a 15-minute session on a bad day keeps the streak alive and the habit strong."
+                detailTitle: String(localized: "Streak Momentum"),
+                detailFinding: String(localized: "You've maintained consistency for \(mind.currentStreakDays) days straight. Habits formed over 21+ days have an 80% chance of sticking permanently."),
+                detailRecommendation: String(localized: "Don't break the chain. Even a 15-minute session on a bad day keeps the streak alive and the habit strong.")
             ))
         }
 
         // 6. Training day reminder
         if move.workoutStatus == .planned, let workoutName = move.workoutName {
             result.append(DashboardInsight(
-                text: "Today is \(workoutName) day. Don't skip it.",
+                text: String(localized: "Today is \(workoutName) day. Don't skip it."),
                 icon: "dumbbell.fill",
-                detailTitle: "Training Day",
-                detailFinding: "You have \(workoutName) planned for today and haven't started yet. Consistency beats intensity — showing up matters more than having a perfect session.",
-                detailRecommendation: "Get it done. Even a shortened session is better than a skipped one. Start within the next 2 hours for optimal hormone levels."
+                detailTitle: String(localized: "Training Day"),
+                detailFinding: String(localized: "You have \(workoutName) planned for today and haven't started yet. Consistency beats intensity — showing up matters more than having a perfect session."),
+                detailRecommendation: String(localized: "Get it done. Even a shortened session is better than a skipped one. Start within the next 2 hours for optimal hormone levels.")
             ))
         }
 
@@ -1174,11 +1174,11 @@ final class DashboardViewModel {
         let firstDay = isFirstDay()
         if firstDay, (fuel.caloriesConsumed ?? 0) == 0 {
             result.append(DashboardInsight(
-                text: "Day one. Log your first meal and your numbers start filling in.",
+                text: String(localized: "Day one. Log your first meal and your numbers start filling in."),
                 icon: "sparkles",
-                detailTitle: "Getting Started",
-                detailFinding: "Nothing is logged yet, so there is nothing to judge. Your score, targets and insights build from what you log and what your tracker measures.",
-                detailRecommendation: "Log your next meal, then set up training and your daily tasks. Tomorrow this page will have something to say."
+                detailTitle: String(localized: "Getting Started"),
+                detailFinding: String(localized: "Nothing is logged yet, so there is nothing to judge. Your score, targets and insights build from what you log and what your tracker measures."),
+                detailRecommendation: String(localized: "Log your next meal, then set up training and your daily tasks. Tomorrow this page will have something to say.")
             ))
         }
         if !firstDay, let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
@@ -1186,11 +1186,11 @@ final class DashboardViewModel {
             let hour = Calendar.current.component(.hour, from: Date())
             if ratio < 0.4, hour >= 16 {
                 result.append(DashboardInsight(
-                    text: "Only \(consumed) of \(target) kcal logged by \(hour > 12 ? hour - 12 : hour)PM. Fuel up.",
+                    text: String(localized: "Only \(consumed) of \(target) kcal logged by \(Self.hourLabel(hour)). Fuel up."),
                     icon: "fork.knife",
-                    detailTitle: "Calorie Deficit Alert",
-                    detailFinding: "You've consumed only \(Int(ratio * 100))% of your calorie target with the day winding down. Under-eating sabotages recovery, muscle growth, and cognitive function.",
-                    detailRecommendation: "Eat a high-calorie meal now. Focus on protein + carbs: chicken and rice, pasta with meat, or a large smoothie with protein powder. Don't skip dinner."
+                    detailTitle: String(localized: "Calorie Deficit Alert"),
+                    detailFinding: String(localized: "You've consumed only \(Int(ratio * 100))% of your calorie target with the day winding down. Under-eating sabotages recovery, muscle growth, and cognitive function."),
+                    detailRecommendation: String(localized: "Eat a high-calorie meal now. Focus on protein + carbs: chicken and rice, pasta with meat, or a large smoothie with protein powder. Don't skip dinner.")
                 ))
             }
         }
@@ -1202,11 +1202,11 @@ final class DashboardViewModel {
                 let hour = Calendar.current.component(.hour, from: Date())
                 if hour >= 14 {
                     result.append(DashboardInsight(
-                        text: "\(remaining)g protein still needed. Every gram counts for recovery.",
+                        text: String(localized: "\(remaining)g protein still needed. Every gram counts for recovery."),
                         icon: "leaf.fill",
-                        detailTitle: "Protein Gap",
-                        detailFinding: "You need \(remaining)g more protein to hit your \(target)g target. Protein synthesis peaks in the 24h post-training window — missing this window means slower gains.",
-                        detailRecommendation: "Quick wins: Greek yogurt (15g), chicken breast (30g), whey shake (25g), or eggs (6g each). Spread across remaining meals."
+                        detailTitle: String(localized: "Protein Gap"),
+                        detailFinding: String(localized: "You need \(remaining)g more protein to hit your \(target)g target. Protein synthesis peaks in the 24h post-training window — missing this window means slower gains."),
+                        detailRecommendation: String(localized: "Quick wins: Greek yogurt (15g), chicken breast (30g), whey shake (25g), or eggs (6g each). Spread across remaining meals.")
                     ))
                 }
             }
@@ -1219,11 +1219,11 @@ final class DashboardViewModel {
             let hour = Calendar.current.component(.hour, from: Date())
             if remaining > 0, remaining <= 3000, hour >= 15 {
                 result.append(DashboardInsight(
-                    text: "\(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps to go. A 20-min walk closes the gap.",
+                    text: String(localized: "\(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps to go. A 20-min walk closes the gap."),
                     icon: "figure.walk",
-                    detailTitle: "Steps Almost There",
-                    detailFinding: "You're \(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps away from your \(NumberFormatter.localizedString(from: NSNumber(value: target), number: .decimal)) target. A brisk 20-minute walk covers about 2,000-2,500 steps.",
-                    detailRecommendation: "Take a walk after your next meal. Walking post-meal improves blood sugar regulation by 30% and gets you closer to your step goal."
+                    detailTitle: String(localized: "Steps Almost There"),
+                    detailFinding: String(localized: "You're \(NumberFormatter.localizedString(from: NSNumber(value: remaining), number: .decimal)) steps away from your \(NumberFormatter.localizedString(from: NSNumber(value: target), number: .decimal)) target. A brisk 20-minute walk covers about 2,000-2,500 steps."),
+                    detailRecommendation: String(localized: "Take a walk after your next meal. Walking post-meal improves blood sugar regulation by 30% and gets you closer to your step goal.")
                 ))
             }
         }
@@ -1234,11 +1234,11 @@ final class DashboardViewModel {
             let target = fuel.calorieTarget ?? 2400
             if consumed < target / 2 {
                 result.append(DashboardInsight(
-                    text: "High strain (\(String(format: "%.1f", strain))) but low fuel. You're burning more than you're replacing.",
+                    text: String(localized: "High strain (\(strain.tempoDecimal(1))) but low fuel. You're burning more than you're replacing."),
                     icon: "flame.circle.fill",
-                    detailTitle: "Strain-Fuel Imbalance",
-                    detailFinding: "Your day strain is \(String(format: "%.1f", strain)) (high intensity) but you've only consumed \(consumed) of \(target) calories. This creates a recovery debt your body will collect on tomorrow.",
-                    detailRecommendation: "Eat a substantial meal with carbs to replenish glycogen. Add 200-300 calories above your normal target on high-strain days."
+                    detailTitle: String(localized: "Strain-Fuel Imbalance"),
+                    detailFinding: String(localized: "Your day strain is \(strain.tempoDecimal(1)) (high intensity) but you've only consumed \(consumed) of \(target) calories. This creates a recovery debt your body will collect on tomorrow."),
+                    detailRecommendation: String(localized: "Eat a substantial meal with carbs to replenish glycogen. Add 200-300 calories above your normal target on high-strain days.")
                 ))
             }
         }
@@ -1250,22 +1250,22 @@ final class DashboardViewModel {
            nonNegotiablesDone >= nonNegotiablesTotal, nonNegotiablesTotal > 0
         {
             result.append(DashboardInsight(
-                text: "All targets hit. This is what discipline looks like.",
+                text: String(localized: "All targets hit. This is what discipline looks like."),
                 icon: "star.fill",
-                detailTitle: "Perfect Execution Day",
-                detailFinding: "Recovery green, workout done, study target hit, all non-negotiables completed. Days like this are rare — most people never string two together.",
-                detailRecommendation: "Protect your sleep tonight to make tomorrow just as good. Perfect days compound — three in a row is where real transformation happens."
+                detailTitle: String(localized: "Perfect Execution Day"),
+                detailFinding: String(localized: "Recovery green, workout done, study target hit, all non-negotiables completed. Days like this are rare — most people never string two together."),
+                detailRecommendation: String(localized: "Protect your sleep tonight to make tomorrow just as good. Perfect days compound — three in a row is where real transformation happens.")
             ))
         }
 
         // Default fallback
         if result.isEmpty {
             result.append(DashboardInsight(
-                text: "All systems normal. Execute the plan.",
+                text: String(localized: "All systems normal. Execute the plan."),
                 icon: "checkmark.shield.fill",
-                detailTitle: "Status: Operational",
-                detailFinding: "Recovery, sleep, nutrition, and training are all within normal ranges. No corrective actions needed today.",
-                detailRecommendation: "Stay the course. Days like this are where discipline compounds. Hit every target and stack another win."
+                detailTitle: String(localized: "Status: Operational"),
+                detailFinding: String(localized: "Recovery, sleep, nutrition, and training are all within normal ranges. No corrective actions needed today."),
+                detailRecommendation: String(localized: "Stay the course. Days like this are where discipline compounds. Hit every target and stack another win.")
             ))
         }
 
@@ -1562,67 +1562,78 @@ final class DashboardViewModel {
     // Per UX_COPY_BIBLE.md Section 3.2 — Context-aware greeting.
     // Priority: recovery warning > streak milestone > training schedule > deload > time-of-day fallback.
 
+    /// "4PM" in English. The catalog gives other languages their own pattern
+    /// (a 24-hour clock in Italian), so the hour reads the way people there say it.
+    private static func hourLabel(_ hour: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = String(localized: "ha", comment: "DATE_FORMAT")
+        formatter.amSymbol = "AM"
+        formatter.pmSymbol = "PM"
+        let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+        return formatter.string(from: date)
+    }
+
     private func greetingForCurrentTime(firstName: String?) -> String {
         let trimmed = firstName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let name = trimmed.isEmpty ? "" : ", \(trimmed)"
 
         // Priority 1: Low recovery warning
         if let recovery = body.recoveryScore, recovery < 40 {
-            return "Recovery is low. Take it easy today\(name)."
+            return String(localized: "Recovery is low. Take it easy today\(name).")
         }
 
         // Priority 2: Streak milestone (7+)
         if mind.currentStreakDays >= 14 {
-            return "\(mind.currentStreakDays)-day streak. Keep the pressure on\(name)."
+            return String(localized: "\(mind.currentStreakDays)-day streak. Keep the pressure on\(name).")
         }
 
         // Priority 3: Deload week detection (auto-deload enabled + week aligns)
         if isDeloadWeek {
-            return "Deload week. Earn your recovery\(name)."
+            return String(localized: "Deload week. Earn your recovery\(name).")
         }
 
         // Priority 4: Training schedule context
         if let workoutName = move.workoutName {
             switch move.workoutStatus {
             case .planned:
-                return "\(workoutName) day. Finish what you started\(name)."
+                return String(localized: "\(workoutName) day. Finish what you started\(name).")
             case .completed:
-                return "\(workoutName) crushed. Recover hard\(name)."
+                return String(localized: "\(workoutName) crushed. Recover hard\(name).")
             case .restDay:
-                return "Rest day. Recovery is training\(name)."
+                return String(localized: "Rest day. Recovery is training\(name).")
             case .none:
                 break
             }
         } else if move.workoutStatus == .restDay {
-            return "Rest day. Recovery is training\(name)."
+            return String(localized: "Rest day. Recovery is training\(name).")
         }
 
         // Priority 5: Poor sleep nudge
         if let sleep = body.sleepHours, sleep < 6.5 {
-            return "Rough night. Push through anyway\(name)."
+            return String(localized: "Rough night. Push through anyway\(name).")
         }
 
         // Priority 6: High recovery = green light
         if let recovery = body.recoveryScore, recovery >= 80 {
-            return "Recovery is green. Go all out\(name)."
+            return String(localized: "Recovery is green. Go all out\(name).")
         }
 
         // Priority 7: Streak building (2-13 days)
         if mind.currentStreakDays >= 7 {
-            return "\(mind.currentStreakDays)-day streak. Don't break the chain\(name)."
+            return String(localized: "\(mind.currentStreakDays)-day streak. Don't break the chain\(name).")
         }
 
         // Fallback: Time-based greeting
         let hour = Calendar.current.component(.hour, from: Date())
         switch hour {
-        case 0 ..< 4: return "You should be asleep\(name)."
-        case 4 ..< 8: return "Early bird gets the gains\(name)."
-        case 8 ..< 12: return "Rise and grind\(name)."
-        case 12 ..< 14: return "No half reps this afternoon\(name)."
-        case 14 ..< 17: return "Keep the pressure on\(name)."
-        case 17 ..< 21: return "Finish what you started\(name)."
-        case 21 ..< 24: return "Earn your sleep\(name)."
-        default: return "Rise and grind\(name)."
+        case 0 ..< 4: return String(localized: "You should be asleep\(name).")
+        case 4 ..< 8: return String(localized: "Early bird gets the gains\(name).")
+        case 8 ..< 12: return String(localized: "Rise and grind\(name).")
+        case 12 ..< 14: return String(localized: "No half reps this afternoon\(name).")
+        case 14 ..< 17: return String(localized: "Keep the pressure on\(name).")
+        case 17 ..< 21: return String(localized: "Finish what you started\(name).")
+        case 21 ..< 24: return String(localized: "Earn your sleep\(name).")
+        default: return String(localized: "Rise and grind\(name).")
         }
     }
 

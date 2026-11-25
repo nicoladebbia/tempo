@@ -43,6 +43,13 @@ struct FoodCheckView: View {
         var id: String {
             rawValue
         }
+
+        var title: String {
+            switch self {
+            case .history: String(localized: "History")
+            case .favorites: String(localized: "Favourites")
+            }
+        }
     }
 
     var body: some View {
@@ -51,10 +58,10 @@ struct FoodCheckView: View {
                 Section {
                     GlassEffectContainer(spacing: Tide.s3) {
                         HStack(spacing: Tide.s3) {
-                            actionCard(icon: "barcode.viewfinder", title: "Scan a product", id: "checkScan") {
+                            actionCard(icon: "barcode.viewfinder", title: String(localized: "Scan a product"), id: "checkScan") {
                                 showScanner = true
                             }
-                            actionCard(icon: "magnifyingglass", title: "Search", id: "checkSearch") {
+                            actionCard(icon: "magnifyingglass", title: String(localized: "Search"), id: "checkSearch") {
                                 showSearch = true
                             }
                         }
@@ -68,7 +75,7 @@ struct FoodCheckView: View {
                 }
 
                 Section {
-                    KitchenSegmented(options: Tab.allCases, selection: $tab) { $0.rawValue }
+                    KitchenSegmented(options: Tab.allCases, selection: $tab) { $0.title }
                         .accessibilityLabel("List")
                         .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -79,14 +86,14 @@ struct FoodCheckView: View {
                         if tab == .history {
                             KitchenEmpty(
                                 systemImage: "clock.arrow.circlepath",
-                                title: "Nothing checked yet",
-                                message: "Products you scan or open show up here."
+                                title: String(localized: "Nothing checked yet"),
+                                message: String(localized: "Products you scan or open show up here.")
                             )
                         } else {
                             KitchenEmpty(
                                 systemImage: "star",
-                                title: "No favourites yet",
-                                message: "Tap the star on a product to keep it here."
+                                title: String(localized: "No favourites yet"),
+                                message: String(localized: "Tap the star on a product to keep it here.")
                             )
                         }
                     }
@@ -112,9 +119,9 @@ struct FoodCheckView: View {
                             }
                             let context = modelContext
                             let message = snapshots.count == 1
-                                ? "\(snapshots[0].name) removed."
-                                : "\(FuelWords.count(snapshots.count, "product")) removed."
-                            toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+                                ? String(localized: "\(snapshots[0].name) removed.")
+                                : String(localized: "\(snapshots.count) products removed.")
+                            toast = ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
                                 for snapshot in snapshots {
                                     snapshot.restore(in: context)
                                 }
@@ -165,7 +172,7 @@ struct FoodCheckView: View {
             parts.append(brand)
         }
         if row.isUserAdded {
-            parts.append("Added by you")
+            parts.append(String(localized: "Added by you"))
         }
         parts.append(row.lastViewedAt.formatted(.relative(presentation: .named)))
         return parts.joined(separator: " · ")

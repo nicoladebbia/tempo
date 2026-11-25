@@ -36,7 +36,7 @@ struct CoachChatView: View {
     /// at the call site; default tapToggle per the locked Q2 decision.
     var voiceMode: CoachVoiceMode = .tapToggle
     /// The name in the top bar and the empty state ("Ask Tempo" from the "+" sheet).
-    var title: String = "Coach"
+    var title: String = .init(localized: "Coach")
 
     @Environment(\.dynamicTypeSize)
     private var typeSize
@@ -71,7 +71,7 @@ struct CoachChatView: View {
         emptyStateSeeds: [String] = CoachChatView.defaultSeeds,
         voice: any CoachVoiceControlling = CoachVoiceController(),
         voiceMode: CoachVoiceMode = .tapToggle,
-        title: String = "Coach"
+        title: String = String(localized: "Coach")
     ) {
         self.viewModel = viewModel
         self.systemPromptBuilder = systemPromptBuilder
@@ -84,9 +84,9 @@ struct CoachChatView: View {
     /// Default empty-state seeds — one simple action, one deeper ask,
     /// one preference-teaching example per the locked Q3 design.
     static let defaultSeeds: [String] = [
-        "soccer at 7pm tonight",
-        "I'm tired this week, help me ease off",
-        "fyi I never eat before 11am",
+        String(localized: "soccer at 7pm tonight"),
+        String(localized: "I'm tired this week, help me ease off"),
+        String(localized: "fyi I never eat before 11am"),
     ]
 
     // MARK: - Body
@@ -148,7 +148,7 @@ struct CoachChatView: View {
         if viewModel.endConversationWithUndo(context: modelContext) {
             // The message you were waiting on is in the transcript; what you were typing stays.
             pendingText = nil
-            toast = ToastData(message: "Chat cleared.", style: .info, actionTitle: "Undo") {
+            toast = ToastData(message: String(localized: "Chat cleared."), style: .info, actionTitle: String(localized: "Undo")) {
                 viewModel.undoEnd()
             }
         } else {
@@ -203,10 +203,10 @@ struct CoachChatView: View {
         let tint: Color
         switch state {
         case .caution:
-            copy = "Coach is at 80% of this month's budget."
+            copy = String(localized: "Coach is at 80% of this month's budget.")
             tint = Tide.streak
         case .critical:
-            copy = "Coach hit this month's limit. Back in a few days."
+            copy = String(localized: "Coach hit this month's limit. Back in a few days.")
             tint = Tide.danger
         }
         return HStack(spacing: Tide.s3) {
@@ -232,7 +232,9 @@ struct CoachChatView: View {
 
     /// "Ask Coach anything", and "Ask Tempo anything" for a screen already titled "Ask Tempo".
     private var emptyHeading: String {
-        title.hasPrefix("Ask ") ? "\(title) anything" : "Ask \(title) anything"
+        title == String(localized: "Ask Tempo")
+            ? String(localized: "Ask Tempo anything")
+            : String(localized: "Ask \(title) anything")
     }
 
     @ViewBuilder
@@ -719,7 +721,7 @@ struct CoachToolResultCard: View {
                                 .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(expanded ? "Hide details" : "Show details")
+                        .accessibilityLabel(expanded ? String(localized: "Hide details") : String(localized: "Show details"))
                     }
                 }
                 if expanded, let detail {
@@ -804,7 +806,7 @@ struct CoachThinkingBubble: View {
 
 struct CoachEmptyState: View {
     let seeds: [String]
-    var heading = "Ask Coach anything"
+    var heading = String(localized: "Ask Coach anything")
     let onSeedTap: (String) -> Void
 
     /// One symbol per seed, in order: a plan, a feeling, something to remember.
@@ -909,7 +911,7 @@ struct CoachInputBar: View {
     private var field: some View {
         TextField(
             text: $text,
-            prompt: Text(isRecording ? "Listening…" : "Type a message…").foregroundStyle(Tide.text3),
+            prompt: Text(isRecording ? String(localized: "Listening…") : String(localized: "Type a message…")).foregroundStyle(Tide.text3),
             axis: .vertical
         ) {
             Text("Message Coach")
@@ -987,7 +989,7 @@ struct CoachInputBar: View {
                         }
                     }
             )
-            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
+            .accessibilityLabel(Text(isRecording ? String(localized: "Stop recording") : String(localized: "Start recording")))
             .accessibilityAddTraits(.isButton)
             .accessibilityAction {
                 if !isDisabled {

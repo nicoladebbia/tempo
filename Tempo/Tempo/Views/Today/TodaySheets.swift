@@ -59,7 +59,7 @@ struct InsightDetailSheet: View {
 
     var body: some View {
         let insight = vm.currentInsight
-        TodaySheetChrome(title: "Insight") {
+        TodaySheetChrome(title: String(localized: "Insight")) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                 Image(systemName: insight.icon)
                     .font(Tide.title2)
@@ -72,29 +72,29 @@ struct InsightDetailSheet: View {
             }
             .padding(.vertical, Tide.s2)
 
-            section("Finding") {
+            section(String(localized: "Finding")) {
                 Text(insight.detailFinding)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            section("What to do") {
+            section(String(localized: "What to do")) {
                 Text(insight.detailRecommendation)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            section("Right now") {
+            section(String(localized: "Right now")) {
                 VStack(spacing: Tide.s3) {
-                    metricRow(icon: "heart.fill", label: "Recovery", value: vm.body.formattedRecovery)
-                    metricRow(icon: "moon.fill", label: "Sleep", value: vm.body.formattedSleep)
+                    metricRow(icon: "heart.fill", label: String(localized: "Recovery"), value: vm.body.formattedRecovery)
+                    metricRow(icon: "moon.fill", label: String(localized: "Sleep"), value: vm.body.formattedSleep)
                     metricRow(
-                        icon: "book.fill", label: "Study streak",
-                        value: vm.mind.currentStreakDays == 1 ? "1 day" : "\(vm.mind.currentStreakDays) days"
+                        icon: "book.fill", label: String(localized: "Study streak"),
+                        value: vm.mind.currentStreakDays == 1 ? String(localized: "1 day") : String(localized: "\(vm.mind.currentStreakDays) days")
                     )
-                    metricRow(icon: "figure.run", label: "Training", value: trainingStatusText(vm.move))
+                    metricRow(icon: "figure.run", label: String(localized: "Training"), value: trainingStatusText(vm.move))
                 }
             }
         }
@@ -138,10 +138,10 @@ struct InsightDetailSheet: View {
 
     private func trainingStatusText(_ move: MoveQuadrantData) -> String {
         switch move.workoutStatus {
-        case .completed: "Done"
-        case .planned: "Planned"
-        case .restDay: "Rest day"
-        case .none: "No workout"
+        case .completed: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)")
+        case .planned: String(localized: "Planned")
+        case .restDay: String(localized: "Rest day")
+        case .none: String(localized: "No workout")
         }
     }
 }
@@ -159,11 +159,11 @@ struct ScoreBreakdownSheet: View {
 
     var body: some View {
         let breakdown = vm.scoreBreakdown
-        TodaySheetChrome(title: "Score breakdown") {
+        TodaySheetChrome(title: String(localized: "Score breakdown")) {
             if let score = vm.dailyScore {
                 RecoveryHero {
-                    TideDial(score: score, caption: "of 100", diameter: Tide.dialSheet)
-                        .explains(Explainer.dayScore(weakest: Explainer.weakestPart(in: breakdown)).showing("\(score) of 100"))
+                    TideDial(score: score, caption: String(localized: "of 100"), diameter: Tide.dialSheet)
+                        .explains(Explainer.dayScore(weakest: Explainer.weakestPart(in: breakdown)).showing(String(localized: "\(score) of 100")))
                 } side: {
                     Text("Today's score").tideLabel()
                     Text("Four parts, up to \(Int(Self.partMax)) points each.")
@@ -181,19 +181,19 @@ struct ScoreBreakdownSheet: View {
 
             VStack(spacing: Tide.s4) {
                 row(
-                    icon: "heart.fill", label: "Recovery", points: breakdown.recoveryPoints,
+                    icon: "heart.fill", label: String(localized: "Recovery"), points: breakdown.recoveryPoints,
                     available: breakdown.recoveryAvailable, explainer: Explainer.recoveryPart
                 )
                 row(
-                    icon: "fork.knife", label: "Nutrition", points: breakdown.nutritionPoints,
+                    icon: "fork.knife", label: String(localized: "Nutrition"), points: breakdown.nutritionPoints,
                     available: breakdown.nutritionAvailable, explainer: Explainer.foodPart(kcalLeft: kcalLeft)
                 )
                 row(
-                    icon: "book.fill", label: "Study", points: breakdown.studyPoints,
+                    icon: "book.fill", label: String(localized: "Study"), points: breakdown.studyPoints,
                     available: breakdown.studyAvailable, explainer: Explainer.studyPart(minutesLeft: studyMinutesLeft)
                 )
                 row(
-                    icon: "figure.run", label: "Movement", points: breakdown.movementPoints,
+                    icon: "figure.run", label: String(localized: "Movement"), points: breakdown.movementPoints,
                     available: breakdown.movementAvailable,
                     explainer: Explainer.movementPart(
                         stepsTarget: vm.move.stepsTarget, stepsLeft: stepsLeft, sessionDone: vm.move.workoutStatus == .completed
@@ -244,7 +244,7 @@ struct ScoreBreakdownSheet: View {
                 if !stacks {
                     Spacer(minLength: Tide.s2)
                 }
-                Text(available ? "\(points.formatted(.number.precision(.fractionLength(1)))) / \(Int(Self.partMax))" : "No data")
+                Text(available ? "\(points.formatted(.number.precision(.fractionLength(1)))) / \(Int(Self.partMax))" : String(localized: "No data"))
                     .font(available ? Tide.numeral(Tide.numeralS) : Tide.caption)
                     .foregroundStyle(available ? Tide.text : Tide.text3)
                     .contentTransition(.numericText())
@@ -253,7 +253,7 @@ struct ScoreBreakdownSheet: View {
             TideLevelBar(progress: available ? min(points / Self.partMax, 1) : 0, height: Tide.bar)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(available ? "\(label), \(Int(points.rounded())) of \(Int(Self.partMax)) points" : "\(label), no data yet")
+        .accessibilityLabel(available ? String(localized: "\(label), \(Int(points.rounded())) of \(Int(Self.partMax)) points") : String(localized: "\(label), no data yet"))
         .explains(explainer)
     }
 }

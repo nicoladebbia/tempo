@@ -10,13 +10,15 @@
 
 import SwiftUI
 
-// MARK: - Result
+// MARK: - ReceiptLineProductChoice
 
 enum ReceiptLineProductChoice {
     case unchanged
     case keptAsTyped
     case picked(ReceiptProductPickerCandidate)
 }
+
+// MARK: - ReceiptLineEditResult
 
 struct ReceiptLineEditResult {
     var name: String
@@ -217,9 +219,9 @@ struct ReceiptLineEditSheet: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Amount").tideLabel()
             KitchenPair {
-                KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+                KitchenNumberField(label: String(localized: "Quantity"), placeholder: String(localized: "Qty"), text: $quantityText)
             } second: {
-                KitchenNumberField(label: "Price", unit: "USD", placeholder: "Price", text: $priceText)
+                KitchenNumberField(label: String(localized: "Price"), unit: "USD", placeholder: String(localized: "Price"), text: $priceText)
             }
             HStack {
                 Text("Unit")
@@ -228,7 +230,7 @@ struct ReceiptLineEditSheet: View {
                 Spacer(minLength: Tide.s2)
                 Picker("Unit", selection: $unit) {
                     ForEach(ReceiptLineUnit.allCases, id: \.self) { value in
-                        Text(value.rawValue).tag(value)
+                        Text(value.displayName).tag(value)
                     }
                 }
                 .pickerStyle(.menu)

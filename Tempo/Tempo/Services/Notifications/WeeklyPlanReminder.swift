@@ -36,8 +36,8 @@ enum WeeklyPlanReminder {
             return
         }
         let content = UNMutableNotificationContent()
-        content.title = "Sunday. Plan the week."
-        content.body = "Next week's meals, built around your routine. Tap Yes and it's done in minutes."
+        content.title = String(localized: "Sunday. Plan the week.")
+        content.body = String(localized: "Next week's meals, built around your routine. Tap Yes and it's done in minutes.")
         content.categoryIdentifier = categoryID
         content.sound = .default
         content.interruptionLevel = .active

@@ -73,16 +73,32 @@ final class AccountabilityCopyPool: @unchecked Sendable {
     }
 
     private init() {
-        guard let url = Bundle.main.url(forResource: "AccountabilityCopy", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(PoolFile.self, from: data)
-        else {
+        guard let decoded = Self.loadPoolFile() else {
             Logger(subsystem: "app.tempo", category: "CopyPool")
                 .error("Failed to load AccountabilityCopy.json — copy will fall back to inline strings")
             pools = [:]
             return
         }
         pools = decoded.tiers
+    }
+
+    /// Reads the sibling `AccountabilityCopy.it.json` when the app runs in Italian,
+    /// and falls back to the English `AccountabilityCopy.json` for every other
+    /// language (or when the Italian file is missing or unreadable).
+    private static func loadPoolFile() -> PoolFile? {
+        var names = ["AccountabilityCopy"]
+        if Bundle.main.preferredLocalizations.first?.hasPrefix("it") == true {
+            names.insert("AccountabilityCopy.it", at: 0)
+        }
+        for name in names {
+            if let url = Bundle.main.url(forResource: name, withExtension: "json"),
+               let data = try? Data(contentsOf: url),
+               let decoded = try? JSONDecoder().decode(PoolFile.self, from: data)
+            {
+                return decoded
+            }
+        }
+        return nil
     }
 
     /// Pick a copy variant for the given tier + intensity, applying recency
@@ -175,15 +191,15 @@ final class AccountabilityCopyPool: @unchecked Sendable {
     private func fallback(for tier: CopyTier, context: CopyContext) -> String {
         switch tier {
         case .gentle:
-            "\(context.remaining) tasks left. \(context.done)/\(context.total) done."
+            String(localized: "\(context.remaining) tasks left. \(context.done)/\(context.total) done.")
         case .firm:
-            "\(context.remaining) tasks incomplete. \(context.timeRemaining) remaining."
+            String(localized: "\(context.remaining) tasks incomplete. \(context.timeRemaining) remaining.")
         case .urgent:
-            "\(context.timeRemaining) before evening. \(context.remaining) tasks."
+            String(localized: "\(context.timeRemaining) before evening. \(context.remaining) tasks.")
         case .critical:
-            "Final warning. \(context.remaining) tasks undone."
+            String(localized: "Final warning. \(context.remaining) tasks undone.")
         case .allClear:
-            "ALL CLEAR. \(context.total)/\(context.total) complete."
+            String(localized: "ALL CLEAR. \(context.total)/\(context.total) complete.")
         }
     }
 }

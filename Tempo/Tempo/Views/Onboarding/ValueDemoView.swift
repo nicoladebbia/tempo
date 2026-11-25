@@ -36,30 +36,30 @@ struct ValueDemoView: View {
 
     private let samples: [Sample] = [
         Sample(
-            id: "recovery", icon: "heart.fill", title: "RECOVERY", value: "72", unit: "%",
-            color: Tide.protein, progress: 0.72, detail: "HRV 58 ms \u{00B7} Sleep 7.2 h"
+            id: "recovery", icon: "heart.fill", title: String(localized: "RECOVERY"), value: "72", unit: "%",
+            color: Tide.protein, progress: 0.72, detail: String(localized: "HRV 58 ms \u{00B7} Sleep \(7.2.tempoDecimal(1)) h")
         ),
         Sample(
-            id: "training", icon: "dumbbell.fill", title: "TRAINING", value: "Push Day",
-            color: Tide.fat, progress: 0.4, detail: "2 of 5 lifts done"
+            id: "training", icon: "dumbbell.fill", title: String(localized: "TRAINING"), value: String(localized: "Push Day"),
+            color: Tide.fat, progress: 0.4, detail: String(localized: "2 of 5 lifts done")
         ),
         Sample(
-            id: "nutrition", icon: "leaf.fill", title: "NUTRITION", value: "1,840", unit: "kcal",
-            color: Color.tempoSuccess, progress: 0.75, detail: "of 2,450 kcal today"
+            id: "nutrition", icon: "leaf.fill", title: String(localized: "NUTRITION"), value: 1840.formatted(), unit: "kcal",
+            color: Color.tempoSuccess, progress: 0.75, detail: String(localized: "of \(2450.formatted()) kcal today")
         ),
         Sample(
-            id: "accountability", icon: "lock.fill", title: "NON-NEGOTIABLES", value: "3/5", unit: "done",
-            color: Tide.carbs, progress: 0.6, detail: "Train \u{00B7} Study \u{00B7} Meals"
+            id: "accountability", icon: "lock.fill", title: String(localized: "NON-NEGOTIABLES"), value: "3/5", unit: String(localized: "done"),
+            color: Tide.carbs, progress: 0.6, detail: String(localized: "Train \u{00B7} Study \u{00B7} Meals")
         ),
     ]
 
     var body: some View {
         OnboardingScaffold(
-            title: "THIS IS TEMPO",
-            subtitle: "Your entire life \u{2014} training, nutrition, recovery, accountability \u{2014} in one app.",
-            primaryTitle: "SET UP MY TEMPO",
+            title: String(localized: "THIS IS TEMPO"),
+            subtitle: String(localized: "Your entire life \u{2014} training, nutrition, recovery, accountability \u{2014} in one app."),
+            primaryTitle: String(localized: "SET UP MY TEMPO"),
             primaryAction: onContinue,
-            skipTitle: "Skip tour",
+            skipTitle: String(localized: "Skip tour"),
             skipAction: onContinue,
             centered: true
         ) {
@@ -69,7 +69,7 @@ struct ValueDemoView: View {
                 GlassEffectContainer(spacing: Tide.s3) {
                     tiles
                 }
-                OnboardingNote("Sample data. Yours fills in as you use Tempo.", systemImage: "info.circle")
+                OnboardingNote(String(localized: "Sample data. Yours fills in as you use Tempo."), systemImage: "info.circle")
             }
         }
         .onAppear {
@@ -113,7 +113,7 @@ struct ValueDemoView: View {
             : AnyLayout(HStackLayout(spacing: Tide.s5))
         return layout {
             // The dial keeps its size and its text stays inside the ring.
-            TideDial(score: 72, caption: "Sample", diameter: Tide.dialSheet + Tide.s6)
+            TideDial(score: 72, caption: String(localized: "Sample"), diameter: Tide.dialSheet + Tide.s6)
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             VStack(alignment: typeSize.isAccessibilitySize ? .center : .leading, spacing: Tide.s1) {
                 Text("One app. Not five.")

@@ -30,7 +30,7 @@ extension TrainingViewModel {
         plan.typeRaw = stashed
         plan.plannedTypeRaw = nil
         dailySession?.userOverrode = true
-        saveGuarded(modelContext, operation: "workout choice")
+        saveGuarded(modelContext, operation: String(localized: "workout choice"))
         // Watch + Dashboard read the persisted plan directly — without this
         // they keep showing the coach's move until their next unrelated reload.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
@@ -54,7 +54,7 @@ extension TrainingViewModel {
         plan.status = .planned
         plan.skipReason = nil
         dailySession?.userOverrode = true
-        saveGuarded(modelContext, operation: "train anyway")
+        saveGuarded(modelContext, operation: String(localized: "train anyway"))
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
     }
 
@@ -101,7 +101,7 @@ extension TrainingViewModel {
             )
             modelContext.insert(cardio)
         }
-        saveGuarded(modelContext, operation: "second session")
+        saveGuarded(modelContext, operation: String(localized: "second session"))
 
         if plan.secondaryCompleted {
             // Same cross-surface signals as any non-gym completion — feeds venue

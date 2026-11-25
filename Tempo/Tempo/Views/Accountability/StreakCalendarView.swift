@@ -66,7 +66,7 @@ struct StreakCalendarView: View {
 
     private var streakHero: some View {
         let count = viewModel.streakCount
-        let dayWord = count == 1 ? "day" : "days"
+        let dayText = String(localized: "\(count) days")
 
         return RecoveryHero {
             // The ring fills toward the next milestone, lit like the focus dial.
@@ -90,19 +90,19 @@ struct StreakCalendarView: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Current streak, \(count) \(dayWord)")
-            .explains(Explainer.currentStreak.showing("\(count) \(dayWord)"))
+            .accessibilityLabel("Current streak, \(dayText)")
+            .explains(Explainer.currentStreak.showing(dayText))
         } side: {
             Text("Current streak").tideLabel()
 
-            Text("\(count) \(dayWord)")
+            Text(dayText)
                 .font(Tide.title2)
                 .foregroundStyle(count > 0 ? Tide.streak : Tide.text2)
                 .accessibilityHidden(true)
 
             // Its own line: beside the label there was no room and it was cut to "AT R…".
             if viewModel.isStreakAtRisk {
-                TideStatusPill(text: "At risk", tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
+                TideStatusPill(text: String(localized: "At risk"), tint: TideTone.amber, systemImage: "exclamationmark.triangle.fill")
             }
 
             if let next = nextMilestone {
@@ -110,7 +110,7 @@ struct StreakCalendarView: View {
                     Text(next.title).font(Tide.caption).foregroundStyle(Tide.text2)
                     Spacer(minLength: Tide.s2)
                     TideNumber(
-                        "\(next.rawValue - count) to go",
+                        String(localized: "\(next.rawValue - count) to go"),
                         size: Tide.numeralS - Tide.s1,
                         relativeTo: .headline,
                         weight: .semibold
@@ -126,7 +126,7 @@ struct StreakCalendarView: View {
                 Spacer(minLength: Tide.s2)
                 TideNumber(
                     "\(viewModel.longestStreak)",
-                    unit: viewModel.longestStreak == 1 ? "day" : "days",
+                    unit: viewModel.longestStreak == 1 ? String(localized: "day") : String(localized: "days"),
                     size: Tide.numeralS,
                     relativeTo: .headline,
                     color: TideTone.amber
@@ -150,7 +150,7 @@ struct StreakCalendarView: View {
 
     private var currentWeekDots: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "This week")
+            TideSectionLabel(title: String(localized: "This week"))
 
             TideStreakDots(days: currentWeekStatuses)
                 .tideCard(padding: Tide.s4)
@@ -195,7 +195,7 @@ struct StreakCalendarView: View {
 
     private var heatmapSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "365-day history")
+            TideSectionLabel(title: String(localized: "365-day history"))
 
             TideHeatmap(data: heatmapData)
                 .tideCard(padding: Tide.s4)
@@ -228,7 +228,7 @@ struct StreakCalendarView: View {
             : AnyLayout(HStackLayout(spacing: Tide.s4))
 
         return VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Streak freezes")
+            TideSectionLabel(title: String(localized: "Streak freezes"))
 
             layout {
                 HStack(spacing: Tide.s2) {
@@ -241,7 +241,7 @@ struct StreakCalendarView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text(remaining == 1 ? "1 freeze remaining" : "\(remaining) freezes remaining")
+                    Text(remaining == 1 ? String(localized: "1 freeze remaining") : String(localized: "\(remaining) freezes remaining"))
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                     Text("Freezes protect your streak on missed days.")
@@ -261,7 +261,7 @@ struct StreakCalendarView: View {
 
     private var milestonesSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Milestones")
+            TideSectionLabel(title: String(localized: "Milestones"))
 
             VStack(spacing: 0) {
                 ForEach(StreakMilestone.allCases, id: \.rawValue) { milestone in
@@ -320,7 +320,7 @@ struct StreakCalendarView: View {
                 }
 
                 if isNext {
-                    TideStatusPill(text: "\(milestone.rawValue - viewModel.streakCount) to go", tint: mood.accent)
+                    TideStatusPill(text: String(localized: "\(milestone.rawValue - viewModel.streakCount) to go"), tint: mood.accent)
                 }
             }
             .padding(.bottom, isLast ? 0 : Tide.s4)
@@ -329,7 +329,7 @@ struct StreakCalendarView: View {
         .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
         .opacity(achieved || isNext ? 1 : 0.6)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(achieved ? "Reached" : "")
+        .accessibilityValue(achieved ? String(localized: "Reached") : "")
     }
 
     @ViewBuilder
@@ -453,8 +453,8 @@ private struct StreakShareCard: View {
 
             VStack(spacing: Px.inner) {
                 HStack(spacing: Px.inner) {
-                    statTile(label: "LONGEST", value: "\(longestStreak)d")
-                    statTile(label: "THIS WEEK", value: "\(Int(weeklyConsistency * 100))%")
+                    statTile(label: String(localized: "LONGEST"), value: String(localized: "\(longestStreak)d"))
+                    statTile(label: String(localized: "THIS WEEK"), value: "\(Int(weeklyConsistency * 100))%")
                 }
                 monthHeatmap
             }

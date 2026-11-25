@@ -17,11 +17,11 @@ enum TrainingSplit: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .pushPullLegs: "Push/Pull/Legs"
-        case .upperLower: "Upper/Lower"
-        case .fullBody: "Full Body"
-        case .bro: "Bro Split"
-        case .custom: "Custom"
+        case .pushPullLegs: String(localized: "Push/Pull/Legs")
+        case .upperLower: String(localized: "Upper/Lower")
+        case .fullBody: String(localized: "Full Body")
+        case .bro: String(localized: "Bro Split")
+        case .custom: String(localized: "Custom")
         }
     }
 

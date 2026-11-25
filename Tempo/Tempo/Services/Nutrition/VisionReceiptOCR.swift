@@ -25,9 +25,9 @@ enum VisionReceiptOCRError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidImage: "Could not read the receipt photo."
-        case let .recognitionFailed(detail): "Vision recognition failed: \(detail)"
-        case .noTextFound: "No text was detected on this photo."
+        case .invalidImage: String(localized: "Could not read the receipt photo.")
+        case let .recognitionFailed(detail): String(localized: "Vision recognition failed: \(detail)")
+        case .noTextFound: String(localized: "No text was detected on this photo.")
         case let .tooLowQuality(hint): hint
         }
     }
@@ -168,7 +168,7 @@ enum VisionReceiptOCR {
         }
         if Self.isLowQuality(final) {
             throw VisionReceiptOCRError.tooLowQuality(
-                "This photo is too blurry, dark, or faint to read reliably. Try retaking it flat, well-lit, and in focus."
+                String(localized: "This photo is too blurry, dark, or faint to read reliably. Try retaking it flat, well-lit, and in focus.")
             )
         }
 

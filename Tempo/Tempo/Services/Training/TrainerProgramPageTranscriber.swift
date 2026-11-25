@@ -46,7 +46,7 @@ enum TrainerProgramPageTranscriber {
 
         var errorDescription: String? {
             switch self {
-            case .signedOut: "Sign in to read programs with AI."
+            case .signedOut: String(localized: "Sign in to read programs with AI.")
             case let .api(error): error.userMessage
             }
         }

@@ -65,21 +65,21 @@ struct BodyQuadrantData {
         guard let hrv else {
             return "--"
         }
-        return String(format: "%.1f ms", hrv)
+        return String(localized: "\(hrv.tempoDecimal(1)) ms")
     }
 
     var formattedRHR: String {
         guard let rhr else {
             return "--"
         }
-        return "\(Int(rhr)) bpm"
+        return String(localized: "\(Int(rhr)) bpm")
     }
 
     var formattedSleep: String {
         guard let sleepHours else {
             return "--"
         }
-        return String(format: "%.1fh", sleepHours)
+        return String(localized: "\(sleepHours.tempoDecimal(1))h")
     }
 
     var formattedSleepPerformance: String {
@@ -93,7 +93,7 @@ struct BodyQuadrantData {
         guard let strain else {
             return "--"
         }
-        return String(format: "%.1f", strain)
+        return strain.tempoDecimal(1)
     }
 
     var formattedSpo2: String {
@@ -209,11 +209,11 @@ struct FuelQuadrantData {
         guard let last = lastEatenAt else { return "—" }
         let seconds = max(0, Date().timeIntervalSince(last))
         let minutes = Int(seconds / 60)
-        if minutes < 1 { return "just now" }
-        if minutes < 60 { return "\(minutes) min ago" }
+        if minutes < 1 { return String(localized: "just now") }
+        if minutes < 60 { return String(localized: "\(minutes) min ago") }
         let hours = minutes / 60
         let remMin = minutes % 60
-        return remMin == 0 ? "\(hours)h ago" : "\(hours)h \(remMin)m ago"
+        return remMin == 0 ? String(localized: "\(hours)h ago") : String(localized: "\(hours)h \(remMin)m ago")
     }
 
     // MARK: - Macro Status
@@ -293,13 +293,13 @@ struct FuelQuadrantData {
             return "--"
         }
         if logged >= planned {
-            return "All \(planned) meals logged"
+            return String(localized: "All \(planned) meals logged")
         }
-        return "\(logged)/\(planned) meals"
+        return String(localized: "\(logged)/\(planned) meals")
     }
 
     var formattedHydration: String {
-        "\(hydrationGlasses)/\(hydrationTargetGlasses) glasses"
+        String(localized: "\(hydrationGlasses)/\(hydrationTargetGlasses) glasses")
     }
 
     /// Empty placeholder used before the first refresh completes.
@@ -332,9 +332,9 @@ struct MindQuadrantData {
         if studyMinutesToday >= 60 {
             let hours = studyMinutesToday / 60
             let minutes = studyMinutesToday % 60
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(studyMinutesToday)m"
+        return String(localized: "\(studyMinutesToday)m")
     }
 
     var formattedStudyTarget: String {
@@ -342,15 +342,15 @@ struct MindQuadrantData {
             let hours = studyTargetMinutes / 60
             let minutes = studyTargetMinutes % 60
             if minutes == 0 {
-                return "\(hours)h"
+                return String(localized: "\(hours)h")
             }
-            return "\(hours)h \(minutes)m"
+            return String(localized: "\(hours)h \(minutes)m")
         }
-        return "\(studyTargetMinutes)m"
+        return String(localized: "\(studyTargetMinutes)m")
     }
 
     var formattedStreak: String {
-        "\(currentStreakDays)d"
+        String(localized: "\(currentStreakDays)d")
     }
 
     static let empty = MindQuadrantData(
@@ -375,9 +375,9 @@ struct ExamData: Identifiable {
 
     var formattedCountdown: String {
         switch daysUntil {
-        case 0: "TODAY"
-        case 1: "TOMORROW"
-        default: "in \(daysUntil) days"
+        case 0: String(localized: "TODAY")
+        case 1: String(localized: "TOMORROW")
+        default: String(localized: "in \(daysUntil) days")
         }
     }
 }
@@ -439,21 +439,21 @@ struct MoveQuadrantData {
         guard let activeCalories else {
             return "--"
         }
-        return "\(activeCalories) cal"
+        return String(localized: "\(activeCalories) cal")
     }
 
     var formattedStrain: String {
         guard let strain else {
             return "--"
         }
-        return String(format: "%.1f", strain)
+        return strain.tempoDecimal(1)
     }
 
     var formattedHeartRate: String {
         guard let heartRateCurrent else {
             return "--"
         }
-        return "\(heartRateCurrent) bpm"
+        return String(localized: "\(heartRateCurrent) bpm")
     }
 
     var formattedWorkoutDuration: String {
@@ -461,9 +461,9 @@ struct MoveQuadrantData {
             return "--"
         }
         if minutes >= 60 {
-            return "\(minutes / 60)h \(minutes % 60)m"
+            return String(localized: "\(minutes / 60)h \(minutes % 60)m")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     static let empty = MoveQuadrantData(

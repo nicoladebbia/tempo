@@ -168,15 +168,15 @@ enum TrainerProgramScheduleMode: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .fixed: "Fixed weekdays"
-        case .sequence: "Sequence (program order)"
+        case .fixed: String(localized: "Fixed weekdays")
+        case .sequence: String(localized: "Sequence (program order)")
         }
     }
 
     var explanation: String {
         switch self {
-        case .fixed: "Each session stays pinned to the weekday your trainer wrote it on. A missed day is skipped."
-        case .sequence: "Sessions run in order. A missed one carries forward to the next training day instead of being skipped."
+        case .fixed: String(localized: "Each session stays pinned to the weekday your trainer wrote it on. A missed day is skipped.")
+        case .sequence: String(localized: "Sessions run in order. A missed one carries forward to the next training day instead of being skipped.")
         }
     }
 }
@@ -195,16 +195,16 @@ enum TrainerProgramCadence: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .weekly: "A new program every week"
-        case .block: "A block of weeks"
+        case .weekly: String(localized: "A new program every week")
+        case .block: String(localized: "A block of weeks")
         }
     }
 
     /// Compact label for the program screen's menu row.
     var shortName: String {
         switch self {
-        case .weekly: "Every week"
-        case .block: "Block of weeks"
+        case .weekly: String(localized: "Every week")
+        case .block: String(localized: "Block of weeks")
         }
     }
 }

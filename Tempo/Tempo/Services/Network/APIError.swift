@@ -44,41 +44,41 @@ enum APIError: Error, LocalizedError {
     var userMessage: String {
         switch self {
         case .invalidURL:
-            "Something went wrong. Please try again."
+            String(localized: "Something went wrong. Please try again.")
         case .noResponse:
-            "No response from server. Check your connection."
+            String(localized: "No response from server. Check your connection.")
         case .unauthorized:
-            "Your session has expired. Please sign in again."
+            String(localized: "Your session has expired. Please sign in again.")
         case .forbidden:
-            "You don't have permission to do that."
+            String(localized: "You don't have permission to do that.")
         case .notFound:
-            "The requested data could not be found."
+            String(localized: "The requested data could not be found.")
         case .conflict:
-            "A conflict occurred. Please refresh and try again."
+            String(localized: "A conflict occurred. Please refresh and try again.")
         case .payloadTooLarge:
-            "That image is too large to upload. Try a tighter crop of the receipt."
+            String(localized: "That image is too large to upload. Try a tighter crop of the receipt.")
         case .rateLimited:
-            "Too many requests. Please wait a moment."
+            String(localized: "Too many requests. Please wait a moment.")
         case .serverError:
-            "Server error. We're working on it."
+            String(localized: "Server error. We're working on it.")
         case .notModified:
-            "Data has not changed."
+            String(localized: "Data has not changed.")
         case .decodingFailed:
-            "Received unexpected data from the server."
+            String(localized: "Received unexpected data from the server.")
         case .networkError:
-            "Network error. Check your connection and try again."
+            String(localized: "Network error. Check your connection and try again.")
         case .connectionRefused:
-            "Cannot reach the server. Please try again later."
+            String(localized: "Cannot reach the server. Please try again later.")
         case .timeout:
-            "Request timed out. Please try again."
+            String(localized: "Request timed out. Please try again.")
         case .unknown:
-            "Something went wrong. Please try again."
+            String(localized: "Something went wrong. Please try again.")
         case .subscriptionRequired:
-            "Pro subscription required to use AI features."
+            String(localized: "Pro subscription required to use AI features.")
         case .aiConsentRequired:
-            "Enable AI features in Settings to use this."
+            String(localized: "Enable AI features in Settings to use this.")
         case let .programImportQuotaExceeded(limit, _, _):
-            "You've used your \(limit) free trainer-program imports this month."
+            String(localized: "You've used your \(limit) free trainer-program imports this month.")
         }
     }
 

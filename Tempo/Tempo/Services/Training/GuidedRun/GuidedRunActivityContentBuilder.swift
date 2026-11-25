@@ -37,7 +37,7 @@ enum GuidedRunActivityContentBuilder {
 
         case let .countdown(remaining):
             return GuidedRunActivitySnapshot(
-                stepTitle: "GET READY",
+                stepTitle: String(localized: "GET READY"),
                 detailText: nil,
                 nextStepText: nil,
                 distanceText: nil,
@@ -100,7 +100,7 @@ enum GuidedRunActivityContentBuilder {
             let remaining = session.remainingInCurrentStep ?? restSeconds
             let anchor = now.addingTimeInterval(max(0, remaining))
             return GuidedRunActivitySnapshot(
-                stepTitle: "REST",
+                stepTitle: String(localized: "REST"),
                 detailText: nil,
                 nextStepText: nextStepText(session: session, restIndex: index),
                 distanceText: nil,
@@ -112,7 +112,7 @@ enum GuidedRunActivityContentBuilder {
                 isPaused: session.isPaused,
                 countsDown: true,
                 timerAnchor: anchor,
-                frozenText: session.isPaused ? "Rest \(GuidedRunFormatting.clock(remaining))" : nil,
+                frozenText: session.isPaused ? String(localized: "Rest \(GuidedRunFormatting.clock(remaining))") : nil,
                 updatedAt: now
             )
         }
@@ -131,11 +131,11 @@ enum GuidedRunActivityContentBuilder {
     /// Short current-step label — the part after "Block name · ".
     private static func workLabel(_ kind: GuidedRunWorkKind) -> String {
         switch kind {
-        case let .timedRep(rep): "Rep \(rep.index + 1)/\(rep.of)"
-        case let .round(index, of): "Round \(index + 1)/\(of)"
+        case let .timedRep(rep): String(localized: "Rep \(rep.index + 1)/\(rep.of)")
+        case let .round(index, of): String(localized: "Round \(index + 1)/\(of)")
         case .continuousDuration,
              .continuousDistance,
-             .freeform: "In progress"
+             .freeform: String(localized: "In progress")
         }
     }
 
@@ -144,11 +144,11 @@ enum GuidedRunActivityContentBuilder {
     private static func workDetail(_ kind: GuidedRunWorkKind) -> String? {
         switch kind {
         case let .timedRep(rep):
-            rep.capSeconds.map { "Cap \(GuidedRunFormatting.repTime($0))" }
+            rep.capSeconds.map { String(localized: "Cap \(GuidedRunFormatting.repTime($0))") }
         case let .continuousDuration(targetSeconds):
-            "\(Int((targetSeconds / 60).rounded())) min target"
+            String(localized: "\(Int((targetSeconds / 60).rounded())) min target")
         case let .continuousDistance(_, targetLabel):
-            "Target \(targetLabel)"
+            String(localized: "Target \(targetLabel)")
         case .round,
              .freeform:
             nil
@@ -162,8 +162,8 @@ enum GuidedRunActivityContentBuilder {
         guard session.steps.indices.contains(nextIndex),
               case let .work(kind) = session.steps[nextIndex].kind
         else {
-            return "Next: Finish"
+            return String(localized: "Next: Finish")
         }
-        return "Next: \(workLabel(kind))"
+        return String(localized: "Next: \(workLabel(kind))")
     }
 }

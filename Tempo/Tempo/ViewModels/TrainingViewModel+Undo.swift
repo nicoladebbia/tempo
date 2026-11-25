@@ -138,7 +138,7 @@ extension TrainingViewModel {
         lastCompletedSet = undo.previousLastCompletedSet
         currentFeedback = undo.previousFeedback
 
-        saveGuarded(modelContext, operation: "undo set")
+        saveGuarded(modelContext, operation: String(localized: "undo set"))
         HapticManager.selection()
         return true
     }
@@ -275,9 +275,9 @@ extension TrainingViewModel {
         /// long toast takes over the page at large text sizes.
         var message: String {
             if sets.allSatisfy(\.isWarmup) {
-                return sets.count == 1 ? "Skipped a warm-up set" : "Skipped \(sets.count) warm-up sets"
+                return sets.count == 1 ? String(localized: "Skipped a warm-up set") : String(localized: "Skipped \(sets.count) warm-up sets")
             }
-            return "Skipped a set"
+            return String(localized: "Skipped a set")
         }
     }
 
@@ -436,7 +436,7 @@ extension TrainingViewModel {
         currentExerciseIndex = undo.exerciseIndex
         currentSetIndex = position
         sessionState = .exercise(.setActive(exerciseIndex: undo.exerciseIndex, setIndex: position))
-        saveGuarded(modelContext, operation: "undo skip")
+        saveGuarded(modelContext, operation: String(localized: "undo skip"))
         HapticManager.selection()
         return true
     }

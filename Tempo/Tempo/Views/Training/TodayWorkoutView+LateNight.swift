@@ -55,10 +55,12 @@ extension TodayWorkoutView {
     func bedtimeCard(onSkipForTonight: @escaping () -> Void) -> some View {
         let plan = viewModel.todayPlan
         let trainerDay = plan.flatMap { viewModel.trainerDay(forKey: $0.programSessionKey, modelContext: modelContext) }
-        let sessionName = trainerDay?.title ?? plan?.type.displayName ?? "Training"
+        let sessionName = trainerDay?.title ?? plan?.type.displayName ?? String(localized: "Training")
         let blockCount = trainerDay?.exercises.count ?? plan?.orderedExercises.count ?? 0
 
-        let unit = trainerDay?.isStrength == false ? "blocks" : "exercises"
+        let unit = trainerDay?.isStrength == false
+            ? String(localized: "blocks", comment: "Unit under a number")
+            : String(localized: "exercises", comment: "Unit under a number")
         return VStack(alignment: .leading, spacing: Tide.s4) {
             TrainBedtimeHead()
 

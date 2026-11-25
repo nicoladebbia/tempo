@@ -39,7 +39,7 @@ struct RecipeSuggestionsView: View {
                 if viewModel.recipeState.suggestions.isEmpty {
                     if viewModel.recipeState.isLoading {
                         // Ranking the pantry against every recipe takes a moment.
-                        FuelAIState(kind: .working("Ranking recipes against your pantry…"))
+                        FuelAIState(kind: .working(String(localized: "Ranking recipes against your pantry…")))
                     } else {
                         emptyState
                     }
@@ -126,14 +126,14 @@ struct RecipeSuggestionsView: View {
             let service = LocalRecipeService(modelContext: modelContext)
             try service.add(recipe)
             savedRecipeToast = ToastData(
-                message: "Saved “\(recipe.name)”",
+                message: String(localized: "Saved “\(recipe.name)”"),
                 style: .success
             )
             HapticManager.notification(.success)
             viewModel.refreshRecipeSuggestions()
         } catch {
             savedRecipeToast = ToastData(
-                message: "Couldn't save: \(error.localizedDescription)",
+                message: String(localized: "Couldn't save: \(error.localizedDescription)"),
                 style: .error
             )
         }
@@ -200,8 +200,8 @@ struct RecipeSuggestionsView: View {
     private var emptyState: some View {
         FuelEmptyState(
             icon: "fork.knife.circle",
-            title: "No recipe matches yet",
-            message: "Add items to your pantry — or save a recipe — and we'll rank what you can make."
+            title: String(localized: "No recipe matches yet"),
+            message: String(localized: "Add items to your pantry — or save a recipe — and we'll rank what you can make.")
         ) {
             addButtons
                 .padding(.top, Tide.s2)
@@ -263,8 +263,8 @@ struct RecipeDetailLoader: View {
             } else if didLoad {
                 FuelEmptyState(
                     icon: "questionmark.folder",
-                    title: "Recipe not found",
-                    message: "It may have been deleted. Go back and pick another."
+                    title: String(localized: "Recipe not found"),
+                    message: String(localized: "It may have been deleted. Go back and pick another.")
                 )
                 .padding(.horizontal, Tide.edge)
             } else {
@@ -315,14 +315,14 @@ struct RecipeDetailView: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            TideNumber("\(Int(recipe.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralM)
+            TideNumber("\(Int(recipe.totalCalories.rounded()))", unit: String(localized: "kcal"), size: Tide.numeralM)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: Tide.s4) {
-                    metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
+                    metaTag(systemImage: "clock", text: String(localized: "\(recipe.totalMinutes) min"))
                     metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    metaTag(systemImage: "clock", text: "\(recipe.totalMinutes) min")
+                    metaTag(systemImage: "clock", text: String(localized: "\(recipe.totalMinutes) min"))
                     metaTag(systemImage: "person.2", text: FuelWords.count(recipe.servings, "serving"))
                 }
             }

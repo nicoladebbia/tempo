@@ -24,9 +24,9 @@ enum RecoveryAIInsightError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noRecoveryData:
-            "No recovery data available yet."
+            String(localized: "No recovery data available yet.")
         case let .apiFailed(error):
-            "Couldn't generate today's insight: \(error.localizedDescription)"
+            String(localized: "Couldn't generate today's insight: \(error.localizedDescription)")
         }
     }
 }

@@ -211,7 +211,7 @@ final class PhotoAnalysisService: PhotoAnalysisServiceProtocol, @unchecked Senda
             return try JSONDecoder().decode(ClaudeFoodAnalysis.self, from: data)
         } catch {
             logger.error("Failed to parse Claude analysis: \(error.localizedDescription)")
-            throw NutritionError.photoAnalysisFailed("Failed to parse analysis response")
+            throw NutritionError.photoAnalysisFailed(String(localized: "Failed to parse analysis response"))
         }
     }
 

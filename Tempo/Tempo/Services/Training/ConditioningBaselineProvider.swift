@@ -63,8 +63,8 @@ enum ConditioningBaselineProvider {
         guard let best = bestTime(distance: distance, unit: unit, in: results, program: program) else {
             return nil
         }
-        let distanceLabel = distance == distance.rounded() ? "\(Int(distance))" : String(format: "%.1f", distance)
-        return "Your best \(distanceLabel)\(unit.shortLabel): \(formattedSeconds(best))"
+        let distanceLabel = distance == distance.rounded() ? "\(Int(distance))" : distance.tempoDecimal(1)
+        return String(localized: "Your best \(distanceLabel)\(unit.shortLabel): \(formattedSeconds(best))")
     }
 
     static func formattedSeconds(_ seconds: Double) -> String {

@@ -67,7 +67,7 @@ struct OnboardingContainerView: View {
                         .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Back")
+                .accessibilityLabel(String(localized: "nav.back", defaultValue: "Back", comment: "Back button in a step-by-step flow (not the muscle group)"))
             }
 
             TideLevelBar(progress: Double(position) / Double(max(total, 1)), height: Tide.barSlim)

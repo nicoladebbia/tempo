@@ -58,26 +58,26 @@ struct RecoveryCoachCard: View {
         if let start = model.startHere {
             return start.title
         }
-        return "Recovery after your \(session.label.lowercased())"
+        return String(localized: "Recovery after your \(session.label.lowercased())")
     }
 
     private func detail(_ model: RecoveryCoachModel, _ session: CoachSession) -> String {
         guard let result = model.result else {
-            return "Tap to see what to drink and eat."
+            return String(localized: "Tap to see what to drink and eat.")
         }
         if model.startHere != nil {
-            return "Ended \(RecoveryCoachModel.ago(session.end, now: Date())). Tap to see what to do."
+            return String(localized: "Ended \(RecoveryCoachModel.ago(session.end, now: Date())). Tap to see what to do.")
         }
         guard let sweat = result.sweat, let plan = result.plan else {
-            return "Tap to open."
+            return String(localized: "Tap to open.")
         }
         let low = sweat.sweatLitersLow ?? sweat.sweatLitersRaw ?? 0
         let high = sweat.sweatLitersHigh ?? low
         let sweatText = sweat.isLowerBound
-            ? "At least \(RecoveryCoachFormat.liters(low)) sweat"
-            : "About \(RecoveryCoachFormat.litersRange(low: low, high: high)) sweat"
+            ? String(localized: "At least \(RecoveryCoachFormat.liters(low)) sweat")
+            : String(localized: "About \(RecoveryCoachFormat.litersRange(low: low, high: high)) sweat")
         if let drink = plan.drinkLiters {
-            return "\(sweatText). Drink \(RecoveryCoachFormat.liters(drink)) with a meal."
+            return String(localized: "\(sweatText). Drink \(RecoveryCoachFormat.liters(drink)) with a meal.")
         }
         return sweatText + "."
     }

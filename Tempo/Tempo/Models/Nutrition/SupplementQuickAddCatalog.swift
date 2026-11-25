@@ -42,10 +42,16 @@ struct SupplementQuickAddItem: Identifiable, Hashable, Sendable {
 
     /// "120 kcal · 24g P" — nil for supplements that carry no macros.
     var macroSummary: String? {
-        guard calories > 0 || proteinGrams > 0 else { return nil }
+        guard calories > 0 || proteinGrams > 0 else {
+            return nil
+        }
         var parts: [String] = []
-        if calories > 0 { parts.append("\(Int(calories.rounded())) kcal") }
-        if proteinGrams > 0 { parts.append("\(Int(proteinGrams.rounded()))g P") }
+        if calories > 0 {
+            parts.append(String(localized: "\(Int(calories.rounded())) kcal"))
+        }
+        if proteinGrams > 0 {
+            parts.append(String(localized: "\(Int(proteinGrams.rounded()))g P"))
+        }
         return parts.joined(separator: " · ")
     }
 }
@@ -66,7 +72,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Whey Protein",
             kind: .protein,
-            dose: "1 scoop (30 g)",
+            dose: String(localized: "1 scoop (30 g)"),
             proteinGrams: 24,
             calories: 120,
             carbsGrams: 3,
@@ -77,7 +83,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Mass Gainer",
             kind: .protein,
-            dose: "1 serving (150 g)",
+            dose: String(localized: "1 serving (150 g)"),
             proteinGrams: 50,
             calories: 620,
             carbsGrams: 95,
@@ -88,7 +94,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Plant Protein",
             kind: .protein,
-            dose: "1 scoop (33 g)",
+            dose: String(localized: "1 scoop (33 g)"),
             proteinGrams: 21,
             calories: 120,
             carbsGrams: 4,
@@ -99,7 +105,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Casein",
             kind: .protein,
-            dose: "1 scoop (33 g)",
+            dose: String(localized: "1 scoop (33 g)"),
             proteinGrams: 24,
             calories: 120,
             carbsGrams: 4,
@@ -129,7 +135,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Multivitamin",
             kind: .multivitamin,
-            dose: "1 tablet",
+            dose: String(localized: "1 tablet"),
             proteinGrams: 0,
             takeDaily: true,
             icon: "pills.fill"
@@ -147,7 +153,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Electrolytes",
             kind: .electrolytes,
-            dose: "1 packet",
+            dose: String(localized: "1 packet"),
             proteinGrams: 0,
             takeDaily: false,
             icon: "drop.fill"
@@ -155,7 +161,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Pre-Workout",
             kind: .preworkout,
-            dose: "1 scoop",
+            dose: String(localized: "1 scoop"),
             proteinGrams: 0,
             takeDaily: false,
             icon: "flame.fill"
@@ -180,7 +186,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Collagen",
             kind: .other,
-            dose: "1 scoop (10 g)",
+            dose: String(localized: "1 scoop (10 g)"),
             proteinGrams: 9,
             calories: 35,
             takeDaily: true,
@@ -189,7 +195,7 @@ enum SupplementQuickAddCatalog {
         SupplementQuickAddItem(
             name: "Probiotic",
             kind: .other,
-            dose: "1 capsule",
+            dose: String(localized: "1 capsule"),
             proteinGrams: 0,
             takeDaily: true,
             icon: "leaf.circle.fill"

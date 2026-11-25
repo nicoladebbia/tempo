@@ -121,7 +121,7 @@ final class DayPlannerService {
             return PlannedBlock(
                 startMinuteOfDay: start,
                 endMinuteOfDay: end,
-                title: meal.mealName,
+                title: meal.displayMealName,
                 sourceId: meal.id.uuidString
             )
         }
@@ -181,7 +181,7 @@ final class DayPlannerService {
             return PlannedBlock(
                 startMinuteOfDay: start,
                 endMinuteOfDay: start + length,
-                title: "Study (\(length) min)",
+                title: String(localized: "Study (\(length) min)"),
                 sourceId: nil
             )
         }

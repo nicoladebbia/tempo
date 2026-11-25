@@ -72,7 +72,7 @@ struct TrainerProgramView: View {
         if snapshot.isActive {
             NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
         }
-        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "Deleted \(snapshot.name)"), style: .info, actionTitle: String(localized: "Undo")) {
             snapshot.restore(in: modelContext)
             _ = modelContext.saveOrAlert("trainer program restore")
             if snapshot.isActive {
@@ -255,7 +255,7 @@ struct TrainerProgramView: View {
                 feedbackProgram = program
             }
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Program settings")
+                TideSectionLabel(title: String(localized: "Program settings"))
                 settingsCard(program)
             }
             actionsBlock(program)
@@ -267,15 +267,15 @@ struct TrainerProgramView: View {
     private func programHero(_ program: TrainerProgram) -> some View {
         let scheduled = complianceStats?.scheduled ?? 0
         let percent = Int(((complianceStats?.fraction ?? 0) * 100).rounded())
-        var chips = ["Active"]
+        var chips = [String(localized: "Active")]
         if let current = program.weekIndex(on: Date()), program.weeks.count > 1 {
-            chips.append("Week \(current + 1) of \(program.weeks.count)")
+            chips.append(String(localized: "Week \(current + 1) of \(program.weeks.count)"))
         }
         return TrainDayHero(
-            label: "Sessions done",
+            label: String(localized: "Sessions done"),
             figure: complianceStats.map { "\($0.done)" } ?? "–",
-            unit: scheduled > 0 ? "of \(scheduled)" : nil,
-            caption: scheduled > 0 ? program.name : "\(program.name) · No sessions due yet.",
+            unit: scheduled > 0 ? String(localized: "of \(scheduled)") : nil,
+            caption: scheduled > 0 ? program.name : String(localized: "\(program.name) · No sessions due yet."),
             chips: chips,
             figureExplainer: TrainExplainers.sessionsDone
         ) {
@@ -311,8 +311,8 @@ struct TrainerProgramView: View {
         TrainPlanCard {
             if program.weeks.count > 1 {
                 TrainPlanToggleRow(
-                    title: "Repeats",
-                    detail: "Loop back to Week 1 after the last week.",
+                    title: String(localized: "Repeats"),
+                    detail: String(localized: "Loop back to Week 1 after the last week."),
                     isOn: Binding(
                         get: { program.repeats },
                         set: { newValue in
@@ -332,8 +332,8 @@ struct TrainerProgramView: View {
             // §13 — off = trainer days get exactly the sets the trainer
             // wrote, no Tempo-added ramp.
             TrainPlanToggleRow(
-                title: "Tempo Warm-Up Sets",
-                detail: "A 50%/75% ramp before each lift. Off — exactly what your trainer wrote.",
+                title: String(localized: "Tempo Warm-Up Sets"),
+                detail: String(localized: "A 50%/75% ramp before each lift. Off — exactly what your trainer wrote."),
                 isOn: Binding(
                     get: { program.warmupsEnabled },
                     set: { newValue in
@@ -369,7 +369,7 @@ struct TrainerProgramView: View {
 
             // Fix #6 — editable here too (chosen first on the review screen).
             TrainPlanPickerRow(
-                title: "Schedule",
+                title: String(localized: "Schedule"),
                 detail: program.scheduleMode.explanation,
                 selection: Binding(
                     get: { program.scheduleMode },
@@ -390,7 +390,7 @@ struct TrainerProgramView: View {
             // Weekly-upload feature — editable here too (chosen first on the
             // review screen).
             TrainPlanPickerRow(
-                title: "New program",
+                title: String(localized: "New program"),
                 selection: Binding(
                     get: { program.cadence },
                     set: { newValue in
@@ -528,9 +528,9 @@ struct TrainerProgramView: View {
     private func summary(for program: TrainerProgram) -> String {
         let weekCount = program.weeks.count
         let dayCount = program.weeks.first?.days.count ?? 0
-        let weekLabel = weekCount == 1 ? "1 week" : "\(weekCount) weeks"
-        let dayLabel = dayCount == 1 ? "1 day/week" : "\(dayCount) days/week"
-        let cadence = program.repeats ? "repeats" : "runs once"
+        let weekLabel = weekCount == 1 ? String(localized: "1 week") : String(localized: "\(weekCount) weeks")
+        let dayLabel = dayCount == 1 ? String(localized: "1 day/week") : String(localized: "\(dayCount) days/week")
+        let cadence = program.repeats ? String(localized: "repeats") : String(localized: "runs once")
         return "\(weekLabel) · \(dayLabel) · \(cadence)"
     }
 
@@ -539,11 +539,11 @@ struct TrainerProgramView: View {
     /// all) can call this pure formatter without an `await`. Purely
     /// computational — no view state involved.
     nonisolated static func shortWeekdayName(_ weekday: Int) -> String {
-        let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         guard (1 ... 7).contains(weekday) else {
             return "?"
         }
-        return names[weekday - 1]
+        // 1 = Monday ... 7 = Sunday; Calendar's symbols start on Sunday.
+        return Calendar.current.shortWeekdaySymbols[weekday % 7]
     }
 
     // MARK: - Queued programs (fix #11(b))
@@ -551,15 +551,15 @@ struct TrainerProgramView: View {
     private var emptyState: some View {
         TrainEmptyCard(
             systemImage: "figure.strengthtraining.traditional",
-            title: "No trainer program yet",
-            message: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days."
+            title: String(localized: "No trainer program yet"),
+            message: String(localized: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days.")
         )
         .padding(.top, Tide.s4)
     }
 
     private var queuedSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Up next")
+            TideSectionLabel(title: String(localized: "Up next"))
                 .padding(.top, Tide.s2)
 
             ForEach(queuedPrograms) { program in
@@ -577,7 +577,7 @@ struct TrainerProgramView: View {
                         }
                     }
                     Spacer(minLength: Tide.s2)
-                    TrainIconButton(systemImage: "trash", label: "Delete \(program.name)", tint: Tide.danger) {
+                    TrainIconButton(systemImage: "trash", label: String(localized: "Delete \(program.name)"), tint: Tide.danger) {
                         pendingDelete = program
                     }
                 }
@@ -590,7 +590,7 @@ struct TrainerProgramView: View {
 
     private var pastSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Past programs")
+            TideSectionLabel(title: String(localized: "Past programs"))
                 .padding(.top, Tide.s2)
 
             ForEach(pastPrograms) { program in
@@ -615,7 +615,7 @@ struct TrainerProgramView: View {
             }
             if let stats = pastStats[program.id] {
                 TrainPlanDivider()
-                TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
+                TrainerComplianceBar(stats: stats, emptyText: String(localized: "No sessions were ever generated for this program."))
             }
         }
         .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
@@ -643,7 +643,7 @@ struct TrainerProgramView: View {
             Button {
                 pendingActivate = program
             } label: {
-                Text("Run")
+                Text(String(localized: "trainer.past.run", defaultValue: "Run", comment: "Button on a past trainer program: start this program again (not the sport)"))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, Tide.s5)
@@ -652,7 +652,7 @@ struct TrainerProgramView: View {
                     .contentShape(.capsule)
             }
             .buttonStyle(.plain)
-            TrainIconButton(systemImage: "trash", label: "Delete \(program.name)", tint: Tide.danger) {
+            TrainIconButton(systemImage: "trash", label: String(localized: "Delete \(program.name)"), tint: Tide.danger) {
                 pendingDelete = program
             }
         }

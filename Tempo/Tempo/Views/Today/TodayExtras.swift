@@ -147,9 +147,9 @@ struct DayItemRow: View {
     /// Said only when it is worth saying: what was missed or skipped, what is under way.
     private var stateWord: String? {
         switch item.state {
-        case .missed: "Missed"
-        case .skipped: "Skipped"
-        case .inProgress: "Under way"
+        case .missed: String(localized: "Missed")
+        case .skipped: String(localized: "Skipped")
+        case .inProgress: String(localized: "Under way")
         case .done,
              .upcoming,
              .over: nil
@@ -199,7 +199,7 @@ struct TodayLaterCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Later today")
+            TideSectionLabel(title: String(localized: "Later today"))
             VStack(spacing: 0) {
                 ForEach(items) { item in
                     if item.target == .none {
@@ -242,18 +242,18 @@ struct DayTimelineView: View {
             if model.items.isEmpty {
                 TideEmptyPanel(
                     systemImage: "calendar",
-                    title: "Nothing on the day yet",
-                    message: "Meals, your session, study and calendar events show here as they are planned or done."
+                    title: String(localized: "Nothing on the day yet"),
+                    message: String(localized: "Meals, your session, study and calendar events show here as they are planned or done.")
                 )
                 .accessibilityIdentifier("day.empty")
             } else {
                 let past = model.items.filter(\.isPast)
                 let ahead = model.items.filter { !$0.isPast }
                 if !past.isEmpty {
-                    section("So far", past)
+                    section(String(localized: "So far"), past)
                 }
                 if !ahead.isEmpty {
-                    section("Still ahead", ahead)
+                    section(String(localized: "Still ahead"), ahead)
                 }
             }
         }
@@ -314,7 +314,7 @@ struct TodayTomorrowCard: View {
             : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
         VStack(alignment: .leading, spacing: Tide.s3) {
             layout {
-                TideSectionLabel(title: "Tomorrow")
+                TideSectionLabel(title: String(localized: "Tomorrow"))
                 // The wake time is the one setting-based number here: tap it to see where it comes from.
                 Label("Wake \(preview.wakeTime)", systemImage: "info.circle")
                     .font(Tide.caption)
@@ -326,15 +326,15 @@ struct TodayTomorrowCard: View {
             }
             VStack(alignment: .leading, spacing: Tide.s3) {
                 if preview.isRestDay {
-                    line("bed.double.fill", "Rest day", "No session planned")
+                    line("bed.double.fill", String(localized: "Rest day"), String(localized: "No session planned"))
                 } else if let session = preview.sessionName {
-                    line("dumbbell.fill", session, "Session")
+                    line("dumbbell.fill", session, String(localized: "Session"))
                 }
                 if let meal = preview.firstMeal {
-                    line("fork.knife", meal.name, "First meal, \(meal.time)")
+                    line("fork.knife", meal.name, String(localized: "First meal, \(meal.time)"))
                 }
                 if let task = preview.firstTask {
-                    line("checklist", task, "First task")
+                    line("checklist", task, String(localized: "First task"))
                 }
             }
         }
@@ -371,7 +371,7 @@ struct TodayWeekReviewCard: View {
     var body: some View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Week in review", trailing: WeekReviewFormat.range(of: review))
+                TideSectionLabel(title: String(localized: "Week in review"), trailing: WeekReviewFormat.range(of: review))
                 Text(review.headline)
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
@@ -441,24 +441,24 @@ struct WeekReviewView: View {
                     .tideLabel()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 area(
-                    "Training", icon: "dumbbell.fill", sentence: review.training,
-                    value: "\(review.thisWeek.sessions)", unit: review.thisWeek.sessions == 1 ? "session" : "sessions",
+                    String(localized: "Training"), icon: "dumbbell.fill", sentence: review.training,
+                    value: "\(review.thisWeek.sessions)", unit: review.thisWeek.sessions == 1 ? String(localized: "session") : String(localized: "sessions"),
                     last: "\(review.lastWeek.sessions)", id: "training", explainer: Explainer.weekSessions
                 )
                 area(
-                    "Food", icon: "fork.knife", sentence: review.food,
-                    value: review.thisWeek.avgKcal.map { $0.formatted() } ?? "none", unit: "kcal a day",
+                    String(localized: "Food"), icon: "fork.knife", sentence: review.food,
+                    value: review.thisWeek.avgKcal.map { $0.formatted() } ?? "none", unit: String(localized: "kcal a day"),
                     last: review.lastWeek.avgKcal.map { $0.formatted() }, id: "food", explainer: Explainer.weekCalories
                 )
                 area(
-                    "Recovery", icon: "heart.fill", sentence: review.recovery,
-                    value: review.thisWeek.avgRecovery.map { "\($0)%" } ?? "none", unit: "average",
+                    String(localized: "Recovery"), icon: "heart.fill", sentence: review.recovery,
+                    value: review.thisWeek.avgRecovery.map { "\($0)%" } ?? "none", unit: String(localized: "average"),
                     last: review.lastWeek.avgRecovery.map { "\($0)%" }, id: "recovery", explainer: Explainer.weekRecovery
                 )
                 area(
-                    "Tasks and study", icon: "checklist", sentence: review.discipline,
+                    String(localized: "Tasks and study"), icon: "checklist", sentence: review.discipline,
                     value: review.thisWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" } ?? "none",
-                    unit: "tasks done",
+                    unit: String(localized: "tasks done"),
                     last: review.lastWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" }, id: "discipline",
                     explainer: Explainer.weekTasks
                 )
@@ -474,8 +474,8 @@ struct WeekReviewView: View {
             } else {
                 TideEmptyPanel(
                     systemImage: "chart.bar.fill",
-                    title: "Nothing to review yet",
-                    message: "Log a session, a meal or your tasks and the week fills in here."
+                    title: String(localized: "Nothing to review yet"),
+                    message: String(localized: "Log a session, a meal or your tasks and the week fills in here.")
                 )
                 .accessibilityIdentifier("weekReview.empty")
             }
@@ -494,7 +494,7 @@ struct WeekReviewView: View {
                 .tideLabel()
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                 // The number explains itself: the card is not a link, so a tap here is free.
-                TideNumber(value, unit: unit, size: Tide.numeralM, relativeTo: .title)
+                TideNumber(value == "none" ? String(localized: "none") : value, unit: unit, size: Tide.numeralM, relativeTo: .title)
                     .frame(minHeight: Tide.hit, alignment: .leading)
                     .explains(explainer.showing(value == "none" ? nil : "\(value) \(unit)"))
                 Spacer(minLength: Tide.s2)

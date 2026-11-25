@@ -155,7 +155,7 @@ struct TodayGoalCard: View {
 
     private func card(_ snapshot: GoalSnapshot) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Goal", trailing: snapshot.daysLeftText)
+            TideSectionLabel(title: String(localized: "Goal"), trailing: snapshot.daysLeftText)
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text(snapshot.headline)
                     .font(Tide.title2)

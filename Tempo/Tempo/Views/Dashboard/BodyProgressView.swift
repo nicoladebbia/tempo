@@ -11,6 +11,19 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 
+// MARK: - BodyMetric title
+
+extension BodyMetric {
+    /// What the page calls the measurement. The raw value stays English: it is the stable id.
+    var title: String {
+        switch self {
+        case .weight: String(localized: "Weight")
+        case .bodyFat: String(localized: "Body fat")
+        case .leanMass: String(localized: "Lean mass")
+        }
+    }
+}
+
 // MARK: - BodyProgressLinkCard
 
 /// The way in from the Body page: where Body progress stands, in one line.
@@ -29,12 +42,13 @@ struct BodyProgressLinkCard: View {
         let fat = BodyProgress.series(.bodyFat, from: measurements, days: nil, now: Date()).last
         switch (weight, fat) {
         case let (weight?, fat?):
-            return "\(BodyProgress.displayNumber(weight.value, metric: .weight, unit: unit)) \(unit.abbreviation) · "
-                + "\(BodyProgress.displayNumber(fat.value, metric: .bodyFat, unit: unit))% body fat"
+            let weightText = "\(BodyProgress.displayNumber(weight.value, metric: .weight, unit: unit)) \(unit.abbreviation)"
+            let fatText = "\(BodyProgress.displayNumber(fat.value, metric: .bodyFat, unit: unit))%"
+            return String(localized: "\(weightText) · \(fatText) body fat")
         case let (weight?, nil):
             return "\(BodyProgress.displayNumber(weight.value, metric: .weight, unit: unit)) \(unit.abbreviation)"
         default:
-            return "Weight, body fat, lean mass and progress photos"
+            return String(localized: "Weight, body fat, lean mass and progress photos")
         }
     }
 
@@ -163,9 +177,9 @@ struct BodyProgressView: View {
 
         var title: String {
             switch self {
-            case .month: "30 days"
-            case .quarter: "90 days"
-            case .all: "All"
+            case .month: String(localized: "30 days")
+            case .quarter: String(localized: "90 days")
+            case .all: String(localized: "All")
             }
         }
 
@@ -256,7 +270,7 @@ struct BodyProgressView: View {
             withAnimation(Tide.snap) { metric = tileMetric }
         } label: {
             VStack(alignment: .leading, spacing: Tide.s2) {
-                Text(tileMetric.rawValue)
+                Text(tileMetric.title)
                     .tideLabel(selected ? Tide.text : Tide.text2)
                     .lineLimit(1)
                     .minimumScaleFactor(Tide.labelShrink)
@@ -266,7 +280,7 @@ struct BodyProgressView: View {
                     size: Tide.numeralS + Tide.s1, relativeTo: .title3,
                     color: latest == nil ? Tide.text3 : Tide.text
                 )
-                Text(latest.map { $0.date.formatted(.dateTime.day().month(.abbreviated)) } ?? "No readings")
+                Text(latest.map { $0.date.formatted(.dateTime.day().month(.abbreviated)) } ?? String(localized: "No readings"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)
@@ -285,7 +299,7 @@ struct BodyProgressView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint("Shows the chart for \(tileMetric.rawValue.lowercased())")
+        .accessibilityHint("Shows the chart for \(tileMetric.title.lowercased())")
         .accessibilityIdentifier("body-metric-\(tileMetric.rawValue.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 
@@ -296,12 +310,12 @@ struct BodyProgressView: View {
         let trend = BodyProgress.trend(of: points)
         return VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(spacing: Tide.s2) {
-                TideSectionLabel(title: "\(metric.rawValue) trend")
+                TideSectionLabel(title: String(localized: "\(metric.title) trend"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 TideInfoButton(explainer: metric.explainer)
             }
 
-            TidePillPicker(options: Range.allCases, selection: $range, title: \.title, label: "Range")
+            TidePillPicker(options: Range.allCases, selection: $range, title: \.title, label: String(localized: "Range"))
 
             VStack(alignment: .leading, spacing: Tide.s3) {
                 VStack(alignment: .leading, spacing: Tide.s3) {
@@ -330,7 +344,7 @@ struct BodyProgressView: View {
                     TideLineChart(
                         data: [
                             TempoLineChartData(
-                                id: metric, label: metric.rawValue, color: TideTone.sky, points: shown
+                                id: metric, label: metric.title, color: TideTone.sky, points: shown
                             ),
                         ],
                         height: Tide.chartHeight,
@@ -348,22 +362,22 @@ struct BodyProgressView: View {
 
     private func headline(_ trend: BodyProgress.Trend?) -> String {
         guard let trend else {
-            return "No \(metric.rawValue.lowercased()) readings yet"
+            return String(localized: "No \(metric.title.lowercased()) readings yet")
         }
         guard let rate = trend.weeklyRate, let direction = BodyProgress.direction(of: trend) else {
-            return "Not enough readings for a trend yet"
+            return String(localized: "Not enough readings for a trend yet")
         }
         let amount = "\(BodyProgress.displayNumber(abs(rate), metric: metric, unit: unit)) \(rateUnit)"
         switch direction {
-        case .steady: return "Holding steady"
-        case .up: return "Up \(amount) a week"
-        case .down: return "Down \(amount) a week"
+        case .steady: return String(localized: "Holding steady")
+        case .up: return String(localized: "Up \(amount) a week")
+        case .down: return String(localized: "Down \(amount) a week")
         }
     }
 
     /// Body fat is a percentage, so its change is in points of it.
     private var rateUnit: String {
-        metric == .bodyFat ? "points" : unit.abbreviation
+        metric == .bodyFat ? String(localized: "points") : unit.abbreviation
     }
 
     private func detail(_ trend: BodyProgress.Trend?) -> String? {
@@ -371,21 +385,21 @@ struct BodyProgressView: View {
             return nil
         }
         let latest = trend.latest.date.formatted(.dateTime.day().month(.abbreviated))
-        let readings = trend.pointCount == 1 ? "1 reading" : "\(trend.pointCount) readings"
-        return "\(readings), latest on \(latest)"
+        let readings = trend.pointCount == 1 ? String(localized: "1 reading") : String(localized: "\(trend.pointCount) readings")
+        return String(localized: "\(readings), latest on \(latest)")
     }
 
     private func placeholder(count: Int) -> String {
         count == 0
-            ? "Weigh in on a scale that syncs to Apple Health and your readings show up here."
-            : "One reading so far. A second one draws the line."
+            ? String(localized: "Weigh in on a scale that syncs to Apple Health and your readings show up here.")
+            : String(localized: "One reading so far. A second one draws the line.")
     }
 
     // MARK: - Photos
 
     private var photosSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Progress photos", trailing: shownPhotos.isEmpty ? nil : "\(shownPhotos.count)")
+            TideSectionLabel(title: String(localized: "Progress photos"), trailing: shownPhotos.isEmpty ? nil : "\(shownPhotos.count)")
 
             HStack(alignment: .top, spacing: Tide.s3) {
                 Image(systemName: "lock.fill")
@@ -404,8 +418,8 @@ struct BodyProgressView: View {
             if shownPhotos.isEmpty {
                 TideEmptyPanel(
                     systemImage: "camera",
-                    title: "No photos yet",
-                    message: "Add one now and compare it with later ones. The same light, pose and time of day work best."
+                    title: String(localized: "No photos yet"),
+                    message: String(localized: "Add one now and compare it with later ones. The same light, pose and time of day work best.")
                 )
                 .tideCard()
             } else {
@@ -496,7 +510,7 @@ struct BodyProgressView: View {
     private func load(_ item: PhotosPickerItem) async {
         defer { libraryItem = nil }
         guard let data = try? await item.loadTransferable(type: Data.self) else {
-            problem = "That picture could not be read."
+            problem = String(localized: "That picture could not be read.")
             return
         }
         await save { try await store.add(pictureData: data) }
@@ -508,9 +522,9 @@ struct BodyProgressView: View {
             _ = try await work()
             reloadPhotos()
         } catch ProgressPhotoStore.AddError.unreadable {
-            problem = "That picture could not be read."
+            problem = String(localized: "That picture could not be read.")
         } catch {
-            problem = "Check that your phone has free space, then try again."
+            problem = String(localized: "Check that your phone has free space, then try again.")
         }
     }
 
@@ -520,7 +534,7 @@ struct BodyProgressView: View {
         if let replaced = pendingPhoto.begin(photo) {
             remove(replaced)
         }
-        toast = ToastData(message: "Photo deleted.", style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "Photo deleted."), style: .info, actionTitle: String(localized: "Undo")) {
             withAnimation(Tide.snap) {
                 _ = pendingPhoto.undo()
             }
@@ -537,7 +551,7 @@ struct BodyProgressView: View {
         do {
             try store.delete(photo)
         } catch {
-            problem = "The photo could not be deleted."
+            problem = String(localized: "The photo could not be deleted.")
         }
         reloadPhotos()
     }

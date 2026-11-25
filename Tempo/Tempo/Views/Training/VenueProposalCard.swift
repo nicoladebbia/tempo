@@ -53,12 +53,12 @@ struct VenueProposalCard: View {
         // venue over its usual clock time (or "Today" while it is still a guess).
         let asserted = pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime
         return TrainAskCard(
-            label: "Venue check",
+            label: String(localized: "Venue check"),
             title: proposalText(pattern: pattern, venue: venue)
         ) {
             TrainFigureTile(
                 label: venue.displayName,
-                figure: asserted ? pattern.medianStartMin.map(VenuePatternMath.clockLabel) ?? "Today" : "Today",
+                figure: asserted ? pattern.medianStartMin.map(VenuePatternMath.clockLabel) ?? String(localized: "Today") : String(localized: "Today"),
                 tint: Color.accentColor
             )
         } actions: {
@@ -145,9 +145,9 @@ struct VenueProposalCard: View {
         if pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime,
            let start = pattern.medianStartMin
         {
-            return "\(venue.displayName) day — your usual \(VenuePatternMath.clockLabel(start))?"
+            return String(localized: "\(venue.displayName) day — your usual \(VenuePatternMath.clockLabel(start))?")
         }
-        return "\(venue.displayName) today?"
+        return String(localized: "\(venue.displayName) today?")
     }
 
     // MARK: - Data

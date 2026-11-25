@@ -50,7 +50,7 @@ struct TellAIRecipeView: View {
                     editor
 
                     if isParsing {
-                        FuelAIState(kind: .working("Reading your recipe…"))
+                        FuelAIState(kind: .working(String(localized: "Reading your recipe…")))
                             .transition(.opacity)
                     } else if let blocker {
                         AIBlockerCard(blocker: blocker) {
@@ -60,14 +60,14 @@ struct TellAIRecipeView: View {
                     } else if let errorText {
                         if resultWasEmpty {
                             FuelAIState(
-                                kind: .empty(title: "No recipe found", message: errorText),
-                                actionTitle: "Try again",
+                                kind: .empty(title: String(localized: "No recipe found"), message: errorText),
+                                actionTitle: String(localized: "Try again"),
                                 action: { Task { await parseAndPreview() } }
                             )
                         } else {
                             FuelAIState(
-                                kind: .failed(title: "Couldn't read that", message: errorText),
-                                actionTitle: "Try again",
+                                kind: .failed(title: String(localized: "Couldn't read that"), message: errorText),
+                                actionTitle: String(localized: "Try again"),
                                 action: { Task { await parseAndPreview() } }
                             )
                         }
@@ -147,11 +147,11 @@ struct TellAIRecipeView: View {
     }
 
     private var placeholder: String {
-        """
+        String(localized: """
         Pasta carbonara, serves 2.
         Ingredients: 200g spaghetti, 100g pancetta, 2 eggs, 40g pecorino, pepper.
         Steps: Boil pasta 10 min. Render pancetta crisp, ~6 min. Whisk eggs + pecorino. Drain pasta, toss off heat with pancetta + egg sauce. Finish with cracked pepper.
-        """
+        """)
     }
 
     @MainActor
@@ -181,7 +181,7 @@ struct TellAIRecipeView: View {
             let trimmedName = recipe.name.trimmingCharacters(in: .whitespaces)
             let ingredientCount = recipe.ingredients?.count ?? 0
             guard !trimmedName.isEmpty, ingredientCount > 0 else {
-                errorText = "AI couldn't pull a usable recipe from that. Try being more specific about ingredients and steps."
+                errorText = String(localized: "AI couldn't pull a usable recipe from that. Try being more specific about ingredients and steps.")
                 resultWasEmpty = true
                 HapticManager.notification(.error)
                 return

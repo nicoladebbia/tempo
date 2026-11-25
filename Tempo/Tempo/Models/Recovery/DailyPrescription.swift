@@ -82,7 +82,7 @@ final class DailyPrescription {
             return nil
         }
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return formatter.string(from: cutoff)
     }
 

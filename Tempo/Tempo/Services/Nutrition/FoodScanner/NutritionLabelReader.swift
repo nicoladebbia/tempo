@@ -66,7 +66,7 @@ enum NutritionLabelReader {
         case unreadable
 
         var errorDescription: String? {
-            "Couldn't read the label. Try a sharper, closer photo — or type the values."
+            String(localized: "Couldn't read the label. Try a sharper, closer photo — or type the values.")
         }
     }
 

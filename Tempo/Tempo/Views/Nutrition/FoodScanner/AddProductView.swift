@@ -100,8 +100,8 @@ struct AddProductView: View {
     var body: some View {
         KitchenForm {
             KitchenFormSection(
-                "Product photo",
-                footer: "Tempo cuts the product out and puts it on a clean white background. Done on your phone."
+                String(localized: "Product photo"),
+                footer: String(localized: "Tempo cuts the product out and puts it on a clean white background. Done on your phone.")
             ) {
                 photoRow
             }
@@ -112,8 +112,8 @@ struct AddProductView: View {
                     AIBlockerCard(
                         blocker: labelBlocker,
                         message: labelBlocker == .proRequired
-                            ? "Reading labels with AI is a Tempo Pro feature. You can still type the values below."
-                            : "AI features are off. Turn them on to read labels, or type the values below."
+                            ? String(localized: "Reading labels with AI is a Tempo Pro feature. You can still type the values below.")
+                            : String(localized: "AI features are off. Turn them on to read labels, or type the values below.")
                     ) {
                         self.labelBlocker = nil
                         labelMessage = nil
@@ -135,7 +135,7 @@ struct AddProductView: View {
                 }
             }
 
-            KitchenFormSection("Product") {
+            KitchenFormSection(String(localized: "Product")) {
                 TextField("Name", text: $name)
                     .accessibilityIdentifier("addProductName")
                 TextField("Brand (optional)", text: $brand)
@@ -143,7 +143,7 @@ struct AddProductView: View {
                     LabeledContent("Barcode", value: barcode)
                 }
                 Toggle("It's a drink (values per 100 ml)", isOn: $isBeverage)
-                numberField("Serving size (optional)", text: $servingText, unit: isBeverage ? "ml" : "g", id: "addProductServing")
+                numberField(String(localized: "Serving size (optional)"), text: $servingText, unit: isBeverage ? "ml" : "g", id: "addProductServing")
             }
 
             Section {
@@ -154,7 +154,7 @@ struct AddProductView: View {
                 Text("Per 100 \(isBeverage ? "ml" : "g")").tideLabel()
             }
 
-            KitchenFormSection("Ingredients", footer: "E-numbers in the ingredients are used to rate additives.") {
+            KitchenFormSection(String(localized: "Ingredients"), footer: String(localized: "E-numbers in the ingredients are used to rate additives.")) {
                 TextField("Ingredients (optional)", text: $ingredients, axis: .vertical)
                     .lineLimit(3 ... 8)
             }
@@ -162,7 +162,7 @@ struct AddProductView: View {
         .kitchenPage()
         .kitchenBottomBar { saveBar }
         .onAppear(perform: applyPrefill)
-        .navigationTitle(prefill == nil ? "Add product" : "Update label")
+        .navigationTitle(prefill == nil ? String(localized: "Add product") : String(localized: "Update label"))
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $picker) { target in
             switch target {
@@ -235,7 +235,7 @@ struct AddProductView: View {
 
             VStack(alignment: .leading, spacing: Tide.s2) {
                 if photo != nil {
-                    Text(photoIsCutOut ? "Studio photo ready" : "Couldn't cut it out, cropped instead")
+                    Text(photoIsCutOut ? String(localized: "Studio photo ready") : String(localized: "Couldn't cut it out, cropped instead"))
                         .font(Tide.caption)
                         .foregroundStyle(photoIsCutOut ? Tide.Kitchen.good : Tide.text2)
                 }
@@ -329,13 +329,13 @@ struct AddProductView: View {
             } catch let error as APIError {
                 labelBlocker = AIBlocker(error)
                 labelMessage = switch error {
-                case .unauthorized: "Sign in to read labels with AI — or type the values below."
+                case .unauthorized: String(localized: "Sign in to read labels with AI — or type the values below.")
                 case .subscriptionRequired,
                      .aiConsentRequired: nil
                 default: error.userMessage
                 }
             } catch {
-                labelMessage = (error as? LocalizedError)?.errorDescription ?? "Couldn't read the label. Type the values below."
+                labelMessage = (error as? LocalizedError)?.errorDescription ?? String(localized: "Couldn't read the label. Type the values below.")
             }
             isReadingLabel = false
         }
@@ -434,26 +434,26 @@ struct AddProductView: View {
         return VStack(alignment: .leading, spacing: Tide.s3) {
             coreMeter
             KitchenPair {
-                KitchenNumberField(label: "Calories", unit: "kcal", placeholder: "—", tint: Tide.streak, text: $kcal, identifier: "addProductKcal")
+                KitchenNumberField(label: String(localized: "Calories"), unit: "kcal", placeholder: "—", tint: Tide.streak, text: $kcal, identifier: "addProductKcal")
             } second: {
-                KitchenNumberField(label: "Protein", unit: unit, placeholder: "—", tint: Tide.protein, text: $protein, identifier: "addProductProtein")
+                KitchenNumberField(label: String(localized: "Protein"), unit: unit, placeholder: "—", tint: Tide.protein, text: $protein, identifier: "addProductProtein")
             }
             KitchenPair {
-                KitchenNumberField(label: "Carbs", unit: unit, placeholder: "—", tint: Tide.carbs, text: $carbs, identifier: "addProductCarbs")
+                KitchenNumberField(label: String(localized: "Carbs"), unit: unit, placeholder: "—", tint: Tide.carbs, text: $carbs, identifier: "addProductCarbs")
             } second: {
-                KitchenNumberField(label: "Fat", unit: unit, placeholder: "—", tint: Tide.fat, text: $fat, identifier: "addProductFat")
+                KitchenNumberField(label: String(localized: "Fat"), unit: unit, placeholder: "—", tint: Tide.fat, text: $fat, identifier: "addProductFat")
             }
             Text("Also on the label").tideLabel(Tide.text3)
                 .padding(.top, Tide.s2)
             KitchenPair {
-                KitchenNumberField(label: "Sugars", unit: unit, placeholder: "—", text: $sugars, identifier: "addProductSugars")
+                KitchenNumberField(label: String(localized: "Sugars"), unit: unit, placeholder: "—", text: $sugars, identifier: "addProductSugars")
             } second: {
-                KitchenNumberField(label: "Saturated", unit: unit, placeholder: "—", text: $saturatedFat, identifier: "addProductSatFat")
+                KitchenNumberField(label: String(localized: "Saturated"), unit: unit, placeholder: "—", text: $saturatedFat, identifier: "addProductSatFat")
             }
             KitchenPair {
-                KitchenNumberField(label: "Fiber", unit: unit, placeholder: "—", text: $fiber, identifier: "addProductFiber")
+                KitchenNumberField(label: String(localized: "Fiber"), unit: unit, placeholder: "—", text: $fiber, identifier: "addProductFiber")
             } second: {
-                KitchenNumberField(label: "Salt", unit: unit, placeholder: "—", text: $salt, identifier: "addProductSalt")
+                KitchenNumberField(label: String(localized: "Salt"), unit: unit, placeholder: "—", text: $salt, identifier: "addProductSalt")
             }
             Text("Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score.")
                 .font(Tide.caption)
@@ -480,7 +480,7 @@ struct AddProductView: View {
                     .transition(.opacity)
             }
             Button(action: save) {
-                Text(prefill == nil ? "Save product" : "Save label")
+                Text(prefill == nil ? String(localized: "Save product") : String(localized: "Save label"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.kitchenBar)
@@ -493,9 +493,9 @@ struct AddProductView: View {
     private var missingHint: String {
         let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         switch (hasName, coreFilled == 4) {
-        case (false, false): return "Add a name and the four values to save."
-        case (false, true): return "Add a name to save."
-        default: return "Add the four values to save."
+        case (false, false): return String(localized: "Add a name and the four values to save.")
+        case (false, true): return String(localized: "Add a name to save.")
+        default: return String(localized: "Add the four values to save.")
         }
     }
 
@@ -557,6 +557,6 @@ struct AddProductView: View {
         guard let value else {
             return ""
         }
-        return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        return value == value.rounded() ? "\(Int(value))" : value.tempoDecimal(1)
     }
 }

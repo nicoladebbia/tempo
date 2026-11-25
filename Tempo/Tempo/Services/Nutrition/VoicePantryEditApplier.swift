@@ -71,8 +71,8 @@ enum VoicePantryEditApplier {
                 canonicalName: canonical, displayName: label, quantity: restock.quantity, unit: restock.unit, modelContext: modelContext
             )) != nil
             let summary = addedToList
-                ? "\(label) marked out — added to grocery list"
-                : "\(label) marked out"
+                ? String(localized: "\(label) marked out — added to grocery list")
+                : String(localized: "\(label) marked out")
             return PantryEditApplyResult(intent: intent, summary: summary, succeeded: true)
 
         case let .decrement(rawName, fraction):
@@ -81,7 +81,7 @@ enum VoicePantryEditApplier {
             let label = display.isEmpty ? rawName.capitalized : display
             let rows = matchingRows(canonical: canonical, pantryService: pantryService)
             guard !rows.isEmpty else {
-                return PantryEditApplyResult(intent: intent, summary: "Couldn't find \(label) in your pantry", succeeded: false)
+                return PantryEditApplyResult(intent: intent, summary: String(localized: "Couldn't find \(label) in your pantry"), succeeded: false)
             }
             let clampedFraction = min(max(fraction, 0), 1)
             // Rows of one food can be in DIFFERENT units (500 g + 2 packs):
@@ -108,8 +108,8 @@ enum VoicePantryEditApplier {
                 }
             }
             let summary = clampedFraction >= 1
-                ? "Used up \(label)"
-                : "Used some \(label)"
+                ? String(localized: "Used up \(label)")
+                : String(localized: "Used some \(label)")
             return PantryEditApplyResult(intent: intent, summary: summary, succeeded: true)
 
         case let .move(rawName, location):
@@ -118,14 +118,14 @@ enum VoicePantryEditApplier {
             let label = display.isEmpty ? rawName.capitalized : display
             let rows = matchingRows(canonical: canonical, pantryService: pantryService)
             guard !rows.isEmpty else {
-                return PantryEditApplyResult(intent: intent, summary: "Couldn't find \(label) in your pantry", succeeded: false)
+                return PantryEditApplyResult(intent: intent, summary: String(localized: "Couldn't find \(label) in your pantry"), succeeded: false)
             }
             for row in rows {
                 _ = try? pantryService.updateItem(
                     row, quantity: nil, unit: nil, storageLocation: location, useBy: nil, brand: nil
                 )
             }
-            return PantryEditApplyResult(intent: intent, summary: "Moved \(label) to the \(location.rawValue)", succeeded: true)
+            return PantryEditApplyResult(intent: intent, summary: String(localized: "Moved \(label) to the \(location.displayName.lowercased())"), succeeded: true)
 
         case let .discard(rawName):
             let canonical = FoodCanonicalizer.canonicalize(rawName)
@@ -133,12 +133,12 @@ enum VoicePantryEditApplier {
             let label = display.isEmpty ? rawName.capitalized : display
             let rows = matchingRows(canonical: canonical, pantryService: pantryService)
             guard !rows.isEmpty else {
-                return PantryEditApplyResult(intent: intent, summary: "Couldn't find \(label) in your pantry", succeeded: false)
+                return PantryEditApplyResult(intent: intent, summary: String(localized: "Couldn't find \(label) in your pantry"), succeeded: false)
             }
             for row in rows {
                 _ = try? pantryService.archive(row)
             }
-            return PantryEditApplyResult(intent: intent, summary: "Threw out \(label)", succeeded: true)
+            return PantryEditApplyResult(intent: intent, summary: String(localized: "Threw out \(label)"), succeeded: true)
         }
     }
 }

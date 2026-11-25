@@ -250,22 +250,22 @@ struct NonNegotiableSetupView: View {
             let hours = Int(nn.targetValue) / 60
             let mins = Int(nn.targetValue) % 60
             if hours > 0, mins > 0 {
-                return "\(hours)h \(mins)m"
+                return String(localized: "\(hours)h \(mins)m")
             }
             if hours > 0 {
-                return "\(hours)h"
+                return String(localized: "\(hours)h")
             }
-            return "\(mins)m"
+            return String(localized: "\(mins)m")
         case .meals:
-            return "\(Int(nn.targetValue)) meals"
+            return String(localized: "\(Int(nn.targetValue)) meals")
         case .train:
-            return "1 session"
+            return String(localized: "1 session")
         case .sleep:
-            return "\(Int(nn.targetValue))h"
+            return String(localized: "\(Int(nn.targetValue))h")
         case .steps:
-            return "\(Int(nn.targetValue)) steps"
+            return String(localized: "\(Int(nn.targetValue)) steps")
         case .hydration:
-            return "\(Int(nn.targetValue)) glasses"
+            return String(localized: "\(Int(nn.targetValue)) glasses")
         case .custom:
             return "\(Int(nn.targetValue))"
         }
@@ -276,12 +276,12 @@ struct NonNegotiableSetupView: View {
     private var emptyState: some View {
         // One picture, one line, the fast way on under the thumb and the slow way beneath it.
         ArenaEmptyPage(
-            title: "Set your non-negotiables",
-            message: "These are the things you MUST do every day. No excuses. No exceptions.",
-            actionTitle: "Use default templates",
+            title: String(localized: "Set your non-negotiables"),
+            message: String(localized: "These are the things you MUST do every day. No excuses. No exceptions."),
+            actionTitle: String(localized: "Use default templates"),
             actionSystemImage: "wand.and.stars",
             action: { addDefaultTemplates() },
-            secondaryTitle: "Create from scratch",
+            secondaryTitle: String(localized: "Create from scratch"),
             secondaryAction: { showAddSheet = true },
             art: { ArenaEmptyArt(systemImage: "checklist", tint: mood.accent) }
         )
@@ -339,14 +339,14 @@ struct NonNegotiableSetupView: View {
         nn.order = nonNegotiables.count
         modelContext.insert(nn)
         try? modelContext.save()
-        offerAddUndo(ids: [nn.id], message: "\(nn.name) added.")
+        offerAddUndo(ids: [nn.id], message: String(localized: "\(nn.name) added."))
     }
 
     /// The tasks are in at once; Undo takes back exactly these.
     private func offerAddUndo(ids: [UUID], message: String) {
         // A removal still waiting on its own Undo becomes final first.
         commitPendingDeletion()
-        toast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+        toast = ToastData(message: message, style: .success, actionTitle: String(localized: "Undo")) {
             withAnimation(Tide.snap) {
                 _ = NonNegotiableAddUndo.remove(ids: ids, from: modelContext)
             }
@@ -373,9 +373,9 @@ struct NonNegotiableSetupView: View {
             pendingDeleteID = id
         }
         toast = ToastData(
-            message: "\(item.name) removed.",
+            message: String(localized: "\(item.name) removed."),
             style: .info,
-            actionTitle: "Undo"
+            actionTitle: String(localized: "Undo")
         ) {
             withAnimation(Tide.snap) {
                 if pendingDeleteID == id {
@@ -410,10 +410,10 @@ struct NonNegotiableSetupView: View {
     /// Per MODULE_ACCOUNTABILITY.md — default templates.
     private func addDefaultTemplates() {
         let templates: [(String, NonNegotiableType, String, Double, TrackingMethod)] = [
-            ("Study", .study, "book.fill", 120, .timer),
-            ("Training", .train, "dumbbell.fill", 1, .autoWhoop),
-            ("Meals", .meals, "fork.knife", 3, .manual),
-            ("Sleep", .sleep, "moon.fill", 7, .autoHealthkit),
+            (String(localized: "Study"), .study, "book.fill", 120, .timer),
+            (String(localized: "Training"), .train, "dumbbell.fill", 1, .autoWhoop),
+            (String(localized: "Meals"), .meals, "fork.knife", 3, .manual),
+            (String(localized: "Sleep"), .sleep, "moon.fill", 7, .autoHealthkit),
         ]
 
         var addedIDs: [UUID] = []
@@ -438,7 +438,7 @@ struct NonNegotiableSetupView: View {
         if !addedIDs.isEmpty {
             offerAddUndo(
                 ids: addedIDs,
-                message: addedIDs.count == 1 ? "1 task added." : "\(addedIDs.count) tasks added."
+                message: addedIDs.count == 1 ? String(localized: "1 task added.") : String(localized: "\(addedIDs.count) tasks added.")
             )
         }
     }
@@ -582,7 +582,7 @@ struct NonNegotiableEditSheet: View {
                 .tideListRow()
             }
             .tidePage()
-            .navigationTitle(editing != nil ? "Edit Non-Negotiable" : "Add Non-Negotiable")
+            .navigationTitle(editing != nil ? String(localized: "Edit Non-Negotiable") : String(localized: "Add Non-Negotiable"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -610,9 +610,9 @@ struct NonNegotiableEditSheet: View {
     private var targetEditor: some View {
         switch selectedType {
         case .study:
-            targetStepper("Duration: \(Int(targetValue)) min", range: 15 ... 480, step: 15)
+            targetStepper(String(localized: "Duration: \(Int(targetValue)) min"), range: 15 ... 480, step: 15)
         case .meals:
-            targetStepper("Meals: \(Int(targetValue))", range: 1 ... 6, step: 1)
+            targetStepper(String(localized: "Meals: \(Int(targetValue))"), range: 1 ... 6, step: 1)
         case .train:
             HStack {
                 Text("Sessions per day")
@@ -627,13 +627,13 @@ struct NonNegotiableEditSheet: View {
             .frame(minHeight: Tide.hit)
             .accessibilityElement(children: .combine)
         case .sleep:
-            targetStepper("Hours: \(Int(targetValue))", range: 4 ... 12, step: 1)
+            targetStepper(String(localized: "Hours: \(Int(targetValue))"), range: 4 ... 12, step: 1)
         case .steps:
-            targetStepper("Steps: \(Int(targetValue))", range: 1000 ... 30000, step: 1000)
+            targetStepper(String(localized: "Steps: \(Int(targetValue))"), range: 1000 ... 30000, step: 1000)
         case .hydration:
-            targetStepper("Glasses: \(Int(targetValue))", range: 1 ... 20, step: 1)
+            targetStepper(String(localized: "Glasses: \(Int(targetValue))"), range: 1 ... 20, step: 1)
         case .custom:
-            targetStepper("Target: \(Int(targetValue))", range: 1 ... 1000, step: 1)
+            targetStepper(String(localized: "Target: \(Int(targetValue))"), range: 1 ... 1000, step: 1)
         }
     }
 
@@ -647,20 +647,20 @@ struct NonNegotiableEditSheet: View {
 
     private var targetHelpText: String {
         switch selectedType {
-        case .study: "Study time in minutes. Weekend targets are halved automatically."
-        case .meals: "Number of meals to log per day."
-        case .train: "Auto-tracked from Whoop or HealthKit."
-        case .sleep: "Minimum hours of sleep from HealthKit."
-        case .steps: "Daily step count from HealthKit."
-        case .hydration: "Number of glasses of water per day."
-        case .custom: "Set your own target value."
+        case .study: String(localized: "Study time in minutes. Weekend targets are halved automatically.")
+        case .meals: String(localized: "Number of meals to log per day.")
+        case .train: String(localized: "Auto-tracked from Whoop or HealthKit.")
+        case .sleep: String(localized: "Minimum hours of sleep from HealthKit.")
+        case .steps: String(localized: "Daily step count from HealthKit.")
+        case .hydration: String(localized: "Number of glasses of water per day.")
+        case .custom: String(localized: "Set your own target value.")
         }
     }
 
     // MARK: - Active Days Picker
 
     private var activeDaysPicker: some View {
-        let dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        let dayLabels = [String(localized: "Mon"), String(localized: "Tue"), String(localized: "Wed"), String(localized: "Thu"), String(localized: "Fri"), String(localized: "Sat"), String(localized: "Sun")]
         let dayValues: [ActiveDays] = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
 
         // Seven in a row, or four to a row once the text is large enough to need the room.
@@ -768,28 +768,28 @@ struct IconPickerSheet: View {
     private var mood
 
     private let categories: [(name: String, icons: [String])] = [
-        ("Fitness", [
+        (String(localized: "Fitness"), [
             "dumbbell.fill", "figure.run", "figure.walk", "figure.cooldown",
             "figure.strengthtraining.traditional", "figure.boxing",
             "sportscourt.fill", "trophy.fill",
         ]),
-        ("Food & Drink", [
+        (String(localized: "Food & Drink"), [
             "fork.knife", "cup.and.saucer.fill", "waterbottle.fill",
             "carrot.fill", "leaf.fill", "flame.fill",
         ]),
-        ("Study", [
+        (String(localized: "Study"), [
             "book.fill", "pencil", "graduationcap.fill", "brain.head.profile",
             "text.book.closed.fill", "doc.text.fill", "lightbulb.fill",
         ]),
-        ("Health", [
+        (String(localized: "Health"), [
             "heart.fill", "bed.double.fill", "moon.fill", "cross.case.fill",
             "waveform.path.ecg", "lungs.fill", "pills.fill",
         ]),
-        ("Lifestyle", [
+        (String(localized: "Lifestyle"), [
             "star.fill", "bolt.fill", "clock.fill", "calendar",
             "checkmark.seal.fill", "target", "flag.fill", "medal.fill",
         ]),
-        ("Mindfulness", [
+        (String(localized: "Mindfulness"), [
             "sparkles", "wind", "drop.fill", "sun.max.fill",
             "cloud.fill", "eye.fill", "hands.sparkles.fill",
         ]),
@@ -857,13 +857,13 @@ struct IconPickerSheet: View {
 extension NonNegotiableType {
     var displayName: String {
         switch self {
-        case .study: "Study"
-        case .train: "Training"
-        case .meals: "Meals"
-        case .sleep: "Sleep"
-        case .steps: "Steps"
-        case .hydration: "Hydration"
-        case .custom: "Custom"
+        case .study: String(localized: "Study")
+        case .train: String(localized: "Training")
+        case .meals: String(localized: "Meals")
+        case .sleep: String(localized: "Sleep")
+        case .steps: String(localized: "Steps")
+        case .hydration: String(localized: "Hydration")
+        case .custom: String(localized: "Custom")
         }
     }
 }

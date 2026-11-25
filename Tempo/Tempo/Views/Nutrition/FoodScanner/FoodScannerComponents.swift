@@ -122,7 +122,7 @@ struct FoodScoreBadge: View {
             .padding(.vertical, Tide.hair)
             .background(score?.rating.color ?? Tide.fill)
             .clipShape(Capsule())
-            .accessibilityLabel(score.map { "Tempo score \($0.total), \($0.rating.label)" } ?? "Not scored")
+            .accessibilityLabel(score.map { String(localized: "Tempo score \($0.total), \($0.rating.label)") } ?? String(localized: "Not scored"))
     }
 }
 
@@ -242,7 +242,7 @@ struct FoodProductRow: View {
     @ViewBuilder
     private var detailLine: some View {
         let brand = product.brand?.isEmpty == false ? product.brand : nil
-        let kcalText = product.per100g.kcal.map { "\(Int($0.rounded())) kcal / 100 \(product.unit)" }
+        let kcalText = product.per100g.kcal.map { String(localized: "\(Int($0.rounded())) kcal / 100 \(product.unit)") }
         HStack(spacing: Tide.hair) {
             if let brand {
                 Text(brand)

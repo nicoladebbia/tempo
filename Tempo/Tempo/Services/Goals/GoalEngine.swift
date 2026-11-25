@@ -28,11 +28,11 @@ struct GoalProgress: Equatable {
 
         var title: String {
             switch self {
-            case .ahead: "Ahead"
-            case .onTrack: "On track"
-            case .behind: "Behind"
-            case .reached: "Reached"
-            case .noReading: "No reading yet"
+            case .ahead: String(localized: "Ahead")
+            case .onTrack: String(localized: "On track")
+            case .behind: String(localized: "Behind")
+            case .reached: String(localized: "Reached")
+            case .noReading: String(localized: "No reading yet")
             }
         }
     }
@@ -217,17 +217,17 @@ enum GoalFormat {
 
     /// "5 km", "21.1 km".
     static func distance(km: Double) -> String {
-        km == km.rounded() ? "\(Int(km)) km" : String(format: "%.1f km", km)
+        km == km.rounded() ? String(localized: "\(Int(km)) km") : String(localized: "\(km.tempoDecimal(1)) km")
     }
 
     /// "12 days left", "Today", "3 days over".
     static func daysLeft(_ days: Int) -> String {
         switch days {
-        case 0: "Due today"
-        case 1: "1 day left"
-        case 2...: "\(days) days left"
-        case -1: "1 day over"
-        default: "\(-days) days over"
+        case 0: String(localized: "Due today")
+        case 1: String(localized: "1 day left")
+        case 2...: String(localized: "\(days) days left")
+        case -1: String(localized: "1 day over")
+        default: String(localized: "\(-days) days over")
         }
     }
 
@@ -235,9 +235,11 @@ enum GoalFormat {
     static func headline(for goal: Goal, unit: WeightUnit) -> String {
         let target = value(goal.targetValue, kind: goal.kind, unit: unit)
         switch goal.kind {
-        case .bodyWeight: return "Reach \(target)"
-        case .liftE1RM: return "\(goal.exerciseName ?? "Lift") \(target)"
-        case .runTime: return "\(goal.runDistanceKm.map(distance(km:)) ?? "Run") in \(target)"
+        case .bodyWeight: return String(localized: "Reach \(target)")
+        case .liftE1RM: return "\(goal.exerciseName ?? String(localized: "Lift")) \(target)"
+        case .runTime:
+            let distanceText = goal.runDistanceKm.map(distance(km:)) ?? String(localized: "Run")
+            return String(localized: "\(distanceText) in \(target)")
         }
     }
 }
@@ -260,11 +262,11 @@ struct GoalSnapshot: Equatable, Identifiable {
     /// One short line: "Ahead of your line".
     var paceLine: String {
         switch progress.pace {
-        case .ahead: "Ahead of your line"
-        case .onTrack: "On track"
-        case .behind: "Behind your line"
-        case .reached: "Goal reached"
-        case .noReading: "No reading yet"
+        case .ahead: String(localized: "Ahead of your line")
+        case .onTrack: String(localized: "On track")
+        case .behind: String(localized: "Behind your line")
+        case .reached: String(localized: "Goal reached")
+        case .noReading: String(localized: "No reading yet")
         }
     }
 }
@@ -290,7 +292,7 @@ extension GoalReader {
             kind: goal.kind,
             progress: progress,
             headline: GoalFormat.headline(for: goal, unit: unit),
-            nowText: current.map { GoalFormat.value($0, kind: goal.kind, unit: unit) } ?? "No reading yet",
+            nowText: current.map { GoalFormat.value($0, kind: goal.kind, unit: unit) } ?? String(localized: "No reading yet"),
             targetText: GoalFormat.value(goal.targetValue, kind: goal.kind, unit: unit),
             daysLeftText: GoalFormat.daysLeft(progress.daysLeft)
         )

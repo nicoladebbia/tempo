@@ -33,7 +33,7 @@ final class TrainerProgramImportService: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .signedOut:
-                "AI import needs you signed in. Sign in and try again."
+                String(localized: "AI import needs you signed in. Sign in and try again.")
             case let .api(error):
                 error.userMessage
             case let .parse(error):

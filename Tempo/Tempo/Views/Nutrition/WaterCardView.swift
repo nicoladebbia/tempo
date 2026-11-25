@@ -59,13 +59,13 @@ struct WaterCardView: View {
                     relativeTo: .headline,
                     color: target.map { totalMl >= $0 } == true ? Tide.good : Tide.text
                 )
-                Text(target.map { "/ \($0.formatted()) ml" } ?? "ml")
+                Text(target.map { String(localized: "/ \($0.formatted()) ml") } ?? String(localized: "ml"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(target.map { "Water \(totalMl) of \($0) millilitres" } ?? "Water \(totalMl) millilitres")
+            .accessibilityLabel(target.map { String(localized: "Water \(totalMl) of \($0) millilitres") } ?? String(localized: "Water \(totalMl) millilitres"))
             .accessibilityIdentifier("water.total")
 
             VStack(alignment: .leading, spacing: Tide.s3) {
@@ -84,7 +84,7 @@ struct WaterCardView: View {
                 TideLevelBar(progress: progress, color: Tide.water, height: Tide.bar)
                     .animation(Tide.settle, value: progress)
             }
-            .explains(.fuelWaterTarget.showing(target.map { "\(totalMl.formatted()) / \($0.formatted()) ml" }))
+            .explains(.fuelWaterTarget.showing(target.map { String(localized: "\(totalMl.formatted()) / \($0.formatted()) ml") }))
 
             GlassEffectContainer(spacing: Tide.s2) {
                 // One row when it fits; otherwise Undo drops under the chips
@@ -126,7 +126,7 @@ struct WaterCardView: View {
     private var chips: some View {
         chip("+250", id: "water.add250") { add(250) }
         chip("+500", id: "water.add500") { add(500) }
-        chip("Custom", id: "water.addCustom") { showCustom = true }
+        chip(String(localized: "Custom"), id: "water.addCustom") { showCustom = true }
     }
 
     @ViewBuilder
@@ -170,18 +170,18 @@ struct WaterCardView: View {
     /// Saves the water and offers a few seconds to take back exactly that entry.
     private func add(_ ml: Int) {
         guard let log = store().add(ml: ml) else {
-            FuelLogToast.post(ToastData(message: "Couldn't save that water. Try again.", style: .error))
+            FuelLogToast.post(ToastData(message: String(localized: "Couldn't save that water. Try again."), style: .error))
             return
         }
         let id = log.id
         let context = modelContext
         let healthKit = services.healthKit
-        FuelLogToast.post(ToastData(message: "\(ml) ml of water added.", style: .success, actionTitle: "Undo") {
+        FuelLogToast.post(ToastData(message: String(localized: "\(ml) ml of water added."), style: .success, actionTitle: String(localized: "Undo")) {
             let undone = WaterStore(context: context, healthKit: healthKit).remove(id: id)
             FuelLogToast.post(
                 undone
-                    ? ToastData(message: "Water taken back.", style: .info)
-                    : ToastData(message: "That water was already taken back.", style: .info)
+                    ? ToastData(message: String(localized: "Water taken back."), style: .info)
+                    : ToastData(message: String(localized: "That water was already taken back."), style: .info)
             )
         })
     }

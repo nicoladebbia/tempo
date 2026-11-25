@@ -15,13 +15,13 @@ extension TrainingViewModel {
     /// Why a routine can't be applied today, or nil when it can.
     func routineBlocker(for plan: WorkoutPlan?) -> String? {
         guard let plan else {
-            return "No workout planned today."
+            return String(localized: "No workout planned today.")
         }
         guard plan.type.isGymWorkout else {
-            return "Today is a \(plan.type.displayName.lowercased()) day — routines run on gym days."
+            return String(localized: "Today is a \(plan.type.displayName.lowercased()) day — routines run on gym days.")
         }
         guard plan.status == .planned else {
-            return "Today's workout already started."
+            return String(localized: "Today's workout already started.")
         }
         return nil
     }
@@ -55,7 +55,7 @@ extension TrainingViewModel {
         }
         let routine = WorkoutRoutine(name: trimmed, items: items)
         modelContext.insert(routine)
-        guard saveGuarded(modelContext, operation: "save routine") else {
+        guard saveGuarded(modelContext, operation: String(localized: "save routine")) else {
             return nil
         }
         HapticManager.success()
@@ -100,7 +100,7 @@ extension TrainingViewModel {
             )
         }
         routine.lastUsedAt = Date()
-        guard saveGuarded(modelContext, operation: "apply routine") else {
+        guard saveGuarded(modelContext, operation: String(localized: "apply routine")) else {
             return false
         }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)

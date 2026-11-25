@@ -724,7 +724,7 @@ struct KitchenSheetHeader: View {
 struct KitchenFailure: View {
     let title: String
     let message: String
-    var retryTitle = "Try again"
+    var retryTitle = String(localized: "Try again")
     var retry: (() -> Void)?
     var secondaryTitle: String?
     var secondary: (() -> Void)?
@@ -1538,8 +1538,10 @@ struct KitchenSpendTrend: View {
     /// "Week of Nov 3, $73.45, over budget".
     static func accessibilityLabel(for week: GroceryWeeklySpend) -> String {
         let date = week.weekStartDate.formatted(date: .abbreviated, time: .omitted)
-        let over = week.isOverBudget ? ", over budget" : ""
-        return "Week of \(date), \(SpendingSummary.money(week.totalUSD))\(over)"
+        let money = SpendingSummary.money(week.totalUSD)
+        return week.isOverBudget
+            ? String(localized: "Week of \(date), \(money), over budget")
+            : String(localized: "Week of \(date), \(money)")
     }
 
     private struct BudgetLine: Shape {

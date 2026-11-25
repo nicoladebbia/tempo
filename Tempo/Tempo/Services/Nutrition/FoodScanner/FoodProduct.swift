@@ -129,19 +129,19 @@ struct FoodProduct: Codable, Equatable, Hashable, Sendable, Identifiable {
             return nil
         }
         if kcal > 900 {
-            return "\(Int(kcal.rounded())) kcal per 100 g is higher than any real food."
+            return String(localized: "\(Int(kcal.rounded())) kcal per 100 g is higher than any real food.")
         }
         let lowered = name.lowercased()
         let looksZeroCalorie = ["zero", "diet", "light", "lite", "sugar-free", "sugar free", "no sugar"]
             .contains { lowered.contains($0) }
         if isBeverage, looksZeroCalorie, kcal > 20 {
-            return "Labelled zero/diet/light but \(Int(kcal.rounded())) kcal per 100 ml."
+            return String(localized: "Labelled zero/diet/light but \(Int(kcal.rounded())) kcal per 100 ml.")
         }
         if let protein = per100g.protein, let carbs = per100g.carbs, let fat = per100g.fat {
             let atwater = protein * 4 + carbs * 4 + fat * 9
             let diff = abs(kcal - atwater)
             if kcal > 0, diff > 40, diff / kcal > 0.3 {
-                return "Printed \(Int(kcal.rounded())) kcal doesn't match the macros (~\(Int(atwater.rounded())) kcal)."
+                return String(localized: "Printed \(Int(kcal.rounded())) kcal doesn't match the macros (~\(Int(atwater.rounded())) kcal).")
             }
         }
         return nil

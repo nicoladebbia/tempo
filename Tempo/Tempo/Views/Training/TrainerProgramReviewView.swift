@@ -200,13 +200,13 @@ struct TrainerProgramReviewView: View {
                         onRemoveWeek: { removeWeek(week.id) }
                     )
                 }
-                TrainPlanAddButton(title: "Add Week", systemImage: "plus.circle") {
+                TrainPlanAddButton(title: String(localized: "Add Week"), systemImage: "plus.circle") {
                     addWeek()
                 }
             }
             .scrollDismissesKeyboard(.interactively)
             .trainSheetRoot()
-            .navigationTitle(editingProgram == nil ? "Review Program" : "Edit Program")
+            .navigationTitle(editingProgram == nil ? String(localized: "Review Program") : String(localized: "Edit Program"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -237,7 +237,7 @@ struct TrainerProgramReviewView: View {
     // MARK: - Program-level section
 
     private var programSection: some View {
-        TrainPlanCard(label: "Program") {
+        TrainPlanCard(label: String(localized: "Program")) {
             TextField("Program name", text: $name)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
@@ -247,10 +247,10 @@ struct TrainerProgramReviewView: View {
             // week — upload" prompt/reminders, and (below) how a new upload
             // replaces the old one.
             TrainPlanPickerRow(
-                title: "How does your trainer send programs?",
+                title: String(localized: "How does your trainer send programs?"),
                 detail: cadence == .weekly
-                    ? "Tempo reminds you every Sunday to upload the next one."
-                    : "Runs for its full length, then repeats or ends.",
+                    ? String(localized: "Tempo reminds you every Sunday to upload the next one.")
+                    : String(localized: "Runs for its full length, then repeats or ends."),
                 stacked: true,
                 selection: $cadence
             ) {
@@ -294,13 +294,13 @@ struct TrainerProgramReviewView: View {
 
             if weeks.count > 1 {
                 TrainPlanDivider()
-                TrainPlanToggleRow(title: "Repeats after last week", isOn: $repeats)
+                TrainPlanToggleRow(title: String(localized: "Repeats after last week"), isOn: $repeats)
             }
 
             TrainPlanDivider()
             TrainPlanToggleRow(
-                title: "Tempo warm-up sets",
-                detail: "Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote.",
+                title: String(localized: "Tempo warm-up sets"),
+                detail: String(localized: "Add a 50%/75% ramp before each lift. Off — exactly what your trainer wrote."),
                 isOn: $autoWarmups
             )
 
@@ -308,7 +308,7 @@ struct TrainerProgramReviewView: View {
             // TrainerProgramView.
             TrainPlanDivider()
             TrainPlanPickerRow(
-                title: "Schedule",
+                title: String(localized: "Schedule"),
                 detail: scheduleMode.explanation,
                 selection: $scheduleMode
             ) {
@@ -330,7 +330,7 @@ struct TrainerProgramReviewView: View {
                 // replacing it immediately (block cadence only).
                 TrainPlanDivider()
                 TrainPlanPickerRow(
-                    title: "Starts",
+                    title: String(localized: "Starts"),
                     detail: startTiming == .now ? nil : queueExplanation,
                     stacked: true,
                     selection: $startTiming
@@ -362,8 +362,8 @@ struct TrainerProgramReviewView: View {
     private func weeklyReplaceExplanation(_ other: TrainerProgram, timing: TrainerProgramWeeklyUpload.UploadTiming) -> String {
         let dateText = timing.startDate.formatted(date: .abbreviated, time: .omitted)
         return timing.isQueued
-            ? "Starts \(dateText) and replaces \"\(other.name)\" once this week ends — your current one keeps running until then."
-            : "Starts \(dateText) and replaces \"\(other.name)\" now."
+            ? String(localized: "Starts \(dateText) and replaces \"\(other.name)\" once this week ends — your current one keeps running until then.")
+            : String(localized: "Starts \(dateText) and replaces \"\(other.name)\" now.")
     }
 
     /// Monday of the week right after `program`'s last week — nil for a
@@ -380,9 +380,9 @@ struct TrainerProgramReviewView: View {
         case .now:
             ""
         case .afterCurrent:
-            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day; your current program keeps running until then."
+            String(localized: "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day; your current program keeps running until then.")
         case .onDate:
-            "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — pick the date above. Your current program keeps running until then."
+            String(localized: "Starts \(startDate.formatted(date: .abbreviated, time: .omitted)) — pick the date above. Your current program keeps running until then.")
         }
     }
 
@@ -500,7 +500,7 @@ private struct WeekEditorSection: View {
                 TrainPlanDivider()
             }
 
-            TrainPlanAddButton(title: "Add Day") {
+            TrainPlanAddButton(title: String(localized: "Add Day")) {
                 addDay()
             }
         }
@@ -533,7 +533,7 @@ private struct WeekEditorSection: View {
         guard sameWeekday.count == 2 else {
             return nil
         }
-        return "Lift + conditioning"
+        return String(localized: "Lift + conditioning")
     }
 
     private func addDay() {
@@ -570,7 +570,7 @@ private struct DayEditorView: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TrainPlanPickerRow(title: "Day", selection: $day.weekday) {
+                TrainPlanPickerRow(title: String(localized: "Day"), selection: $day.weekday) {
                     ForEach(1 ... 7, id: \.self) { weekday in
                         Text(TrainerProgramView.shortWeekdayName(weekday)).tag(weekday)
                     }
@@ -580,18 +580,18 @@ private struct DayEditorView: View {
                     day.weekdayGuessed = false
                 }
 
-                TrainPlanCellField(label: "Title") {
+                TrainPlanCellField(label: String(localized: "Title")) {
                     TextField("Day title (optional)", text: stringBinding(for: $day.title))
                 }
 
-                TrainPlanPickerRow(title: "Focus", selection: $day.focus) {
+                TrainPlanPickerRow(title: String(localized: "Focus"), selection: $day.focus) {
                     Text("None").tag(String?.none)
                     ForEach(Self.focusTypes, id: \.self) { type in
                         Text(type.displayName).tag(String?.some(type.rawValue))
                     }
                 }
 
-                TrainPlanCellField(label: "Notes") {
+                TrainPlanCellField(label: String(localized: "Notes")) {
                     TextField("Day notes (optional)", text: stringBinding(for: $day.notes), axis: .vertical)
                 }
 
@@ -610,7 +610,7 @@ private struct DayEditorView: View {
                     )
                 }
 
-                TrainPlanAddButton(title: "Add Exercise") {
+                TrainPlanAddButton(title: String(localized: "Add Exercise")) {
                     addExercise()
                 }
 
@@ -640,7 +640,7 @@ private struct DayEditorView: View {
                         .font(Tide.caption.weight(.semibold))
                         .foregroundStyle(Color.accentColor)
                 }
-                Text("\(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s")")
+                Text(String(localized: "\(day.exercises.count) exercises"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
             }
@@ -777,22 +777,22 @@ private struct ExerciseRowEditor: View {
             matchIndicator
 
             if isConditioning {
-                TrainPlanCellField(label: "Prescription") {
+                TrainPlanCellField(label: String(localized: "Prescription")) {
                     TextField("e.g. 35' — 2' slow / 1' fast / 30\" walk", text: stringBinding(for: $exercise.detail), axis: .vertical)
                         .lineLimit(2 ... 4)
                 }
                 TrainPlanFieldRow {
-                    TrainPlanCellField(label: "RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                    TrainPlanCellField(label: "Rest (sec)") {
+                    TrainPlanCellField(label: String(localized: "RPE")) { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    TrainPlanCellField(label: String(localized: "Rest (sec)")) {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
                     }
-                    TrainPlanCellField(label: "Superset #") {
+                    TrainPlanCellField(label: String(localized: "Superset #")) {
                         TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad)
                     }
                 }
             } else {
                 TrainPlanFieldRow {
-                    TrainPlanCellField(label: "Sets") {
+                    TrainPlanCellField(label: String(localized: "Sets")) {
                         TextField("sets", text: $setsText)
                             .keyboardType(.numberPad)
                             .onChange(of: setsText) { _, newValue in
@@ -801,7 +801,7 @@ private struct ExerciseRowEditor: View {
                                 }
                             }
                     }
-                    TrainPlanCellField(label: "Reps low") {
+                    TrainPlanCellField(label: String(localized: "Reps low")) {
                         TextField("low", text: $repsLowText)
                             .keyboardType(.numberPad)
                             .onChange(of: repsLowText) { _, newValue in
@@ -810,20 +810,20 @@ private struct ExerciseRowEditor: View {
                                 }
                             }
                     }
-                    TrainPlanCellField(label: "Reps high") {
+                    TrainPlanCellField(label: String(localized: "Reps high")) {
                         TextField("high", text: stringBinding(for: $exercise.repsHigh)).keyboardType(.numberPad)
                     }
                 }
 
-                TrainPlanToggleRow(title: "Per side (e.g. \"8+8\")", isOn: perSideBinding($exercise.perSide))
+                TrainPlanToggleRow(title: String(localized: "Per side (e.g. \"8+8\")"), isOn: perSideBinding($exercise.perSide))
 
                 TrainPlanFieldRow {
-                    TrainPlanCellField(label: "Weight (\(weightUnit.abbreviation))") {
+                    TrainPlanCellField(label: String(localized: "Weight (\(weightUnit.abbreviation))")) {
                         TextField("weight", text: weightBinding(kgValue: $exercise.weightKg, unit: weightUnit))
                             .keyboardType(.decimalPad)
                     }
-                    TrainPlanCellField(label: "RPE") { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
-                    TrainPlanCellField(label: "% 1RM") {
+                    TrainPlanCellField(label: String(localized: "RPE")) { TextField("rpe", text: stringBinding(for: $exercise.rpe)).keyboardType(.decimalPad) }
+                    TrainPlanCellField(label: String(localized: "% 1RM")) {
                         TextField("pct", text: percentBinding($exercise.percentOf1RM)).keyboardType(.numberPad)
                     }
                 }
@@ -833,10 +833,10 @@ private struct ExerciseRowEditor: View {
                 percentReadingHint
 
                 TrainPlanFieldRow {
-                    TrainPlanCellField(label: "Rest (sec)") {
+                    TrainPlanCellField(label: String(localized: "Rest (sec)")) {
                         TextField("rest", text: stringBinding(for: $exercise.restSeconds)).keyboardType(.numberPad)
                     }
-                    TrainPlanCellField(label: "Superset #") {
+                    TrainPlanCellField(label: String(localized: "Superset #")) {
                         TextField("group", text: stringBinding(for: $exercise.group)).keyboardType(.numberPad)
                     }
                 }
@@ -849,11 +849,11 @@ private struct ExerciseRowEditor: View {
 
             HStack(spacing: Tide.s2) {
                 Spacer(minLength: 0)
-                TrainIconButton(systemImage: "chevron.up", label: "Move up", action: onMoveUp)
+                TrainIconButton(systemImage: "chevron.up", label: String(localized: "Move up"), action: onMoveUp)
                     .disabled(!canMoveUp)
-                TrainIconButton(systemImage: "chevron.down", label: "Move down", action: onMoveDown)
+                TrainIconButton(systemImage: "chevron.down", label: String(localized: "Move down"), action: onMoveDown)
                     .disabled(!canMoveDown)
-                TrainIconButton(systemImage: "trash", label: "Remove exercise", tint: Tide.danger, action: onRemove)
+                TrainIconButton(systemImage: "trash", label: String(localized: "Remove exercise"), tint: Tide.danger, action: onRemove)
             }
         }
         .padding(.vertical, Tide.s1)
@@ -892,15 +892,15 @@ private struct ExerciseRowEditor: View {
             icon = "checkmark.circle.fill"
             tint = TideTrain.positive
             message =
-                "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))"
+                String(localized: "→ \(TrainerProgramSaver.variantName(rawName: exercise.name, matchedName: matchedExercise.name, equipment: conflictingWrittenEquipment)) (new variant of \(matchedExercise.name))")
         } else if let matchedExercise {
             icon = "checkmark.circle.fill"
             tint = TideTrain.positive
-            message = "Matches \(matchedExercise.name)"
+            message = String(localized: "Matches \(matchedExercise.name)")
         } else {
             icon = "exclamationmark.circle.fill"
             tint = TideTrain.caution
-            message = "New exercise — will be added to your library"
+            message = String(localized: "New exercise — will be added to your library")
         }
 
         return HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {

@@ -43,10 +43,10 @@ struct TideMood: Equatable {
 
     var word: String {
         switch level {
-        case .onPace: "On pace"
-        case .behind: "Behind"
-        case .offTrack: "Off track"
-        case .unknown: "No score yet"
+        case .onPace: String(localized: "On pace")
+        case .behind: String(localized: "Behind")
+        case .offTrack: String(localized: "Off track")
+        case .unknown: String(localized: "No score yet")
         }
     }
 

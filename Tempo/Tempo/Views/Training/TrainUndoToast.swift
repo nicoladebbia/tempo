@@ -28,16 +28,16 @@ private struct DiscardedWorkoutToast: ViewModifier {
                     return
                 }
                 FuelLogToast.post(ToastData(
-                    message: "Workout discarded",
+                    message: String(localized: "Workout discarded"),
                     style: .info,
-                    actionTitle: "Undo"
+                    actionTitle: String(localized: "Undo")
                 ) {
                     Task { @MainActor in
                         let restored = await viewModel.undoDiscardedWorkoutWhenSettled(undo, modelContext: modelContext)
                         viewModel.forgetDiscardedWorkout()
                         if !restored {
                             // Say so, rather than leave a dead button.
-                            FuelLogToast.post(ToastData(message: "Can't undo that now", style: .warning))
+                            FuelLogToast.post(ToastData(message: String(localized: "Can't undo that now"), style: .warning))
                         }
                     }
                 })

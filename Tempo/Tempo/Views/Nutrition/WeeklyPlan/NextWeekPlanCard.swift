@@ -36,16 +36,16 @@ struct NextWeekPlanCard: View {
                 row(
                     icon: "hourglass",
                     tint: Tide.water,
-                    title: "Building the week of \(Self.day(weekStart))",
-                    detail: "Checking every food and solving each day's macros. You'll get a notification.",
+                    title: String(localized: "Building the week of \(Self.day(weekStart))"),
+                    detail: String(localized: "Checking every food and solving each day's macros. You'll get a notification."),
                     isWorking: true
                 ) { EmptyView() }
             case let .upcoming(plan, weekStart):
                 row(
                     icon: "checkmark.seal.fill",
                     tint: Tide.good,
-                    title: "Next week is planned",
-                    detail: "Starts Monday \(Self.day(weekStart)). It replaces this plan then."
+                    title: String(localized: "Next week is planned"),
+                    detail: String(localized: "Starts Monday \(Self.day(weekStart)). It replaces this plan then.")
                 ) {
                     Button("Preview") {
                         HapticManager.lightImpact()
@@ -55,7 +55,7 @@ struct NextWeekPlanCard: View {
                     .accessibilityIdentifier("nextWeekPreview")
                 }
             case let .failed(message):
-                row(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: "Next week's plan didn't build", detail: message) {
+                row(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: String(localized: "Next week's plan didn't build"), detail: message) {
                     Button("Try again") {
                         HapticManager.lightImpact()
                         services.appState.weeklyCheckInRequested = true
@@ -67,8 +67,8 @@ struct NextWeekPlanCard: View {
                     row(
                         icon: "calendar.badge.plus",
                         tint: mood.accent,
-                        title: "Plan next week",
-                        detail: "30 seconds on what's different — the rest comes from your routine."
+                        title: String(localized: "Plan next week"),
+                        detail: String(localized: "30 seconds on what's different — the rest comes from your routine.")
                     ) {
                         Button("Start") {
                             HapticManager.lightImpact()
@@ -142,7 +142,13 @@ struct WeeklyPlanPreviewView: View {
     @Environment(\.dismiss)
     private var dismiss
 
-    private static let dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    private static var dayNames: [String] {
+        [
+            String(localized: "Monday"), String(localized: "Tuesday"), String(localized: "Wednesday"),
+            String(localized: "Thursday"), String(localized: "Friday"), String(localized: "Saturday"),
+            String(localized: "Sunday"),
+        ]
+    }
 
     var body: some View {
         NavigationStack {
@@ -152,7 +158,7 @@ struct WeeklyPlanPreviewView: View {
                     ForEach(plan.days.sorted { $0.dayIndex < $1.dayIndex }, id: \.dayIndex) { day in
                         FuelRowGroup(
                             title: Self.dayNames[min(max(day.dayIndex, 0), 6)],
-                            trailing: "\(Int(day.meals.reduce(0) { $0 + $1.calories })) kcal · \(day.dayType)"
+                            trailing: String(localized: "\(Int(day.meals.reduce(0) { $0 + $1.calories })) kcal · \(day.dayType)")
                         ) {
                             ForEach(day.meals.sorted { $0.scheduledTime < $1.scheduledTime }, id: \.mealNumber) { meal in
                                 mealRow(meal)
@@ -205,7 +211,7 @@ struct WeeklyPlanPreviewView: View {
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
                     if food.source == "restaurant" {
-                        FuelPill(text: "approx", color: Tide.warn)
+                        FuelPill(text: String(localized: "approx"), color: Tide.warn)
                     }
                 }
             }

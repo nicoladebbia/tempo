@@ -22,7 +22,7 @@ struct TrainWindowCard: View {
 
     var body: some View {
         TrainAskCard(
-            label: "Best window today",
+            label: String(localized: "Best window today"),
             title: "\(start.formatted(.dateTime.hour().minute())) – \(end.formatted(.dateTime.hour().minute()))"
         ) {
             TideIconTile(systemName: "calendar.badge.clock", size: TideTrain.askTile)
@@ -43,7 +43,7 @@ struct TrainCountdownCard: View {
     let title: String
 
     var body: some View {
-        TrainAskCard(label: "Next workout", title: title) {
+        TrainAskCard(label: String(localized: "Next workout"), title: title) {
             TideIconTile(systemName: "figure.run", size: TideTrain.askTile)
         }
     }
@@ -57,9 +57,9 @@ struct TrainMonthlyReviewCard: View {
 
     var body: some View {
         TrainAskCard(
-            label: "Monthly debrief",
-            title: "Month's over. Debrief.",
-            message: "5 questions, then your report. 2 minutes."
+            label: String(localized: "Monthly debrief"),
+            title: String(localized: "Month's over. Debrief."),
+            message: String(localized: "5 questions, then your report. 2 minutes.")
         ) {
             TideIconTile(systemName: "checklist.checked", size: TideTrain.askTile)
         } actions: {
@@ -82,10 +82,10 @@ struct TrainBenchedCard: View {
 
     var body: some View {
         TrainAskCard(
-            label: "Benched today",
+            label: String(localized: "Benched today"),
             tint: Tide.danger,
-            title: "Your body called it.",
-            message: "Today is recovery — walk, stretch, sleep. Doesn't count as a missed day."
+            title: String(localized: "Your body called it."),
+            message: String(localized: "Today is recovery — walk, stretch, sleep. Doesn't count as a missed day.")
         ) {
             TideIconTile(systemName: "bed.double.fill", tint: Tide.danger, size: TideTrain.askTile)
         } actions: {
@@ -123,7 +123,7 @@ struct TrainRPECard: View {
 
     private func loggedRow(_ value: Int) -> some View {
         HStack(spacing: Tide.s3) {
-            TrainFigureTile(label: "RPE", figure: "\(value)", tint: Self.tint(for: value))
+            TrainFigureTile(label: String(localized: "RPE"), figure: "\(value)", tint: Self.tint(for: value))
             VStack(alignment: .leading, spacing: Tide.hair) {
                 Text("Session RPE logged: \(value)/10")
                     .font(Tide.bodyStrong)
@@ -135,7 +135,7 @@ struct TrainRPECard: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
-        .explains(TrainExplainers.rpe.showing("\(value) of 10"))
+        .explains(TrainExplainers.rpe.showing(String(localized: "\(value) of 10")))
     }
 
     private var ask: some View {

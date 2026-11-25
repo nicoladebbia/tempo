@@ -225,7 +225,7 @@ struct UniversalScanView: View {
             if let receiptService = services.receipts, let pantryService = services.pantry {
                 ReceiptCaptureView(receiptService: receiptService, pantryService: pantryService)
             } else {
-                unavailable("Receipts aren't ready yet. Open the Kitchen tab once, then scan again.")
+                unavailable(String(localized: "Receipts aren't ready yet. Open the Kitchen tab once, then scan again."))
             }
         }
     }
@@ -296,14 +296,14 @@ struct UniversalScanView: View {
 
     private func unavailable(_ message: String) -> some View {
         KitchenStatePage(actions: allowedModes.contains(.barcode) && mode != .barcode ? [
-            KitchenStateAction(title: "Back to barcode", systemImage: "barcode.viewfinder", role: .primary) {
+            KitchenStateAction(title: String(localized: "Back to barcode"), systemImage: "barcode.viewfinder", role: .primary) {
                 mode = .barcode
             },
         ] : []) {
             KitchenStateHero(
                 systemImage: "camera.fill",
                 tint: Tide.Kitchen.warn,
-                title: "Scan unavailable",
+                title: String(localized: "Scan unavailable"),
                 message: message
             )
         }

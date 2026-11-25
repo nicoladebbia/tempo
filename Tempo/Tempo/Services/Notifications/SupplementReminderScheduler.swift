@@ -177,7 +177,6 @@ enum SupplementReminderScheduler {
         modelContext: ModelContext,
         now: Date
     ) {
-
         let settings = (try? modelContext.fetch(FetchDescriptor<UserSettings>()))?.first
         guard settings?.supplementRemindersEnabled ?? true else {
             return
@@ -222,7 +221,7 @@ enum SupplementReminderScheduler {
                     body: body,
                     fireDate: fireDate,
                     supplementNames: group.names,
-                    supplementIDs: group.doses.map { $0.supplementID.uuidString }
+                    supplementIDs: group.doses.map(\.supplementID.uuidString)
                 )
             }
         }
@@ -236,7 +235,7 @@ enum SupplementReminderScheduler {
     private static func content(for group: SupplementDoseGroup) -> (title: String, body: String) {
         let label = group.doses.first?.anchor?.groupLabel ?? group.timeLabel
         let names = group.names.joined(separator: " + ")
-        let body = group.doses.count == 1 ? "Take it now. No excuses." : "Take them now. No excuses."
+        let body = group.doses.count == 1 ? String(localized: "Take it now. No excuses.") : String(localized: "Take them now. No excuses.")
         return ("\(label): \(names)", body)
     }
 
@@ -262,10 +261,12 @@ enum SupplementReminderScheduler {
                 continue
             }
             let daysLeft = SupplementReorderService.daysLeft(for: supplement, recentLogs: recentLogs, asOf: now, calendar: calendar) ?? 0
-            let title = "\(supplement.name) is running out"
+            let title = String(localized: "\(supplement.name) is running out")
             let body = daysLeft <= 0
-                ? "You're out. Restock before you miss a dose."
-                : "About \(daysLeft) day\(daysLeft == 1 ? "" : "s") left. Order it now, not the day it runs out."
+                ? String(localized: "You're out. Restock before you miss a dose.")
+                : daysLeft == 1
+                ? String(localized: "About \(daysLeft) day left. Order it now, not the day it runs out.")
+                : String(localized: "About \(daysLeft) days left. Order it now, not the day it runs out.")
             notifications.scheduleSupplementReorderAlert(
                 supplementName: supplement.name, supplementID: supplement.id.uuidString, title: title, body: body
             )
@@ -311,13 +312,13 @@ private extension SupplementTimingAnchor {
     /// Short label for a grouped reminder title — "Breakfast", not "With breakfast".
     var groupLabel: String {
         switch self {
-        case .wake: "Wake up"
-        case .breakfast: "Breakfast"
-        case .lunch: "Lunch"
-        case .dinner: "Dinner"
-        case .preTraining: "Pre-training"
-        case .postTraining: "Post-training"
-        case .bedtime: "Bedtime"
+        case .wake: String(localized: "Wake up")
+        case .breakfast: String(localized: "Breakfast")
+        case .lunch: String(localized: "Lunch")
+        case .dinner: String(localized: "Dinner")
+        case .preTraining: String(localized: "Pre-training")
+        case .postTraining: String(localized: "Post-training")
+        case .bedtime: String(localized: "Bedtime")
         }
     }
 }

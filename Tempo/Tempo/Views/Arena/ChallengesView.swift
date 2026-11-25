@@ -38,14 +38,14 @@ struct ChallengesView: View {
             case .idle,
                  .loading:
                 TideScrollPage {
-                    ArenaListSkeleton(rows: 3, label: "Loading challenges")
+                    ArenaListSkeleton(rows: 3, label: String(localized: "Loading challenges"))
                 }
 
             case let .failed(message):
                 TideScrollPage {
                     TideEmptyPanel(
-                        systemImage: "wifi.exclamationmark", title: "Could not load your challenges",
-                        message: message, actionTitle: "Try again"
+                        systemImage: "wifi.exclamationmark", title: String(localized: "Could not load your challenges"),
+                        message: message, actionTitle: String(localized: "Try again")
                     ) { Task { await arena.refresh() } }
                         .tideCard()
                 }
@@ -92,9 +92,9 @@ struct ChallengesView: View {
 
     private var emptyPage: some View {
         ArenaEmptyPage(
-            title: "Race for a week",
-            message: "Pick a goal, invite friends or go solo, and see who gets the most XP, workouts or focus time.",
-            actionTitle: "New challenge",
+            title: String(localized: "Race for a week"),
+            message: String(localized: "Pick a goal, invite friends or go solo, and see who gets the most XP, workouts or focus time."),
+            actionTitle: String(localized: "New challenge"),
             actionSystemImage: "flag.2.crossed.fill",
             action: { showCreate = true },
             art: { ArenaEmptyArt(systemImage: "flag.2.crossed.fill", tint: TideTone.amber) }
@@ -111,7 +111,7 @@ struct ChallengesView: View {
 
             if !invited.isEmpty {
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    TideSectionLabel(title: "Invitations", trailing: "\(invited.count)")
+                    TideSectionLabel(title: String(localized: "Invitations"), trailing: "\(invited.count)")
                     ForEach(invited) { challenge in
                         invitationCard(challenge)
                     }
@@ -120,7 +120,7 @@ struct ChallengesView: View {
 
             if !running.isEmpty {
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    TideSectionLabel(title: "Running", trailing: "\(running.count)")
+                    TideSectionLabel(title: String(localized: "Running"), trailing: "\(running.count)")
                     ForEach(running) { challenge in
                         runningCard(challenge)
                     }
@@ -129,7 +129,7 @@ struct ChallengesView: View {
 
             if !finished.isEmpty {
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    TideSectionLabel(title: "Finished")
+                    TideSectionLabel(title: String(localized: "Finished"))
                     VStack(spacing: 0) {
                         ForEach(Array(finished.prefix(5).enumerated()), id: \.element.id) { index, challenge in
                             if index > 0 {
@@ -184,7 +184,7 @@ struct ChallengesView: View {
                 Button("Decline") {
                     undoToast = arena.removalToast(
                         ArenaRemoval(kind: .challenge, id: challenge.id),
-                        message: "Invitation declined."
+                        message: String(localized: "Invitation declined.")
                     )
                 }
                 .buttonStyle(.tideGlass)
@@ -225,7 +225,7 @@ struct ChallengesView: View {
                     Button("Leave challenge", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
                         undoToast = arena.removalToast(
                             ArenaRemoval(kind: .challenge, id: challenge.id),
-                            message: "You left \(challenge.title)."
+                            message: String(localized: "You left \(challenge.title).")
                         )
                     }
                 } label: {
@@ -297,7 +297,7 @@ struct ChallengesView: View {
                     color: Tide.text2
                 )
                 .frame(minWidth: Tide.s6)
-                Text(person.isMe ? "You" : person.displayName)
+                Text(person.isMe ? String(localized: "You") : person.displayName)
                     .font(Tide.body)
                     .foregroundStyle(person.isMe ? mood.accent : Tide.text)
                     .lineLimit(stacked ? 3 : 1)
@@ -339,7 +339,7 @@ struct ChallengesView: View {
 
     /// "Most XP · 4 days left".
     private func subtitle(_ challenge: ArenaChallengeDTO) -> String {
-        let what = challenge.metricKind?.title ?? "Challenge"
+        let what = challenge.metricKind?.title ?? String(localized: "Challenge")
         return "\(what) · \(challenge.timeLine())"
     }
 
@@ -374,9 +374,9 @@ struct ChallengeTemplate: Identifiable, Equatable {
     }
 
     static let all: [ChallengeTemplate] = [
-        ChallengeTemplate(title: "XP race", metric: .xpTotal, days: 7),
-        ChallengeTemplate(title: "Gym week", metric: .workoutCount, days: 7),
-        ChallengeTemplate(title: "Focus week", metric: .studyMinutes, days: 7),
+        ChallengeTemplate(title: String(localized: "XP race"), metric: .xpTotal, days: 7),
+        ChallengeTemplate(title: String(localized: "Gym week"), metric: .workoutCount, days: 7),
+        ChallengeTemplate(title: String(localized: "Focus week"), metric: .studyMinutes, days: 7),
     ]
 
     static let durations = [3, 7, 14, 30]
@@ -443,7 +443,7 @@ struct ChallengeCreationSheet: View {
                     Text("Who wins").tideLabel()
                     TidePillPicker(
                         options: ArenaChallengeMetric.allCases, selection: $metric,
-                        title: \.shortTitle, label: "What counts", stacksThree: true
+                        title: \.shortTitle, label: String(localized: "What counts"), stacksThree: true
                     )
                 }
 
@@ -451,7 +451,7 @@ struct ChallengeCreationSheet: View {
                     Text("For how long").tideLabel()
                     TidePillPicker(
                         options: ChallengeTemplate.durations, selection: $days,
-                        title: { ArenaText.count($0, "day") }, label: "Duration"
+                        title: { ArenaText.days($0) }, label: String(localized: "Duration")
                     )
                 }
 
@@ -470,7 +470,7 @@ struct ChallengeCreationSheet: View {
                 Button {
                     Task { await create() }
                 } label: {
-                    Label(isCreating ? "Starting" : "Start challenge", systemImage: "flag.2.crossed.fill")
+                    Label(isCreating ? String(localized: "Starting") : String(localized: "Start challenge"), systemImage: "flag.2.crossed.fill")
                 }
                 .buttonStyle(.tidePrimary)
                 .disabled(!canCreate)
@@ -514,7 +514,7 @@ struct ChallengeCreationSheet: View {
             Text("Invite friends").tideLabel()
             if arena.friends.isEmpty {
                 Text(
-                    "No friends yet, so this one is just you against the clock. Add friends from the Friends page and invite them to the next one."
+                    String(localized: "No friends yet, so this one is just you against the clock. Add friends from the Friends page and invite them to the next one.")
                 )
                 .font(Tide.body).foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -563,7 +563,7 @@ struct ChallengeCreationSheet: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityHint(selected ? "Double tap to uninvite" : "Double tap to invite")
+        .accessibilityHint(selected ? String(localized: "Double tap to uninvite") : String(localized: "Double tap to invite"))
         .accessibilityIdentifier("arena.challengeFriend")
     }
 

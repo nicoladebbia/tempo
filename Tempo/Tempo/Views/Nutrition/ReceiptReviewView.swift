@@ -67,7 +67,7 @@ struct ReceiptReviewView: View {
                 Section {
                     if isLikelyDuplicate {
                         banner(
-                            text: "You may have already scanned this receipt — same store, date and total as another one on file.",
+                            text: String(localized: "You may have already scanned this receipt — same store, date and total as another one on file."),
                             icon: "doc.on.doc.fill"
                         )
                     }
@@ -144,13 +144,13 @@ struct ReceiptReviewView: View {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
                 VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(receipt.purchaseDate, format: .dateTime.month().day().year()).tideLabel()
-                    Text(receipt.store.isEmpty ? "Receipt" : receipt.store)
+                    Text(receipt.store.isEmpty ? String(localized: "Receipt") : receipt.store)
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                         .lineLimit(2)
                 }
                 Spacer(minLength: Tide.s2)
-                TideNumber(String(format: "$%.2f", receipt.totalAmount), size: Tide.numeralM, relativeTo: .title)
+                TideNumber("$" + receipt.totalAmount.tempoDecimal(2), size: Tide.numeralM, relativeTo: .title)
             }
             if receipt.lineItemCount > 0 {
                 KitchenShelfBar(parts: [
@@ -162,11 +162,11 @@ struct ReceiptReviewView: View {
                 Text("\(receipt.lineItemCount) items")
                 if let savings = receipt.savingsAmount, savings > 0 {
                     Text("·")
-                    Text("Saved \(String(format: "$%.2f", savings))")
+                    Text(String(localized: "Saved \("$" + savings.tempoDecimal(2))"))
                         .foregroundStyle(Tide.Kitchen.good)
                         .frame(minHeight: Tide.hit)
                         .contentShape(.rect)
-                        .explains(.fuelReceiptSaved.showing(String(format: "$%.2f", savings)))
+                        .explains(.fuelReceiptSaved.showing("$" + savings.tempoDecimal(2)))
                 }
             }
             .font(Tide.caption)
@@ -228,11 +228,11 @@ struct ReceiptReviewView: View {
                 }
                 VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s1) {
                     TideNumber(
-                        line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—",
+                        line.totalPrice > 0 ? "$" + line.totalPrice.tempoDecimal(2) : "$—",
                         size: Tide.numeralS, relativeTo: .headline, weight: .semibold
                     )
-                    if notFood && !included {
-                        chip("Excluded", icon: "minus.circle", color: Tide.text3)
+                    if notFood, !included {
+                        chip(String(localized: "Excluded"), icon: "minus.circle", color: Tide.text3)
                     } else {
                         chip(storage.displayName, icon: storage.icon, color: Tide.text2)
                     }
@@ -256,7 +256,7 @@ struct ReceiptReviewView: View {
     }
 
     private func detailText(_ line: ReceiptLineItem) -> String {
-        var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.rawValue]
+        var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.displayName]
         if let size = line.sizeValue, let unit = line.sizeUnit {
             parts.append(ReceiptQuantityParser.format(size) + " " + unit)
         }
@@ -277,15 +277,15 @@ struct ReceiptReviewView: View {
         .fixedSize()
         .foregroundStyle(color)
         .padding(.horizontal, Tide.s2)
-            .padding(.vertical, Tide.s1)
-            .background(Tide.fill, in: .capsule)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.fill, in: .capsule)
     }
 
     private var emptyState: some View {
         KitchenEmpty(
             systemImage: "exclamationmark.triangle.fill",
-            title: "No line items detected",
-            message: "Try rescanning with a clearer photo."
+            title: String(localized: "No line items detected"),
+            message: String(localized: "Try rescanning with a clearer photo.")
         )
         .padding(.vertical, Tide.s4)
     }
@@ -339,7 +339,7 @@ struct ReceiptReviewView: View {
 
     private var addButtonTitle: String {
         let count = model.includedCount
-        return count == 1 ? "Add 1 item to pantry" : "Add \(count) items to pantry"
+        return count == 1 ? String(localized: "Add 1 item to pantry") : String(localized: "Add \(count) items to pantry")
     }
 
     // MARK: - Actions

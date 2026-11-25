@@ -56,7 +56,11 @@ struct WeekPlanView: View {
 
     private static let historyWeeksBack = 8
 
-    private let dayAbbreviations = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    private let dayAbbreviations: [String] = {
+        // Monday first; Calendar's symbols start on Sunday. "MON" … "SUN" in English.
+        let symbols = Calendar.current.shortWeekdaySymbols
+        return (1 ... 7).map { symbols[$0 % 7].uppercased() }
+    }()
     private let calendar = Calendar.current
 
     var body: some View {
@@ -168,9 +172,9 @@ struct WeekPlanView: View {
 
     private var navTitle: String {
         switch weekOffset {
-        case 0: "This Week"
-        case 1: "Next Week"
-        default: "History"
+        case 0: String(localized: "This Week")
+        case 1: String(localized: "Next Week")
+        default: String(localized: "History")
         }
     }
 
@@ -233,7 +237,7 @@ struct WeekPlanView: View {
                 return ""
             }
             let formatter = DateFormatter()
-            formatter.dateFormat = "MMM d"
+            formatter.dateFormat = String(localized: "MMM d", comment: "DATE_FORMAT")
             return "\(formatter.string(from: displayedMonday)) – \(formatter.string(from: last)), \(calendar.component(.year, from: displayedMonday))"
         }()
         let canGoBack = weekOffset > -Self.historyWeeksBack
@@ -242,7 +246,7 @@ struct WeekPlanView: View {
         return HStack(spacing: Tide.s2) {
             TrainIconButton(
                 systemImage: "chevron.left",
-                label: "Previous week",
+                label: String(localized: "Previous week"),
                 tint: canGoBack ? Tide.text : Tide.text3
             ) {
                 weekOffset -= 1
@@ -266,7 +270,7 @@ struct WeekPlanView: View {
                         HapticManager.selection()
                     } label: {
                         TrainTag(
-                            text: weekOffset > 0 ? "PREVIEW — tap for this week" : "HISTORY — tap for this week",
+                            text: weekOffset > 0 ? String(localized: "PREVIEW — tap for this week") : String(localized: "HISTORY — tap for this week"),
                             color: TideTrain.caution
                         )
                         .frame(minHeight: Tide.hit)
@@ -279,7 +283,7 @@ struct WeekPlanView: View {
 
             TrainIconButton(
                 systemImage: "chevron.right",
-                label: "Next week",
+                label: String(localized: "Next week"),
                 tint: canGoForward ? Tide.text : Tide.text3
             ) {
                 weekOffset += 1
@@ -456,9 +460,9 @@ struct WeekPlanView: View {
     private var deloadBanner: some View {
         TrainBanner(
             systemImage: "arrow.down.circle.fill",
-            label: "Deload week",
+            label: String(localized: "Deload week"),
             tint: TideTrain.caution,
-            message: "\(viewModel.deloadStyle.blurb) Your body rebuilds stronger."
+            message: String(localized: "\(viewModel.deloadStyle.blurb) Your body rebuilds stronger.")
         ) {
             EmptyView()
         }
@@ -489,7 +493,7 @@ struct WeekPlanView: View {
                     color: accent
                 )
             }
-            .explains(TrainExplainers.weekScore.showing("\(Int((outcome.qualityScore * 100).rounded())) percent"))
+            .explains(TrainExplainers.weekScore.showing(String(localized: "\(Int((outcome.qualityScore * 100).rounded())) percent")))
 
             Text(coachReviewSummary(outcome))
                 .font(Tide.bodyStrong)
@@ -510,16 +514,16 @@ struct WeekPlanView: View {
 
     private func coachReviewSummary(_ outcome: WeekOutcome) -> String {
         var parts: [String] = []
-        parts.append("\(outcome.progressionHits) \(outcome.progressionHits == 1 ? "lift" : "lifts") up")
+        parts.append(String(localized: "\(outcome.progressionHits) lifts up"))
         if outcome.overreachEvents > 0 {
-            parts.append("\(outcome.overreachEvents) overreach")
+            parts.append(String(localized: "\(outcome.overreachEvents) overreach"))
         } else {
-            parts.append("0 overreach")
+            parts.append(String(localized: "0 overreach"))
         }
         if outcome.missedSessions > 0 {
-            parts.append("\(outcome.missedSessions) missed")
+            parts.append(String(localized: "\(outcome.missedSessions) missed"))
         }
-        let trend = outcome.netVolumeChange >= 0 ? "volume up" : "volume down"
+        let trend = outcome.netVolumeChange >= 0 ? String(localized: "volume up") : String(localized: "volume down")
         parts.append(trend)
         return parts.joined(separator: " · ")
     }
@@ -557,7 +561,7 @@ struct WeekPlanView: View {
             if weekOffset < 0, displayedSlots.allSatisfy({ $0 == nil }) {
                 TrainEmptyCard(
                     systemImage: "calendar.badge.clock",
-                    title: "No training recorded this week."
+                    title: String(localized: "No training recorded this week.")
                 )
             }
         }
@@ -602,7 +606,7 @@ struct WeekPlanView: View {
                             // Engine note distinguishes a dated fixture
                             // ("Match day") from a recurring football
                             // weekday ("Football day") — §14.
-                            Text(plan.notes ?? "Football day")
+                            Text(plan.notes ?? String(localized: "Football day"))
                                 .font(Tide.caption)
                                 .foregroundStyle(Tide.text2)
                         } else if plan.type == .rest {
@@ -628,8 +632,8 @@ struct WeekPlanView: View {
                             // A session saved early reads as partial, not "Completed".
                             TrainTag(
                                 text: plan.completedSets < plan.totalSets && plan.totalSets > 0
-                                    ? "Done \(plan.completedSets)/\(plan.totalSets) sets"
-                                    : "Completed",
+                                    ? String(localized: "Done \(plan.completedSets)/\(plan.totalSets) sets")
+                                    : String(localized: "Completed"),
                                 systemImage: "checkmark",
                                 color: TideTrain.positive
                             )
@@ -655,7 +659,7 @@ struct WeekPlanView: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityHint(isExpanded ? "Hides the details" : "Shows the details")
+            .accessibilityHint(isExpanded ? String(localized: "Hides the details") : String(localized: "Shows the details"))
 
             // Expanded content — every day type renders something useful on tap.
             if isExpanded {
@@ -718,7 +722,7 @@ struct WeekPlanView: View {
                             .foregroundStyle(Tide.text3)
                             .frame(minWidth: Tide.s4, alignment: .trailing)
 
-                        Text(plannedEx.exercise?.name ?? "Exercise")
+                        Text(plannedEx.exercise?.name ?? String(localized: "Exercise"))
                             .font(Tide.body)
                             .foregroundStyle(Tide.text)
                             .lineLimit(1)
@@ -793,14 +797,14 @@ struct WeekPlanView: View {
         let body: String
         switch plan.type {
         case .run:
-            title = "Run"
-            body = "Steady Z2 effort, conversational pace. Aim for ~30–45 min."
+            title = String(localized: "Run")
+            body = String(localized: "Steady Z2 effort, conversational pace. Aim for ~30–45 min.")
         case .sprint:
-            title = "Sprint session"
-            body = "6–8 × 30–60m sprints with full recovery. Warm up thoroughly before max effort."
+            title = String(localized: "Sprint session")
+            body = String(localized: "6–8 × 30–60m sprints with full recovery. Warm up thoroughly before max effort.")
         case .conditioning:
-            title = "Conditioning"
-            body = "Mixed-modal aerobic work — bike intervals, sled pushes, or circuits. 20–30 min."
+            title = String(localized: "Conditioning")
+            body = String(localized: "Mixed-modal aerobic work — bike intervals, sled pushes, or circuits. 20–30 min.")
         default:
             title = plan.type.displayName
             body = ""
@@ -835,37 +839,37 @@ struct WeekPlanView: View {
         let matchYesterday = footballDates.contains(dayBefore)
 
         if isMatchToday, matchYesterday {
-            return ("Back-to-back match", "Second game in 24h. Focus on hydration, mobility between games, and active recovery walks.")
+            return (String(localized: "Back-to-back match"), String(localized: "Second game in 24h. Focus on hydration, mobility between games, and active recovery walks."))
         }
         if isMatchToday {
-            return ("Match day", "Game is the workout. Stick to your pre-match routine: light warm-up, hydrate, fuel ~3h before kick-off.")
+            return (String(localized: "Match day"), String(localized: "Game is the workout. Stick to your pre-match routine: light warm-up, hydrate, fuel ~3h before kick-off."))
         }
         if matchTomorrow {
-            return ("Match tomorrow (T-1)", "Light technical work only. Hydrate, eat clean carbs, sleep 8h. No heavy lifting.")
+            return (String(localized: "Match tomorrow (T-1)"), String(localized: "Light technical work only. Hydrate, eat clean carbs, sleep 8h. No heavy lifting."))
         }
         if matchYesterday {
-            return ("Post-match (T+1)", "Active recovery: 20 min Z2 walk + full mobility flow. No lifting, no sprints.")
+            return (String(localized: "Post-match (T+1)"), String(localized: "Active recovery: 20 min Z2 walk + full mobility flow. No lifting, no sprints."))
         }
-        return ("Football session", "Training session — sprint patterns, ball work, and small-sided games. Treat as a high-intensity day.")
+        return (String(localized: "Football session"), String(localized: "Training session — sprint patterns, ball work, and small-sided games. Treat as a high-intensity day."))
     }
 
     // MARK: - Helpers
 
     private func workoutAbbreviation(_ type: WorkoutType) -> String {
         switch type {
-        case .push: "PSH"
-        case .pull: "PUL"
-        case .legs: "LEG"
-        case .upper: "UPR"
-        case .lower: "LWR"
-        case .fullBody: "FUL"
-        case .football: "FTB"
-        case .run: "RUN"
-        case .mobility: "MOB"
-        case .rest: "RST"
-        case .sprint: "SPR"
-        case .conditioning: "CON"
-        case .pool: "SWM"
+        case .push: String(localized: "PSH", comment: "Three-letter code for a workout type in the week strip")
+        case .pull: String(localized: "PUL", comment: "Three-letter code for a workout type in the week strip")
+        case .legs: String(localized: "LEG", comment: "Three-letter code for a workout type in the week strip")
+        case .upper: String(localized: "UPR", comment: "Three-letter code for a workout type in the week strip")
+        case .lower: String(localized: "LWR", comment: "Three-letter code for a workout type in the week strip")
+        case .fullBody: String(localized: "FUL", comment: "Three-letter code for a workout type in the week strip")
+        case .football: String(localized: "FTB", comment: "Three-letter code for a workout type in the week strip")
+        case .run: String(localized: "RUN", comment: "Three-letter code for a workout type in the week strip")
+        case .mobility: String(localized: "MOB", comment: "Three-letter code for a workout type in the week strip")
+        case .rest: String(localized: "RST", comment: "Three-letter code for a workout type in the week strip")
+        case .sprint: String(localized: "SPR", comment: "Three-letter code for a workout type in the week strip")
+        case .conditioning: String(localized: "CON", comment: "Three-letter code for a workout type in the week strip")
+        case .pool: String(localized: "SWM", comment: "Three-letter code for a workout type in the week strip")
         }
     }
 
@@ -913,10 +917,10 @@ struct WeekPlanView: View {
 
     private func dayName(for date: Date) -> String {
         if calendar.isDateInToday(date) {
-            return "Today"
+            return String(localized: "Today")
         }
         if calendar.isDateInTomorrow(date) {
-            return "Tomorrow"
+            return String(localized: "Tomorrow")
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE"

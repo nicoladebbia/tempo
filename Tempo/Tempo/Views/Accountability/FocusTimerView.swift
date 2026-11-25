@@ -50,11 +50,11 @@ struct FocusTimerView: View {
 
     /// Break messages pool
     private let breakMessages = [
-        "Stand up. Stretch. You've earned it.",
-        "Hydrate. Your brain needs water.",
-        "Look at something 20 feet away for 20 seconds.",
-        "Roll your neck. Release the tension.",
-        "Deep breath in... hold... and out.",
+        String(localized: "Stand up. Stretch. You've earned it."),
+        String(localized: "Hydrate. Your brain needs water."),
+        String(localized: "Look at something 20 feet away for 20 seconds."),
+        String(localized: "Roll your neck. Release the tension."),
+        String(localized: "Deep breath in... hold... and out."),
     ]
 
     @State
@@ -318,8 +318,8 @@ struct FocusTimerView: View {
         // Already hit target
         if remaining <= 0 {
             return FocusRecommendation(
-                title: "Target reached! Extra credit time.",
-                subtitle: "You've hit \(totalMinutes)m / \(target)m. Any session now is bonus.",
+                title: String(localized: "Target reached! Extra credit time."),
+                subtitle: String(localized: "You've hit \(totalMinutes)m / \(target)m. Any session now is bonus."),
                 icon: "star.fill",
                 color: TideTone.mint,
                 suggestedDuration: 25
@@ -329,8 +329,8 @@ struct FocusTimerView: View {
         // Very close to target (15 min or less)
         if remaining <= 15 {
             return FocusRecommendation(
-                title: "Just \(remaining)m left. Finish strong.",
-                subtitle: "One short sprint to complete your study goal.",
+                title: String(localized: "Just \(remaining)m left. Finish strong."),
+                subtitle: String(localized: "One short sprint to complete your study goal."),
                 icon: "flag.checkered",
                 color: TideTone.mint,
                 suggestedDuration: remaining
@@ -344,20 +344,20 @@ struct FocusTimerView: View {
 
             if remaining > 90 {
                 suggestedDuration = 25
-                subtitle = "You need \(remaining)m total. Start with a 25m sprint to build momentum."
+                subtitle = String(localized: "You need \(remaining)m total. Start with a 25m sprint to build momentum.")
             } else if remaining > 45 {
                 suggestedDuration = 25
-                subtitle = "You need \(remaining)m today. Start with a 25m pomodoro."
+                subtitle = String(localized: "You need \(remaining)m today. Start with a 25m pomodoro.")
             } else {
                 suggestedDuration = min(remaining, 25)
-                subtitle = "You need \(remaining)m today. A quick sprint will get you started."
+                subtitle = String(localized: "You need \(remaining)m today. A quick sprint will get you started.")
             }
 
             // Time pressure context
             if timeToPS5 < 2 * 3600, remaining > 30 {
                 return FocusRecommendation(
-                    title: "\(remaining)m needed. \(PS5Countdown.only(timeToPS5))",
-                    subtitle: "Start NOW. Every minute counts.",
+                    title: String(localized: "\(remaining)m needed. \(PS5Countdown.only(timeToPS5))"),
+                    subtitle: String(localized: "Start NOW. Every minute counts."),
                     icon: "exclamationmark.triangle.fill",
                     color: Tide.danger,
                     suggestedDuration: min(remaining, 50)
@@ -365,7 +365,7 @@ struct FocusTimerView: View {
             }
 
             return FocusRecommendation(
-                title: "You need \(remaining)m today. Let's go.",
+                title: String(localized: "You need \(remaining)m today. Let's go."),
                 subtitle: subtitle,
                 icon: "play.circle.fill",
                 color: mood.accent,
@@ -385,8 +385,8 @@ struct FocusTimerView: View {
         // Time pressure
         if timeToPS5 < 1.5 * 3600, remaining > 20 {
             return FocusRecommendation(
-                title: "\(remaining)m remaining. Clock's ticking.",
-                subtitle: "\(PS5Countdown.lessThan(timeToPS5)) Buckle down.",
+                title: String(localized: "\(remaining)m remaining. Clock's ticking."),
+                subtitle: String(localized: "\(PS5Countdown.lessThan(timeToPS5)) Buckle down."),
                 icon: "exclamationmark.triangle.fill",
                 color: TideTone.amber,
                 suggestedDuration: min(remaining, 50)
@@ -394,8 +394,10 @@ struct FocusTimerView: View {
         }
 
         return FocusRecommendation(
-            title: "\(remaining)m remaining. Time for \(suggestedDuration >= 45 ? "a deep work session" : "a sprint").",
-            subtitle: "\(totalMinutes)m done so far. Keep the momentum.",
+            title: suggestedDuration >= 45
+                ? String(localized: "\(remaining)m remaining. Time for a deep work session.")
+                : String(localized: "\(remaining)m remaining. Time for a sprint."),
+            subtitle: String(localized: "\(totalMinutes)m done so far. Keep the momentum."),
             icon: "bolt.fill",
             color: mood.accent,
             suggestedDuration: suggestedDuration
@@ -482,8 +484,8 @@ struct FocusTimerView: View {
     // MARK: - Subject Picker
 
     private static let studySubjects = [
-        "Math", "CS", "Languages", "Physics", "Chemistry",
-        "Biology", "History", "Literature", "Economics", "Engineering",
+        String(localized: "Math"), String(localized: "CS"), String(localized: "Languages"), String(localized: "Physics"), String(localized: "Chemistry"),
+        String(localized: "Biology"), String(localized: "History"), String(localized: "Literature"), String(localized: "Economics"), String(localized: "Engineering"),
     ]
 
     private var subjectPickerSheet: some View {
@@ -568,7 +570,7 @@ struct FocusTimerView: View {
 
     private var spokenTime: String {
         let parts = timerParts
-        return "\(Int(parts.minutes) ?? 0) minutes \(Int(parts.seconds) ?? 0) seconds"
+        return String(localized: "\(Int(parts.minutes) ?? 0) minutes \(Int(parts.seconds) ?? 0) seconds")
     }
 
     private func timerText(diameter: CGFloat) -> some View {
@@ -618,16 +620,16 @@ struct FocusTimerView: View {
     private var phaseLabelText: String {
         switch viewModel.focusState {
         case .idle,
-             .configuring: "Ready"
-        case .focusing: "Focus time"
+             .configuring: String(localized: "Ready")
+        case .focusing: String(localized: "Focus time")
         case .onBreak,
-             .longBreak: "Break time"
-        case .paused: "Paused"
-        case .sessionDone: "Session done"
-        case .breakDone: "Break done"
-        case .completed: "Complete"
-        case .review: "Review"
-        case .cancelled: "Cancelled"
+             .longBreak: String(localized: "Break time")
+        case .paused: String(localized: "Paused")
+        case .sessionDone: String(localized: "Session done")
+        case .breakDone: String(localized: "Break done")
+        case .completed: String(localized: "Complete")
+        case .review: String(localized: "Review")
+        case .cancelled: String(localized: "Cancelled")
         }
     }
 
@@ -653,8 +655,8 @@ struct FocusTimerView: View {
         let targetH = targetMinutes / 60
         let targetM = targetMinutes % 60
 
-        let currentText = hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
-        let targetText = targetH > 0 ? "\(targetH)h \(targetM)m" : "\(targetM)m"
+        let currentText = hours > 0 ? String(localized: "\(hours)h \(mins)m") : String(localized: "\(mins)m")
+        let targetText = targetH > 0 ? String(localized: "\(targetH)h \(targetM)m") : String(localized: "\(targetM)m")
 
         let fraction = targetMinutes > 0 ? min(1, Double(totalMinutes) / Double(targetMinutes)) : 0
 
@@ -689,7 +691,7 @@ struct FocusTimerView: View {
             .foregroundStyle(Tide.text)
             .frame(minHeight: Tide.hit)
             .contentShape(.rect)
-            .explains(Explainer.focusScoreLive.showing("\(score) of 100"))
+            .explains(Explainer.focusScoreLive.showing(String(localized: "\(score) of 100")))
     }
 
     // MARK: - Break Message
@@ -735,7 +737,7 @@ struct FocusTimerView: View {
                 }
                 .buttonStyle(.tideGlass)
                 .accessibilityValue(
-                    viewModel.distractionCount > 0 ? "\(viewModel.distractionCount) so far" : ""
+                    viewModel.distractionCount > 0 ? String(localized: "\(viewModel.distractionCount) so far") : ""
                 )
 
                 // Ambient button (placeholder)
@@ -831,16 +833,16 @@ struct FocusTimerView: View {
     private var mainButtonTitle: String {
         switch viewModel.focusState {
         case .idle,
-             .configuring: "Start"
-        case .focusing: "Pause"
-        case .paused: "Resume"
+             .configuring: String(localized: "Start")
+        case .focusing: String(localized: "Pause")
+        case .paused: String(localized: "Resume")
         case .onBreak,
-             .longBreak: "Skip break"
-        case .sessionDone: "Start break"
-        case .breakDone: "Start focus"
-        case .completed: "Review"
-        case .review: "Done"
-        case .cancelled: "Start"
+             .longBreak: String(localized: "Skip break")
+        case .sessionDone: String(localized: "Start break")
+        case .breakDone: String(localized: "Start focus")
+        case .completed: String(localized: "Review")
+        case .review: String(localized: "Done")
+        case .cancelled: String(localized: "Start")
         }
     }
 
@@ -935,7 +937,7 @@ struct FocusTimerView: View {
                             .multilineTextAlignment(.center)
                             .arenaReveal(5)
 
-                        Text(totalSessions == 1 ? "1 session of focused study" : "\(totalSessions) sessions of focused study")
+                        Text(totalSessions == 1 ? String(localized: "1 session of focused study") : String(localized: "\(totalSessions) sessions of focused study"))
                             .font(Tide.body)
                             .foregroundStyle(Tide.text2)
                             .multilineTextAlignment(.center)
@@ -981,8 +983,8 @@ struct FocusTimerView: View {
 
                 // Focus score dial
                 VStack(spacing: Tide.s2) {
-                    TideDial(score: score, caption: "Focus score", diameter: Tide.dialDetail)
-                        .explains(Explainer.focusScoreLive.showing("\(score) of 100"))
+                    TideDial(score: score, caption: String(localized: "Focus score"), diameter: Tide.dialDetail)
+                        .explains(Explainer.focusScoreLive.showing(String(localized: "\(score) of 100")))
 
                     Text(scoreLabel(score))
                         .font(Tide.headline)
@@ -992,15 +994,15 @@ struct FocusTimerView: View {
                 // The run in one card
                 VStack(spacing: 0) {
                     reviewStatRow(
-                        title: "Total Focus Time",
-                        value: "\(viewModel.currentSessionCount * Int(viewModel.focusDuration / 60))m",
+                        title: String(localized: "Total Focus Time"),
+                        value: String(localized: "\(viewModel.currentSessionCount * Int(viewModel.focusDuration / 60))m"),
                         icon: "clock.fill"
                     )
 
                     TideDivider()
 
                     reviewStatRow(
-                        title: "Sessions Completed",
+                        title: String(localized: "Sessions Completed"),
                         value: "\(viewModel.currentSessionCount)",
                         icon: "checkmark.circle.fill"
                     )
@@ -1008,7 +1010,7 @@ struct FocusTimerView: View {
                     TideDivider()
 
                     reviewStatRow(
-                        title: "Distractions",
+                        title: String(localized: "Distractions"),
                         value: "\(viewModel.distractionCount)",
                         icon: "hand.raised.fill"
                     )
@@ -1069,15 +1071,15 @@ struct FocusTimerView: View {
 
     private func scoreLabel(_ score: Int) -> String {
         if score >= 90 {
-            return "Excellent"
+            return String(localized: "Excellent")
         }
         if score >= 75 {
-            return "Good"
+            return String(localized: "Good")
         }
         if score >= 50 {
-            return "Fair"
+            return String(localized: "Fair")
         }
-        return "Needs work"
+        return String(localized: "Needs work")
     }
 
     // MARK: - Phase Background
@@ -1113,50 +1115,50 @@ struct FocusTimerView: View {
     private var focusSettingsSheet: some View {
         NavigationStack {
             TideScrollPage {
-                TideSectionLabel(title: "Timer")
+                TideSectionLabel(title: String(localized: "Timer"))
 
                 VStack(spacing: 0) {
                     settingsStepper(
-                        title: "Focus Duration",
+                        title: String(localized: "Focus Duration"),
                         value: Binding(
                             get: { Int(viewModel.focusDuration / 60) },
                             set: { viewModel.focusDuration = TimeInterval($0 * 60) }
                         ),
                         range: 15 ... 60,
                         step: 5,
-                        unit: " min"
+                        unit: String(localized: " min")
                     )
 
                     TideDivider()
 
                     settingsStepper(
-                        title: "Short Break",
+                        title: String(localized: "Short Break"),
                         value: Binding(
                             get: { Int(viewModel.breakDuration / 60) },
                             set: { viewModel.breakDuration = TimeInterval($0 * 60) }
                         ),
                         range: 3 ... 15,
                         step: 1,
-                        unit: " min"
+                        unit: String(localized: " min")
                     )
 
                     TideDivider()
 
                     settingsStepper(
-                        title: "Long Break",
+                        title: String(localized: "Long Break"),
                         value: Binding(
                             get: { Int(viewModel.longBreakDuration / 60) },
                             set: { viewModel.longBreakDuration = TimeInterval($0 * 60) }
                         ),
                         range: 15 ... 30,
                         step: 5,
-                        unit: " min"
+                        unit: String(localized: " min")
                     )
 
                     TideDivider()
 
                     settingsStepper(
-                        title: "Sessions Before Long Break",
+                        title: String(localized: "Sessions Before Long Break"),
                         value: $viewModel.sessionsBeforeLongBreak,
                         range: 2 ... 6,
                         step: 1,

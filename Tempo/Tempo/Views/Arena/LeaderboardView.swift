@@ -44,21 +44,21 @@ struct LeaderboardView: View {
             switch arena.phase {
             case .idle,
                  .loading:
-                ArenaListSkeleton(label: "Loading leaderboard")
+                ArenaListSkeleton(label: String(localized: "Loading leaderboard"))
 
             case let .failed(message):
                 TideEmptyPanel(
-                    systemImage: "wifi.exclamationmark", title: "Could not load the leaderboard",
-                    message: message, actionTitle: "Try again"
+                    systemImage: "wifi.exclamationmark", title: String(localized: "Could not load the leaderboard"),
+                    message: message, actionTitle: String(localized: "Try again")
                 ) { Task { await arena.refresh() } }
                     .tideCard()
 
             case .ready:
                 if arena.friends.isEmpty {
                     TideEmptyPanel(
-                        systemImage: "trophy", title: "It's lonely at the top",
-                        message: "Add a friend and your weekly XP lines up against theirs.",
-                        actionTitle: "Invite a friend"
+                        systemImage: "trophy", title: String(localized: "It's lonely at the top"),
+                        message: String(localized: "Add a friend and your weekly XP lines up against theirs."),
+                        actionTitle: String(localized: "Invite a friend")
                     ) { showInvite = true }
                         .tideCard()
                 } else if let board = arena.leaderboard {
@@ -159,12 +159,12 @@ struct LeaderboardView: View {
             return nil
         }
         if rank == 1 {
-            return board.rankings.count > 1 ? "You lead the week" : nil
+            return board.rankings.count > 1 ? String(localized: "You lead the week") : nil
         }
         guard let ahead = board.rankings.first(where: { $0.rank == rank - 1 }) else {
             return nil
         }
-        return "\((ahead.xp - board.myXP).formatted()) XP to pass \(ahead.user.displayName)"
+        return String(localized: "\((ahead.xp - board.myXP).formatted()) XP to pass \(ahead.user.displayName)")
     }
 
     // MARK: - Podium (Top 3)
@@ -193,7 +193,7 @@ struct LeaderboardView: View {
 
     private func podiumEntry(_ entry: ArenaLeaderboardRankingDTO) -> some View {
         let tint = podiumTint(entry.rank)
-        let name = entry.isMe ? "You" : entry.user.displayName
+        let name = entry.isMe ? String(localized: "You") : entry.user.displayName
         return VStack(spacing: Tide.s2) {
             if entry.rank == 1 {
                 Image(systemName: "crown.fill").font(Tide.bodyStrong).foregroundStyle(tint)
@@ -269,7 +269,7 @@ struct ArenaRankRow: View {
         let layout = stacked
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
             : AnyLayout(HStackLayout(spacing: Tide.s3))
-        let name = entry.isMe ? "You" : entry.user.displayName
+        let name = entry.isMe ? String(localized: "You") : entry.user.displayName
         layout {
             HStack(spacing: Tide.s3) {
                 Group {
@@ -307,7 +307,9 @@ struct ArenaRankRow: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Rank \(entry.rank), \(entry.isMe ? "you" : entry.user.displayName), level \(entry.user.level), \(entry.xp) XP"
+            entry.isMe
+                ? String(localized: "Rank \(entry.rank), you, level \(entry.user.level), \(entry.xp) XP")
+                : String(localized: "Rank \(entry.rank), \(entry.user.displayName), level \(entry.user.level), \(entry.xp) XP")
         )
     }
 }

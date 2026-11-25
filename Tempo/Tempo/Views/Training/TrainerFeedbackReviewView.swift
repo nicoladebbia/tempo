@@ -56,12 +56,12 @@ struct TrainerFeedbackReviewView: View {
         NavigationStack {
             TrainPlanPage {
                 if matchedEdits.isEmpty, unmatchedEdits.isEmpty {
-                    TrainEmptyCard(systemImage: "text.bubble", title: "No changes found in that message.")
+                    TrainEmptyCard(systemImage: "text.bubble", title: String(localized: "No changes found in that message."))
                         .padding(.top, Tide.s4)
                 }
                 if !matchedEdits.isEmpty {
                     reviewHero
-                    TrainPlanCard(label: "Changes") {
+                    TrainPlanCard(label: String(localized: "Changes")) {
                         ForEach(Array(matchedEdits.enumerated()), id: \.element.id) { index, edit in
                             if index > 0 {
                                 TrainPlanDivider()
@@ -72,7 +72,7 @@ struct TrainerFeedbackReviewView: View {
                 }
                 if !unmatchedEdits.isEmpty {
                     VStack(alignment: .leading, spacing: Tide.s2) {
-                        TrainPlanCard(label: "COULDN'T MATCH") {
+                        TrainPlanCard(label: String(localized: "COULDN'T MATCH")) {
                             ForEach(Array(unmatchedEdits.enumerated()), id: \.element.id) { index, edit in
                                 if index > 0 {
                                     TrainPlanDivider()
@@ -82,7 +82,7 @@ struct TrainerFeedbackReviewView: View {
                                         .font(Tide.body)
                                         .foregroundStyle(Tide.text3)
                                         .fixedSize(horizontal: false, vertical: true)
-                                    Text(edit.matchFailureReason ?? "Couldn't match.")
+                                    Text(edit.matchFailureReason ?? String(localized: "Couldn't match."))
                                         .font(Tide.caption)
                                         .foregroundStyle(TideTrain.caution)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -139,9 +139,8 @@ struct TrainerFeedbackReviewView: View {
 
     private var applyTitle: String {
         switch acceptedIDs.count {
-        case 0: "Pick a change to apply"
-        case 1: "Apply 1 change"
-        default: "Apply \(TrainCount.text(acceptedIDs.count, "change"))"
+        case 0: String(localized: "Pick a change to apply")
+        default: String(localized: "Apply \(acceptedIDs.count) changes")
         }
     }
 
@@ -155,7 +154,7 @@ struct TrainerFeedbackReviewView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
-            TrainSetTicks(done: acceptedIDs.count, total: matchedEdits.count, label: "Changes switched on")
+            TrainSetTicks(done: acceptedIDs.count, total: matchedEdits.count, label: String(localized: "Changes switched on"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5)

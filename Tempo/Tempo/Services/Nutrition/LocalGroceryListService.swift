@@ -425,7 +425,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         if embedsQuantity ?? (name.range(of: #"^\d+(?:[.,]\d+)?\s+\S"#, options: .regularExpression) != nil) {
             return name
         }
-        let formatted = quantity == quantity.rounded() ? "\(Int(quantity))" : String(format: "%.1f", quantity)
+        let formatted = quantity == quantity.rounded() ? "\(Int(quantity))" : quantity.tempoDecimal(1)
         return "\(name) — \(formatted)\(unit.displayName)"
     }
 
@@ -447,7 +447,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
             ?? eventStore.sources.first(where: { $0.sourceType == .local })
             ?? eventStore.sources.first
         else {
-            throw GroceryListServiceError.remindersExportFailed("No Reminders account available.")
+            throw GroceryListServiceError.remindersExportFailed(String(localized: "No Reminders account available."))
         }
         let calendar = EKCalendar(for: .reminder, eventStore: eventStore)
         calendar.title = Self.remindersListName
@@ -461,7 +461,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         let reminder = EKReminder(eventStore: eventStore)
         reminder.calendar = calendar
         reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
-        reminder.notes = "\(listTitle)\nCategory: \(item.category)"
+        reminder.notes = String(localized: "\(listTitle)\nCategory: \(item.category)")
         reminder.isCompleted = item.isChecked
         do {
             try eventStore.save(reminder, commit: false)
@@ -483,7 +483,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         }
         // The entry the delete removed is gone for good: this one gets a new identifier.
         item.reminderIdentifier = nil
-        let title = "Tempo Grocery — \(list.weekStartDate.formatted(date: .abbreviated, time: .omitted))"
+        let title = String(localized: "Tempo Grocery — \(list.weekStartDate.formatted(date: .abbreviated, time: .omitted))")
         do {
             try createReminder(for: item, in: calendar, listTitle: title)
             try eventStore.commit()
@@ -516,7 +516,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
         }
 
         let calendar = try tempoGroceriesCalendar()
-        let title = "Tempo Grocery — \(list.weekStartDate.formatted(date: .abbreviated, time: .omitted))"
+        let title = String(localized: "Tempo Grocery — \(list.weekStartDate.formatted(date: .abbreviated, time: .omitted))")
         let items = list.orderedItems
         let itemsByID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         let actions = GroceryReminderPlanner.plan(items: items)
@@ -539,7 +539,7 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
                     let reminder = EKReminder(eventStore: eventStore)
                     reminder.calendar = calendar
                     reminder.title = Self.reminderTitle(name: item.displayName, quantity: item.quantity, unit: item.unit, embedsQuantity: item.displayNameEmbedsQuantity)
-                    reminder.notes = "\(title)\nCategory: \(item.category)"
+                    reminder.notes = String(localized: "\(title)\nCategory: \(item.category)")
                     reminder.isCompleted = item.isChecked
                     try? eventStore.save(reminder, commit: false)
                     item.reminderIdentifier = reminder.calendarItemIdentifier

@@ -253,7 +253,7 @@ extension TrainingViewModel {
             restored.append(record)
         }
 
-        saveGuarded(modelContext, operation: "restored workout")
+        saveGuarded(modelContext, operation: String(localized: "restored workout"))
 
         // Back into the session through the crash-recovery path.
         discardUndo = nil
@@ -273,7 +273,7 @@ extension TrainingViewModel {
         if let startedAt = plan.startedAt {
             elapsedSeconds = max(0, now.timeIntervalSince(startedAt) - paused)
         }
-        saveGuarded(modelContext, operation: "restored workout")
+        saveGuarded(modelContext, operation: String(localized: "restored workout"))
         detectedPRs = restored.filter { undo.detectedRecordIDs.contains($0.id) }
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         HapticManager.selection()

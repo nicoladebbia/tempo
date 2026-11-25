@@ -62,8 +62,8 @@ struct RecoveryTabView: View {
                 TidePillPicker(
                     options: RecoveryRange.allCases,
                     selection: $vm.selectedRange,
-                    title: \.rawValue,
-                    label: "Recovery period"
+                    title: \.title,
+                    label: String(localized: "Recovery period")
                 )
 
                 // A month can reach back 30 or 90 days.
@@ -74,8 +74,8 @@ struct RecoveryTabView: View {
                             get: { vm.monthShowsQuarter ? .ninety : .thirty },
                             set: { vm.monthShowsQuarter = $0 == .ninety }
                         ),
-                        title: \.rawValue,
-                        label: "Month length"
+                        title: \.title,
+                        label: String(localized: "Month length")
                     )
                     .transition(.opacity)
                 }
@@ -116,4 +116,11 @@ struct RecoveryTabView: View {
 private enum MonthSpan: String, CaseIterable {
     case thirty = "30 days"
     case ninety = "90 days"
+
+    var title: String {
+        switch self {
+        case .thirty: String(localized: "30 days")
+        case .ninety: String(localized: "90 days")
+        }
+    }
 }

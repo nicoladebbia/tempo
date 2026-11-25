@@ -48,9 +48,9 @@ struct AwayModeSheet: View {
                                 icon: "leaf.fill", color: TideTrain.positive,
                                 title: activePause.reason.reportLabel,
                                 subtitle: activePause.plannedEndDate.map {
-                                    "Until \($0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))"
-                                } ?? "Until you resume",
-                                actionTitle: "Resume now"
+                                    String(localized: "Until \($0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))")
+                                } ?? String(localized: "Until you resume"),
+                                actionTitle: String(localized: "Resume now")
                             ) {
                                 viewModel.resumePauseNow(activePause, modelContext: modelContext)
                                 dismiss()
@@ -62,7 +62,7 @@ struct AwayModeSheet: View {
                         } label: {
                             TrainRowLabel(
                                 systemImage: "leaf.fill",
-                                title: "I'm sick / taking a break",
+                                title: String(localized: "I'm sick / taking a break"),
                                 tint: TideTrain.positive
                             )
                             .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
@@ -78,7 +78,7 @@ struct AwayModeSheet: View {
                                 title: activeTravel.scope.displayName,
                                 subtitle: activeTravel.availableEquipment
                                     .map(\.travelDisplayName).sorted().joined(separator: ", "),
-                                actionTitle: "End early"
+                                actionTitle: String(localized: "End early")
                             ) {
                                 viewModel.endTravelEquipmentPeriod(activeTravel, modelContext: modelContext)
                                 dismiss()
@@ -90,7 +90,7 @@ struct AwayModeSheet: View {
                         } label: {
                             TrainRowLabel(
                                 systemImage: "bag.fill",
-                                title: "Limited equipment (travel)",
+                                title: String(localized: "Limited equipment (travel)"),
                                 tint: Tide.water
                             )
                             .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
@@ -193,7 +193,7 @@ private struct StartPauseView: View {
                     Toggle("Until I resume", isOn: $untilResume)
                     if !untilResume {
                         TrainSessionRule()
-                        Stepper("\(Int(days)) day\(Int(days) == 1 ? "" : "s")", value: $days, in: 1 ... 14)
+                        Stepper(String(localized: "\(Int(days)) days"), value: $days, in: 1 ... 14)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -356,19 +356,19 @@ private extension Equipment {
     /// keeps that off the shared enum.
     var travelDisplayName: String {
         switch self {
-        case .barbell: "Barbell"
-        case .dumbbell: "Dumbbells"
-        case .cable: "Cable machine"
-        case .machine: "Machines"
-        case .bodyweight: "Bodyweight only"
-        case .kettlebell: "Kettlebell"
-        case .resistanceBand: "Resistance bands"
-        case .smithMachine: "Smith machine"
-        case .ezBar: "EZ bar"
-        case .trapBar: "Trap bar"
-        case .pullUpBar: "Pull-up bar"
-        case .bench: "Bench"
-        case .none: "None"
+        case .barbell: String(localized: "Barbell")
+        case .dumbbell: String(localized: "Dumbbells")
+        case .cable: String(localized: "Cable machine")
+        case .machine: String(localized: "Machines")
+        case .bodyweight: String(localized: "Bodyweight only")
+        case .kettlebell: String(localized: "Kettlebell")
+        case .resistanceBand: String(localized: "Resistance bands")
+        case .smithMachine: String(localized: "Smith machine")
+        case .ezBar: String(localized: "EZ bar")
+        case .trapBar: String(localized: "Trap bar")
+        case .pullUpBar: String(localized: "Pull-up bar")
+        case .bench: String(localized: "Bench")
+        case .none: String(localized: "None")
         }
     }
 }

@@ -99,10 +99,10 @@ struct TideStreakDots: View {
 
     private func spoken(_ status: StreakDotsView.DayStatus) -> String {
         switch status {
-        case .completed: "completed"
-        case .missed: "missed"
-        case let .today(completed): completed ? "today, completed" : "today, in progress"
-        case .future: "upcoming"
+        case .completed: String(localized: "completed")
+        case .missed: String(localized: "missed")
+        case let .today(completed): completed ? String(localized: "today, completed") : String(localized: "today, in progress")
+        case .future: String(localized: "upcoming")
         }
     }
 
@@ -379,7 +379,7 @@ struct TideHeatmap: View {
 
     private var spokenSummary: String {
         let full = data.values.filter { $0 >= 0.99 }.count
-        return "\(full) full days"
+        return String(localized: "\(full) full days")
     }
 }
 
@@ -528,7 +528,7 @@ struct LockdownUnlockMoment: View {
                             .arenaReveal(7)
 
                         if streak > 0 {
-                            TideStatusPill(text: "Day \(streak)", tint: TideTone.amber, systemImage: "flame.fill")
+                            TideStatusPill(text: String(localized: "Day \(streak)"), tint: TideTone.amber, systemImage: "flame.fill")
                                 .arenaReveal(9)
                         }
 
@@ -578,7 +578,7 @@ struct LockdownUnlockMoment: View {
             // Today's dial, and shorter still at large text.
             TideDial(
                 score: score,
-                caption: typeSize.isAccessibilitySize ? "Score" : "Day score",
+                caption: typeSize.isAccessibilitySize ? String(localized: "Score") : String(localized: "Day score"),
                 diameter: Tide.dialHero
             )
             .accessibilityElement(children: .combine)

@@ -80,18 +80,18 @@ struct SupplementEditSheet: View {
         return value
     }
 
-    static let disputedLine = "Users disagree on this one — check your label."
+    static let disputedLine = String(localized: "Users disagree on this one — check your label.")
 
     static func sourceLine(_ dto: SupplementLookupDTO) -> String? {
         if dto.source == "tempo", dto.disputed == true { return Self.disputedLine }
         return switch dto.source {
-        case "label": "Read from your photo. Check every number before you save."
-        case "label_photo": "Read from your photo. Check it against your label."
+        case "label": String(localized: "Read from your photo. Check every number before you save.")
+        case "label_photo": String(localized: "Read from your photo. Check it against your label.")
         case "tempo":
-            dto.communityConfirmations.map { "Added by Tempo users · confirmed by \($0). Check it against your label." }
-                ?? "Added by Tempo users. Check it against your label."
-        case "dsld": "From the NIH supplement label database. Check it against your bottle."
-        case "openfoodfacts", "openproductsfacts", "openbeautyfacts": "From the Open Facts database. Check it against your bottle."
+            dto.communityConfirmations.map { String(localized: "Added by Tempo users · confirmed by \($0). Check it against your label.") }
+                ?? String(localized: "Added by Tempo users. Check it against your label.")
+        case "dsld": String(localized: "From the NIH supplement label database. Check it against your bottle.")
+        case "openfoodfacts", "openproductsfacts", "openbeautyfacts": String(localized: "From the Open Facts database. Check it against your bottle.")
         default: nil
         }
     }
@@ -119,12 +119,12 @@ struct SupplementEditSheet: View {
                 }
                 macros
                 KitchenFormSection(
-                    "Details (optional)",
-                    footer: "Your plan decides each day whether to take this and when. You don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
+                    String(localized: "Details (optional)"),
+                    footer: String(localized: "Your plan decides each day whether to take this and when. You don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to).")
                 ) {
-                    SupplementFieldRow(label: "Dose per serving", unit: nil, placeholder: "e.g. 25 g, 1000 mg", text: $dose, keyboard: .default)
-                    SupplementFieldRow(label: "Servings left", unit: nil, placeholder: "optional", text: $servingsText, keyboard: .numberPad)
-                    SupplementFieldRow(label: "Servings/container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
+                    SupplementFieldRow(label: String(localized: "Dose per serving"), unit: nil, placeholder: String(localized: "e.g. 25 g, 1000 mg"), text: $dose, keyboard: .default)
+                    SupplementFieldRow(label: String(localized: "Servings left"), unit: nil, placeholder: String(localized: "optional"), text: $servingsText, keyboard: .numberPad)
+                    SupplementFieldRow(label: String(localized: "Servings/container"), unit: nil, placeholder: String(localized: "optional"), text: $servingsPerContainerText, keyboard: .numberPad)
                 }
                 if let existing {
                     SupplementTimingSection(supplement: existing)
@@ -136,7 +136,7 @@ struct SupplementEditSheet: View {
                         }
                     }
                 }
-                KitchenFormSection("Notes (optional)") {
+                KitchenFormSection(String(localized: "Notes (optional)")) {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }
                 if SupplementCatalogSubmitter.willShare(isNew: existing == nil, prefill: prefill, prefillUPC: prefillUPC) {
@@ -151,12 +151,12 @@ struct SupplementEditSheet: View {
             .scrollDismissesKeyboard(.interactively)
             // The one action sits under the thumb, not in the corner of the bar.
             .kitchenBottomBar {
-                Button(existing == nil ? "Add to shelf" : "Save") { save() }
+                Button(existing == nil ? String(localized: "Add to shelf") : String(localized: "Save")) { save() }
                     .buttonStyle(.kitchenBar)
                     .disabled(!canSave)
                     .accessibilityIdentifier("supplementSave")
             }
-            .navigationTitle(existing == nil ? (prefill == nil ? "Add Supplement" : "Check & add") : "Edit Supplement")
+            .navigationTitle(existing == nil ? (prefill == nil ? String(localized: "Add Supplement") : String(localized: "Check & add")) : String(localized: "Edit Supplement"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -215,14 +215,14 @@ struct SupplementEditSheet: View {
             VStack(alignment: .leading, spacing: Tide.s3) {
                 Text("Macros per serving").tideLabel()
                 KitchenPair {
-                    KitchenNumberField(label: "Calories", unit: "kcal", tint: Tide.streak, text: $caloriesPerServingText)
+                    KitchenNumberField(label: String(localized: "Calories"), unit: String(localized: "kcal"), tint: Tide.streak, text: $caloriesPerServingText)
                 } second: {
-                    KitchenNumberField(label: "Protein", unit: "g", tint: Tide.protein, text: $proteinPerServingText)
+                    KitchenNumberField(label: String(localized: "Protein"), unit: "g", tint: Tide.protein, text: $proteinPerServingText)
                 }
                 KitchenPair {
-                    KitchenNumberField(label: "Carbs", unit: "g", tint: Tide.carbs, text: $carbsPerServingText)
+                    KitchenNumberField(label: String(localized: "Carbs"), unit: "g", tint: Tide.carbs, text: $carbsPerServingText)
                 } second: {
-                    KitchenNumberField(label: "Fat", unit: "g", tint: Tide.fat, text: $fatPerServingText)
+                    KitchenNumberField(label: String(localized: "Fat"), unit: "g", tint: Tide.fat, text: $fatPerServingText)
                 }
                 Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
                     .font(Tide.caption)

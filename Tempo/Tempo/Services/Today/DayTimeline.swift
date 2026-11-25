@@ -173,7 +173,7 @@ enum DayTimeline {
             id: "meal.\(row.id.uuidString)",
             kind: .meal,
             title: row.name,
-            detail: row.calories > 0 ? "\(row.calories.formatted()) kcal" : nil,
+            detail: row.calories > 0 ? String(localized: "\(row.calories.formatted()) kcal") : nil,
             at: at,
             windowLabel: nil,
             state: state,
@@ -203,7 +203,7 @@ enum DayTimeline {
         case .planned: pastBedtime(input, calendar: calendar) ? .missed : .upcoming
         }
         let detail: String? = switch row.status {
-        case .completed: row.durationMinutes.map { "\($0) min" }
+        case .completed: row.durationMinutes.map { String(localized: "\($0) min") }
         default: nil
         }
         return DayItem(
@@ -212,7 +212,7 @@ enum DayTimeline {
             title: row.name,
             detail: detail,
             at: at,
-            windowLabel: at == nil ? (window?.label ?? "Any time") : nil,
+            windowLabel: at == nil ? (window?.label ?? String(localized: "Any time")) : nil,
             state: state,
             target: .workout,
             sortKey: sortKey
@@ -257,8 +257,8 @@ enum DayTimeline {
         DayItem(
             id: "study.\(Int(row.start.timeIntervalSince1970))",
             kind: .study,
-            title: row.subject.map { "Study, \($0)" } ?? "Study",
-            detail: "\(row.minutes) min",
+            title: row.subject.map { String(localized: "Study, \($0)") } ?? String(localized: "Study"),
+            detail: String(localized: "\(row.minutes) min"),
             at: row.start,
             windowLabel: nil,
             state: .done,
@@ -355,7 +355,7 @@ enum DayTimelineLoader {
                 }
                 return DayTimelineInput.MealRow(
                     id: meal.id,
-                    name: meal.mealName,
+                    name: meal.displayMealName,
                     scheduledTime: meal.scheduledTime,
                     status: status,
                     eatenAt: meal.actualEatenAt,
@@ -411,7 +411,7 @@ enum DayTimelineLoader {
         let firstMeal = CanonicalMeals.meals(on: tomorrow, in: context)
             .filter { !EatenMealRecorder.isSupplementDose($0) && !$0.isUnplannedLog }
             .min { $0.scheduledTime < $1.scheduledTime }
-            .map { TomorrowPreview.Meal(name: $0.mealName, time: $0.scheduledTime) }
+            .map { TomorrowPreview.Meal(name: $0.displayMealName, time: $0.scheduledTime) }
 
         let weekday = calendar.component(.weekday, from: tomorrow)
         let tasks = (try? context.fetch(FetchDescriptor<NonNegotiable>(

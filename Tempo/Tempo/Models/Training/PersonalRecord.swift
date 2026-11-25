@@ -72,7 +72,7 @@ final class PersonalRecord {
             }
             return name
         }
-        return exerciseNameSnapshot ?? "Removed exercise"
+        return exerciseNameSnapshot ?? String(localized: "Removed exercise")
     }
 
     // MARK: - Init

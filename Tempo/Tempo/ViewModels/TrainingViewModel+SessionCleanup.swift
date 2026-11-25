@@ -20,7 +20,7 @@ extension TrainingViewModel {
         if plan.orderedExercises.allSatisfy({ $0.orderedSets.allSatisfy(\.isWarmup) }) {
             plan.status = .skipped
             plan.skipReason = .userSkipped
-            saveGuarded(modelContext, operation: "skipped workout")
+            saveGuarded(modelContext, operation: String(localized: "skipped workout"))
             NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
         }
     }

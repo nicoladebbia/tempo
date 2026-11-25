@@ -232,7 +232,7 @@ struct FuelSetupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 // The voice box is the hero: it comes first, what to cover sits under it.
-                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 160)
+                VoiceTextField(text: $said, placeholder: String(localized: "Tap the mic and start talking — or type here."), minHeight: 160)
                     .accessibilityIdentifier("fuelSetupSaid")
                 if let blocker {
                     AIBlockerCard(blocker: blocker) {
@@ -278,7 +278,7 @@ struct FuelSetupView: View {
     /// What worth saying, one idea per line with its own symbol.
     private var promptList: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Worth mentioning")
+            TideSectionLabel(title: String(localized: "Worth mentioning"))
                 .padding(.horizontal, Tide.s1)
             VStack(alignment: .leading, spacing: Tide.s3) {
                 ForEach(Array(Self.prompts.enumerated()), id: \.offset) { index, prompt in
@@ -304,14 +304,16 @@ struct FuelSetupView: View {
         "figure.stand", "leaf.fill", "clock.fill", "calendar", "fork.knife", "cart.fill",
     ]
 
-    static let prompts = [
-        "Age, height, weight — and your goal",
-        "What you won't eat, allergies, foods you love",
-        "Each day: wake up, leave home, get back, bed",
-        "Classes, work, training — days and times",
-        "Where you eat out and with whom (e.g. Panera at campus, 1 pm)",
-        "How much you cook, budget, where you shop",
-    ]
+    static var prompts: [String] {
+        [
+            String(localized: "Age, height, weight — and your goal"),
+            String(localized: "What you won't eat, allergies, foods you love"),
+            String(localized: "Each day: wake up, leave home, get back, bed"),
+            String(localized: "Classes, work, training — days and times"),
+            String(localized: "Where you eat out and with whom (e.g. Panera at campus, 1 pm)"),
+            String(localized: "How much you cook, budget, where you shop"),
+        ]
+    }
 
     // MARK: - Thinking
 
@@ -323,7 +325,7 @@ struct FuelSetupView: View {
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                FuelAIState(kind: .working("Reading what you said and filling in the sections."))
+                FuelAIState(kind: .working(String(localized: "Reading what you said and filling in the sections.")))
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
@@ -361,7 +363,7 @@ struct FuelSetupView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         VoiceTextField(
                             text: Binding(get: { answers[question] ?? "" }, set: { answers[question] = $0 }),
-                            placeholder: "Answer…",
+                            placeholder: String(localized: "Answer…"),
                             minHeight: 56
                         )
                         .accessibilityIdentifier("fuelSetupAnswer\(index)")
@@ -443,15 +445,15 @@ struct FuelSetupView: View {
     /// saving also builds the plan. nil (hidden) when there is nothing to save.
     private var primaryActionTitle: String? {
         if onSaveAndGenerate != nil {
-            return "Save and continue"
+            return String(localized: "Save and continue")
         }
         guard hasUnsavedSections else {
             return nil
         }
         if !isFirstTime {
-            return "Save changes (\(unsavedSections.count))"
+            return String(localized: "Save changes (\(unsavedSections.count))")
         }
-        return draft.isComplete ? "Save my profile" : "Save what I have"
+        return draft.isComplete ? String(localized: "Save my profile") : String(localized: "Save what I have")
     }
 
     private var unsavedSections: [FuelSetupSection] {
@@ -636,7 +638,7 @@ struct VoiceTextField: View {
                 }
                 .buttonStyle(.plain)
                 .animation(Tide.snap, value: transcriber.isListening)
-                .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Talk")
+                .accessibilityLabel(transcriber.isListening ? String(localized: "Stop listening") : String(localized: "Talk"))
             }
         }
         .onChange(of: transcriber.transcribedText) { _, spoken in

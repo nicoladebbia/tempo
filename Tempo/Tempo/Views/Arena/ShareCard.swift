@@ -74,14 +74,19 @@ extension ShareCardContent {
     static func workout(
         title: String, minutes: Int? = nil, exercises: Int, sets: Int, volumeKg: Double? = nil, date: Date = Date()
     ) -> ShareCardContent {
-        var stats = [Stat(label: "Exercises", value: "\(exercises)"), Stat(label: "Sets", value: "\(sets)")]
+        var stats = [
+            Stat(label: String(localized: "Exercises"), value: "\(exercises)"),
+            Stat(label: String(localized: "Sets"), value: "\(sets)"),
+        ]
         if let volumeKg, volumeKg > 0 {
-            stats.append(Stat(label: "Volume", value: "\(Int(volumeKg.rounded()).formatted()) kg"))
+            stats.append(Stat(label: String(localized: "Volume"), value: "\(Int(volumeKg.rounded()).formatted()) kg"))
         }
         return ShareCardContent(
-            layout: .workout, eyebrow: "Workout done", title: title,
+            layout: .workout, eyebrow: String(localized: "Workout done"), title: title,
             hero: minutes.map { "\($0)" } ?? "\(sets)",
-            heroUnit: minutes == nil ? (sets == 1 ? "set" : "sets") : (minutes == 1 ? "minute" : "minutes"),
+            heroUnit: minutes == nil
+                ? (sets == 1 ? String(localized: "set") : String(localized: "sets"))
+                : (minutes == 1 ? String(localized: "minute") : String(localized: "minutes")),
             stats: minutes == nil ? Array(stats.dropFirst(2)) : stats,
             footer: date.formatted(date: .complete, time: .omitted)
         )
@@ -92,8 +97,8 @@ extension ShareCardContent {
         exercise: String, value: String, unit: String? = nil, previous: String? = nil, date: Date = Date()
     ) -> ShareCardContent {
         ShareCardContent(
-            layout: .record, eyebrow: "New personal record", title: exercise, hero: value, heroUnit: unit,
-            stats: previous.map { [Stat(label: "Before", value: $0)] } ?? [],
+            layout: .record, eyebrow: String(localized: "New personal record"), title: exercise, hero: value, heroUnit: unit,
+            stats: previous.map { [Stat(label: String(localized: "Before"), value: $0)] } ?? [],
             footer: date.formatted(date: .complete, time: .omitted)
         )
     }
@@ -101,8 +106,8 @@ extension ShareCardContent {
     /// An achievement unlocked: its name, its XP and how rare it is.
     static func achievement(name: String, xp: Int, rarity: String, date: Date = Date()) -> ShareCardContent {
         ShareCardContent(
-            layout: .record, eyebrow: "Achievement unlocked", title: name, hero: "+\(xp.formatted())", heroUnit: "XP",
-            stats: [Stat(label: "Rarity", value: rarity)],
+            layout: .record, eyebrow: String(localized: "Achievement unlocked"), title: name, hero: "+\(xp.formatted())", heroUnit: "XP",
+            stats: [Stat(label: String(localized: "Rarity"), value: rarity)],
             footer: date.formatted(date: .complete, time: .omitted)
         )
     }
@@ -111,14 +116,15 @@ extension ShareCardContent {
     static func streak(days: Int, longest: Int? = nil, level: Int? = nil, date: Date = Date()) -> ShareCardContent {
         var stats: [Stat] = []
         if let longest, longest > days {
-            stats.append(Stat(label: "Best run", value: longest == 1 ? "1 day" : "\(longest) days"))
+            stats.append(Stat(label: String(localized: "Best run"), value: ArenaText.days(longest)))
         }
         if let level {
-            stats.append(Stat(label: "Level", value: "\(level)"))
+            stats.append(Stat(label: String(localized: "Level"), value: "\(level)"))
         }
         return ShareCardContent(
-            layout: .streak, eyebrow: "Streak", title: days == 1 ? "One day down" : "Showing up every day",
-            hero: "\(days)", heroUnit: days == 1 ? "day" : "days", stats: stats,
+            layout: .streak, eyebrow: String(localized: "Streak"),
+            title: days == 1 ? String(localized: "One day down") : String(localized: "Showing up every day"),
+            hero: "\(days)", heroUnit: days == 1 ? String(localized: "day") : String(localized: "days"), stats: stats,
             footer: date.formatted(date: .complete, time: .omitted)
         )
     }
@@ -129,16 +135,25 @@ extension ShareCardContent {
     ) -> ShareCardContent {
         let end = ArenaCalendar.addingDays(6, to: weekStart)
         var stats = [
-            Stat(label: workouts == 1 ? "Workout" : "Workouts", value: "\(workouts)"),
-            Stat(label: "Study", value: studyMinutes >= 60 ? "\(studyMinutes / 60)h \(studyMinutes % 60)m" : "\(studyMinutes)m"),
+            Stat(label: workouts == 1 ? String(localized: "Workout") : String(localized: "Workouts"), value: "\(workouts)"),
+            Stat(
+                label: String(localized: "Study"),
+                value: studyMinutes >= 60
+                    ? String(localized: "\(studyMinutes / 60)h \(studyMinutes % 60)m")
+                    : String(localized: "\(studyMinutes)m")
+            ),
         ]
         if let rank, friends > 0 {
-            stats.append(Stat(label: "Rank", value: "#\(rank) of \(friends + 1)"))
+            stats.append(Stat(label: String(localized: "Rank"), value: ArenaText.rank(rank, of: friends + 1)))
         }
-        let range = "\(weekStart.formatted(.dateTime.day().month(.abbreviated))) to \(end.formatted(.dateTime.day().month(.abbreviated)))"
+        let startText = weekStart.formatted(.dateTime.day().month(.abbreviated))
+        let endText = end.formatted(.dateTime.day().month(.abbreviated))
+        let weekNumber = ArenaCalendar.calendar().component(.weekOfYear, from: weekStart)
+        let yearText = weekStart.formatted(.dateTime.year())
+        let range = String(localized: "\(startText) to \(endText)")
         return ShareCardContent(
-            layout: .week, eyebrow: "My week", title: range, hero: xp.formatted(), heroUnit: "XP", stats: stats,
-            footer: "Week \(ArenaCalendar.calendar().component(.weekOfYear, from: weekStart)), \(weekStart.formatted(.dateTime.year()))"
+            layout: .week, eyebrow: String(localized: "My week"), title: range, hero: xp.formatted(), heroUnit: "XP", stats: stats,
+            footer: String(localized: "Week \(weekNumber), \(yearText)")
         )
     }
 }

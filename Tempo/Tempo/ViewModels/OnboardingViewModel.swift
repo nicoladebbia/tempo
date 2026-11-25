@@ -56,6 +56,33 @@ final class OnboardingViewModel {
         "Parent", "Retiree", "General Fitness",
     ]
 
+    /// The name shown for a stored identity label. The stored label stays English (it is saved and compared).
+    static func identityDisplayName(_ label: String) -> String {
+        switch label {
+        case "Athlete": String(localized: "Athlete")
+        case "Student": String(localized: "Student")
+        case "Student-Athlete": String(localized: "Student-Athlete")
+        case "Coach": String(localized: "Coach")
+        case "Personal Trainer": String(localized: "Personal Trainer")
+        case "Bodybuilder": String(localized: "Bodybuilder")
+        case "Runner": String(localized: "Runner")
+        case "Cyclist": String(localized: "Cyclist")
+        case "Swimmer": String(localized: "Swimmer")
+        case "Combat Sports": String(localized: "Combat Sports")
+        case "Team Sport Player": String(localized: "Team Sport Player")
+        case "Weekend Warrior": String(localized: "Weekend Warrior")
+        case "Military / First Responder": String(localized: "Military / First Responder")
+        case "Office Worker": String(localized: "Office Worker")
+        case "Remote Worker": String(localized: "Remote Worker")
+        case "Entrepreneur": String(localized: "Entrepreneur")
+        case "Artist / Creative": String(localized: "Artist / Creative")
+        case "Parent": String(localized: "Parent")
+        case "Retiree": String(localized: "Retiree")
+        case "General Fitness": String(localized: "General Fitness")
+        default: label
+        }
+    }
+
     // Training defaults. Onboarding no longer asks: these are what a person who tapped through
     // the old training step got (4 days a week, so Upper/Lower; no experience level, so the
     // strength model treats them as a beginner). Both are set in Settings > Training.

@@ -315,7 +315,7 @@ enum ArenaXPLedger {
             if achievement.earnedAt == nil, let day = result.earnedOn {
                 achievement.earnedAt = day
                 if day >= recent {
-                    newlyEarned.append(achievement.name)
+                    newlyEarned.append(achievement.displayName)
                 }
             }
             let value = achievement.earnedAt != nil ? max(result.value, achievement.targetValue) : result.value
@@ -330,7 +330,9 @@ enum ArenaXPLedger {
                     day,
                     .achievement,
                     achievement.effectiveXPReward,
-                    count == 1 ? "Unlocked \(achievement.name)" : "Unlocked \(count) achievements"
+                    count == 1
+                        ? String(localized: "Unlocked \(achievement.displayName)")
+                        : String(localized: "Unlocked \(count) achievements")
                 )
             }
         }

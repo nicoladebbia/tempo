@@ -71,16 +71,16 @@ struct SpendingSummary: Equatable {
 
     /// "$73.45".
     static func money(_ amount: Double) -> String {
-        String(format: "$%.2f", amount)
+        "$" + amount.tempoDecimal(2)
     }
 
     /// Where a week stands against its budget, in a line.
     static func budgetLine(_ week: GroceryWeeklySpend) -> String {
         guard let cap = week.budgetCapUSD else {
-            return "No weekly budget set"
+            return String(localized: "No weekly budget set")
         }
         let gap = money(abs(Double(cap) - week.totalUSD))
-        return week.isOverBudget ? "\(gap) over your $\(cap) budget" : "\(gap) left of your $\(cap) budget"
+        return week.isOverBudget ? String(localized: "\(gap) over your $\(cap) budget") : String(localized: "\(gap) left of your $\(cap) budget")
     }
 
     /// "Average $84.20 a week · 1 week over budget", or nil with no spend yet.
@@ -88,9 +88,9 @@ struct SpendingSummary: Equatable {
         guard let average = averagePerWeek else {
             return nil
         }
-        var line = "Average \(Self.money(average)) a week"
+        var line = String(localized: "Average \(Self.money(average)) a week")
         if overBudgetWeeks > 0 {
-            line += " · \(FuelWords.count(overBudgetWeeks, "week")) over budget"
+            line += " · " + String(localized: "\(FuelWords.count(overBudgetWeeks, "week")) over budget")
         }
         return line
     }

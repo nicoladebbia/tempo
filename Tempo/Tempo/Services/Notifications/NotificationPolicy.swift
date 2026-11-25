@@ -109,17 +109,17 @@ enum NotificationLevel: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .essential: "Essential"
-        case .balanced: "Balanced"
-        case .everything: "Everything"
+        case .essential: String(localized: "Essential")
+        case .balanced: String(localized: "Balanced")
+        case .everything: String(localized: "Everything")
         }
     }
 
     var summary: String {
         switch self {
-        case .essential: "Only what you would be upset to miss: meals, training and streaks."
-        case .balanced: "Adds your morning briefing, accountability, recovery and bedtime."
-        case .everything: "Every reminder Tempo has, including weekly reports and Arena."
+        case .essential: String(localized: "Only what you would be upset to miss: meals, training and streaks.")
+        case .balanced: String(localized: "Adds your morning briefing, accountability, recovery and bedtime.")
+        case .everything: String(localized: "Every reminder Tempo has, including weekly reports and Arena.")
         }
     }
 

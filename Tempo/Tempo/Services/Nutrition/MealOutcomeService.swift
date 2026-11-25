@@ -51,8 +51,8 @@ enum MealOutcomeService {
 
         var errorDescription: String? {
             switch self {
-            case .mealGone: "Couldn't restore. That meal no longer exists."
-            case .mealNotEaten: "Couldn't put that food back. The meal is no longer marked eaten."
+            case .mealGone: String(localized: "Couldn't restore. That meal no longer exists.")
+            case .mealNotEaten: String(localized: "Couldn't put that food back. The meal is no longer marked eaten.")
             }
         }
     }

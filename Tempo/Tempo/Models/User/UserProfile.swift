@@ -233,14 +233,14 @@ extension UserProfile {
 
         var errorDescription: String? {
             switch self {
-            case .usernameTooShort: "Username must be at least 3 characters."
-            case .usernameTooLong: "Username must be at most 30 characters."
-            case .usernameInvalidChars: "Username may only contain letters, numbers, and underscores."
-            case .displayNameEmpty: "Display name cannot be empty."
-            case .displayNameTooLong: "Display name must be at most 50 characters."
-            case .invalidWeight: "Weight must be between 30 and 300 kg."
-            case .invalidHeight: "Height must be between 100 and 250 cm."
-            case .invalidAge: "Age must be between 13 and 100."
+            case .usernameTooShort: String(localized: "Username must be at least 3 characters.")
+            case .usernameTooLong: String(localized: "Username must be at most 30 characters.")
+            case .usernameInvalidChars: String(localized: "Username may only contain letters, numbers, and underscores.")
+            case .displayNameEmpty: String(localized: "Display name cannot be empty.")
+            case .displayNameTooLong: String(localized: "Display name must be at most 50 characters.")
+            case .invalidWeight: String(localized: "Weight must be between 30 and 300 kg.")
+            case .invalidHeight: String(localized: "Height must be between 100 and 250 cm.")
+            case .invalidAge: String(localized: "Age must be between 13 and 100.")
             }
         }
     }

@@ -30,7 +30,7 @@ struct SetupChecklistCard: View {
     var body: some View {
         let open = checklist.remaining
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Get set up", trailing: "\(checklist.doneCount) of \(checklist.total) done")
+            TideSectionLabel(title: String(localized: "Get set up"), trailing: String(localized: "\(checklist.doneCount) of \(checklist.total) done"))
             VStack(spacing: 0) {
                 ForEach(Array(open.prefix(Self.visibleLines).enumerated()), id: \.element.id) { index, line in
                     if index > 0 {
@@ -109,7 +109,7 @@ struct SetupChecklistPage: View {
     var body: some View {
         TideSettingsPage {
             SettingsFormCard(
-                title: "\(checklist.doneCount) of \(checklist.total) done",
+                title: String(localized: "\(checklist.doneCount) of \(checklist.total) done"),
                 footnote: footnote
             ) {
                 ForEach(Array(checklist.lines.enumerated()), id: \.element.id) { index, line in
@@ -136,8 +136,8 @@ struct SetupChecklistPage: View {
 
     private var footnote: String {
         checklist.isConfigured
-            ? "You are set up. Health and Whoop make Tempo sharper but are optional."
-            : "Each line opens the screen that finishes it."
+            ? String(localized: "You are set up. Health and Whoop make Tempo sharper but are optional.")
+            : String(localized: "Each line opens the screen that finishes it.")
     }
 
     @ViewBuilder
@@ -145,7 +145,7 @@ struct SetupChecklistPage: View {
         let step = line.step
         if line.done {
             SettingsStatusRow(
-                icon: step.icon, title: step.title, status: "Done", statusColor: TideTone.mint, showsChevron: false
+                icon: step.icon, title: step.title, status: String(localized: "status.done", defaultValue: "Done", comment: "Status word: a step, task or workout is finished (not the Done button)"), statusColor: TideTone.mint, showsChevron: false
             )
             .accessibilityIdentifier("setup.\(step.id)")
         } else {

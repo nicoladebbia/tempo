@@ -56,8 +56,8 @@ struct FuelQuadrantDetailView: View {
                     // The button is the bar at the bottom of the page.
                     FuelEmptyState(
                         icon: "fork.knife.circle.fill",
-                        title: "Track nutrition natively",
-                        message: "Log your first meal to start tracking macros, hydration, and meal timing."
+                        title: String(localized: "Track nutrition natively"),
+                        message: String(localized: "Log your first meal to start tracking macros, hydration, and meal timing.")
                     )
                     .padding(.top, Tide.s6)
                 }
@@ -89,7 +89,7 @@ struct FuelQuadrantDetailView: View {
 
     private var calorieHeroSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Calories", trailing: caloriesRemaining)
+            TideSectionLabel(title: String(localized: "Calories"), trailing: caloriesRemaining)
 
             VStack(alignment: .leading, spacing: Tide.s2) {
                 VStack(alignment: .leading, spacing: Tide.s2) {
@@ -151,10 +151,10 @@ struct FuelQuadrantDetailView: View {
 
     /// The split bar, said out loud (it is drawn, so it needs words).
     private var splitSpoken: String {
-        let parts = [("Protein", 4, data.proteinGrams), ("Carbs", 4, data.carbsGrams), ("Fat", 9, data.fatGrams)]
-        return "Calories divide: " + parts.map { name, perGram, grams in
-            "\(name) \(macroCaloriePercent(grams: grams, calPerGram: perGram)) percent"
-        }.joined(separator: ", ")
+        let protein = macroCaloriePercent(grams: data.proteinGrams, calPerGram: 4)
+        let carbs = macroCaloriePercent(grams: data.carbsGrams, calPerGram: 4)
+        let fat = macroCaloriePercent(grams: data.fatGrams, calPerGram: 9)
+        return String(localized: "Calories divide: Protein \(protein) percent, Carbs \(carbs) percent, Fat \(fat) percent")
     }
 
     /// "420 left" / "80 over", like the Today card. Nil without both numbers.
@@ -206,7 +206,9 @@ struct FuelQuadrantDetailView: View {
                     .background(Tide.water.opacity(0.16), in: .capsule)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(
-                        "Meals shifted \(abs(shiftMinutes)) minutes \(shiftMinutes > 0 ? "later" : "earlier") due to wake time"
+                        shiftMinutes > 0
+                            ? String(localized: "Meals shifted \(abs(shiftMinutes)) minutes later due to wake time")
+                            : String(localized: "Meals shifted \(abs(shiftMinutes)) minutes earlier due to wake time")
                     )
                 }
             }
@@ -218,11 +220,11 @@ struct FuelQuadrantDetailView: View {
         let sign = minutes > 0 ? "+" : "−"
         let absMin = abs(minutes)
         if absMin < 60 {
-            return "\(sign)\(absMin)m"
+            return String(localized: "\(sign)\(absMin)m")
         }
         let h = absMin / 60
         let m = absMin % 60
-        return m == 0 ? "\(sign)\(h)h" : "\(sign)\(h)h \(m)m"
+        return m == 0 ? String(localized: "\(sign)\(h)h") : String(localized: "\(sign)\(h)h \(m)m")
     }
 
     // MARK: - Meals Section
@@ -235,8 +237,8 @@ struct FuelQuadrantDetailView: View {
     private var mealsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
-                title: "Meals",
-                trailing: mealRows.isEmpty ? nil : "\(mealRows.count) planned"
+                title: String(localized: "Meals"),
+                trailing: mealRows.isEmpty ? nil : String(localized: "\(mealRows.count) planned")
             )
 
             if mealRows.isEmpty {
@@ -291,7 +293,7 @@ struct FuelQuadrantDetailView: View {
             )
 
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(row.meal.mealName)
+                Text(row.meal.displayMealName)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)
@@ -335,7 +337,7 @@ struct FuelQuadrantDetailView: View {
 
             VStack(alignment: .trailing, spacing: Tide.s1) {
                 if row.meal.totalCalories > 0 {
-                    TideNumber("\(Int(row.meal.totalCalories))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                    TideNumber("\(Int(row.meal.totalCalories))", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 } else {
                     Text("—")
                         .font(Tide.bodyStrong)
@@ -343,7 +345,7 @@ struct FuelQuadrantDetailView: View {
                 }
                 if row.meal.status == .eaten || row.meal.status == .skipped {
                     FuelPill(
-                        text: row.meal.status == .eaten ? "Eaten" : "Skipped",
+                        text: row.meal.status == .eaten ? String(localized: "Eaten") : String(localized: "Skipped"),
                         color: statusColor(for: row.meal.status)
                     )
                 }
@@ -363,7 +365,7 @@ struct FuelQuadrantDetailView: View {
         HStack(spacing: Tide.s1) {
             Image(systemName: "takeoutbag.and.cup.and.straw.fill")
                 .accessibilityHidden(true)
-            Text(eventTitle.map { "Portable only · \($0)" } ?? "Portable only")
+            Text(eventTitle.map { String(localized: "Portable only · \($0)") } ?? String(localized: "Portable only"))
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
         }
@@ -388,7 +390,7 @@ struct FuelQuadrantDetailView: View {
 
     private var calorieTrendSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Calorie trend")
+            TideSectionLabel(title: String(localized: "Calorie trend"))
 
             if calorieTrend.contains(where: \.hasData) {
                 trendChart
@@ -473,7 +475,7 @@ struct FuelQuadrantDetailView: View {
 
     private var weeklyAverageSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Weekly average")
+            TideSectionLabel(title: String(localized: "Weekly average"))
 
             // Averaged over the days that have eaten meals — an unlogged
             // day isn't a 0 kcal day. (Replaces hardcoded 2,250 / 172g / 82%.)
@@ -484,7 +486,7 @@ struct FuelQuadrantDetailView: View {
                 layout {
                     VStack(alignment: .leading, spacing: Tide.s1) {
                         Text("Calories").tideLabel()
-                        TideNumber(avg.calories.formatted(), unit: "kcal/day", size: Tide.numeralS, relativeTo: .headline)
+                        TideNumber(avg.calories.formatted(), unit: String(localized: "kcal/day"), size: Tide.numeralS, relativeTo: .headline)
                         Text("target \(data.formattedCalorieTarget)")
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
@@ -494,7 +496,7 @@ struct FuelQuadrantDetailView: View {
 
                     VStack(alignment: .leading, spacing: Tide.s1) {
                         Text("Protein").tideLabel()
-                        TideNumber("\(avg.protein)", unit: "g/day", size: Tide.numeralS, relativeTo: .headline)
+                        TideNumber("\(avg.protein)", unit: String(localized: "g/day"), size: Tide.numeralS, relativeTo: .headline)
                         if let target = data.proteinTarget {
                             Text("target \(target)")
                                 .font(Tide.caption)
@@ -531,11 +533,11 @@ struct FuelQuadrantDetailView: View {
         let overage = consumed - target
 
         switch ratio {
-        case ..<0.5: return "You running on fumes?"
-        case 0.5 ..< 0.8: return "Still got room for \(remaining) kcal."
-        case 0.8 ... 1.0: return "On track. Don't blow it at dinner."
-        case 1.0 ..< 1.2: return "Over by \(overage). Noted."
-        default: return "That's a surplus, not a strategy."
+        case ..<0.5: return String(localized: "You running on fumes?")
+        case 0.5 ..< 0.8: return String(localized: "Still got room for \(remaining) kcal.")
+        case 0.8 ... 1.0: return String(localized: "On track. Don't blow it at dinner.")
+        case 1.0 ..< 1.2: return String(localized: "Over by \(overage). Noted.")
+        default: return String(localized: "That's a surplus, not a strategy.")
         }
     }
 

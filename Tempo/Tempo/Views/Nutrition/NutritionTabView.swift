@@ -144,7 +144,7 @@ struct NutritionTabView: View {
                     return
                 }
                 planErrorToast = ToastData(
-                    message: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry.",
+                    message: String(localized: "Couldn't generate plan: \(newError). Tap Generate on the Plan tab to retry."),
                     style: .error
                 )
             }
@@ -201,9 +201,9 @@ struct NutritionTabView: View {
             )) { gap in
                 FuelDecisionSheet(
                     icon: "cart.badge.plus",
-                    title: "Shopping gap",
+                    title: String(localized: "Shopping gap"),
                     message: gap.summary,
-                    primaryTitle: "Open Grocery List",
+                    primaryTitle: String(localized: "Open Grocery List"),
                     // Missing ingredients are things to BUY → the grocery list,
                     // which lives in Kitchen. (Was incorrectly routing to the
                     // Pantry, where you'd only add things you already have.)
@@ -211,7 +211,7 @@ struct NutritionTabView: View {
                         viewModel.pantryGapAlert = nil
                         viewModel.openKitchen(.groceries)
                     },
-                    cancelTitle: "Dismiss",
+                    cancelTitle: String(localized: "Dismiss"),
                     cancel: { viewModel.pantryGapAlert = nil }
                 )
                 .environment(\.tideInsidePage, false)
@@ -239,7 +239,7 @@ struct NutritionTabView: View {
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: Tide.s2)
-            FuelIconButton(systemImage: "gearshape.fill", label: "Settings") {
+            FuelIconButton(systemImage: "gearshape.fill", label: String(localized: "Settings")) {
                 HapticManager.lightImpact()
                 showSettings = true
             }
@@ -251,7 +251,7 @@ struct NutritionTabView: View {
     private var sectionPicker: some View {
         Picker("Section", selection: $viewModel.selectedTab) {
             ForEach(NutritionSection.allCases) { section in
-                Text(section.rawValue).tag(section)
+                Text(section.displayName).tag(section)
             }
         }
         .pickerStyle(.segmented)
@@ -332,7 +332,7 @@ struct NutritionTabView: View {
     private func errorState(_ message: String) -> some View {
         VStack(spacing: Tide.s4) {
             Spacer()
-            FuelEmptyState(icon: "exclamationmark.triangle.fill", title: "Fuel did not load", message: message) {
+            FuelEmptyState(icon: "exclamationmark.triangle.fill", title: String(localized: "Fuel did not load"), message: message) {
                 Button("Retry") {
                     viewModel.loadToday(modelContext: modelContext)
                 }

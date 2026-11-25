@@ -23,14 +23,13 @@ struct AIFeaturesSettingsCard: View {
     var body: some View {
         SettingsModeCard(
             icon: "sparkles",
-            title: "Use AI features",
-            detail: "Plans, Quick Log, photo and voice logging, receipts and coaching.",
+            title: String(localized: "Use AI features"),
+            detail: String(localized: "Plans, Quick Log, photo and voice logging, receipts and coaching."),
             identifier: "aiFeaturesToggle",
             isDisabled: isSaving,
             isOn: binding
         ) {
-            Text(errorMessage ?? "They send what you type or snap, and the data they need, to Anthropic's AI. It is "
-                + "never used to train their models. Turn off to keep everything on the device. Needs Tempo Pro.")
+            Text(errorMessage ?? String(localized: "They send what you type or snap, and the data they need, to Anthropic's AI. It is never used to train their models. Turn off to keep everything on the device. Needs Tempo Pro."))
                 .font(Tide.caption)
                 .foregroundStyle(errorMessage == nil ? Tide.text2 : Tide.danger)
                 .fixedSize(horizontal: false, vertical: true)
@@ -65,7 +64,7 @@ struct AIFeaturesSettingsCard: View {
         } catch {
             Logger.nutrition.error("AI consent change failed: \(error.localizedDescription, privacy: .public)")
             isOn = previous
-            errorMessage = "Couldn't change that. \(AIBlocker.readableDescription(error))"
+            errorMessage = String(localized: "Couldn't change that. \(AIBlocker.readableDescription(error))")
         }
         isSaving = false
     }

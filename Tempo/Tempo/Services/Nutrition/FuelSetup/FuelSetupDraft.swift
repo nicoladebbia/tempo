@@ -101,12 +101,12 @@ struct FuelSetupDraft: Equatable, Sendable {
 
         var question: String {
             switch self {
-            case .weight: "How much do you weigh?"
-            case .height: "How tall are you?"
-            case .age: "How old are you?"
-            case .sex: "Male or female (for the calorie formula)?"
-            case .goal: "What's the goal — lose fat, maintain, or gain muscle?"
-            case .meals: "How many meals a day do you want — and do you eat breakfast?"
+            case .weight: String(localized: "How much do you weigh?")
+            case .height: String(localized: "How tall are you?")
+            case .age: String(localized: "How old are you?")
+            case .sex: String(localized: "Male or female (for the calorie formula)?")
+            case .goal: String(localized: "What's the goal — lose fat, maintain, or gain muscle?")
+            case .meals: String(localized: "How many meals a day do you want — and do you eat breakfast?")
             }
         }
     }
@@ -179,15 +179,15 @@ enum DietRestriction: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var label: String {
         switch self {
-        case .lactoseFree: "Lactose-free"
-        case .glutenFree: "Gluten-free"
-        case .vegetarian: "Vegetarian"
-        case .vegan: "Vegan"
-        case .halal: "Halal"
-        case .nutFree: "Nut allergy"
-        case .shellfishAllergy: "Shellfish allergy"
-        case .noAddedSugars: "No added sugar"
-        case .noCoffee: "No coffee"
+        case .lactoseFree: String(localized: "Lactose-free")
+        case .glutenFree: String(localized: "Gluten-free")
+        case .vegetarian: String(localized: "Vegetarian")
+        case .vegan: String(localized: "Vegan")
+        case .halal: String(localized: "Halal")
+        case .nutFree: String(localized: "Nut allergy")
+        case .shellfishAllergy: String(localized: "Shellfish allergy")
+        case .noAddedSugars: String(localized: "No added sugar")
+        case .noCoffee: String(localized: "No coffee")
         }
     }
 }

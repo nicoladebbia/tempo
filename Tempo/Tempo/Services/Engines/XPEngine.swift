@@ -76,39 +76,39 @@ final class XPEngine: XPEngineProtocol, @unchecked Sendable {
     static var xpEarningCategories: [XPEarningCategory] {
         [
             XPEarningCategory(
-                emoji: "🏋️", name: "Workout",
-                description: "Finish a workout",
-                xpRange: "50 + 10 per exercise"
+                emoji: "🏋️", name: String(localized: "Workout"),
+                description: String(localized: "Finish a workout"),
+                xpRange: String(localized: "50 + 10 per exercise")
             ),
             XPEarningCategory(
-                emoji: "🌅", name: "Early bird workout",
-                description: "Start a workout before 8am",
+                emoji: "🌅", name: String(localized: "Early bird workout"),
+                description: String(localized: "Start a workout before 8am"),
                 xpRange: "+25"
             ),
             XPEarningCategory(
-                emoji: "📖", name: "Study",
-                description: "Every 25 minutes of focus time",
-                xpRange: "25 per 25 min, +10 first of the day"
+                emoji: "📖", name: String(localized: "Study"),
+                description: String(localized: "Every 25 minutes of focus time"),
+                xpRange: String(localized: "25 per 25 min, +10 first of the day")
             ),
             XPEarningCategory(
-                emoji: "🌅", name: "Early bird study",
-                description: "Start studying before 8am",
+                emoji: "🌅", name: String(localized: "Early bird study"),
+                description: String(localized: "Start studying before 8am"),
                 xpRange: "+25"
             ),
             XPEarningCategory(
-                emoji: "🍴", name: "Meals",
-                description: "Log breakfast, lunch, dinner and snacks",
-                xpRange: "5 per meal, +40 for all three main meals"
+                emoji: "🍴", name: String(localized: "Meals"),
+                description: String(localized: "Log breakfast, lunch, dinner and snacks"),
+                xpRange: String(localized: "5 per meal, +40 for all three main meals")
             ),
             XPEarningCategory(
-                emoji: "✓", name: "Tasks",
-                description: "Finish every daily task",
+                emoji: "✓", name: String(localized: "Tasks"),
+                description: String(localized: "Finish every daily task"),
                 xpRange: "+100"
             ),
             XPEarningCategory(
-                emoji: "🏅", name: "Achievements",
-                description: "Unlock an achievement",
-                xpRange: "Set by its rarity"
+                emoji: "🏅", name: String(localized: "Achievements"),
+                description: String(localized: "Unlock an achievement"),
+                xpRange: String(localized: "Set by its rarity")
             ),
         ]
     }
@@ -131,7 +131,7 @@ extension XPEngine {
             }
             awards.append(XPAward(
                 source: .workout, amount: amount,
-                reason: day.workouts == 1 ? "Finished a workout" : "Finished \(day.workouts) workouts"
+                reason: day.workouts == 1 ? String(localized: "Finished a workout") : String(localized: "Finished \(day.workouts) workouts")
             ))
         }
 
@@ -142,7 +142,7 @@ extension XPEngine {
             }
             awards.append(XPAward(
                 source: .meal, amount: amount,
-                reason: day.mainMealsAllLogged ? "Every main meal logged" : "Logged meals"
+                reason: day.mainMealsAllLogged ? String(localized: "Every main meal logged") : String(localized: "Logged meals")
             ))
         }
 
@@ -152,11 +152,11 @@ extension XPEngine {
             if let hour = day.earliestStudyHour, hour < 8 {
                 amount += xpEarlyBirdStudy
             }
-            awards.append(XPAward(source: .study, amount: amount, reason: "\(day.studyMinutes) minutes of focus"))
+            awards.append(XPAward(source: .study, amount: amount, reason: String(localized: "\(day.studyMinutes) minutes of focus")))
         }
 
         if day.allNonNegotiablesDone {
-            awards.append(XPAward(source: .nonNegotiable, amount: xpAllNonNeg, reason: "Every daily task done"))
+            awards.append(XPAward(source: .nonNegotiable, amount: xpAllNonNeg, reason: String(localized: "Every daily task done")))
         }
         return awards
     }

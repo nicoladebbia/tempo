@@ -52,7 +52,7 @@ struct RecoveryCoachSection: View {
 
     private func sessionHeader(_ session: CoachSession) -> some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            TideSectionLabel(title: "After your session")
+            TideSectionLabel(title: String(localized: "After your session"))
             Text(Self.sessionLine(session, now: Date()))
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -64,7 +64,7 @@ struct RecoveryCoachSection: View {
     }
 
     static func sessionLine(_ s: CoachSession, now: Date) -> String {
-        "\(s.label), \(s.durationMinutes) min, ended \(RecoveryCoachModel.ago(s.end, now: now))"
+        String(localized: "\(s.label), \(s.durationMinutes) min, ended \(RecoveryCoachModel.ago(s.end, now: now))")
     }
 
     // MARK: Content switch
@@ -80,7 +80,7 @@ struct RecoveryCoachSection: View {
             if let result = model.result {
                 if case let .loading(step) = model.phase {
                     // Old numbers stay visible but dimmed, with the real steps and a clock above them.
-                    LoadingSteps(current: step, startedAt: model.loadStartedAt ?? Date(), title: "Updating your numbers")
+                    LoadingSteps(current: step, startedAt: model.loadStartedAt ?? Date(), title: String(localized: "Updating your numbers"))
                     resultContent(result)
                         .opacity(0.4)
                         .allowsHitTesting(false)
@@ -94,7 +94,7 @@ struct RecoveryCoachSection: View {
     }
 
     private func errorCard(_ message: String) -> some View {
-        FuelEmptyState(icon: "exclamationmark.triangle.fill", title: "Couldn't load your recovery", message: message) {
+        FuelEmptyState(icon: "exclamationmark.triangle.fill", title: String(localized: "Couldn't load your recovery"), message: message) {
             Button("Try again") { Task { await model.refresh(requestedID: model.session?.id) } }
                 .buttonStyle(.tideGlass)
                 .accessibilityIdentifier("coach.retry")
@@ -108,8 +108,8 @@ struct RecoveryCoachSection: View {
     }
 
     private var offlineText: String {
-        let when = model.resultDate.map { RecoveryCoachModel.ago($0, now: Date()) } ?? "earlier"
-        return "No connection. Showing your last result from \(when)."
+        let when = model.resultDate.map { RecoveryCoachModel.ago($0, now: Date()) } ?? String(localized: "earlier", comment: "As in: showing your last result from earlier")
+        return String(localized: "No connection. Showing your last result from \(when).")
     }
 
     // MARK: Result
@@ -129,7 +129,7 @@ struct RecoveryCoachSection: View {
             healthReadings
             whyDisclosure(result: result, sweat: sweat, plan: plan)
         } else {
-            errorCard("The coach returned no numbers. Pull down to try again.")
+            errorCard(String(localized: "The coach returned no numbers. Pull down to try again."))
         }
     }
 
@@ -169,7 +169,7 @@ struct RecoveryCoachSection: View {
             }
             if model.weighIns.isEmpty {
                 Text(
-                    "Nothing from Apple Health or entered by hand between 3 hours before and 2.5 hours after the session. Your Withings scale sends a weight to Health after you step on it."
+                    String(localized: "Nothing from Apple Health or entered by hand between 3 hours before and 2.5 hours after the session. Your Withings scale sends a weight to Health after you step on it.")
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -178,9 +178,12 @@ struct RecoveryCoachSection: View {
                 ForEach(Array(model.weighIns.enumerated()), id: \.offset) { _, w in
                     HStack(alignment: .center, spacing: Tide.s3) {
                         VStack(alignment: .leading, spacing: Tide.hair) {
-                            TideNumber(String(format: "%.1f", w.kg), unit: "kg", size: Tide.numeralS, relativeTo: .headline)
+                            TideNumber(w.kg.tempoDecimal(1), unit: "kg", size: Tide.numeralS, relativeTo: .headline)
+                            let weighTime = w.time.formatted(date: .omitted, time: .shortened)
                             Text(
-                                "\(w.source == CoachWeighIn.sourceWithings ? "Withings" : "By hand"), \(w.time.formatted(date: .omitted, time: .shortened))"
+                                w.source == CoachWeighIn.sourceWithings
+                                    ? String(localized: "Withings, \(weighTime)")
+                                    : String(localized: "By hand, \(weighTime)")
                             )
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
@@ -235,7 +238,7 @@ struct RecoveryCoachSection: View {
         card {
             Text("Food can start now").tideLabel()
             Text(
-                "About \(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h and \(Int(plan.proteinGrams.rounded())) g protein in one go. The fluid and salt numbers appear once both weigh-ins are in."
+                String(localized: "About \(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h and \(Int(plan.proteinGrams.rounded())) g protein in one go. The fluid and salt numbers appear once both weigh-ins are in.")
             )
             .font(Tide.body)
             .foregroundStyle(Tide.text2)
@@ -279,7 +282,7 @@ struct RecoveryCoachSection: View {
                 }
             }
             Text(
-                "You lost \(String(format: "%.1f", sweat.massLostKg)) kg on the scale (\(String(format: "%.1f", sweat.percentBodyMassLost))% of your weight)."
+                String(localized: "You lost \(sweat.massLostKg.tempoDecimal(1)) kg on the scale (\(sweat.percentBodyMassLost.tempoDecimal(1))% of your weight).")
             )
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)
@@ -325,25 +328,25 @@ struct RecoveryCoachSection: View {
             if let drink = plan.drinkLiters {
                 planLine(
                     icon: "drop.fill", color: Tide.water,
-                    title: "Drink \(RecoveryCoachFormat.liters(drink)) with a meal",
-                    detail: "Over the next few hours, with food that has salt. Water alone leaves you short."
+                    title: String(localized: "Drink \(RecoveryCoachFormat.liters(drink)) with a meal"),
+                    detail: String(localized: "Over the next few hours, with food that has salt. Water alone leaves you short.")
                 )
             }
             if let sodium = plan.sodiumMgPlan, let low = plan.sodiumMgLow, let high = plan.sodiumMgHigh {
                 planLine(
                     icon: "circle.hexagongrid.fill", color: Tide.plan,
-                    title: "Sodium about \(RecoveryCoachFormat.sodium(sodium))",
-                    detail: "Could be \(RecoveryCoachFormat.sodiumRange(low: low, high: high)): sweat saltiness varies a lot between people."
+                    title: String(localized: "Sodium about \(RecoveryCoachFormat.sodium(sodium))"),
+                    detail: String(localized: "Could be \(RecoveryCoachFormat.sodiumRange(low: low, high: high)): sweat saltiness varies a lot between people.")
                 )
             }
             planLine(
                 icon: "bolt.fill", color: Tide.carbs,
-                title: "\(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h",
+                title: String(localized: "\(Int(plan.carbsGrams.rounded())) g carbs in the next \(Int(plan.carbWindowHours.rounded())) h"),
                 detail: nil
             )
             planLine(
                 icon: "figure.strengthtraining.traditional", color: Tide.protein,
-                title: "\(Int(plan.proteinGrams.rounded())) g protein in one go",
+                title: String(localized: "\(Int(plan.proteinGrams.rounded())) g protein in one go"),
                 detail: nil
             )
         }
@@ -421,16 +424,16 @@ struct RecoveryCoachSection: View {
     private var fluidSummary: String {
         let f = model.fluids
         if let edited = f.editedLiters {
-            return "You entered \(RecoveryCoachFormat.fluid(edited))."
+            return String(localized: "You entered \(RecoveryCoachFormat.fluid(edited)).")
         }
         var parts: [String] = []
         if f.loggedMl > 0 {
-            parts.append("\(RecoveryCoachFormat.fluid(Double(f.loggedMl) / 1000)) logged in Tempo")
+            parts.append(String(localized: "\(RecoveryCoachFormat.fluid(Double(f.loggedMl) / 1000)) logged in Tempo"))
         }
         if let a = f.quickAnswerLiters {
-            parts.append("\(RecoveryCoachFormat.fluid(a)) you answered")
+            parts.append(String(localized: "\(RecoveryCoachFormat.fluid(a)) you answered"))
         }
-        return parts.isEmpty ? "Not known yet. Tap to tell me." : parts.joined(separator: " + ")
+        return parts.isEmpty ? String(localized: "Not known yet. Tap to tell me.") : parts.joined(separator: " + ")
     }
 
     private func whyDisclosure(
@@ -438,9 +441,9 @@ struct RecoveryCoachSection: View {
     ) -> some View {
         DisclosureGroup(isExpanded: $showWhy) {
             VStack(alignment: .leading, spacing: Tide.s4) {
-                bulletList("Why", plan.reasons)
-                bulletList("What I assumed", sweat.assumptions + result.notes)
-                bulletList("Evidence", plan.evidence)
+                bulletList(String(localized: "Why"), plan.reasons)
+                bulletList(String(localized: "What I assumed"), sweat.assumptions + result.notes)
+                bulletList(String(localized: "Evidence"), plan.evidence)
             }
             .padding(.top, Tide.s3)
         } label: {
@@ -485,7 +488,7 @@ struct CoachEnterWeightBar: View {
     let action: () -> Void
 
     var body: some View {
-        Button(model.result?.status == .implausible ? "Enter my new weight" : "Enter my weight", action: action)
+        Button(model.result?.status == .implausible ? String(localized: "Enter my new weight") : String(localized: "Enter my weight"), action: action)
             .buttonStyle(.tidePrimary)
             .accessibilityIdentifier("coach.enterWeight")
     }
@@ -534,7 +537,7 @@ extension Notification.Name {
 private struct LoadingSteps: View {
     let current: RecoveryCoachModel.Step
     let startedAt: Date
-    var title = "Working on it"
+    var title = String(localized: "Working on it")
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {

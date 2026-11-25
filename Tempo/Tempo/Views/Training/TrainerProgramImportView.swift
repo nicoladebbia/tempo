@@ -46,7 +46,7 @@ struct TrainerProgramImportView: View {
     @State
     private var importTask: Task<Void, Never>?
     @State
-    private var processingLabel = "Reading your program…"
+    private var processingLabel = String(localized: "Reading your program…")
     @State
     private var errorMessage: String?
 
@@ -125,7 +125,7 @@ struct TrainerProgramImportView: View {
             TrainerProgramImagePicker(sourceType: .camera) { image in
                 showCameraPicker = false
                 if let image {
-                    addSource(.init(displayName: "Photo \(sources.count + 1)", payload: .image(image)))
+                    addSource(.init(displayName: String(localized: "Photo \(sources.count + 1)"), payload: .image(image)))
                 }
             }
         }
@@ -151,7 +151,7 @@ struct TrainerProgramImportView: View {
         }
         .sheet(isPresented: $showPasteSheet) {
             PasteTextSheet { text in
-                addSource(.init(displayName: "Pasted text \(sources.count + 1)", payload: .pastedText(text)))
+                addSource(.init(displayName: String(localized: "Pasted text \(sources.count + 1)"), payload: .pastedText(text)))
             }
         }
         .sheet(item: $reviewPayload) { payload in
@@ -202,7 +202,7 @@ struct TrainerProgramImportView: View {
                 if let quotaExceededMessage {
                     TrainBanner(
                         systemImage: "ticket.fill",
-                        label: "Free imports used",
+                        label: String(localized: "Free imports used"),
                         tint: TideTrain.caution,
                         message: quotaExceededMessage
                     ) {
@@ -217,7 +217,7 @@ struct TrainerProgramImportView: View {
                 if let errorMessage {
                     TrainBanner(
                         systemImage: "exclamationmark.triangle.fill",
-                        label: "Couldn't read it",
+                        label: String(localized: "Couldn't read it"),
                         tint: Tide.danger,
                         message: errorMessage
                     ) {}
@@ -281,7 +281,7 @@ struct TrainerProgramImportView: View {
 
     private var sourceListSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            Text(sources.count == 1 ? "1 source added" : "\(sources.count) sources added").tideLabel(Tide.text3)
+            Text(sources.count == 1 ? String(localized: "1 source added") : String(localized: "\(sources.count) sources added")).tideLabel(Tide.text3)
 
             ForEach(sources) { source in
                 HStack(spacing: Tide.s3) {
@@ -365,7 +365,7 @@ struct TrainerProgramImportView: View {
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(sources.count == 1 ? "1 source, read as one program" : "\(sources.count) sources, read as one program")
+            Text(sources.count == 1 ? String(localized: "1 source, read as one program") : String(localized: "\(sources.count) sources, read as one program"))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
                 .multilineTextAlignment(.center)
@@ -395,12 +395,12 @@ struct TrainerProgramImportView: View {
         var loaded: [ProgramImportSource] = []
         for item in items {
             if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                loaded.append(.init(displayName: "Photo \(sources.count + loaded.count + 1)", payload: .image(image)))
+                loaded.append(.init(displayName: String(localized: "Photo \(sources.count + loaded.count + 1)"), payload: .image(image)))
             }
         }
         photosSelection = []
         guard !loaded.isEmpty else {
-            errorMessage = "Couldn't load those photos."
+            errorMessage = String(localized: "Couldn't load those photos.")
             return
         }
         sources.append(contentsOf: loaded)
@@ -424,7 +424,7 @@ struct TrainerProgramImportView: View {
         guard let quota, !quota.isPro, let remaining = quota.remaining else {
             return nil
         }
-        return remaining == 1 ? "1 free import left this month" : "\(remaining) free imports left this month"
+        return remaining == 1 ? String(localized: "1 free import left this month") : String(localized: "\(remaining) free imports left this month")
     }
 
     private var isQuotaExhausted: Bool {
@@ -436,7 +436,7 @@ struct TrainerProgramImportView: View {
 
     private var quotaExhaustedMessage: String {
         let limit = quota?.limit ?? 2
-        return "You've used your \(limit) free trainer-program imports this month. Upgrade to Tempo Pro for unlimited imports."
+        return String(localized: "You've used your \(limit) free trainer-program imports this month. Upgrade to Tempo Pro for unlimited imports.")
     }
 
     /// Extracts the quota-exceeded fields from whatever wrapper the
@@ -473,13 +473,13 @@ struct TrainerProgramImportView: View {
     /// batches as a single quota slot (fix #1/#2).
     private func readProgram() async {
         guard let importService else {
-            errorMessage = "Not ready yet — try again."
+            errorMessage = String(localized: "Not ready yet — try again.")
             return
         }
         errorMessage = nil
         quotaExceededMessage = nil
         isProcessing = true
-        processingLabel = "Reading your sources…"
+        processingLabel = String(localized: "Reading your sources…")
         defer { isProcessing = false }
         let sessionID = UUID().uuidString
         do {
@@ -492,13 +492,13 @@ struct TrainerProgramImportView: View {
                 onProgress: { startPage, endPage, total in
                     Task { @MainActor in
                         processingLabel = startPage == endPage
-                            ? "Reading page \(startPage) of \(total)…"
-                            : "Reading pages \(startPage)–\(endPage) of \(total)…"
+                            ? String(localized: "Reading page \(startPage) of \(total)…")
+                            : String(localized: "Reading pages \(startPage)–\(endPage) of \(total)…")
                     }
                 }
             )
             try Task.checkCancellation()
-            processingLabel = "Structuring your program…"
+            processingLabel = String(localized: "Structuring your program…")
             let parsed = try await importService.structureProgram(from: transcript, sessionID: sessionID)
             try Task.checkCancellation()
             reviewPayload = ReviewPayload(parsed: parsed, sourceKind: sourceKindLabel, sourceText: transcript)
@@ -541,7 +541,7 @@ struct TrainerProgramImportView: View {
         if let error = error as? LocalizedError, let description = error.errorDescription {
             return description
         }
-        return "Something went wrong reading that program."
+        return String(localized: "Something went wrong reading that program.")
     }
 
     #if DEBUG

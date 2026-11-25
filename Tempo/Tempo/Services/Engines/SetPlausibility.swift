@@ -30,7 +30,7 @@ enum SetPlausibility {
         default: false
         }
         if externallyLoaded, weightKg <= 0 {
-            return "0 kg logged. That set won't count toward your progress."
+            return String(localized: "0 kg logged. That set won't count toward your progress.")
         }
         guard !isWarmup, !bodyweightLoaded, let best = bestE1RMKg, best > 0 else {
             return nil
@@ -39,7 +39,7 @@ enum SetPlausibility {
         // flagged as a "record" it isn't.
         let e1RM = StrengthStandards.epleyE1RM(weight: weightKg, reps: min(reps, 12))
         if e1RM > best * outlierFactor {
-            return "That's far beyond your best on this lift. Typo?"
+            return String(localized: "That's far beyond your best on this lift. Typo?")
         }
         return nil
     }

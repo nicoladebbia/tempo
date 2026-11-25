@@ -21,7 +21,7 @@ struct RecoveryStrainSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Strain")
+            TideSectionLabel(title: String(localized: "Strain"))
 
             if strain != nil || hasHeartRate || hasCalories {
                 gaugeCard
@@ -29,8 +29,8 @@ struct RecoveryStrainSection: View {
             } else {
                 TideEmptyPanel(
                     systemImage: "flame",
-                    title: "No strain yet today",
-                    message: "Strain and calories show up as WHOOP records your day."
+                    title: String(localized: "No strain yet today"),
+                    message: String(localized: "Strain and calories show up as WHOOP records your day.")
                 )
                 .tideCard()
             }
@@ -67,10 +67,10 @@ struct RecoveryStrainSection: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Strain \(strain.map { String(format: "%.1f", $0) } ?? "none") out of 21, \(strainClassification)"
+            String(localized: "Strain \(strain.map { $0.tempoDecimal(1) } ?? String(localized: "none")) out of 21, \(strainClassification)")
         )
         // The whole card, not just the gauge: the card reads as one element above.
-        .explains(Explainer.recoveryStrain.showing(strain.map { "\(String(format: "%.1f", $0)) of 21" }))
+        .explains(Explainer.recoveryStrain.showing(strain.map { String(localized: "\($0.tempoDecimal(1)) of 21") }))
     }
 
     // MARK: - Heart rate
@@ -87,7 +87,7 @@ struct RecoveryStrainSection: View {
                     : AnyLayout(HStackLayout(spacing: Tide.s3))
                 tiles {
                     TideMetricTile(
-                        label: "Average HR",
+                        label: String(localized: "Average HR"),
                         value: viewModel.todayRecovery?.avgHR.map { "\(Int($0))" } ?? "--",
                         unit: "bpm",
                         tint: Tide.text,
@@ -95,7 +95,7 @@ struct RecoveryStrainSection: View {
                     )
                     .explains(.dayHeartRate)
                     TideMetricTile(
-                        label: "Max HR",
+                        label: String(localized: "Max HR"),
                         value: viewModel.todayRecovery?.maxHR.map { "\(Int($0))" } ?? "--",
                         unit: "bpm",
                         tint: Tide.text,
@@ -120,7 +120,7 @@ struct RecoveryStrainSection: View {
     // MARK: - Helpers
 
     private var strainClassification: String {
-        StrainLevel(strain: strain)?.name ?? "No strain yet"
+        StrainLevel(strain: strain)?.name ?? String(localized: "No strain yet")
     }
 
     private var strainColor: Color {

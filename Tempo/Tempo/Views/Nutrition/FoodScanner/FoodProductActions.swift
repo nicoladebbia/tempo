@@ -26,8 +26,8 @@ enum FoodProductActions {
 
         /// "2 pcs at home · on your list", "Not at home · not on your list".
         var line: String {
-            let home = atHome ?? "Not at home"
-            return onList ? "\(home) · on your list" : "\(home) · not on your list"
+            let home = atHome ?? String(localized: "Not at home")
+            return onList ? String(localized: "\(home) · on your list") : String(localized: "\(home) · not on your list")
         }
     }
 
@@ -148,7 +148,7 @@ enum FoodProductActions {
         let canonical = FoodCanonicalizer.canonicalize(product.name)
         var atHome: String?
         if let item = try? LocalPantryService(modelContext: modelContext).find(canonicalName: canonical), item.quantity > 0 {
-            atHome = "\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit)) at home"
+            atHome = String(localized: "\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit)) at home")
         }
         let list = try? LocalGroceryListService(modelContext: modelContext).fetchLatest()
         let onList = (list?.activeItems ?? []).contains { $0.canonicalFoodName == canonical }

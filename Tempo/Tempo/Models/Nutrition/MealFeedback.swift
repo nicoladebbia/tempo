@@ -29,11 +29,11 @@ enum MealFeel: String, Codable, CaseIterable, Sendable {
     /// User-facing label. Display capitalised in chips.
     var displayName: String {
         switch self {
-        case .light: "Light"
-        case .clean: "Clean"
-        case .energising: "Energising"
-        case .heavy: "Heavy"
-        case .sluggish: "Sluggish"
+        case .light: String(localized: "Light")
+        case .clean: String(localized: "Clean")
+        case .energising: String(localized: "Energising")
+        case .heavy: String(localized: "Heavy")
+        case .sluggish: String(localized: "Sluggish")
         }
     }
 
@@ -71,10 +71,10 @@ enum MealSatiety: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .tooMuch: "Too much"
-        case .didntFinish: "Didn't finish"
-        case .justRight: "Just right"
-        case .stillHungry: "Still hungry"
+        case .tooMuch: String(localized: "Too much")
+        case .didntFinish: String(localized: "Didn't finish")
+        case .justRight: String(localized: "Just right")
+        case .stillHungry: String(localized: "Still hungry")
         }
     }
 

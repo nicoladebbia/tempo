@@ -65,8 +65,8 @@ struct GoalEditorView: View {
 
     var body: some View {
         TideSettingsPage {
-            SettingsFormCard(title: "What are you aiming for") {
-                SettingsControlRow(label: "Type", icon: draft.kind.icon) {
+            SettingsFormCard(title: String(localized: "What are you aiming for")) {
+                SettingsControlRow(label: String(localized: "Type"), icon: draft.kind.icon) {
                     Picker("Type", selection: $draft.kind) {
                         ForEach(GoalKind.allCases) { kind in
                             Text(kind.title).tag(kind)
@@ -79,7 +79,7 @@ struct GoalEditorView: View {
                 SettingsRowDivider()
                 targetRows
                 SettingsRowDivider()
-                SettingsControlRow(label: "By", icon: "calendar") {
+                SettingsControlRow(label: String(localized: "By"), icon: "calendar") {
                     DatePicker(
                         "By", selection: $draft.targetDate,
                         in: earliestDate...,
@@ -91,12 +91,12 @@ struct GoalEditorView: View {
             }
 
             SettingsFormCard(footnote: startFootnote) {
-                SettingsInfoRow(label: "Now", value: currentText, icon: "scope")
+                SettingsInfoRow(label: String(localized: "Now"), value: currentText, icon: "scope")
                     .explains(Explainer.goalReading(draft.kind).showing(reading == nil ? nil : currentText))
             }
 
             Button(action: save) {
-                Label(existing == nil ? "Set goal" : "Save goal", systemImage: "checkmark")
+                Label(existing == nil ? String(localized: "Set goal") : String(localized: "Save goal"), systemImage: "checkmark")
             }
             .buttonStyle(.tidePrimary)
             .disabled(problem != nil)
@@ -146,11 +146,11 @@ struct GoalEditorView: View {
     private var targetRows: some View {
         switch draft.kind {
         case .bodyWeight:
-            SettingsControlRow(label: "Target weight", icon: "scalemass.fill") {
-                numberField("Target", text: $draft.weightText, suffix: unit.abbreviation, id: "goal.weight")
+            SettingsControlRow(label: String(localized: "Target weight"), icon: "scalemass.fill") {
+                numberField(String(localized: "Target"), text: $draft.weightText, suffix: unit.abbreviation, id: "goal.weight")
             }
         case .liftE1RM:
-            SettingsControlRow(label: "Lift", icon: "dumbbell.fill") {
+            SettingsControlRow(label: String(localized: "Lift"), icon: "dumbbell.fill") {
                 Picker("Lift", selection: $draft.exercise) {
                     Text("Choose").tag(String?.none)
                     ForEach(liftChoices, id: \.self) { name in
@@ -162,11 +162,11 @@ struct GoalEditorView: View {
                 .accessibilityIdentifier("goal.exercise")
             }
             SettingsRowDivider()
-            SettingsControlRow(label: "Target one-rep max", icon: "target") {
-                numberField("Target", text: $draft.weightText, suffix: unit.abbreviation, id: "goal.weight")
+            SettingsControlRow(label: String(localized: "Target one-rep max"), icon: "target") {
+                numberField(String(localized: "Target"), text: $draft.weightText, suffix: unit.abbreviation, id: "goal.weight")
             }
         case .runTime:
-            SettingsControlRow(label: "Distance", icon: "figure.run") {
+            SettingsControlRow(label: String(localized: "Distance"), icon: "figure.run") {
                 Picker("Distance", selection: $draft.runDistanceKm) {
                     ForEach(GoalDraft.runDistances, id: \.self) { km in
                         Text(GoalFormat.distance(km: km)).tag(km)
@@ -177,10 +177,10 @@ struct GoalEditorView: View {
                 .accessibilityIdentifier("goal.distance")
             }
             SettingsRowDivider()
-            SettingsControlRow(label: "Target time", icon: "timer") {
+            SettingsControlRow(label: String(localized: "Target time"), icon: "timer") {
                 HStack(spacing: Tide.s1) {
-                    numberField("min", text: $draft.minutesText, suffix: "min", id: "goal.minutes", wholeNumbers: true)
-                    numberField("sec", text: $draft.secondsText, suffix: "sec", id: "goal.seconds", wholeNumbers: true)
+                    numberField(String(localized: "min"), text: $draft.minutesText, suffix: String(localized: "min"), id: "goal.minutes", wholeNumbers: true)
+                    numberField(String(localized: "sec"), text: $draft.secondsText, suffix: String(localized: "sec"), id: "goal.seconds", wholeNumbers: true)
                 }
             }
         }
@@ -215,23 +215,23 @@ struct GoalEditorView: View {
     }
 
     private var currentText: String {
-        reading.map { GoalFormat.value($0, kind: draft.kind, unit: unit) } ?? "No reading yet"
+        reading.map { GoalFormat.value($0, kind: draft.kind, unit: unit) } ?? String(localized: "No reading yet")
     }
 
     private var startFootnote: String {
         reading == nil
-            ? "Your first reading after you set this becomes the starting point."
-            : "This is where your line starts. Tempo tells you if you are ahead, on track or behind it."
+            ? String(localized: "Your first reading after you set this becomes the starting point.")
+            : String(localized: "This is where your line starts. Tempo tells you if you are ahead, on track or behind it.")
     }
 
     private var problemHint: String? {
         if problem == nil, draft.alreadyReached(current: reading, unit: unit) {
-            return "You are already there. Pick a harder target."
+            return String(localized: "You are already there. Pick a harder target.")
         }
         return switch problem {
-        case .needsExercise: "Choose a lift."
-        case .needsTarget: draft.kind == .runTime ? "Enter a time." : "Enter a target."
-        case .needsDate: "Pick a date after today."
+        case .needsExercise: String(localized: "Choose a lift.")
+        case .needsTarget: draft.kind == .runTime ? String(localized: "Enter a time.") : String(localized: "Enter a target.")
+        case .needsDate: String(localized: "Pick a date after today.")
         case nil: String?.none
         }
     }
@@ -289,7 +289,7 @@ struct GoalEditorView: View {
         draft = GoalDraft(targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
         textKind = draft.kind
         reading = readCurrent()
-        toast = ToastData(message: "Goal removed.", style: .info, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "Goal removed."), style: .info, actionTitle: String(localized: "Undo")) {
             if GoalUndo.restore(state, in: modelContext) {
                 // Read the goal back into the form, exactly as it was.
                 loaded = false
@@ -297,7 +297,7 @@ struct GoalEditorView: View {
                 reading = readCurrent()
             } else {
                 // Another goal was set in the meantime: say so rather than do nothing.
-                toast = ToastData(message: "Can't bring that goal back: you set another.", style: .info)
+                toast = ToastData(message: String(localized: "Can't bring that goal back: you set another."), style: .info)
             }
         }
     }

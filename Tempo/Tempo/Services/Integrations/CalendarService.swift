@@ -77,7 +77,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
 
         let events = ekEvents.map { event in
             CalendarEvent(
-                title: event.title ?? "Untitled",
+                title: event.title ?? String(localized: "Untitled"),
                 startDate: event.startDate,
                 endDate: event.endDate,
                 isAllDay: event.isAllDay,
@@ -142,7 +142,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
         }
         let event = EKEvent(eventStore: eventStore)
         // Title prefixed with "Exam:" so isExamEvent classifies it on read-back.
-        event.title = "Exam: \(name)"
+        event.title = String(localized: "Exam: \(name)")
         event.calendar = defaultCalendar
 
         // Anchor to the noon hour of the chosen day; users picking a date
@@ -444,7 +444,7 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
 
         return eventStore.events(matching: predicate).map { event in
             CalendarEvent(
-                title: event.title ?? "Untitled",
+                title: event.title ?? String(localized: "Untitled"),
                 startDate: event.startDate,
                 endDate: event.endDate,
                 isAllDay: event.isAllDay,

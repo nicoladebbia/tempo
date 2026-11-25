@@ -42,10 +42,10 @@ struct ScheduleSettingsDetailView: View {
                 .opacity(hasLoaded ? 1 : 0)
 
             SettingsFormCard(
-                title: "Daily rhythm",
-                footnote: "Leisure is when your evening wind-down starts. Tempo uses these to time meals, study, and recovery prompts."
+                title: String(localized: "Daily rhythm"),
+                footnote: String(localized: "Leisure is when your evening wind-down starts. Tempo uses these to time meals, study, and recovery prompts.")
             ) {
-                SettingsControlRow(label: "Wake Time", icon: "sunrise.fill") {
+                SettingsControlRow(label: String(localized: "Wake Time"), icon: "sunrise.fill") {
                     DatePicker("Wake Time", selection: $wakeTime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
@@ -57,7 +57,7 @@ struct ScheduleSettingsDetailView: View {
 
                 SettingsRowDivider()
 
-                SettingsControlRow(label: "Bedtime Target", icon: "moon.fill") {
+                SettingsControlRow(label: String(localized: "Bedtime Target"), icon: "moon.fill") {
                     DatePicker("Bedtime Target", selection: $bedtime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
@@ -71,7 +71,7 @@ struct ScheduleSettingsDetailView: View {
 
                 // Leisure is a TIME-OF-DAY (when wind-down starts), validated
                 // 0..<1440 alongside wake/bedtime — not a duration.
-                SettingsControlRow(label: "Leisure Time", icon: "hourglass") {
+                SettingsControlRow(label: String(localized: "Leisure Time"), icon: "hourglass") {
                     DatePicker("Leisure Time", selection: $leisureTime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
@@ -91,14 +91,14 @@ struct ScheduleSettingsDetailView: View {
     /// day between. It moves as the three times below are changed.
     private var sleepWindowCard: some View {
         TideSettingsHero {
-            TideLabel("Your day")
+            TideLabel(String(localized: "Your day"))
             SettingsRingHero {
                 SettingsRing(arcs: dialArcs, markers: dialMarkers) {
                     VStack(spacing: Tide.hair) {
                         HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
-                            TideNumber("\(sleepWindow.hours)", unit: "h", size: Tide.numeralS, relativeTo: .title2)
+                            TideNumber("\(sleepWindow.hours)", unit: String(localized: "h", comment: "Hours unit, one letter"), size: Tide.numeralS, relativeTo: .title2)
                             if sleepWindow.minutes > 0 {
-                                TideNumber("\(sleepWindow.minutes)", unit: "m", size: Tide.numeralS, relativeTo: .title2)
+                                TideNumber("\(sleepWindow.minutes)", unit: String(localized: "m", comment: "Minutes unit, one letter"), size: Tide.numeralS, relativeTo: .title2)
                             }
                         }
                         .lineLimit(1)
@@ -109,9 +109,9 @@ struct ScheduleSettingsDetailView: View {
                     .accessibilityLabel("\(sleepWindowText) planned sleep window")
                 }
             } key: {
-                SettingsLegendRow(color: mood.accent, title: "Wake", value: clock(wakeTime))
-                SettingsLegendRow(color: Tide.streak, title: "Wind-down", value: clock(leisureTime))
-                SettingsLegendRow(color: Tide.settingsNight, title: "Bedtime", value: clock(bedtime))
+                SettingsLegendRow(color: mood.accent, title: String(localized: "Wake"), value: clock(wakeTime))
+                SettingsLegendRow(color: Tide.streak, title: String(localized: "Wind-down"), value: clock(leisureTime))
+                SettingsLegendRow(color: Tide.settingsNight, title: String(localized: "Bedtime"), value: clock(bedtime))
             }
         }
     }
@@ -137,7 +137,7 @@ struct ScheduleSettingsDetailView: View {
     }
 
     private var sleepWindowText: String {
-        sleepWindow.minutes == 0 ? "\(sleepWindow.hours)h" : "\(sleepWindow.hours)h \(sleepWindow.minutes)m"
+        sleepWindow.minutes == 0 ? String(localized: "\(sleepWindow.hours)h") : String(localized: "\(sleepWindow.hours)h \(sleepWindow.minutes)m")
     }
 
     private static let day = 24 * 60

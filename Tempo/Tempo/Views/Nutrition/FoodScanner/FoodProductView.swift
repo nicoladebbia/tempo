@@ -129,7 +129,7 @@ struct FoodProductView: View {
                     Image(systemName: isFavorite ? "star.fill" : "star")
                         .foregroundStyle(isFavorite ? Tide.Kitchen.warn : Tide.text2)
                 }
-                .accessibilityLabel(isFavorite ? "Remove from favourites" : "Add to favourites")
+                .accessibilityLabel(isFavorite ? String(localized: "Remove from favourites") : String(localized: "Add to favourites"))
             }
         }
         // Before the bar, so the toast rests on it and the Add button stays where it is.
@@ -332,7 +332,7 @@ struct FoodProductView: View {
                 Label("Library", systemImage: "photo.on.rectangle")
             }
         } label: {
-            Label(photo == nil ? "Add a photo" : "Change photo", systemImage: "camera")
+            Label(photo == nil ? String(localized: "Add a photo") : String(localized: "Change photo"), systemImage: "camera")
                 .font(Tide.bodyStrong)
                 .foregroundStyle(mood.accent)
                 .frame(minHeight: Tide.hit)
@@ -386,9 +386,9 @@ struct FoodProductView: View {
                     }
                 }
                 Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s3) {
-                    scorePart("Nutrition", score.nutritionPoints, of: 60)
-                    scorePart("Additives", score.additivePoints, of: 30)
-                    scorePart("Organic", score.organicPoints, of: 10)
+                    scorePart(String(localized: "Nutrition"), score.nutritionPoints, of: 60)
+                    scorePart(String(localized: "Additives"), score.additivePoints, of: 30)
+                    scorePart(String(localized: "Organic"), score.organicPoints, of: 10)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -397,7 +397,7 @@ struct FoodProductView: View {
         } else {
             KitchenNotice(
                 systemImage: "questionmark.circle.fill",
-                text: "Not enough data to score. \(missingForScore)",
+                text: String(localized: "Not enough data to score. \(missingForScore)"),
                 tint: Tide.Kitchen.warn
             )
         }
@@ -405,13 +405,13 @@ struct FoodProductView: View {
 
     private var missingForScore: String {
         let n = product.per100g
-        let missing = [("calories", n.kcal), ("carbs or sugars", n.sugars ?? n.carbs), ("fat", n.saturatedFat ?? n.fat), ("salt", n.salt)]
+        let missing = [(String(localized: "calories"), n.kcal), (String(localized: "carbs or sugars"), n.sugars ?? n.carbs), (String(localized: "fat"), n.saturatedFat ?? n.fat), (String(localized: "salt"), n.salt)]
             .filter { $0.1 == nil }
             .map(\.0)
         guard !missing.isEmpty else {
-            return "The nutrition table is incomplete for this product."
+            return String(localized: "The nutrition table is incomplete for this product.")
         }
-        return "Missing from the nutrition table: \(missing.joined(separator: ", "))."
+        return String(localized: "Missing from the nutrition table: \(missing.joined(separator: ", ")).")
     }
 
     private func scorePart(_ label: String, _ points: Int, of max: Int) -> some View {
@@ -513,11 +513,11 @@ struct FoodProductView: View {
     }
 
     private func macroAccessibilityLabel(_ split: FoodMacroSplit, labelKcal: Double?) -> String {
-        let macros = split.slices.map { "\($0.label) \(Int((($0.percent) * 100).rounded())) percent" }.joined(separator: ", ")
+        let macros = split.slices.map { String(localized: "\($0.label) \(Int((($0.percent) * 100).rounded())) percent") }.joined(separator: ", ")
         guard let labelKcal else {
             return macros
         }
-        return "\(Int(labelKcal.rounded())) kcal — \(macros)"
+        return String(localized: "\(Int(labelKcal.rounded())) kcal — \(macros)")
     }
 
     // MARK: - For you
@@ -532,7 +532,7 @@ struct FoodProductView: View {
                 ? .conflict
                 : (checks.contains { $0.kind == .warning } ? .warning : .good)
             VStack(alignment: .leading, spacing: Tide.s3) {
-                sectionTitle("For you · \(Self.format(grams)) \(product.unit)")
+                sectionTitle(String(localized: "For you · \(Self.format(grams)) \(product.unit)"))
                 ForEach(checks) { check in
                     HStack(alignment: .top, spacing: Tide.s3) {
                         Image(systemName: check.kind.icon)
@@ -576,7 +576,7 @@ struct FoodProductView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             if let score {
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    sectionTitle(score.nutriScoreEstimated ? "Nutri-Score · estimated" : "Nutri-Score")
+                    sectionTitle(score.nutriScoreEstimated ? String(localized: "Nutri-Score · estimated") : "Nutri-Score")
                     HStack(spacing: Tide.s1) {
                         ForEach(NutriScore.grades, id: \.self) { grade in
                             let selected = grade == score.nutriScoreGrade
@@ -598,13 +598,13 @@ struct FoodProductView: View {
             }
             if let nova = product.novaGroup {
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    sectionTitle("Processing · NOVA \(nova)")
+                    sectionTitle(String(localized: "Processing · NOVA \(nova)"))
                     Text(Self.novaText(nova))
                         .font(Tide.body)
                         .foregroundStyle(nova == 4 ? Tide.Kitchen.warn : Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .explains(.fuelNova.showing("Group \(nova)"))
+                .explains(.fuelNova.showing(String(localized: "Group \(nova)")))
             }
         }
     }
@@ -615,7 +615,7 @@ struct FoodProductView: View {
     private var additivesCard: some View {
         if let score, product.source == .openFoodFacts || product.source == .userAdded {
             VStack(alignment: .leading, spacing: Tide.s2) {
-                sectionTitle("Additives · \(score.additives.count)")
+                sectionTitle(String(localized: "Additives · \(score.additives.count)"))
                 if score.additives.isEmpty {
                     Label("No additives", systemImage: "checkmark.circle.fill")
                         .font(Tide.body)
@@ -656,7 +656,7 @@ struct FoodProductView: View {
         let per100 = product.per100g
         let portion = product.nutrients(forGrams: grams)
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            sectionTitle("Nutrition")
+            sectionTitle(String(localized: "Nutrition"))
             portionPicker
             macroSummary(portion)
             Grid(alignment: .leading, horizontalSpacing: Tide.s3, verticalSpacing: Tide.s2) {
@@ -675,20 +675,20 @@ struct FoodProductView: View {
                 .foregroundStyle(Tide.text3)
                 Rectangle().fill(Tide.hairline).frame(height: 1)
                     .accessibilityHidden(true)
-                nutrientRow("Calories", per100.kcal, portion.kcal, unit: "kcal", level: nil)
-                nutrientRow("Protein", per100.protein, portion.protein, unit: "g", level: nil)
-                nutrientRow("Carbs", per100.carbs, portion.carbs, unit: "g", level: nil)
-                nutrientRow("  Sugars", per100.sugars, portion.sugars, unit: "g", level: Self.level(per100.sugars, medium: 5, high: 22.5))
-                nutrientRow("Fat", per100.fat, portion.fat, unit: "g", level: Self.level(per100.fat, medium: 3, high: 17.5))
+                nutrientRow(String(localized: "Calories"), per100.kcal, portion.kcal, unit: "kcal", level: nil)
+                nutrientRow(String(localized: "Protein"), per100.protein, portion.protein, unit: "g", level: nil)
+                nutrientRow(String(localized: "Carbs"), per100.carbs, portion.carbs, unit: "g", level: nil)
+                nutrientRow("  \(String(localized: "Sugars"))", per100.sugars, portion.sugars, unit: "g", level: Self.level(per100.sugars, medium: 5, high: 22.5))
+                nutrientRow(String(localized: "Fat"), per100.fat, portion.fat, unit: "g", level: Self.level(per100.fat, medium: 3, high: 17.5))
                 nutrientRow(
-                    "  Saturated",
+                    "  \(String(localized: "Saturated"))",
                     per100.saturatedFat,
                     portion.saturatedFat,
                     unit: "g",
                     level: Self.level(per100.saturatedFat, medium: 1.5, high: 5)
                 )
-                nutrientRow("Fiber", per100.fiber, portion.fiber, unit: "g", level: nil)
-                nutrientRow("Salt", per100.salt, portion.salt, unit: "g", level: Self.level(per100.salt, medium: 0.3, high: 1.5))
+                nutrientRow(String(localized: "Fiber"), per100.fiber, portion.fiber, unit: "g", level: nil)
+                nutrientRow(String(localized: "Salt"), per100.salt, portion.salt, unit: "g", level: Self.level(per100.salt, medium: 0.3, high: 1.5))
             }
             .explains(.fuelTrafficLights)
         }
@@ -705,7 +705,7 @@ struct FoodProductView: View {
         return layout {
             HStack(spacing: Tide.s2) {
                 if let serving = product.servingGrams, serving > 0, serving != 100 {
-                    portionChip(product.servingLabel.map { "Serving · \($0)" } ?? "Serving", grams: serving)
+                    portionChip(product.servingLabel.map { String(localized: "Serving · \($0)") } ?? String(localized: "Serving"), grams: serving)
                 }
                 portionChip("100 \(product.unit)", grams: 100)
             }
@@ -788,7 +788,7 @@ struct FoodProductView: View {
     /// if truly nothing turned up.
     private var suggestionsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            sectionTitle(isLoadingSuggestions ? "Suggestions" : suggestions.kind.sectionTitle)
+            sectionTitle(isLoadingSuggestions ? String(localized: "Suggestions") : suggestions.kind.sectionTitle)
             if isLoadingSuggestions {
                 suggestionsSkeleton
             } else if suggestions.items.isEmpty {
@@ -925,7 +925,7 @@ struct FoodProductView: View {
         if claimsAllergenData || ingredients != nil {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 if claimsAllergenData {
-                    sectionTitle("Allergens")
+                    sectionTitle(String(localized: "Allergens"))
                     if allergens.isEmpty, traces.isEmpty, ingredients == nil {
                         // Never silently omit the section — say plainly that
                         // the maker gave us nothing to go on (picky-QA item 3).
@@ -969,7 +969,7 @@ struct FoodProductView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, Tide.s1)
                     } label: {
-                        sectionTitle("Ingredients")
+                        sectionTitle(String(localized: "Ingredients"))
                     }
                     .tint(Tide.text2)
                 }
@@ -981,7 +981,7 @@ struct FoodProductView: View {
     }
 
     private func allergenChip(_ text: String) -> some View {
-        Text(text)
+        Text(FoodProduct.localizedAllergenName(text))
             .font(Tide.caption)
             .fontWeight(.semibold)
             .foregroundStyle(Tide.danger)
@@ -994,7 +994,7 @@ struct FoodProductView: View {
     /// "May contain" trace chips — a softer, secondary treatment than a
     /// confirmed allergen: same shape, amber instead of red.
     private func traceChip(_ text: String) -> some View {
-        Text(text)
+        Text(FoodProduct.localizedAllergenName(text))
             .font(Tide.caption)
             .fontWeight(.semibold)
             .foregroundStyle(Tide.Kitchen.warn)
@@ -1019,11 +1019,11 @@ struct FoodProductView: View {
                 }
             }
         case .usda:
-            footnote("Data: USDA FoodData Central")
+            footnote(String(localized: "Data: USDA FoodData Central"))
         case .builtIn:
-            footnote("Data: Tempo food table")
+            footnote(String(localized: "Data: Tempo food table"))
         case .userAdded:
-            footnote("Added by you")
+            footnote(String(localized: "Added by you"))
         }
     }
 
@@ -1061,7 +1061,7 @@ struct FoodProductView: View {
     }
 
     static func format(_ grams: Double) -> String {
-        grams == grams.rounded() ? "\(Int(grams))" : String(format: "%.1f", grams)
+        grams == grams.rounded() ? "\(Int(grams))" : grams.tempoDecimal(1)
     }
 
     static func amount(_ value: Double?, unit: String) -> String {
@@ -1071,7 +1071,7 @@ struct FoodProductView: View {
         if unit == "kcal" {
             return "\(Int(value.rounded()))"
         }
-        return value < 10 ? String(format: "%.1f %@", value, unit) : "\(Int(value.rounded())) \(unit)"
+        return value < 10 ? "\(value.tempoDecimal(1)) \(unit)" : "\(Int(value.rounded())) \(unit)"
     }
 
     /// UK front-of-pack thresholds per 100 g: green / amber / red dot.
@@ -1097,10 +1097,10 @@ struct FoodProductView: View {
 
     static func novaText(_ group: Int) -> String {
         switch group {
-        case 1: "Unprocessed or minimally processed"
-        case 2: "Processed culinary ingredient"
-        case 3: "Processed food"
-        default: "Ultra-processed food"
+        case 1: String(localized: "Unprocessed or minimally processed")
+        case 2: String(localized: "Processed culinary ingredient")
+        case 3: String(localized: "Processed food")
+        default: String(localized: "Ultra-processed food")
         }
     }
 }
@@ -1163,7 +1163,7 @@ struct FoodMacroSplit: Equatable {
                 grams: proteinKcal / 4,
                 percent: proteinKcal / totalKcal,
                 color: Tide.protein,
-                label: "Protein"
+                label: String(localized: "Protein")
             ),
             Slice(
                 macro: .carbs,
@@ -1171,9 +1171,9 @@ struct FoodMacroSplit: Equatable {
                 grams: carbsKcal / 4,
                 percent: carbsKcal / totalKcal,
                 color: Tide.carbs,
-                label: "Carbs"
+                label: String(localized: "Carbs")
             ),
-            Slice(macro: .fat, kcal: fatKcal, grams: fatKcal / 9, percent: fatKcal / totalKcal, color: Tide.fat, label: "Fat"),
+            Slice(macro: .fat, kcal: fatKcal, grams: fatKcal / 9, percent: fatKcal / totalKcal, color: Tide.fat, label: String(localized: "Fat")),
         ]
     }
 
@@ -1195,8 +1195,8 @@ extension FoodSuggestions.Kind {
     /// Section title shown above the suggestions row.
     var sectionTitle: String {
         switch self {
-        case .healthier: "Healthier swaps"
-        case .similar: "Also great"
+        case .healthier: String(localized: "Healthier swaps")
+        case .similar: String(localized: "Also great")
         }
     }
 }

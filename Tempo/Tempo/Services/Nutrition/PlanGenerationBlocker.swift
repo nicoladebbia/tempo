@@ -40,8 +40,8 @@ enum PlanGenerationBlocker: Equatable {
 
     var message: String {
         switch self {
-        case .proRequired: "Weekly plans are a Tempo Pro feature."
-        case .aiConsentRequired: "Turn on AI features to build your plan."
+        case .proRequired: String(localized: "Weekly plans are a Tempo Pro feature.")
+        case .aiConsentRequired: String(localized: "Turn on AI features to build your plan.")
         }
     }
 

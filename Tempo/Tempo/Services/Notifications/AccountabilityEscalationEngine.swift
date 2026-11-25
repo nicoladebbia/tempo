@@ -183,7 +183,7 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         _ = userName
         fireImmediateNotification(
             id: "all_clear_\(todayKey())",
-            title: "ALL CLEAR",
+            title: String(localized: "ALL CLEAR"),
             body: content,
             categoryID: "ACCOUNTABILITY_CLEAR"
         )
@@ -252,26 +252,26 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
     // Using Drill Sergeant intensity as default (most common for target users).
 
     private func gentleCopy(name: String, tasksRemaining: Int, totalCount: Int, completedCount: Int) -> String {
-        "\(tasksRemaining) tasks left today. \(completedCount)/\(totalCount) done so far. You've got time — pick one and start."
+        String(localized: "\(tasksRemaining) tasks left today. \(completedCount)/\(totalCount) done so far. You've got time — pick one and start.")
     }
 
     private func firmCopy(tasksRemaining: Int, studyDone: String, studyTarget: String, timeUntilEvening: String) -> String {
-        "\(tasksRemaining) tasks incomplete. Study: \(studyDone)/\(studyTarget). \(timeUntilEvening) remaining. Time is running."
+        String(localized: "\(tasksRemaining) tasks incomplete. Study: \(studyDone)/\(studyTarget). \(timeUntilEvening) remaining. Time is running.")
     }
 
     private func urgentCopy(studyDone: String, studyTarget: String, timeUntilEvening: String) -> String {
-        "Study: \(studyDone)/\(studyTarget). \(timeUntilEvening) before evening. DO IT NOW."
+        String(localized: "Study: \(studyDone)/\(studyTarget). \(timeUntilEvening) before evening. DO IT NOW.")
     }
 
     private func criticalCopy(tasksRemaining: Int) -> String {
-        "You're about to waste another evening. \(tasksRemaining) tasks undone. This is your last chance today."
+        String(localized: "You're about to waste another evening. \(tasksRemaining) tasks undone. This is your last chance today.")
     }
 
     private func allClearCopy(name: String, totalTasks: Int, streakDays: Int, recoveryScore: Double?) -> String {
         if streakDays > 0 {
-            return "ALL CLEAR. \(totalTasks)/\(totalTasks) complete. Day \(streakDays) of your streak. You earned your evening."
+            return String(localized: "ALL CLEAR. \(totalTasks)/\(totalTasks) complete. Day \(streakDays) of your streak. You earned your evening.")
         }
-        return "ALL CLEAR. Every non-negotiable done. You earned your evening. Whatever you do next, you do it knowing you handled your business first."
+        return String(localized: "ALL CLEAR. Every non-negotiable done. You earned your evening. Whatever you do next, you do it knowing you handled your business first.")
     }
 
     // MARK: - Helpers
@@ -306,9 +306,9 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         if hours > 0 {
-            return "\(hours)h \(minutes)min"
+            return String(localized: "\(hours)h \(minutes)min")
         }
-        return "\(minutes) min"
+        return String(localized: "\(minutes) min")
     }
 
     private func todayKey() -> String {

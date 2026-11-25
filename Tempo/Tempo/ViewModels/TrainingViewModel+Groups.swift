@@ -175,7 +175,7 @@ extension TrainingViewModel {
             plannedExercise.sets = [dropSet]
         }
 
-        saveGuarded(modelContext, operation: "drop set")
+        saveGuarded(modelContext, operation: String(localized: "drop set"))
         HapticManager.selection()
     }
 
@@ -200,7 +200,7 @@ extension TrainingViewModel {
         }
         plannedExercise.sets?.removeAll { $0.id == trailing.id }
         modelContext.delete(trailing)
-        saveGuarded(modelContext, operation: "drop set change")
+        saveGuarded(modelContext, operation: String(localized: "drop set change"))
         HapticManager.selection()
     }
 
@@ -240,7 +240,7 @@ extension TrainingViewModel {
 
         exercise.supersetGroup = groupID
         next.supersetGroup = groupID
-        saveGuarded(modelContext, operation: "superset")
+        saveGuarded(modelContext, operation: String(localized: "superset"))
         HapticManager.selection()
         // Watch + Dashboard read the plan's grouping directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)
@@ -255,7 +255,7 @@ extension TrainingViewModel {
             return
         }
         exercise.supersetGroup = nil
-        saveGuarded(modelContext, operation: "superset change")
+        saveGuarded(modelContext, operation: String(localized: "superset change"))
         HapticManager.selection()
         // Watch + Dashboard read the plan's grouping directly.
         NotificationCenter.default.post(name: .tempoWorkoutChanged, object: nil)

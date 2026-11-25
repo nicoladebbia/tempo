@@ -97,8 +97,8 @@ final class TrainingViewModel {
         }
         let exercises = plan.orderedExercises
         let currentName = exercises.indices.contains(currentExerciseIndex)
-            ? (exercises[currentExerciseIndex].exercise?.name ?? "Exercise")
-            : "Exercise"
+            ? (exercises[currentExerciseIndex].exercise?.name ?? String(localized: "Exercise"))
+            : String(localized: "Exercise")
 
         func state(
             exerciseName: String,
@@ -124,7 +124,7 @@ final class TrainingViewModel {
 
         switch sessionState {
         case .warmup:
-            return state(exerciseName: "Warm-Up", setText: "Guided warm-up")
+            return state(exerciseName: String(localized: "Warm-Up"), setText: String(localized: "Guided warm-up"))
         case .exercise(.setActive):
             return state(exerciseName: currentName, setText: setCountText)
         case .exercise(.resting):
@@ -136,12 +136,12 @@ final class TrainingViewModel {
                 restStartedAt: restStartDate
             )
         case .exercise(.betweenExercises):
-            return state(exerciseName: currentName, setText: "Next exercise")
+            return state(exerciseName: currentName, setText: String(localized: "Next exercise"))
         case .paused,
              .interruptedCall:
             return state(exerciseName: currentName, setText: setCountText, isPaused: true)
         case .cooldown:
-            return state(exerciseName: "Cooldown", setText: "Almost done")
+            return state(exerciseName: String(localized: "Cooldown"), setText: String(localized: "Almost done"))
         case .idle,
              .summary,
              .saved,
@@ -738,7 +738,7 @@ final class TrainingViewModel {
         {
             for plan in plans where plan.type.isGymWorkout {
                 plan.type = .mobility
-                plan.notes = "Deload — full rest week. Move, stretch, recover."
+                plan.notes = String(localized: "Deload — full rest week. Move, stretch, recover.")
             }
         }
 
@@ -1286,7 +1286,7 @@ final class TrainingViewModel {
         }
 
         // Persist immediately (crash recovery)
-        saveGuarded(modelContext, operation: "set")
+        saveGuarded(modelContext, operation: String(localized: "set"))
 
         // PR detection — working sets only. Warmup ramp sets must never trigger
         // a PR (this is why duplicate/low PRs appeared, e.g. two "Face Pull" PRs:
@@ -1304,7 +1304,7 @@ final class TrainingViewModel {
                 modelContext: modelContext
             )
             if outcome != .none {
-                saveGuarded(modelContext, operation: "PR")
+                saveGuarded(modelContext, operation: String(localized: "PR"))
             }
             if outcome == .new {
                 HapticManager.notification(.success)
@@ -1443,7 +1443,7 @@ final class TrainingViewModel {
             return
         }
         modelContext.delete(sets[currentSetIndex])
-        saveGuarded(modelContext, operation: "skipped set")
+        saveGuarded(modelContext, operation: String(localized: "skipped set"))
         advanceAfterSkip(in: slot, plan: plan, modelContext: modelContext)
     }
 
@@ -1465,7 +1465,7 @@ final class TrainingViewModel {
         for set in doomed {
             modelContext.delete(set)
         }
-        saveGuarded(modelContext, operation: "warm-up skip")
+        saveGuarded(modelContext, operation: String(localized: "warm-up skip"))
         advanceAfterSkip(in: slot, plan: plan, modelContext: modelContext)
     }
 
@@ -1560,7 +1560,7 @@ final class TrainingViewModel {
             let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
             feedback.note = trimmed.isEmpty ? nil : trimmed
         }
-        saveGuarded(modelContext, operation: "set feedback")
+        saveGuarded(modelContext, operation: String(localized: "set feedback"))
 
         // If the workout is ALREADY persisted (the last set's feedback is now
         // edited in the summary, after persistCompletion ran on .summary entry),
@@ -1871,7 +1871,7 @@ final class TrainingViewModel {
                 #endif
             }
         }
-        saveErrorMessage = "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage."
+        saveErrorMessage = String(localized: "Couldn't save your \(operation). Try it again — if this keeps happening, free up iPhone storage.")
         return false
     }
 
@@ -2070,7 +2070,7 @@ final class TrainingViewModel {
         // and the SAVE button can re-run this whole path (stale-row dedup above
         // absorbs the re-insert). Bail BEFORE the learning/notification side
         // effects — none of them may act on a completion that didn't land.
-        guard saveGuarded(modelContext, operation: "workout") else {
+        guard saveGuarded(modelContext, operation: String(localized: "workout")) else {
             plan.status = priorStatus
             plan.finishedAt = priorFinishedAt
             plan.durationMinutes = priorDuration
@@ -2193,7 +2193,7 @@ final class TrainingViewModel {
         // (the stale-ActivitySession dedup above absorbs the re-insert). Bail
         // before venue learning + notifications — nothing may act on an
         // activity log that didn't land.
-        guard saveGuarded(modelContext, operation: "activity") else {
+        guard saveGuarded(modelContext, operation: String(localized: "activity")) else {
             plan.status = priorStatus
             plan.finishedAt = priorFinishedAt
             plan.durationMinutes = priorDuration
@@ -2239,7 +2239,7 @@ final class TrainingViewModel {
         // traverse the one-way `.nullify` link (dangling-crash guard — see
         // DailySession.actualSessionRPE). dailySession is today's 1:1 pair.
         dailySession?.actualSessionRPE = rpe
-        saveGuarded(modelContext, operation: "session RPE")
+        saveGuarded(modelContext, operation: String(localized: "session RPE"))
         #if DEBUG
             print(
                 "\(DebugTrace.prefix)[Workout] recordSessionRPE: plan=\(plan.id) rpe=\(rpe) expected=\(dailySession?.expectedSessionRPE.map(String.init) ?? "nil")"
@@ -2301,7 +2301,7 @@ final class TrainingViewModel {
             plannedExercise.sets = [newSet]
         }
 
-        saveGuarded(modelContext, operation: "added set")
+        saveGuarded(modelContext, operation: String(localized: "added set"))
         HapticManager.selection()
     }
 
@@ -2331,7 +2331,7 @@ final class TrainingViewModel {
                 ? sets[currentSetIndex].id : nil
             plannedExercise.sets?.removeAll { $0.id == lastUncompleted.id }
             modelContext.delete(lastUncompleted)
-            saveGuarded(modelContext, operation: "set change")
+            saveGuarded(modelContext, operation: String(localized: "set change"))
             if onCursorExercise {
                 reanchorCursor(keeping: cursorSetID, in: plannedExercise, plan: plan, modelContext: modelContext)
             }
