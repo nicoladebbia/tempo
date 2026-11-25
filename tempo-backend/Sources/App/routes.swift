@@ -128,12 +128,17 @@ func routes(
         .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
         .register(collection: XPController())
 
-    // Leaderboards — GET /v1/leaderboards/weekly, /monthly, /alltime, /friends
+    // Arena stats — PUT /v1/arena/stats (the app pushes its per-day XP/workouts/study)
+    try protected.grouped("arena")
+        .grouped(RateLimitMiddleware(limit: 30, window: .minutes(1), scope: .user))
+        .register(collection: ArenaStatsController())
+
+    // Leaderboards — GET /v1/leaderboards/friends (friends only; no global board)
     try protected.grouped("leaderboards")
         .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .user))
         .register(collection: LeaderboardController())
 
-    // Friends — POST /v1/friends/requests, GET /v1/friends, etc.
+    // Friends — POST /v1/friends/requests, /invite, /invites/:token/accept, GET /v1/friends, etc.
     try protected.grouped("friends")
         .grouped(RateLimitMiddleware(limit: 20, window: .minutes(1), scope: .user))
         .register(collection: FriendController())
@@ -237,4 +242,13 @@ func routes(
     try app.grouped("g")
         .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .ip))
         .register(collection: PublicGroceryShareController())
+
+    // ─────────────────────────────────────────────────
+    // Public friend-invite page — `/i/<token>`. Same shape as `/g`: at the root,
+    // no JWT (the person opening it may not have the app yet), IP rate-limited.
+    // Shows the inviter's display name only.
+    // ─────────────────────────────────────────────────
+    try app.grouped("i")
+        .grouped(RateLimitMiddleware(limit: 60, window: .minutes(1), scope: .ip))
+        .register(collection: PublicFriendInviteController())
 }

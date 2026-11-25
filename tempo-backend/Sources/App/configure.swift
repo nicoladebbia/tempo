@@ -205,6 +205,9 @@ func configure(
     app.migrations.add(CreateAchievements())
     app.migrations.add(CreateWeeklyLeaderboard())
     app.migrations.add(SeedAchievements())
+    // Friends and leaderboard for real: per-day totals the apps push, and invite links
+    app.migrations.add(CreateArenaDailyStats())
+    app.migrations.add(CreateFriendInvites())
 
     // Auto-migrate in development
     if app.environment == .development {

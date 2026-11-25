@@ -277,6 +277,81 @@ struct ContractGoldenTests {
         }
     }
 
+    // MARK: - Arena: friends, invite link, leaderboard, challenges (driven)
+
+    @Test func arenaRoutes() async throws {
+        try await withApp { app in
+            let alice = try await login(app, name: "contract-arena-alice")
+            let bob = try await login(app, name: "contract-arena-bob")
+            let cara = try await login(app, name: "contract-arena-cara")
+            let dan = try await login(app, name: "contract-arena-dan")
+            let today = ArenaService.dayString(Date())
+            let lastDay = try #require(ArenaService.addDays(6, to: today))
+
+            /// Calendar days and the invite token change every run; pin them so the golden only moves when the shape does.
+            func fixed(_ data: Data, token: String? = nil) -> Data {
+                var text = String(decoding: data, as: UTF8.self)
+                if let token {
+                    text = text.replacingOccurrences(of: token, with: "a1b2c3d4e5f6g7h8")
+                }
+                text = text.replacingOccurrences(of: lastDay, with: "2026-01-07")
+                text = text.replacingOccurrences(of: today, with: "2026-01-01")
+                return Data(text.utf8)
+            }
+            func field(_ data: Data, _ key: String) throws -> String {
+                let root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+                return try #require((root["data"] as? [String: Any])?[key] as? String)
+            }
+
+            // Invite link: create, preview, open (instant friends), then revoke.
+            let invite = try await call(app, .POST, "v1/friends/invite", token: alice.accessToken)
+            let inviteToken = try field(invite, "token")
+            try golden("friends-invite-post", fixed(invite, token: inviteToken))
+            try golden("friends-invite-preview", fixed(await call(app, .GET, "v1/friends/invites/\(inviteToken)", token: bob.accessToken), token: inviteToken))
+            try golden("friends-invite-accept", fixed(await call(app, .POST, "v1/friends/invites/\(inviteToken)/accept", token: bob.accessToken), token: inviteToken))
+            try golden("friends-invite-revoke", await call(app, .POST, "v1/friends/invite/revoke", token: alice.accessToken))
+
+            // What each phone pushes, then what the friends list and the board show.
+            let stats = #"{"display_name":"Bob","level":3,"xp_total":640,"streak_days":5,"days":[{"day":"\#(today)","xp":240,"workouts":1,"study_minutes":30}]}"#
+            try golden("arena-stats-put", await call(app, .PUT, "v1/arena/stats", token: bob.accessToken, body: stats))
+            _ = try await call(app, .PUT, "v1/arena/stats", token: alice.accessToken, body: #"{"level":2,"xp_total":180,"streak_days":2,"days":[{"day":"\#(today)","xp":180,"workouts":0,"study_minutes":0}]}"#)
+            try golden("friends-get", await call(app, .GET, "v1/friends", token: alice.accessToken))
+            try golden("leaderboards-friends", await call(app, .GET, "v1/leaderboards/friends", token: alice.accessToken))
+
+            // Friend request by id: send, list, accept.
+            let sent = try await call(app, .POST, "v1/friends/requests", token: alice.accessToken, body: #"{"user_id":"\#(cara.userID)"}"#, expect: .created)
+            try golden("friends-requests-post", sent)
+            let pending = try await call(app, .GET, "v1/friends/requests", token: cara.accessToken)
+            try golden("friends-requests-get", pending)
+            let pendingRoot = try #require(JSONSerialization.jsonObject(with: pending) as? [String: Any])
+            let requestID = try #require(((pendingRoot["data"] as? [[String: Any]])?.first)?["id"] as? String)
+            try golden("friends-requests-accept", await call(app, .POST, "v1/friends/requests/\(requestID)/accept", token: cara.accessToken))
+
+            // A request that gets declined.
+            _ = try await call(app, .POST, "v1/friends/requests", token: alice.accessToken, body: #"{"user_id":"\#(dan.userID)"}"#, expect: .created)
+            let danPending = try await call(app, .GET, "v1/friends/requests", token: dan.accessToken)
+            let danRoot = try #require(JSONSerialization.jsonObject(with: danPending) as? [String: Any])
+            let danRequestID = try #require(((danRoot["data"] as? [[String: Any]])?.first)?["id"] as? String)
+            try golden("friends-requests-decline", await call(app, .POST, "v1/friends/requests/\(danRequestID)/decline", token: dan.accessToken))
+
+            // Challenge between friends: create, list, join, detail with real standings, leave.
+            let challenge = #"{"title":"Seven day XP race","description":"Most XP wins","metric":"xp_total","duration_days":7,"invite_user_ids":["\#(bob.userID)","\#(cara.userID)"]}"#
+            let created = try await call(app, .POST, "v1/challenges", token: alice.accessToken, body: challenge, expect: .created)
+            try golden("challenges-post", fixed(created))
+            let challengeID = try field(created, "id")
+            try golden("challenges-get", fixed(await call(app, .GET, "v1/challenges", token: bob.accessToken)))
+            try golden("challenges-join", await call(app, .POST, "v1/challenges/\(challengeID)/join", token: bob.accessToken))
+            try golden("challenges-detail", fixed(await call(app, .GET, "v1/challenges/\(challengeID)", token: alice.accessToken)))
+            try golden("challenges-leave", await call(app, .POST, "v1/challenges/\(challengeID)/leave", token: cara.accessToken))
+
+            // Remove a friend.
+            let friends = try await call(app, .GET, "v1/friends", token: alice.accessToken)
+            let friendsRoot = try #require(JSONSerialization.jsonObject(with: friends) as? [String: Any])
+            let carasFriendship = try #require(((friendsRoot["data"] as? [[String: Any]])?.first { $0["user_id"] as? String == cara.userID })?["friendship_id"] as? String)
+            try golden("friends-delete", await call(app, .DELETE, "v1/friends/\(carasFriendship)", token: alice.accessToken))
+        }
+    }
+
     // MARK: - Weekly plan (driven, with the real job)
 
     private struct StubResolver: WeeklyPlanFoodResolving {

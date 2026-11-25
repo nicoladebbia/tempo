@@ -1,0 +1,50 @@
+{
+  "data" : [
+    {
+      "created_at" : "2026-01-01T00:00:00Z",
+      "description" : "Most XP wins",
+      "end_day" : "2026-01-07",
+      "id" : "00000000-0000-0000-0000-000000000001",
+      "is_creator" : false,
+      "max_participants" : 10,
+      "member_count" : 1,
+      "metric" : "xp_total",
+      "my_score" : 0,
+      "my_status" : "invited",
+      "participants" : [
+        {
+          "display_name" : "Test contract-arena-alice",
+          "is_me" : false,
+          "level" : 2,
+          "rank" : 1,
+          "score" : 180,
+          "status" : "joined"
+        },
+        {
+          "display_name" : "Bob",
+          "is_me" : true,
+          "level" : 3,
+          "score" : 0,
+          "status" : "invited"
+        },
+        {
+          "display_name" : "Test contract-arena-cara",
+          "is_me" : false,
+          "level" : 1,
+          "score" : 0,
+          "status" : "invited"
+        }
+      ],
+      "start_day" : "2026-01-01",
+      "status" : "active",
+      "title" : "Seven day XP race",
+      "type" : "group",
+      "visibility" : "friends_only"
+    }
+  ],
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}
