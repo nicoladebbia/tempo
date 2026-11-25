@@ -497,7 +497,8 @@ struct TrainingSettingsDetailView: View {
     /// Writes the training time to the daily-plan profile (made with its defaults if there is none yet).
     private func setTrainingTime(_ value: TrainingTimePreference) {
         let profile = UserDailyPlanProfile.current(in: modelContext) ?? {
-            let created = UserDailyPlanProfile()
+            // Stamped like the onboarding row: no class schedule to migrate from free text.
+            let created = UserDailyPlanProfile(examScheduleMigratedAt: Date())
             modelContext.insert(created)
             return created
         }()

@@ -115,13 +115,18 @@ struct OnboardingCompleteView: View {
         // Local SwiftData first — survives offline, and is what the meal
         // planner reads for the eating window. Upsert, so a relaunch on this
         // step never leaves a duplicate row.
+        // A profile that is already there (onboarding run again) is kept, not reset to defaults.
+        var created = false
         do {
-            try viewModel.persistDailyPlanProfile(in: modelContext)
+            created = try viewModel.persistDailyPlanProfile(in: modelContext, replacingExisting: false)
         } catch {
             print("[onboarding] persistDailyPlanProfile local save failed: \(error.localizedDescription)")
         }
 
         // Backend sync — non-blocking. Failures are logged in the VM helper.
+        guard created else {
+            return
+        }
         Task {
             await viewModel.syncDailyPlanProfile(apiClient: services.apiClient)
         }

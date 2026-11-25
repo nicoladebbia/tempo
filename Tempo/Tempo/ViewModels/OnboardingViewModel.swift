@@ -257,24 +257,33 @@ final class OnboardingViewModel {
     }
 
     /// Save the captured daily-plan profile to SwiftData as the ONE local
-    /// row. Upsert: re-entering the complete step (app killed on it, state
-    /// restoration) or re-running onboarding updates the newest existing row
-    /// in place and removes stray duplicates, so readers that take
-    /// `UserDailyPlanProfile.current(in:)` never see a stale eating window.
-    func persistDailyPlanProfile(in context: ModelContext) throws {
+    /// row. Re-entering the complete step (app killed on it, state restoration)
+    /// or re-running onboarding never leaves a duplicate: stray rows are removed,
+    /// so readers that take `UserDailyPlanProfile.current(in:)` see one row.
+    ///
+    /// `replacingExisting` decides what happens to a row that is already there.
+    /// The six-step onboarding no longer asks for the wake time, eating window or
+    /// schedule, so the finish screen passes `false` and keeps what the person
+    /// already set; the answers here are only defaults. Returns `true` when a new
+    /// row was made (the caller pushes it to the backend then).
+    @discardableResult
+    func persistDailyPlanProfile(in context: ModelContext, replacingExisting: Bool = true) throws -> Bool {
         let existing = (try? context.fetch(FetchDescriptor<UserDailyPlanProfile>(
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         ))) ?? []
         guard let keep = existing.first else {
             context.insert(buildDailyPlanProfile())
             try context.save()
-            return
+            return true
         }
         for duplicate in existing.dropFirst() {
             context.delete(duplicate)
         }
-        apply(to: keep, in: context)
+        if replacingExisting {
+            apply(to: keep, in: context)
+        }
         try context.save()
+        return false
     }
 
     /// Overwrite `profile` with the in-memory onboarding state. Class / work

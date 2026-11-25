@@ -240,6 +240,9 @@ struct OnboardingAuthView: View {
             }
             signedIn = true
             prefillName(from: authorization)
+            // A fresh sign-in may be a different Apple ID than the one the terms were recorded for
+            // (the flag is saved on this phone, not on the account): record them for this one.
+            viewModel.tosRecorded = false
             // The terms go to the server now: it answers 451 to everything else until then.
             await submitTerms()
         case let .failure(error):
