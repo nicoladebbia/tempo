@@ -67,7 +67,9 @@ final class RecoveryCoachMathTests: XCTestCase {
     func testFormatting() {
         XCTAssertEqual(RecoveryCoachFormat.litersRange(low: 1.503, high: 1.617), "1.5 to 1.6 L")
         XCTAssertEqual(RecoveryCoachFormat.litersRange(low: 1.51, high: 1.54), "1.5 L")
-        XCTAssertEqual(RecoveryCoachFormat.sodiumRange(low: 345.56, high: 2602.55), "350 to 2600 mg")
+        // Localized numbers group thousands the way the phone's region does ("2,600" here, "2.600" in Italy).
+        let sodiumHigh = 2600.formatted(.number)
+        XCTAssertEqual(RecoveryCoachFormat.sodiumRange(low: 345.56, high: 2602.55), "350 to \(sodiumHigh) mg")
         XCTAssertEqual(RecoveryCoachFormat.margin(10.71), "+/- 11%")
         XCTAssertEqual(RecoveryCoachFormat.coarse(25.7743), 25.8)
         XCTAssertEqual(RecoveryCoachFormat.coarse(-80.1912), -80.2)
