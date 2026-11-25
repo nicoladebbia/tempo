@@ -95,12 +95,14 @@ struct GroceryStoreModeView: View {
             .scrollIndicators(.hidden)
             .scrollEdgeEffectStyle(.soft, for: .all)
             .kitchenPage(energy: 1)
-            // Before the bottom bar, so the toast rests above "Done shopping", not on it.
-            .tempoToast($toast, placement: .bottom)
+            // Before the bottom bar, so the toast rests above "Done shopping", not on it, and
+            // takes its own room: a floating toast sits on the big rows, and a tap on its Undo
+            // would tick the row under it.
+            .kitchenToast($toast)
             .kitchenBottomBar {
                 doneShoppingButton
             }
-            .firstTip("fuel.store-mode", "Tap each item as it goes in your basket, then Done shopping moves it to your pantry.")
+            .firstTip("fuel.store-mode", "Tap each item as it goes in your basket.")
             .sensoryFeedback(.impact(flexibility: .solid), trigger: ticks)
             .sensoryFeedback(.success, trigger: finishedAisles) { old, new in new > old }
             .navigationTitle("Store Mode")

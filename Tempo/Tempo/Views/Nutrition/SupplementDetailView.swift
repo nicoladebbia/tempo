@@ -24,6 +24,9 @@ struct SupplementDetailView: View {
     @State private var refreshToken = 0
     @State private var showEdit = false
     @State private var showReorder = false
+    /// "Took it" Undo. It takes its own room above the Took it bar: the Fuel host's toast floats
+    /// over that bar, and a tap on its Undo would reach the bar's button instead.
+    @State private var toast: ToastData?
     @Environment(\.tideMood)
     private var mood
 
@@ -66,6 +69,8 @@ struct SupplementDetailView: View {
             }
         }
         .kitchenPage()
+        // Before the bottom bar, so the toast rests above "Took it", not on it.
+        .kitchenToast($toast)
         .kitchenBottomBar {
             tookItBar(takenToday: takenToday, dose: dose)
         }
@@ -186,7 +191,7 @@ struct SupplementDetailView: View {
             Button {
                 KitchenUndo.toggleSupplementTaken(
                     supplementID: supplement.id, name: supplement.name, in: modelContext
-                )
+                ) { toast = $0 }
                 if !takenToday { HapticManager.success() }
                 refreshToken += 1
             } label: {

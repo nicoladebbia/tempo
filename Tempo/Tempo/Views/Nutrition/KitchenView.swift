@@ -29,16 +29,16 @@ struct KitchenView: View {
                 switch viewModel.selectedKitchen {
                 case .pantry:
                     PantryView(viewModel: viewModel)
-                        .firstTip("fuel.pantry", "Scan a receipt or add what you bought, and Tempo tells you what to use up first.")
+                        .firstTip("fuel.pantry", "Scan a receipt and Tempo tells you what to use up first.")
                 case .groceries:
                     GroceryListView(viewModel: viewModel)
-                        .firstTip("fuel.groceries", "Tap an item to tick it off, then open Store Mode when you are in the shop.")
+                        .firstTip("fuel.groceries", "Tick items off as you shop, or open Store Mode.")
                 case .receipts:
                     SpendingView(viewModel: viewModel)
                         .firstTip("fuel.spending", "Scan every receipt so this week's total is the real one.")
                 case .supplements:
                     SupplementsView(openSupplementID: $viewModel.supplementToOpen)
-                        .firstTip("fuel.supplements", "Tick a supplement when you take it, and Tempo counts down how many days are left.")
+                        .firstTip("fuel.supplements", "Tick a supplement when you take it, and Tempo counts the days left.")
                 }
             }
             .transition(.opacity)

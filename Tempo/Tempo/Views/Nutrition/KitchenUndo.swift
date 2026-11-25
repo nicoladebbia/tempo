@@ -28,11 +28,23 @@ enum KitchenUndo {
     /// How long Undo stays on screen (the toast's own duration).
     static let window: TimeInterval = FuelLogToast.undoWindow
 
-    /// Shows "<message>" with an Undo button. `undo` runs on tap and dismisses the toast.
-    static func offer(_ message: String, undo: @escaping @MainActor () -> Void) {
-        FuelLogToast.post(ToastData(message: message, style: .info, actionTitle: "Undo") {
+    /// Where an Undo toast goes by default: the one Fuel toast host. A page with a bar pinned to
+    /// the bottom (Store Mode, Scan a receipt, Took it) shows its own instead, above that bar,
+    /// because the host's toast rests on the bar and a tap on its Undo reaches the bar.
+    typealias Present = (ToastData) -> Void
+
+    static let hostPresent: Present = { FuelLogToast.post($0) }
+
+    /// "<message>" with an Undo button. `undo` runs on tap and dismisses the toast.
+    static func undoToast(_ message: String, undo: @escaping @MainActor () -> Void) -> ToastData {
+        ToastData(message: message, style: .info, actionTitle: "Undo") {
             undo()
-        })
+        }
+    }
+
+    /// Shows "<message>" with an Undo button. `undo` runs on tap and dismisses the toast.
+    static func offer(_ message: String, present: Present = hostPresent, undo: @escaping @MainActor () -> Void) {
+        present(undoToast(message, undo: undo))
     }
 
     // MARK: Pantry
@@ -140,13 +152,15 @@ extension KitchenUndo {
     /// same toggle the check button uses, so the shelf's stock and the macros come back exactly.
     /// Returns whether it is taken now.
     @discardableResult
-    static func toggleSupplementTaken(supplementID: UUID?, name: String, in context: ModelContext) -> Bool {
+    static func toggleSupplementTaken(
+        supplementID: UUID?, name: String, in context: ModelContext, present: Present = hostPresent
+    ) -> Bool {
         // The day is pinned: an Undo tapped after midnight still changes the day that was ticked.
         let day = Date()
         let nowTaken = SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context)
         HapticManager.lightImpact()
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
-        offer(nowTaken ? "\(name) taken." : "\(name) marked not taken.") {
+        offer(nowTaken ? "\(name) taken." : "\(name) marked not taken.", present: present) {
             // If something else changed it in the meantime, leave it as it is now.
             if SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context) == nowTaken {
                 SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context)
@@ -354,14 +368,14 @@ extension NutritionTabViewModel {
     }
 
     /// Takes a row off the grocery list with a few seconds to put it back.
-    func deleteGroceryItemWithUndo(_ item: GroceryListItem) {
+    func deleteGroceryItemWithUndo(_ item: GroceryListItem, present: KitchenUndo.Present = KitchenUndo.hostPresent) {
         let snapshot = GroceryItemSnapshot(item)
         let name = item.displayName
         deleteGroceryItem(item)
         guard groceryState.lastError == nil else {
             return
         }
-        KitchenUndo.offer("\(name) removed.") { [self] in
+        KitchenUndo.offer("\(name) removed.", present: present) { [self] in
             guard let context = groceryState.latest?.modelContext ?? pantryModelContext else {
                 return
             }
@@ -385,12 +399,14 @@ extension NutritionTabViewModel {
     }
 
     /// Adds a row the user typed, with a few seconds to take it off again.
-    func addGroceryItemWithUndo(name: String, quantity: Double, unit: PantryUnit) {
+    func addGroceryItemWithUndo(
+        name: String, quantity: Double, unit: PantryUnit, present: KitchenUndo.Present = KitchenUndo.hostPresent
+    ) {
         guard let item = addGroceryItem(name: name, quantity: quantity, unit: unit) else {
             return
         }
         let id = item.id
-        KitchenUndo.offer("\(item.displayName) is on your list.") { [self] in
+        KitchenUndo.offer("\(item.displayName) is on your list.", present: present) { [self] in
             guard let context = groceryState.latest?.modelContext ?? pantryModelContext,
                   let row = KitchenUndo.groceryItem(id: id, in: context)
             else {

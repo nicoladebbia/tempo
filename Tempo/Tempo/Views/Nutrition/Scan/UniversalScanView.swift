@@ -88,7 +88,7 @@ struct UniversalScanView: View {
                 .background { barBacking }
             }
             .environment(\.scanResumeInfo, ScanResumeInfo(kind: context.kind, mode: mode, section: resumeSection))
-            .firstTip("fuel.scan", "Pick Barcode, Label, Meal photo or Receipt at the top, then point the camera at it.")
+            .firstTip("fuel.scan", "Pick what you are scanning at the top, then point the camera.")
             .navigationTitle("Scan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

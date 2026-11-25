@@ -119,7 +119,7 @@ struct ReceiptReviewView: View {
         .navigationTitle("Review Receipt")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaBar(edge: .bottom, spacing: 0) { bottomBar }
-        .firstTip("fuel.receipts", "Check the lines marked needs a look, then add the receipt to your pantry.")
+        .firstTip("fuel.receipts", "Check the lines that need a look, then add the receipt.")
         .sheet(item: $editingLine) { line in
             ReceiptLineEditSheet(
                 line: line,

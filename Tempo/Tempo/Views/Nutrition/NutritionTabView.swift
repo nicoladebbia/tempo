@@ -273,13 +273,13 @@ struct NutritionTabView: View {
                 resumedScan = nil
                 showScan = true
             })
-            .firstTip("fuel.today", "Log a meal, scan food or add water with the buttons up top, and tap any number to see how it is worked out.")
+            .firstTip("fuel.today", "Tap any number to see how it is worked out.")
         case .plan:
             VStack(spacing: 0) {
                 planQuickLinks
                 NutritionWeeklyPlanView(viewModel: viewModel)
             }
-            .firstTip("fuel.plan", "Tap a day to open its meals, then tap a meal to see the recipe and mark it eaten.")
+            .firstTip("fuel.plan", "Tap a meal to see its recipe or mark it eaten.")
         case .log:
             NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
         case .coach:

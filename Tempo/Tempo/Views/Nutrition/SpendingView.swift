@@ -42,6 +42,11 @@ struct SpendingView: View {
 
     private let pending = KitchenPendingReceipts.shared
 
+    /// A deleted receipt's Undo. It takes its own room above the "Scan a receipt" bar: the Fuel
+    /// host's toast floats over that bar and the rows, and a tap on its Undo would reach them.
+    @State
+    private var toast: ToastData?
+
     private var summary: SpendingSummary {
         SpendingSummary(weeks: viewModel.groceryStoreModeState.weeklySpend)
     }
@@ -83,6 +88,8 @@ struct SpendingView: View {
             }
         }
         .tidePage()
+        // Before the bottom bar, so the toast rests above "Scan a receipt", not on it.
+        .kitchenToast($toast)
         .kitchenBottomBar {
             if canScan {
                 Button {
@@ -463,7 +470,7 @@ struct SpendingView: View {
             }
         )
         viewModel.loadGroceryWeeklySpendHistory(hiding: pending.hidden)
-        KitchenUndo.offer("\(name) deleted.") {
+        toast = KitchenUndo.undoToast("\(name) deleted.") {
             pending.undo(id)
             viewModel.loadGroceryWeeklySpendHistory(hiding: pending.hidden)
         }

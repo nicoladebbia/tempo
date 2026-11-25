@@ -327,6 +327,43 @@ final class FuelUndoTests: XCTestCase {
         XCTAssertTrue(SupplementIntakeStore.takenIDs(on: Date(), in: context).contains(supplement.id))
     }
 
+    // MARK: A page's own toast
+
+    /// A page with a bar pinned to the bottom shows its own Undo toast; the Fuel host must not
+    /// show a second one.
+    func testAPageThatShowsItsOwnToastKeepsTheUndoOffTheFuelHost() {
+        captureToasts()
+        var shown: [ToastData] = []
+        var undone = 0
+
+        KitchenUndo.offer("Eggs removed.", present: { shown.append($0) }) { undone += 1 }
+
+        XCTAssertEqual(shown.count, 1)
+        XCTAssertEqual(shown.first?.message, "Eggs removed.")
+        XCTAssertEqual(shown.first?.actionTitle, "Undo")
+        XCTAssertTrue(toastsPosted.isEmpty, "nothing goes to the host")
+        shown.first?.action?()
+        XCTAssertEqual(undone, 1)
+
+        KitchenUndo.offer("Milk removed.") { undone += 1 }
+        XCTAssertEqual(toastsPosted.count, 1, "without a page toast it goes to the host as before")
+    }
+
+    func testTickingASupplementOnAPageWithItsOwnToastStillUndoesWithItsStock() throws {
+        let supplement = Supplement(name: "Creatine", kind: .creatine, servingsRemaining: 30)
+        context.insert(supplement)
+        try context.save()
+        captureToasts()
+        var shown: [ToastData] = []
+
+        KitchenUndo.toggleSupplementTaken(supplementID: supplement.id, name: "Creatine", in: context) { shown.append($0) }
+        XCTAssertEqual(supplement.servingsRemaining, 29)
+        XCTAssertTrue(toastsPosted.isEmpty)
+
+        try XCTUnwrap(shown.last).action?()
+        XCTAssertEqual(supplement.servingsRemaining, 30)
+    }
+
     // MARK: Explainers
 
     func testEveryFuelExplainerIsCompleteAndHasAUniqueId() {
