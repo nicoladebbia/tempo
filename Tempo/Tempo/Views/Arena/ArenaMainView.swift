@@ -501,7 +501,10 @@ struct ArenaMainView: View {
             NavigationLink(value: ArenaDestination.challenges) {
                 ArenaLinkRow(
                     systemImage: "flag.2.crossed.fill", title: "Challenges",
-                    detail: "None running. Start one with a friend or on your own.", tint: TideTone.amber
+                    detail: arena.phase == .ready
+                        ? "None running. Start one with a friend or on your own."
+                        : "Race a friend for a week, or go solo.",
+                    tint: TideTone.amber
                 )
                 .tideCard(padding: Tide.s4)
             }

@@ -22,6 +22,8 @@ struct FriendInviteSheet: View {
     private var dismiss
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     private enum Stage: Equatable {
         case loading
@@ -65,7 +67,7 @@ struct FriendInviteSheet: View {
                     .padding(.bottom, Tide.s2)
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .accessibilityIdentifier("arena.inviteSheet")
         .task { await load() }

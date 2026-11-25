@@ -443,7 +443,7 @@ struct ChallengeCreationSheet: View {
                     Text("Who wins").tideLabel()
                     TidePillPicker(
                         options: ArenaChallengeMetric.allCases, selection: $metric,
-                        title: \.shortTitle, label: "What counts"
+                        title: \.shortTitle, label: "What counts", stacksThree: true
                     )
                 }
 

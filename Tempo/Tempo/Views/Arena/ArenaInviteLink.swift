@@ -188,7 +188,7 @@ struct ArenaInviteSheet: View {
                     .padding(.bottom, Tide.s2)
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents(typeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .accessibilityIdentifier("arena.invite.sheet")
         .task { await load() }
