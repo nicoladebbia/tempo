@@ -110,7 +110,7 @@ struct ManualWeighInSheet: View {
 
                     // The number is the hero: big, centred, with the unit beside it.
                     VStack(spacing: Tide.s3) {
-                        TextField(useLb ? "172" : "78.0", text: $text)
+                        TextField(useLb ? "172" : 78.0.tempoDecimal(1), text: $text)
                             .keyboardType(.decimalPad)
                             .focused($focused)
                             .font(Tide.numeral(weightSize))

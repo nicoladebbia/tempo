@@ -107,7 +107,7 @@ struct ArenaEarnedView: View {
                 }
             }
         } side: {
-            Text("Unlocked").tideLabel()
+            Text(String(localized: "arena.unlocked-count", defaultValue: "Unlocked", comment: "Label over the number of unlocked achievements (plural in Italian)")).tideLabel()
             if let next = nextUp {
                 Text("Next up").tideLabel(Tide.text3)
                 Text(next.displayName)

@@ -472,7 +472,7 @@ struct ArenaMainView: View {
                 recapStat("XP", "+\(vm.lastWeekXP.formatted())", mood.accent)
                 recapStat(vm.lastWeekWorkouts == 1 ? String(localized: "Workout") : String(localized: "Workouts"), "\(vm.lastWeekWorkouts)", TideTone.amber)
                 if vm.lastWeekAchievements > 0 {
-                    recapStat(String(localized: "Unlocked"), "\(vm.lastWeekAchievements)", TideTone.violet)
+                    recapStat(String(localized: "arena.unlocked-count", defaultValue: "Unlocked", comment: "Label over the number of unlocked achievements (plural in Italian)"), "\(vm.lastWeekAchievements)", TideTone.violet)
                 }
             }
             Button {

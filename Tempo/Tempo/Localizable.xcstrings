@@ -5979,10 +5979,12 @@
     },
     "%lldm" : {
       "extractionState" : "automatic",
+      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lldm %llds" : {
       "extractionState" : "automatic",
+      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lldm ago" : {
@@ -6075,6 +6077,7 @@
     },
     "%llds" : {
       "extractionState" : "automatic",
+      "localizations" : {},
       "shouldTranslate" : false
     },
     "%lld× trained" : {
@@ -7054,14 +7057,8 @@
     },
     "30D" : {
       "extractionState" : "automatic",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "30G"
-          }
-        }
-      }
+      "localizations" : {},
+      "shouldTranslate" : false
     },
     "330" : {
       "extractionState" : "automatic",
@@ -7323,14 +7320,8 @@
     },
     "90D" : {
       "extractionState" : "automatic",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "90G"
-          }
-        }
-      }
+      "localizations" : {},
+      "shouldTranslate" : false
     },
     ":" : {
       "extractionState" : "automatic",
@@ -8769,7 +8760,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aggiungi non negoziabile"
+            "value" : "Nuovo"
           }
         }
       }
@@ -14313,7 +14304,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alternative più economiche"
+            "value" : "Più economici"
           }
         }
       }
@@ -20581,7 +20572,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modifica non negoziabile"
+            "value" : "Modifica"
           }
         }
       }
@@ -20691,7 +20682,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modifica impostazione"
+            "value" : "Modifica impostazioni"
           }
         }
       }
@@ -28394,7 +28385,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Importa esportazione Whoop…"
+            "value" : "Importa i dati Whoop…"
           }
         }
       }
@@ -37330,6 +37321,17 @@
         }
       }
     },
+    "No microphone is available." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun microfono disponibile."
+          }
+        }
+      }
+    },
     "No mode is changing your plan." : {
       "extractionState" : "automatic",
       "localizations" : {
@@ -40446,7 +40448,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apre la checklist degli alimenti base"
+            "value" : "Apre la checklist delle scorte base"
           }
         }
       }
@@ -52707,7 +52709,7 @@
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Alimenti base · %lld"
+            "value" : "Scorte base · %lld"
           }
         }
       }
@@ -61853,14 +61855,8 @@
     },
     "W%lld" : {
       "extractionState" : "automatic",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "S%lld"
-          }
-        }
-      }
+      "localizations" : {},
+      "shouldTranslate" : false
     },
     "WARNING" : {
       "extractionState" : "automatic",
@@ -67210,6 +67206,24 @@
         }
       }
     },
+    "arena.unlocked-count" : {
+      "comment" : "Label over the number of unlocked achievements (plural in Italian)",
+      "extractionState" : "automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sbloccati"
+          }
+        }
+      }
+    },
     "asleep" : {
       "extractionState" : "automatic",
       "localizations" : {
@@ -67888,14 +67902,8 @@
     },
     "e.g. 8000500310427" : {
       "extractionState" : "automatic",
-      "localizations" : {
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "es. 8000500310427"
-          }
-        }
-      }
+      "localizations" : {},
+      "shouldTranslate" : false
     },
     "e.g. I get bloated with two scoops" : {
       "extractionState" : "automatic",
@@ -70283,6 +70291,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "passi, attività, storico, camminata"
+          }
+        }
+      }
+    },
+    "store-mode.next" : {
+      "comment" : "Tag on the next item to pick up in store mode (not the Next button)",
+      "extractionState" : "automatic",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prossimo"
           }
         }
       }

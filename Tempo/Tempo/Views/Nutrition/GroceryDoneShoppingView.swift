@@ -147,7 +147,7 @@ struct GroceryDoneShoppingView: View {
                     Spacer()
                     Text("$")
                         .foregroundStyle(Tide.text2)
-                    TextField("0.00", text: row.priceText)
+                    TextField(0.0.tempoDecimal(2), text: row.priceText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: Tide.Kitchen.row + Tide.s6)

@@ -22,103 +22,112 @@ Out of scope on purpose (stays English): text that comes from the server or the 
 
 ## Glossary
 
-| English                            | Italian                                                                       | Note                                           |
-| ---------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------- |
-| Today                              | Oggi                                                                          | tab                                            |
-| Train / Training                   | Allenamento                                                                   | tab and module                                 |
-| Fuel                               | Cibo                                                                          | tab and quadrant (nutrition)                   |
-| Kitchen                            | Cucina                                                                        | tab                                            |
-| Log (verb) / Logged                | Registra / Registrato                                                         | the capture "+" button is "Registra"           |
-| Workout                            | allenamento                                                                   | one word everywhere, never "workout"           |
-| Session                            | sessione                                                                      |                                                |
-| Program (trainer's)                | scheda                                                                        | Italians say "la scheda del trainer"           |
-| Plan / Week plan                   | piano / piano settimanale                                                     |                                                |
-| Routine                            | routine                                                                       |                                                |
-| Set (noun)                         | serie                                                                         | "3 serie da 10"                                |
-| Reps                               | ripetizioni (rip. when tight)                                                 |                                                |
-| Rest (between sets)                | recupero                                                                      |                                                |
-| Rest day                           | giorno di riposo                                                              |                                                |
-| Warm-up / Cool-down                | riscaldamento / defaticamento                                                 |                                                |
-| Deload                             | scarico                                                                       |                                                |
-| Superset / Circuit                 | superset / circuito                                                           |                                                |
-| Failure                            | cedimento                                                                     |                                                |
-| PR                                 | PR                                                                            | explain as "record personale" when spelled out |
-| RIR                                | RIR                                                                           | "ripetizioni in riserva" when spelled out      |
-| Streak                             | streak                                                                        |                                                |
-| Score / Day score                  | punteggio / punteggio del giorno                                              |                                                |
-| Level / XP                         | livello / XP                                                                  |                                                |
-| Challenge                          | sfida                                                                         |                                                |
-| Friends                            | amici                                                                         |                                                |
-| Leaderboard                        | classifica                                                                    |                                                |
-| Milestone                          | traguardo                                                                     |                                                |
-| Recovery                           | Recupero                                                                      | module and tab                                 |
-| Sleep                              | sonno                                                                         |                                                |
-| Strain                             | sforzo                                                                        |                                                |
-| Readiness                          | prontezza                                                                     |                                                |
-| Resting heart rate                 | frequenza cardiaca a riposo                                                   |                                                |
-| Body / Mind / Move                 | Corpo / Mente / Movimento                                                     | Today quadrants                                |
-| Study                              | Studio                                                                        |                                                |
-| Non-negotiables                    | Non negoziabili                                                               |                                                |
-| Macros                             | macro                                                                         |                                                |
-| Protein / Carbs / Fat / Fiber      | proteine / carboidrati / grassi / fibre                                       |                                                |
-| Calories                           | calorie                                                                       | "kcal" stays                                   |
-| Meal / Snack                       | pasto / spuntino                                                              |                                                |
-| Breakfast / Lunch / Dinner         | colazione / pranzo / cena                                                     |                                                |
-| Pantry                             | dispensa                                                                      |                                                |
-| Grocery list / Groceries           | lista della spesa / spesa                                                     |                                                |
-| Recipe                             | ricetta                                                                       |                                                |
-| Supplements                        | integratori                                                                   |                                                |
-| Water / Hydration                  | acqua / idratazione                                                           |                                                |
-| Barcode / Scan / Receipt           | codice a barre / scansiona / scontrino                                        |                                                |
-| Coach / Trainer                    | coach / trainer                                                               |                                                |
-| Save / Delete / Edit               | Salva / Elimina / Modifica                                                    |                                                |
-| Cancel / Undo                      | Annulla / Annulla                                                             | iOS Italian uses "Annulla" for both            |
-| Done / Skip / Next / Back          | Fine / Salta / Avanti / Indietro                                              |                                                |
-| Start / Finish / Stop              | Inizia / Concludi / Stop                                                      |                                                |
-| Pause / Resume                     | Pausa / Riprendi                                                              |                                                |
-| Add / Remove / Close               | Aggiungi / Rimuovi / Chiudi                                                   |                                                |
-| Settings / Profile / Notifications | Impostazioni / Profilo / Notifiche                                            |                                                |
-| Sign in / Sign out                 | Accedi / Esci                                                                 |                                                |
-| Today / Tomorrow / Yesterday       | Oggi / Domani / Ieri                                                          |                                                |
-| days / weeks / min / h / s         | giorni / settimane / min / h / s                                              |                                                |
-| steps                              | passi                                                                         |                                                |
-| Task                               | attività                                                                      | one word everywhere, never "impegno"           |
-| Achievement                        | traguardo                                                                     | same as milestone                              |
-| Override                           | eccezione                                                                     |                                                |
-| Streak                             | streak (feminine: "la streak")                                                | "Streak freeze" = congelamento                 |
-| Weight (on a set)                  | carico                                                                        | in prose, "peso"                               |
-| Guided run                         | sessione guidata                                                              | a live conditioning coach, not running         |
-| Ramp set / Working set             | serie di avvicinamento / serie di lavoro                                      |                                                |
-| Review (recap screen)              | riepilogo                                                                     |                                                |
-| Debrief                            | resoconto                                                                     |                                                |
-| Pace                               | ritmo                                                                         |                                                |
-| Accountability                     | disciplina                                                                    |                                                |
-| AI                                 | IA                                                                            | "coach IA"                                     |
-| Apple Health                       | Salute                                                                        | "Apple Salute" only where the brand is needed  |
-| Overdue / Behind / On pace         | in ritardo / indietro / in linea                                              |                                                |
-| Ahead / Off track                  | in anticipo / fuori rotta                                                     |                                                |
-| Tab (of a screen)                  | sezione                                                                       | never "scheda" (that is the program)           |
-| League                             | lega                                                                          | Arena                                          |
-| Snooze                             | posticipa                                                                     |                                                |
-| Food log                           | diario alimentare                                                             |                                                |
-| Nutrition coach                    | coach nutrizionale                                                            |                                                |
-| Bodyweight                         | peso corporeo (PC when tight)                                                 |                                                |
-| Smith machine / Barbell            | Multipower / bilanciere                                                       |                                                |
-| Lift (workout type)                | Sollevamento                                                                  | "alzata" for one lift                          |
-| Baseline                           | valori di base                                                                |                                                |
-| Levels Recruit ... Mythic          | Recluta, Soldato, Guerriero, Capitano, Comandante, Generale, Leggenda, Mitico |                                                |
-| Conditioning                       | condizionamento                                                               |                                                |
-| Round / Match                      | giro / partita                                                                |                                                |
-| Serving / Servings                 | porzione / porzioni                                                           |                                                |
-| Allergens / Additives              | allergeni / additivi                                                          |                                                |
-| Ingredients / Label                | ingredienti / etichetta                                                       |                                                |
-| Aisle                              | reparto                                                                       | grocery list sections                          |
-| Store mode                         | modalità spesa                                                                |                                                |
-| Use it up                          | da consumare                                                                  | pantry items close to expiry                   |
-| Leftovers / Meal prep              | avanzi / meal prep                                                            |                                                |
-| Cut / Maintain / Bulk              | definizione / mantenimento / massa                                            | nutrition goals                                |
-| Day type (training / rest)         | tipo di giorno                                                                | "giorno di allenamento", "giorno di riposo"    |
-| Fuel setup                         | impostazione di Cibo                                                          | the guided setup of the food tab               |
+| English                            | Italian                                                                       | Note                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------ |
+| Today                              | Oggi                                                                          | tab                                              |
+| Train / Training                   | Allenamento                                                                   | tab and module                                   |
+| Fuel                               | Cibo                                                                          | tab and quadrant (nutrition)                     |
+| Kitchen                            | Cucina                                                                        | tab                                              |
+| Log (verb) / Logged                | Registra / Registrato                                                         | the capture "+" button is "Registra"             |
+| Workout                            | allenamento                                                                   | one word everywhere, never "workout"             |
+| Session                            | sessione                                                                      |                                                  |
+| Program (trainer's)                | scheda                                                                        | Italians say "la scheda del trainer"             |
+| Plan / Week plan                   | piano / piano settimanale                                                     |                                                  |
+| Routine                            | routine                                                                       |                                                  |
+| Set (noun)                         | serie                                                                         | "3 serie da 10"                                  |
+| Reps                               | ripetizioni (rip. when tight)                                                 |                                                  |
+| Rest (between sets)                | recupero                                                                      |                                                  |
+| Rest day                           | giorno di riposo                                                              |                                                  |
+| Warm-up / Cool-down                | riscaldamento / defaticamento                                                 |                                                  |
+| Deload                             | scarico                                                                       |                                                  |
+| Superset / Circuit                 | superset / circuito                                                           |                                                  |
+| Failure                            | cedimento                                                                     |                                                  |
+| PR                                 | PR                                                                            | explain as "record personale" when spelled out   |
+| RIR                                | RIR                                                                           | "ripetizioni in riserva" when spelled out        |
+| Streak                             | streak                                                                        |                                                  |
+| Score / Day score                  | punteggio / punteggio del giorno                                              |                                                  |
+| Level / XP                         | livello / XP                                                                  |                                                  |
+| Challenge                          | sfida                                                                         |                                                  |
+| Friends                            | amici                                                                         |                                                  |
+| Leaderboard                        | classifica                                                                    |                                                  |
+| Milestone                          | traguardo                                                                     |                                                  |
+| Recovery                           | Recupero                                                                      | module and tab                                   |
+| Sleep                              | sonno                                                                         |                                                  |
+| Strain                             | sforzo                                                                        |                                                  |
+| Readiness                          | prontezza                                                                     |                                                  |
+| Resting heart rate                 | frequenza cardiaca a riposo                                                   |                                                  |
+| Body / Mind / Move                 | Corpo / Mente / Movimento                                                     | Today quadrants                                  |
+| Study                              | Studio                                                                        |                                                  |
+| Non-negotiables                    | Non negoziabili                                                               |                                                  |
+| Macros                             | macro                                                                         |                                                  |
+| Protein / Carbs / Fat / Fiber      | proteine / carboidrati / grassi / fibre                                       |                                                  |
+| Calories                           | calorie                                                                       | "kcal" stays                                     |
+| Meal / Snack                       | pasto / spuntino                                                              |                                                  |
+| Breakfast / Lunch / Dinner         | colazione / pranzo / cena                                                     |                                                  |
+| Pantry                             | dispensa                                                                      |                                                  |
+| Grocery list / Groceries           | lista della spesa / spesa                                                     |                                                  |
+| Recipe                             | ricetta                                                                       |                                                  |
+| Supplements                        | integratori                                                                   |                                                  |
+| Water / Hydration                  | acqua / idratazione                                                           |                                                  |
+| Barcode / Scan / Receipt           | codice a barre / scansiona / scontrino                                        |                                                  |
+| Coach / Trainer                    | coach / trainer                                                               |                                                  |
+| Save / Delete / Edit               | Salva / Elimina / Modifica                                                    |                                                  |
+| Cancel / Undo                      | Annulla / Annulla                                                             | iOS Italian uses "Annulla" for both              |
+| Done / Skip / Next / Back          | Fine / Salta / Avanti / Indietro                                              |                                                  |
+| Start / Finish / Stop              | Inizia / Concludi / Stop                                                      |                                                  |
+| Pause / Resume                     | Pausa / Riprendi                                                              |                                                  |
+| Add / Remove / Close               | Aggiungi / Rimuovi / Chiudi                                                   |                                                  |
+| Settings / Profile / Notifications | Impostazioni / Profilo / Notifiche                                            |                                                  |
+| Sign in / Sign out                 | Accedi / Esci                                                                 |                                                  |
+| Today / Tomorrow / Yesterday       | Oggi / Domani / Ieri                                                          |                                                  |
+| days / weeks / min / h / s         | giorni / settimane / min / h / s                                              |                                                  |
+| steps                              | passi                                                                         |                                                  |
+| Task                               | attività                                                                      | one word everywhere, never "impegno"             |
+| Achievement                        | traguardo                                                                     | same as milestone                                |
+| Override                           | eccezione                                                                     |                                                  |
+| Streak                             | streak (feminine: "la streak")                                                | "Streak freeze" = congelamento                   |
+| Weight (on a set)                  | carico                                                                        | in prose, "peso"                                 |
+| Guided run                         | sessione guidata                                                              | a live conditioning coach, not running           |
+| Ramp set / Working set             | serie di avvicinamento / serie di lavoro                                      |                                                  |
+| Review (recap screen)              | riepilogo                                                                     |                                                  |
+| Debrief                            | resoconto                                                                     |                                                  |
+| Pace                               | ritmo                                                                         |                                                  |
+| Accountability                     | disciplina                                                                    |                                                  |
+| AI                                 | IA                                                                            | "coach IA"                                       |
+| Apple Health                       | Salute                                                                        | "Apple Salute" only where the brand is needed    |
+| Overdue / Behind / On pace         | in ritardo / indietro / in linea                                              |                                                  |
+| Ahead / Off track                  | in anticipo / fuori rotta                                                     |                                                  |
+| Tab (of a screen)                  | sezione                                                                       | never "scheda" (that is the program)             |
+| League                             | lega                                                                          | Arena                                            |
+| Snooze                             | posticipa                                                                     |                                                  |
+| Food log                           | diario alimentare                                                             |                                                  |
+| Nutrition coach                    | coach nutrizionale                                                            |                                                  |
+| Bodyweight                         | peso corporeo (PC when tight)                                                 |                                                  |
+| Smith machine / Barbell            | Multipower / bilanciere                                                       |                                                  |
+| Lift (workout type)                | Sollevamento                                                                  | "alzata" for one lift                            |
+| Baseline                           | valori di base                                                                |                                                  |
+| Levels Recruit ... Mythic          | Recluta, Soldato, Guerriero, Capitano, Comandante, Generale, Leggenda, Mitico |                                                  |
+| Conditioning                       | condizionamento                                                               |                                                  |
+| Round / Match                      | giro / partita                                                                |                                                  |
+| Serving / Servings                 | porzione / porzioni                                                           |                                                  |
+| Allergens / Additives              | allergeni / additivi                                                          |                                                  |
+| Ingredients / Label                | ingredienti / etichetta                                                       |                                                  |
+| Aisle                              | reparto                                                                       | grocery list sections                            |
+| Store mode                         | modalità spesa                                                                |                                                  |
+| Use it up                          | da consumare                                                                  | pantry items close to expiry                     |
+| Leftovers / Meal prep              | avanzi / meal prep                                                            |                                                  |
+| Cut / Maintain / Bulk              | definizione / mantenimento / massa                                            | nutrition goals                                  |
+| Day type (training / rest)         | tipo di giorno                                                                | "giorno di allenamento", "giorno di riposo"      |
+| Fuel setup                         | impostazione di Cibo                                                          | the guided setup of the food tab                 |
+| Staples (pantry)                   | scorte base                                                                   | "Basic foods" = alimenti base (a different list) |
+| Card (a tile on a screen)          | riquadro                                                                      |                                                  |
+| Shelf                              | scaffale                                                                      |                                                  |
+| Days (short, in tight labels)      | gg                                                                            | "Media 7 gg", "Streak 53 gg"                     |
+| Last week (tight column)           | sett. scorsa                                                                  |                                                  |
+| Back (button) / Back (muscle)      | Indietro / Schiena                                                            | two catalog keys: `nav.back` and `Back`          |
+| Free (plan) / Free (time slot)     | Gratis / Libero                                                               | two catalog keys: `plan.free` and `Free`         |
+| Done (status) / Done (button)      | Fatto / Fine                                                                  | two catalog keys: `status.done` and `Done`       |
+| Macro letters P / C / G            | proteine / carboidrati / grassi                                               | F (fat) becomes G (grassi)                       |
 
 ## Plurals
 

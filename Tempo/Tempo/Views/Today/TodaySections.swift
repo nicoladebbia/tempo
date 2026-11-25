@@ -468,7 +468,10 @@ struct TodayFuelCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name) \(value ?? 0)\(target.map { " of \($0)" } ?? "") grams")
+        .accessibilityLabel(
+            target.map { String(localized: "\(name) \(value ?? 0) of \($0) grams") }
+                ?? String(localized: "\(name) \(value ?? 0) grams")
+        )
     }
 
     private var water: some View {

@@ -811,7 +811,7 @@ struct ProfileSettingsDetailView: View {
         SettingsControlRow(label: String(localized: "Identity")) {
             Picker("Identity", selection: $identityLabel) {
                 ForEach(identityOptions, id: \.self) { option in
-                    Text(option).tag(option)
+                    Text(OnboardingViewModel.identityDisplayName(option)).tag(option)
                 }
             }
             .labelsHidden()

@@ -238,7 +238,7 @@ struct GroceryStoreModeView: View {
                 KitchenCheck(checked: item.isChecked, size: Tide.s10)
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     if isNext {
-                        Text("Next").tideLabel(mood.accent)
+                        Text(String(localized: "store-mode.next", defaultValue: "Next", comment: "Tag on the next item to pick up in store mode (not the Next button)")).tideLabel(mood.accent)
                     }
                     Text(item.displayName)
                         .font(Tide.Kitchen.shopName)

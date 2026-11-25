@@ -140,6 +140,10 @@ final class VoiceTranscriber {
         try session.setActive(true, options: .notifyOthersOnDeactivation)
     }
 
+    private struct NoMicrophoneError: LocalizedError {
+        var errorDescription: String? { String(localized: "No microphone is available.") }
+    }
+
     private func startEngine(with recognizer: SFSpeechRecognizer) throws {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
@@ -148,6 +152,11 @@ final class VoiceTranscriber {
 
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
+        // No microphone (a simulator, a broken route) reports a 0 Hz format, and installing a
+        // tap on it aborts the app.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            throw NoMicrophoneError()
+        }
         // Reset any previously-installed tap so reruns don't crash on duplicate install.
         inputNode.removeTap(onBus: 0)
         // The tap closure fires on the real-time audio render thread
