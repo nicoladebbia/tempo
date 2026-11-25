@@ -123,7 +123,7 @@ struct NextStepBar: View {
             return
         }
         step = NextStepEngine.next(
-            for: saved, hour: Calendar.current.component(.hour, from: TodayClock.now), place: place
+            for: saved, hour: Calendar.current.component(.hour, from: Date()), place: place
         )
     }
 }
@@ -135,7 +135,7 @@ extension NextStepBar {
         if ignoresFreshness {
             return true
         }
-        let now = TodayClock.now
+        let now = Date()
         switch place {
         case .afterMeal:
             let meals = CanonicalMeals.meals(on: now, in: modelContext)

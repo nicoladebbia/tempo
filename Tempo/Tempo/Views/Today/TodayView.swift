@@ -290,7 +290,7 @@ struct TodayView: View {
                     openSettings: { showSettings = true }
                 )
                 TodayHero(snapshot: snapshot, actions: actions)
-                let now = TodayClock.now
+                let now = Date()
                 let next = NextStepEngine.choose(for: snapshot, hour: Calendar.current.component(.hour, from: now))
                 promptsAbove(now: now)
                 TodayNextCard(action: next, snapshot: snapshot, actions: actions)
@@ -462,7 +462,7 @@ struct TodayView: View {
     // MARK: Day, tomorrow, week
 
     private func reloadDay() async {
-        await dayModel.reload(services: services, context: modelContext, now: TodayClock.now)
+        await dayModel.reload(services: services, context: modelContext, now: Date())
     }
 
     /// Day items the Next card already shows, so "later today" does not repeat them.
@@ -480,7 +480,7 @@ struct TodayView: View {
             services.appState.activeTab = .train
         case let .meal(id):
             // The meal's own page when it is still in the plan, else the Fuel tab.
-            if let meal = CanonicalMeals.meals(on: TodayClock.now, in: modelContext).first(where: { $0.id == id }) {
+            if let meal = CanonicalMeals.meals(on: Date(), in: modelContext).first(where: { $0.id == id }) {
                 openMeal = meal
             } else {
                 services.appState.activeTab = .fuel
