@@ -134,70 +134,13 @@ final class XPEngineTests: XCTestCase {
         XCTAssertEqual(engine.levelName(for: 30), "Legend")
     }
 
-    // MARK: - Streak XP
-
-    func testNoStreakBonusBelow7Days() {
-        XCTAssertNil(engine.streakXP(streakCount: 6))
-    }
-
-    func testWeeklyStreakBonus() {
-        let event = engine.streakXP(streakCount: 7)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 25)
-    }
-
-    func testMonthlyStreakBonus() {
-        let event = engine.streakXP(streakCount: 30)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 50)
-    }
-
-    func test29DayStreakGetsWeeklyBonus() {
-        let event = engine.streakXP(streakCount: 29)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 25)
-    }
-
-    // MARK: - Streak Milestones
-
-    func testStreakMilestone7Days() {
-        let event = engine.streakMilestoneXP(streakCount: 7)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 200)
-    }
-
-    func testStreakMilestone14Days() {
-        let event = engine.streakMilestoneXP(streakCount: 14)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 500)
-    }
-
-    func testStreakMilestone30Days() {
-        let event = engine.streakMilestoneXP(streakCount: 30)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 1000)
-    }
-
-    func testStreakMilestone60Days() {
-        let event = engine.streakMilestoneXP(streakCount: 60)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 2000)
-    }
-
-    func testStreakMilestone100Days() {
-        let event = engine.streakMilestoneXP(streakCount: 100)
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.amount, 5000)
-    }
-
-    func testNoStreakMilestoneAt8Days() {
-        XCTAssertNil(engine.streakMilestoneXP(streakCount: 8))
-    }
-
     // MARK: - XP Earning Categories
 
-    func testXPEarningCategoriesNotEmpty() {
-        XCTAssertFalse(XPEngine.xpEarningCategories.isEmpty)
-        XCTAssertGreaterThanOrEqual(XPEngine.xpEarningCategories.count, 10)
+    func testXPEarningCategoriesAreTheOnesTheArenaReallyPays() {
+        // Only things that earn XP are listed: no penalties, no streak or sleep bonus.
+        let categories = XPEngine.xpEarningCategories
+        XCTAssertFalse(categories.isEmpty)
+        XCTAssertEqual(Set(categories.map(\.name)).count, categories.count)
+        XCTAssertTrue(categories.allSatisfy { !$0.xpRange.isEmpty && !$0.xpRange.contains("-") })
     }
 }

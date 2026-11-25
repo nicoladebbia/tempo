@@ -1,0 +1,35 @@
+{
+  "data" : {
+    "my_rank" : 2,
+    "my_xp" : 180,
+    "period" : "weekly",
+    "rankings" : [
+      {
+        "is_me" : false,
+        "rank" : 1,
+        "user" : {
+          "display_name" : "Bob",
+          "id" : "usr_000000000000000000000001",
+          "level" : 3
+        },
+        "xp" : 240
+      },
+      {
+        "is_me" : true,
+        "rank" : 2,
+        "user" : {
+          "display_name" : "Test contract-arena-alice",
+          "id" : "usr_000000000000000000000001",
+          "level" : 2
+        },
+        "xp" : 180
+      }
+    ],
+    "week_start" : "2026-01-01T00:00:00Z"
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

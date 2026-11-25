@@ -1,43 +1,68 @@
 //
-// AchievementsView.swift
+// ArenaEarnedView.swift
 // Tempo
 //
-// Created by Tempo on 25/03/2026.
+// What you earned, on one page: the XP of the last days and what each came
+// from, and the achievements, unlocked and next. This replaces the separate
+// Achievements and Activity pages.
 //
+// Only achievements the app can really measure are listed (see
+// ArenaAchievementTracker); every progress bar here is counted from the user's
+// own records, never a placeholder.
 //
 
 import SwiftData
 import SwiftUI
 
-// MARK: - Achievements View
+// MARK: - ArenaEarnedView
 
-// Per MODULE_ARENA.md Section 10 — Grid of 108 achievements.
-// Per WIREFRAMES.md Screen 40 — 3-column grid, earned/locked states.
-
-struct AchievementsView: View {
-    @Environment(ServiceContainer.self)
-    private var services
+struct ArenaEarnedView: View {
     @Environment(\.tideMood)
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    @Query(sort: \XPEvent.date, order: .reverse)
+    private var events: [XPEvent]
     @Query
-    private var achievements: [Achievement]
+    private var allAchievements: [Achievement]
 
     @State
-    private var selectedCategory: AchievementCategory? = nil
+    private var selectedCategory: AchievementCategory?
     @State
     private var selectedAchievement: Achievement?
+    @State
+    private var showsAllDays = false
 
-    private var earnedCount: Int {
-        achievements.count(where: { $0.isEarned })
+    /// How many days of XP show before "Show earlier days".
+    private static let collapsedDays = 4
+
+    private var tracked: [Achievement] {
+        allAchievements.filter { ArenaAchievementTracker.isTracked($0.badgeID) }
     }
 
-    private var filteredAchievements: [Achievement] {
-        guard let category = selectedCategory else {
-            return achievements
+    private var earnedCount: Int {
+        tracked.count(where: \.isEarned)
+    }
+
+    /// Earned first (newest first), then the ones closest to unlocking.
+    private var shown: [Achievement] {
+        let filtered = selectedCategory.map { category in tracked.filter { $0.category == category } } ?? tracked
+        return filtered.sorted { lhs, rhs in
+            switch (lhs.isEarned, rhs.isEarned) {
+            case (true, true): (lhs.earnedAt ?? .distantPast) > (rhs.earnedAt ?? .distantPast)
+            case (true, false): true
+            case (false, true): false
+            case (false, false): lhs.progressFraction > rhs.progressFraction
+            }
         }
-        return achievements.filter { $0.category == category }
+    }
+
+    private var categories: [AchievementCategory] {
+        AchievementCategory.allCases.filter { category in tracked.contains { $0.category == category } }
+    }
+
+    private var days: [ArenaXPDay] {
+        ArenaViewModel.days(from: events, calendar: ArenaCalendar.calendar())
     }
 
     /// Three across, two at accessibility sizes so names keep whole words.
@@ -47,21 +72,13 @@ struct AchievementsView: View {
 
     var body: some View {
         TideScrollPage {
-            summary
-            categoryFilter
-            LazyVGrid(columns: columns, spacing: Tide.s4) {
-                ForEach(filteredAchievements, id: \.id) { achievement in
-                    Button {
-                        selectedAchievement = achievement
-                    } label: {
-                        achievementCell(achievement)
-                    }
-                    .buttonStyle(TideCardPressStyle())
-                }
-            }
+            hero
+            activityCard
+            achievementsSection
         }
-        .navigationTitle("Achievements")
+        .navigationTitle("Earned")
         .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("arena.earned")
         .sensoryFeedback(.selection, trigger: selectedAchievement?.id)
         .tideCovered(selectedAchievement != nil)
         .sheet(item: $selectedAchievement) { achievement in
@@ -69,22 +86,22 @@ struct AchievementsView: View {
         }
     }
 
-    // MARK: - Summary
+    // MARK: - Hero
 
     /// The locked achievement that is furthest along: the one to chase next.
     private var nextUp: Achievement? {
-        achievements
+        tracked
             .filter { !$0.isEarned && !$0.isHidden && $0.targetValue > 0 && $0.progressFraction > 0 }
             .max { $0.progressFraction < $1.progressFraction }
     }
 
-    private var summary: some View {
-        let fraction = achievements.isEmpty ? 0 : Double(earnedCount) / Double(achievements.count)
+    private var hero: some View {
+        let fraction = tracked.isEmpty ? 0 : Double(earnedCount) / Double(tracked.count)
         return RecoveryHero {
             TideTimerDial(progress: fraction, accent: mood.accent, diameter: Tide.dialHero) {
                 VStack(spacing: 0) {
                     TideNumber("\(earnedCount)", size: Tide.numeralL, relativeTo: .title, color: mood.accent)
-                    Text("of \(achievements.count)")
+                    Text("of \(tracked.count)")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
@@ -109,12 +126,119 @@ struct AchievementsView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(earnedCount) of \(achievements.count) unlocked")
+        .accessibilityLabel("\(earnedCount) of \(tracked.count) achievements unlocked")
     }
 
-    // MARK: - Category Filter
+    // MARK: - Activity (XP by day)
 
-    // Per WIREFRAMES.md Screen 40 — Horizontal scroll pills.
+    private var activityCard: some View {
+        let all = days
+        let visible = showsAllDays ? all : Array(all.prefix(Self.collapsedDays))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "XP by day")
+            if all.isEmpty {
+                TideEmptyPanel(
+                    systemImage: "bolt.slash", title: "No XP yet",
+                    message: "Finish a workout, a study session or log a meal and it shows up here."
+                )
+            } else {
+                ForEach(visible) { day in
+                    dayBlock(day)
+                }
+                if all.count > Self.collapsedDays {
+                    TideDivider()
+                    Button {
+                        withAnimation(Tide.snap) { showsAllDays.toggle() }
+                    } label: {
+                        Text(showsAllDays ? "Show fewer days" : "Show earlier days")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("arena.earnedMoreDays")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+        .accessibilityIdentifier("arena.earnedDays")
+    }
+
+    private func dayBlock(_ day: ArenaXPDay) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(Self.dayTitle(day.date))
+                    .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                Spacer(minLength: Tide.s2)
+                TideNumber(
+                    "\(day.total >= 0 ? "+" : "")\(day.total.formatted())", unit: "XP",
+                    size: Tide.numeralS, relativeTo: .headline, weight: .semibold, color: mood.accent
+                )
+            }
+            .padding(.bottom, Tide.s1)
+            .accessibilityElement(children: .combine)
+            ForEach(day.items) { item in
+                let stacked = typeSize.isAccessibilitySize
+                let layout = stacked
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
+                    HStack(spacing: Tide.s3) {
+                        Image(systemName: item.source.tideSymbol)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text2)
+                            .frame(width: Tide.icon)
+                            .accessibilityHidden(true)
+                        Text(item.text)
+                            .font(Tide.body).foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if !stacked {
+                        Spacer(minLength: Tide.s2)
+                    }
+                    Text("\(item.xp >= 0 ? "+" : "")\(item.xp) XP")
+                        .font(Tide.caption).foregroundStyle(Tide.text2)
+                }
+                .frame(maxWidth: .infinity, minHeight: Tide.hit - Tide.s2, alignment: .leading)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// "Today", "Yesterday", or "Monday 24 Nov".
+    static func dayTitle(_ date: Date, now: Date = Date(), calendar: Calendar = ArenaCalendar.calendar()) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return "Today"
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        return date.formatted(.dateTime.weekday(.wide).day().month(.abbreviated))
+    }
+
+    // MARK: - Achievements
+
+    private var achievementsSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Achievements", trailing: "\(earnedCount) of \(tracked.count)")
+            if categories.count > 1 {
+                categoryFilter
+            }
+            LazyVGrid(columns: columns, spacing: Tide.s4) {
+                ForEach(shown, id: \.id) { achievement in
+                    Button {
+                        selectedAchievement = achievement
+                    } label: {
+                        achievementCell(achievement)
+                    }
+                    .buttonStyle(TideCardPressStyle())
+                    .accessibilityIdentifier("arena.achievement")
+                }
+            }
+        }
+    }
 
     private var categoryFilter: some View {
         ScrollView(.horizontal) {
@@ -122,7 +246,7 @@ struct AchievementsView: View {
                 TideFilterChip(title: "All", isSelected: selectedCategory == nil) {
                     selectedCategory = nil
                 }
-                ForEach(AchievementCategory.allCases.filter { $0 != .hidden }, id: \.self) { category in
+                ForEach(categories, id: \.self) { category in
                     TideFilterChip(title: category.rawValue.capitalized, isSelected: selectedCategory == category) {
                         selectedCategory = category
                     }
@@ -136,9 +260,6 @@ struct AchievementsView: View {
         .animation(Tide.snap, value: selectedCategory)
     }
 
-    // MARK: - Achievement Cell
-
-    // Per WIREFRAMES.md Screen 40 — 3-column grid.
     // Earned: full colour. Locked: muted, with a progress bar when it has a target.
 
     private func achievementCell(_ achievement: Achievement) -> some View {
@@ -214,8 +335,6 @@ struct AchievementsView: View {
 
     // MARK: - Achievement Detail
 
-    // Per MODULE_ARENA.md Section 11.4 — Achievement unlock detail.
-
     private func achievementDetail(_ achievement: Achievement) -> some View {
         let tint = achievement.rarity.tideTint
         return TideScrollPage(spacing: Tide.s5) {
@@ -260,20 +379,31 @@ struct AchievementsView: View {
                 TideStatusPill(text: achievement.rarity.tideName, tint: tint, systemImage: achievement.rarity.tideSymbol)
 
                 if achievement.isEarned {
-                    VStack(spacing: Tide.s1) {
-                        TideNumber("+\(achievement.effectiveXPReward)", unit: "XP", size: Tide.numeralL, color: mood.accent)
-                        if let earnedAt = achievement.earnedAt {
-                            Text("Earned \(earnedAt.formatted(date: .abbreviated, time: .omitted))")
-                                .font(Tide.caption)
-                                .foregroundStyle(Tide.text2)
+                    VStack(spacing: Tide.s3) {
+                        VStack(spacing: Tide.s1) {
+                            TideNumber("+\(achievement.effectiveXPReward)", unit: "XP", size: Tide.numeralL, color: mood.accent)
+                            if let earnedAt = achievement.earnedAt {
+                                Text("Earned \(earnedAt.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text2)
+                            }
                         }
+                        Button {
+                            ShareCard.present(.achievement(
+                                name: achievement.name, xp: achievement.effectiveXPReward,
+                                rarity: achievement.rarity.tideName, date: achievement.earnedAt ?? Date()
+                            ))
+                        } label: {
+                            Label("Share", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.tideGlass)
+                        .accessibilityIdentifier("arena.shareAchievement")
                     }
                 } else {
                     VStack(spacing: Tide.s3) {
                         Text("Reward: \(achievement.xpReward) XP")
                             .font(Tide.body)
                             .foregroundStyle(Tide.text2)
-                        // Progress toward unlocking
                         if achievement.targetValue > 0 {
                             VStack(spacing: Tide.s2) {
                                 TideLevelBar(progress: achievement.progressFraction, color: tint, height: Tide.bar)

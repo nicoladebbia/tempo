@@ -181,15 +181,14 @@ struct ProgressReportView: View {
             from: windowStart, to: windowEnd, in: modelContext
         ).count(where: { !EatenMealRecorder.isSupplementDose($0) })
 
-        // Best streak (all time)
-        let streakDescriptor = FetchDescriptor<Streak>()
-        if let streaks = try? modelContext.fetch(streakDescriptor) {
-            stats.streakBest = streaks.map(\.longestCount).max() ?? 0
+        // Best streak (all time): the overall streak, the one the Arena and Today show.
+        if let overall = ArenaXPLedger.overallStreak(in: modelContext) {
+            stats.streakBest = max(overall.longestCount, overall.currentCount)
         }
 
-        // XP earned in last 30 days
+        // XP earned in last 30 days. The ledger dates XP to whole days, so the window starts at a day's start too.
         let xpDescriptor = FetchDescriptor<XPEvent>(
-            predicate: #Predicate<XPEvent> { $0.date >= thirtyDaysAgo }
+            predicate: #Predicate<XPEvent> { $0.date >= windowStart }
         )
         if let xpEvents = try? modelContext.fetch(xpDescriptor) {
             stats.totalXP = xpEvents.reduce(0) { $0 + $1.amount }

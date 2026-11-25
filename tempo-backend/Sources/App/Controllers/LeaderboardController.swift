@@ -1,195 +1,72 @@
-import Vapor
 import Fluent
-import SQLKit
+import Vapor
 
 // MARK: - Leaderboard Controller
-// Per BACKEND_API.md Section 10.5 — Weekly/monthly/alltime leaderboards.
-// Uses materialized view for weekly rankings.
+
+//
+// Per BACKEND_API.md Section 10.5 — leaderboards, narrowed to friends.
+//
+// There is deliberately no global board (it used to list every user to any
+// signed-in user): the only leaderboard is you and your friends, ranked by the
+// XP each of you earned this ISO week. The numbers are live sums over
+// arena_daily_stats (what each app pushed), bound to the server clock, so a new
+// friend with no XP yet still shows with 0 and the test clock moves the week.
 
 struct LeaderboardController: RouteCollection {
-
     func boot(routes: RoutesBuilder) throws {
-        routes.get(":period", use: leaderboard)
         routes.get("friends", use: friendsLeaderboard)
     }
 
-    // MARK: - GET /v1/leaderboards/:period
-    // Per BACKEND_API.md Section 10.5 — Period leaderboard (weekly, monthly, alltime).
-
-    @Sendable
-    func leaderboard(req: Request) async throws -> Envelope<LeaderboardDTO> {
-        let userID = try req.auth.requireUserID()
-        guard let period = req.parameters.get("period"),
-              ["weekly", "monthly", "alltime"].contains(period) else {
-            throw Abort(.badRequest, reason: "Period must be weekly, monthly, or alltime.")
-        }
-
-        let pagination = try req.query.decode(PaginationQuery.self)
-        let limit = min(pagination.limit ?? 25, 100)
-
-        guard let sql = req.db as? SQLDatabase else {
-            throw Abort(.internalServerError, reason: "SQL database required.")
-        }
-
-        let rankings: [LeaderboardRankingDTO]
-        let myRank: Int
-        let myXP: Int
-
-        if period == "weekly" {
-            // Use materialized view
-            let rows = try await sql.raw("""
-                SELECT user_id, username, display_name, level, weekly_raw_xp AS xp, rank
-                FROM weekly_leaderboard
-                ORDER BY rank ASC
-                LIMIT \(unsafeRaw: "\(limit)")
-                """).all()
-
-            rankings = try rows.map { row in
-                LeaderboardRankingDTO(
-                    rank: try row.decode(column: "rank", as: Int.self),
-                    user: LeaderboardUserDTO(
-                        id: try row.decode(column: "user_id", as: String.self),
-                        username: try row.decode(column: "username", as: String.self),
-                        displayName: try row.decode(column: "display_name", as: String.self),
-                        level: try row.decode(column: "level", as: Int.self)
-                    ),
-                    xp: try row.decode(column: "xp", as: Int.self),
-                    isMe: (try row.decode(column: "user_id", as: String.self)) == userID
-                )
-            }
-
-            // Get user's own rank
-            let myRow = try await sql.raw("""
-                SELECT rank, weekly_raw_xp AS xp FROM weekly_leaderboard
-                WHERE user_id = \(bind: userID)
-                """).first()
-            myRank = (try? myRow?.decode(column: "rank", as: Int.self)) ?? 0
-            myXP = (try? myRow?.decode(column: "xp", as: Int.self)) ?? 0
-
-        } else {
-            // For monthly/alltime, aggregate from xp_events
-            let dateFilter: String
-            if period == "monthly" {
-                dateFilter = "AND xe.created_at >= date_trunc('month', CURRENT_DATE)"
-            } else {
-                dateFilter = "" // alltime
-            }
-
-            let rows = try await sql.raw("""
-                SELECT
-                    u.id AS user_id,
-                    u.username,
-                    u.display_name,
-                    u.level,
-                    COALESCE(SUM(xe.base_xp), 0) AS xp,
-                    RANK() OVER (ORDER BY COALESCE(SUM(xe.base_xp), 0) DESC) AS rank
-                FROM users u
-                LEFT JOIN xp_events xe ON xe.user_id = u.id \(unsafeRaw: dateFilter)
-                WHERE u.deleted_at IS NULL
-                GROUP BY u.id, u.username, u.display_name, u.level
-                ORDER BY xp DESC
-                LIMIT \(unsafeRaw: "\(limit)")
-                """).all()
-
-            rankings = try rows.map { row in
-                LeaderboardRankingDTO(
-                    rank: try row.decode(column: "rank", as: Int.self),
-                    user: LeaderboardUserDTO(
-                        id: try row.decode(column: "user_id", as: String.self),
-                        username: try row.decode(column: "username", as: String.self),
-                        displayName: try row.decode(column: "display_name", as: String.self),
-                        level: try row.decode(column: "level", as: Int.self)
-                    ),
-                    xp: try row.decode(column: "xp", as: Int.self),
-                    isMe: (try row.decode(column: "user_id", as: String.self)) == userID
-                )
-            }
-
-            let myRow = try await sql.raw("""
-                SELECT
-                    RANK() OVER (ORDER BY COALESCE(SUM(xe.base_xp), 0) DESC) AS rank,
-                    COALESCE(SUM(xe.base_xp), 0) AS xp
-                FROM users u
-                LEFT JOIN xp_events xe ON xe.user_id = u.id \(unsafeRaw: dateFilter)
-                WHERE u.deleted_at IS NULL
-                GROUP BY u.id
-                HAVING u.id = \(bind: userID)
-                """).first()
-            myRank = (try? myRow?.decode(column: "rank", as: Int.self)) ?? 0
-            myXP = (try? myRow?.decode(column: "xp", as: Int.self)) ?? 0
-        }
-
-        let calendar = Calendar(identifier: .iso8601)
-        let weekStart = calendar.dateInterval(of: .weekOfYear, for: req.now)?.start ?? req.now
-
-        return Envelope(
-            data: LeaderboardDTO(
-                period: period,
-                weekStart: weekStart,
-                myRank: myRank,
-                myXP: myXP,
-                rankings: rankings
-            ),
-            requestID: req.requestID
-        )
-    }
-
     // MARK: - GET /v1/leaderboards/friends
-    // Friends-only leaderboard filtered to user's friends.
+
+    // Optional ?week_start=YYYY-MM-DD: the app's own current week.
 
     @Sendable
     func friendsLeaderboard(req: Request) async throws -> Envelope<LeaderboardDTO> {
         let userID = try req.auth.requireUserID()
+        let week = ArenaService.week(containing: req.now, requestedStart: try? req.query.get(String.self, at: "week_start"))
 
-        // Get friend IDs
-        let friendships = try await Friendship.query(on: req.db)
-            .group(.or) { group in
-                group.filter(\.$userAID == userID)
-                group.filter(\.$userBID == userID)
-            }
+        let friendIDs = try await ArenaService.friendIDs(of: userID, on: req.db)
+        let everyone = [userID] + friendIDs
+        let users = try await User.query(on: req.db)
+            .filter(\.$id ~~ everyone)
+            .filter(\.$deletedAt == nil)
             .all()
+        let weekly = try await ArenaService.weeklyXP(userIDs: everyone, week: week, on: req.db)
 
-        var friendIDs = friendships.map { f in
-            f.userAID == userID ? f.userBID : f.userAID
-        }
-        friendIDs.append(userID) // Include self
-
-        guard let sql = req.db as? SQLDatabase else {
-            throw Abort(.internalServerError, reason: "SQL database required.")
-        }
-
-        // Use weekly period for friends leaderboard
-        let rows = try await sql.raw("""
-            SELECT user_id, username, display_name, level, weekly_raw_xp AS xp, rank
-            FROM weekly_leaderboard
-            WHERE user_id IN (\(unsafeRaw: friendIDs.map { "'\($0)'" }.joined(separator: ", ")))
-            ORDER BY xp DESC
-            """).all()
+        // High to low; equal XP shares a rank and is ordered by name so the
+        // list does not shuffle between refreshes.
+        let ordered = users
+            .map { (user: $0, xp: weekly[$0.id ?? ""] ?? 0) }
+            .sorted {
+                $0.xp != $1.xp
+                    ? $0.xp > $1.xp
+                    : ArenaService.publicName($0.user).localizedCaseInsensitiveCompare(ArenaService.publicName($1.user)) == .orderedAscending
+            }
+        let ranks = ArenaService.ranks(for: ordered.map(\.xp))
 
         var rankings: [LeaderboardRankingDTO] = []
-        for (i, row) in rows.enumerated() {
+        for (index, entry) in ordered.enumerated() {
+            let id = try entry.user.requireID()
             rankings.append(LeaderboardRankingDTO(
-                rank: i + 1, // Re-rank among friends
+                rank: ranks[index],
                 user: LeaderboardUserDTO(
-                    id: try row.decode(column: "user_id", as: String.self),
-                    username: try row.decode(column: "username", as: String.self),
-                    displayName: try row.decode(column: "display_name", as: String.self),
-                    level: try row.decode(column: "level", as: Int.self)
+                    id: id,
+                    displayName: ArenaService.publicName(entry.user),
+                    level: entry.user.level
                 ),
-                xp: try row.decode(column: "xp", as: Int.self),
-                isMe: (try row.decode(column: "user_id", as: String.self)) == userID
+                xp: entry.xp,
+                isMe: id == userID
             ))
         }
 
-        let myRank = rankings.first(where: { $0.isMe })?.rank ?? 0
-        let myXP = rankings.first(where: { $0.isMe })?.xp ?? 0
-
+        let me = rankings.first(where: \.isMe)
         return Envelope(
             data: LeaderboardDTO(
                 period: "weekly",
-                weekStart: Calendar(identifier: .iso8601).dateInterval(of: .weekOfYear, for: req.now)?.start ?? req.now,
-                myRank: myRank,
-                myXP: myXP,
+                weekStart: ArenaService.parseDay(week.start) ?? req.now,
+                myRank: me?.rank ?? 0,
+                myXP: me?.xp ?? 0,
                 rankings: rankings
             ),
             requestID: req.requestID
@@ -227,14 +104,14 @@ struct LeaderboardRankingDTO: Content {
     }
 }
 
+/// What a friend shows on the board: a name and a level.
 struct LeaderboardUserDTO: Content {
     let id: String
-    let username: String
     let displayName: String
     let level: Int
 
     enum CodingKeys: String, CodingKey {
-        case id, username, level
+        case id, level
         case displayName = "display_name"
     }
 }

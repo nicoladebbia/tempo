@@ -22,6 +22,7 @@ import Vapor
 // GET/POST /v1/test/clock · POST /v1/test/jobs/run  — see TestModeController+Time
 // POST   /v1/test/subscription {name, state, days?} — see TestModeController+Subscription
 // POST   /v1/test/persona  {name, persona} · GET /v1/test/shared ?name= — see TestModeController+Persona
+// POST   /v1/test/arena    {name, friends?} · GET /v1/test/invite ?name= — see TestModeController+Arena
 
 struct TestModeController: RouteCollection {
     func boot(routes: RoutesBuilder) throws {
@@ -41,6 +42,7 @@ struct TestModeController: RouteCollection {
         bootTime(routes: routes)
         bootSubscription(routes: routes)
         bootPersona(routes: routes)
+        bootArena(routes: routes)
     }
 
     // MARK: - Login

@@ -193,8 +193,14 @@ struct TempoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+<<<<<<< HEAD
                 // Siri / Shortcuts / widget start requests and `tempo://` links.
                 .tempoSystemRequests()
+=======
+                // Invite links open in a sheet; friends' boards stay current.
+                // Before `.environment(services)`: the modifier reads it.
+                .arenaConnected()
+>>>>>>> worktree-agent-a59cc6dc6b4d2b1e4
                 .environment(services)
                 .task {
                     // Entitlement at launch + Transaction.updates listener.

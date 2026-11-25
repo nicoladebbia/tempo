@@ -135,6 +135,7 @@ struct TidePillPicker<Value: Hashable>: View {
     @Binding var selection: Value
     let title: (Value) -> String
     var label = "Choose"
+    var stacksThree = false
 
     @Environment(\.tideMood)
     private var mood
@@ -143,15 +144,15 @@ struct TidePillPicker<Value: Hashable>: View {
     @Namespace
     private var pill
 
-    /// At accessibility text sizes four short words no longer share one row:
-    /// they wrap to two rows instead of shrinking.
+    /// At accessibility text sizes four short words no longer share one row: they wrap to
+    /// two rows instead of shrinking. Three longer words can ask to stack in one column.
     private var wraps: Bool {
-        typeSize.isAccessibilitySize && options.count > 3
+        typeSize.isAccessibilitySize && (options.count > 3 || (stacksThree && options.count == 3))
     }
 
     var body: some View {
         let layout = wraps
-            ? AnyLayout(WrappingPillRows(columns: 2, spacing: Tide.s1))
+            ? AnyLayout(WrappingPillRows(columns: options.count == 3 ? 1 : 2, spacing: Tide.s1))
             : AnyLayout(HStackLayout(spacing: Tide.s1))
         layout {
             ForEach(options, id: \.self) { option in

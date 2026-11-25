@@ -187,8 +187,8 @@ extension TestModeController {
             receipt.userReviewed = true
             try await receipt.save(on: req.db)
             for item in persona.basket {
-                let line = ReceiptLineItem(
-                    receiptID: try receipt.requireID(), rawText: item.display.uppercased(),
+                let line = try ReceiptLineItem(
+                    receiptID: receipt.requireID(), rawText: item.display.uppercased(),
                     canonicalFoodName: item.name, displayName: item.display, quantity: item.quantity,
                     unit: item.unit, totalPrice: item.price, confidence: 0.95
                 )
@@ -199,6 +199,28 @@ extension TestModeController {
             receipts += 1
         }
 
+        // The same history as per-day totals, so the friends leaderboard and
+        // challenges have the weeks of numbers a real phone would have pushed.
+        try await ArenaDailyStat.query(on: req.db).filter(\.$userID == userID).delete()
+        var perDay: [String: (xp: Int, workouts: Int, study: Int)] = [:]
+        for row in rows {
+            let parts = calendar.dateComponents([.year, .month, .day], from: row.at)
+            let key = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+            var entry = perDay[key] ?? (0, 0, 0)
+            entry.xp += row.xp
+            if row.source == "workout_logged" {
+                entry.workouts += 1
+            }
+            if row.source == "study_session" {
+                entry.study += 25
+            }
+            perDay[key] = entry
+        }
+        for (day, entry) in perDay {
+            try await ArenaDailyStat(userID: userID, day: day, xp: entry.xp, workouts: entry.workouts, studyMinutes: entry.study)
+                .save(on: req.db)
+        }
+
         user.xpTotal = rows.reduce(0) { $0 + $1.xp }
         user.level = User.levelForXP(user.xpTotal)
         user.streakDays = persona.streakDays
@@ -207,13 +229,13 @@ extension TestModeController {
         try await Self.applySubscription(persona.subscription, days: persona.subscriptionDays, userID: userID, on: req)
         try? await LeaderboardRefreshJob().refresh(app: req.application)
 
-        return PersonaResponse(
+        return try PersonaResponse(
             persona: body.persona,
             xpEvents: rows.count,
             receipts: receipts,
             xpTotal: user.xpTotal,
             streakDays: user.streakDays,
-            pro: try await ProEntitlement.isUserPro(userID: userID, on: req)
+            pro: await ProEntitlement.isUserPro(userID: userID, on: req)
         )
     }
 }

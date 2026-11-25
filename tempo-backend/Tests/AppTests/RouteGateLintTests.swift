@@ -25,6 +25,7 @@ struct RouteGateLintTests {
         "SubscriptionController", // Apple's V2 webhook — verified by JWS not JWT
         "WhoopWebhookController", // Whoop's webhook — verified by HMAC not JWT
         "PublicGroceryShareController", // shopper has no Tempo account — scoped by unguessable token, not JWT; IP rate-limited
+        "PublicFriendInviteController", // person opening an invite link may not have the app yet — scoped by unguessable token, not JWT; shows only the inviter's display name; IP rate-limited
     ]
 
     @Test func everyControllerIsBehindProtectedOrPermitted() throws {
