@@ -35,7 +35,7 @@ enum AppTab: String, CaseIterable {
 // MARK: - TodayRoute
 
 /// A full page that opens on top of Today.
-enum TodayRoute: Hashable {
+enum TodayRoute: Hashable, CaseIterable {
     case recovery
     case lockdown
     /// Sleep, HRV and strain in detail.
@@ -46,6 +46,10 @@ enum TodayRoute: Hashable {
     case mind
     /// Today's nutrition in detail.
     case fuel
+    /// The whole day as a timeline.
+    case day
+    /// The week just gone, in four lines.
+    case weekReview
 }
 
 // MARK: - MealRequest
@@ -63,15 +67,36 @@ struct MealRequest: Equatable, Identifiable {
     let action: Action
 }
 
+// MARK: - CoachRequest
+
 /// A Recovery Coach session a notification wants on screen (WHOOP v2 workout id).
 struct CoachRequest: Equatable, Identifiable {
     let id: String
 }
 
+// MARK: - NutritionRoute
+
 /// A Nutrition section (and Kitchen sub-section) a notification wants shown.
 struct NutritionRoute: Equatable {
     var section: NutritionSection
     var kitchen: KitchenSection?
+}
+
+// MARK: - TrainRoute
+
+/// A page inside Train that search wants open. The Train tab applies and clears it.
+struct TrainRoute: Equatable {
+    var page: TrainDestination
+    /// The exercise to find when the page is the Exercise Library.
+    var exercise: String?
+}
+
+// MARK: - SettingsRequest
+
+/// Settings, optionally open on one page. The shell presents it as a sheet.
+struct SettingsRequest: Equatable, Identifiable {
+    let id = UUID()
+    let page: SettingsDestination?
 }
 
 // MARK: - AppState
@@ -101,6 +126,14 @@ final class AppState {
     /// Set by a notification that wants a specific Nutrition section (Plan for
     /// "week is ready", Kitchen › Supplements …); ContentView applies and clears it.
     var requestedNutrition: NutritionRoute?
+    /// Set to show the search sheet.
+    var searchRequested = false
+    /// Set by search: a Train page to open. The Train tab applies and clears it.
+    var requestedTrain: TrainRoute?
+    /// Set to present Settings (or one page of it) from anywhere. The shell presents it.
+    var requestedSettings: SettingsRequest?
+    /// Set to present the "Ask Tempo" chat from anywhere. The shell presents it.
+    var askRequested = false
     var isOffline: Bool = false
 
     private let authService: AuthService

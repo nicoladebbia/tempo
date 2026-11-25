@@ -247,41 +247,4 @@ enum TodayNextAction: Equatable {
     case tasks(left: Int)
     case setUpTasks
     case allDone
-
-    /// After this hour an unfinished session gives way to the next meal.
-    static let lateHour = 21
-
-    static func choose(for snapshot: TodaySnapshot, hour: Int) -> TodayNextAction {
-        let workout = snapshot.workout
-        if workout.status == .planned {
-            // A session already started always wins; otherwise late in the
-            // day the next meal is the more useful thing to show.
-            if workout.inProgress || hour < lateHour || snapshot.nextMeal == nil {
-                return .workout(name: workout.name ?? "Workout", resume: workout.inProgress)
-            }
-        }
-        if let meal = snapshot.nextMeal, meal.imminent || workout.status != .rest {
-            return .meal(meal)
-        }
-        // "Open recovery" needs a recovery reading to open. With no tracker
-        // and nothing eaten yet (day one), logging a meal is the useful start.
-        if !snapshot.recovery.hasSource, workout.status == .rest || workout.status == .none,
-           (snapshot.fuel.calories ?? 0) == 0
-        {
-            return .firstMeal
-        }
-        if workout.status == .rest, snapshot.recovery.hasSource {
-            return .rest
-        }
-        if snapshot.studyLeft > 0 {
-            return .focus(minutesLeft: snapshot.studyLeft)
-        }
-        if snapshot.tasksLeft > 0 {
-            return .tasks(left: snapshot.tasksLeft)
-        }
-        if snapshot.tasks.isEmpty {
-            return .setUpTasks
-        }
-        return .allDone
-    }
 }

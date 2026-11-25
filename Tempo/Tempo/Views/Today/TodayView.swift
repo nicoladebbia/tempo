@@ -17,6 +17,8 @@ import Combine
 import SwiftData
 import SwiftUI
 
+// MARK: - TodayView
+
 struct TodayView: View {
     @Environment(ServiceContainer.self)
     private var services
@@ -186,7 +188,11 @@ struct TodayView: View {
         }
         .fullScreenCover(isPresented: Binding(
             get: { focusModel != nil },
-            set: { if !$0 { focusModel = nil } }
+            set: {
+                if !$0 {
+                    focusModel = nil
+                }
+            }
         )) {
             if let focusModel {
                 FocusTimerView(viewModel: focusModel)
@@ -392,6 +398,8 @@ struct TodayView: View {
             } else {
                 DailyNutritionSummaryView()
             }
+        case .day: Color.clear
+        case .weekReview: Color.clear
         }
     }
 
@@ -441,7 +449,7 @@ struct TodayView: View {
                             detail: "The few things you do every day.",
                             icon: "checklist", done: tasksDone,
                             action: { showNonNegotiableSetup = true }
-                        )
+                        ),
                     ],
                     onSkip: {
                         withAnimation(Tide.snap) { hasCompletedSetup = true }
@@ -477,7 +485,6 @@ struct TodayView: View {
             .accessibilityIdentifier("today.weather")
         }
     }
-
 }
 
 // MARK: - TodayObservers
