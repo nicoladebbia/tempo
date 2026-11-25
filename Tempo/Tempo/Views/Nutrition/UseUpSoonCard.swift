@@ -60,7 +60,7 @@ struct UseUpSoonCard: View {
             }
             let count = HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
                 TideNumber("\(expiryByName.count)", size: Tide.numeralS, relativeTo: .headline)
-                Text(expiryByName.count == 1 ? "item expiring" : "items expiring")
+                Text(expiryByName.count == 1 ? String(localized: "item expiring") : String(localized: "items expiring"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .lineLimit(1)

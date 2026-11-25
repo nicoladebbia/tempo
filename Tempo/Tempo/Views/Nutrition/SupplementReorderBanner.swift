@@ -105,7 +105,7 @@ struct SupplementReorderBanner: View {
             }
             HStack(spacing: Tide.s2) {
                 KitchenTag(
-                    text: daysLeft <= 0 ? "Out" : "\(daysLeft)d left",
+                    text: daysLeft <= 0 ? String(localized: "Out") : String(localized: "\(daysLeft)d left"),
                     tint: daysLeft <= 0 ? Tide.danger : Tide.Kitchen.warn
                 )
                 Image(systemName: "chevron.right")

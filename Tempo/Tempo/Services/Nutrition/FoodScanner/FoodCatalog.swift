@@ -149,7 +149,7 @@ final class FoodCatalog {
             results.products = Self.deprioritized(filtered) { $0.hasImplausibleNutrition }
         case let .failure(error):
             logger.warning("[food] OFF search failed: \(String(describing: error), privacy: .public)")
-            results.notices.append(Self.notice("Packaged products", error))
+            results.notices.append(Self.notice(String(localized: "Packaged products"), error))
         }
         switch await basics {
         case let .success(found):
@@ -161,7 +161,7 @@ final class FoodCatalog {
                 break
             }
             logger.warning("[food] USDA search failed: \(String(describing: error), privacy: .public)")
-            results.notices.append(Self.notice("Basic foods", error))
+            results.notices.append(Self.notice(String(localized: "Basic foods"), error))
         }
         return results
     }
@@ -393,9 +393,9 @@ final class FoodCatalog {
 
     private static func notice(_ source: String, _ error: Error) -> String {
         if let lookup = error as? FoodLookupError, lookup == .offline {
-            return "\(source) unavailable — you're offline."
+            return String(localized: "\(source) unavailable — you're offline.")
         }
-        return "\(source) unavailable right now."
+        return String(localized: "\(source) unavailable right now.")
     }
 }
 

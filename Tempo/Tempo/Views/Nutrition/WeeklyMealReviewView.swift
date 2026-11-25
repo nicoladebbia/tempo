@@ -60,8 +60,8 @@ struct WeeklyMealReviewView: View {
         FuelProgressHero(
             done: feedbackCount,
             total: meals.count,
-            title: "Last 7 days",
-            caption: "Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals."
+            title: String(localized: "Last 7 days"),
+            caption: String(localized: "Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals.")
         )
         .tideCard()
         .accessibilityValue("\(feedbackCount) of \(meals.count) reviewed")
@@ -70,8 +70,8 @@ struct WeeklyMealReviewView: View {
     private var emptyState: some View {
         FuelEmptyState(
             icon: "calendar.badge.exclamationmark",
-            title: "No meals in the past 7 days yet.",
-            message: "Mark meals eaten or skipped and they show up here to review."
+            title: String(localized: "No meals in the past 7 days yet."),
+            message: String(localized: "Mark meals eaten or skipped and they show up here to review.")
         )
     }
 
@@ -99,7 +99,7 @@ struct WeeklyMealReviewView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(meal.mealName)
+                Text(meal.displayMealName)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)
@@ -115,7 +115,7 @@ struct WeeklyMealReviewView: View {
             if let feedback {
                 feedbackBadge(feedback)
             } else if meal.status == .eaten {
-                FuelPill(text: "Review", color: Tide.warn)
+                FuelPill(text: String(localized: "Review"), color: Tide.warn)
             } else {
                 Image(systemName: "chevron.right")
                     .font(Tide.label)
@@ -148,7 +148,7 @@ struct WeeklyMealReviewView: View {
         .padding(.vertical, Tide.s1)
         .background(Tide.good.opacity(0.16), in: .capsule)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(rating.map { "Rated \($0)" } ?? "Has a note")
+        .accessibilityLabel(rating.map { String(localized: "Rated \($0)") } ?? String(localized: "Has a note"))
     }
 
     // MARK: - Data
@@ -238,7 +238,7 @@ struct WeeklyMealReviewView: View {
 
     private let dayLabelFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEE, MMM d"
+        f.dateFormat = String(localized: "EEE, MMM d", comment: "DATE_FORMAT")
         return f
     }()
 

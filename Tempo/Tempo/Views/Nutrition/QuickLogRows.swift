@@ -44,6 +44,16 @@ struct QuickLogRows: View {
     var onFailure: (ToastData) -> Void = { FuelLogToast.post($0) }
     let onLog: (Choice) -> Void
 
+    /// "Your usual breakfast": one whole phrase per meal type, so each language keeps its own agreement.
+    private var usualTitle: String {
+        switch type {
+        case .breakfast: String(localized: "Your usual breakfast")
+        case .lunch: String(localized: "Your usual lunch")
+        case .dinner: String(localized: "Your usual dinner")
+        case .snack: String(localized: "Your usual snack")
+        }
+    }
+
     @Environment(\.modelContext)
     private var modelContext
     @Query(sort: \MealPreset.useCount, order: .reverse)
@@ -54,25 +64,25 @@ struct QuickLogRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             if !favourites.isEmpty {
-                FuelRowGroup(title: "Favourites") {
+                FuelRowGroup(title: String(localized: "Favourites")) {
                     rows(favourites)
                 }
                 .accessibilityIdentifier("quick.favourites")
             }
             if !usual.isEmpty {
-                FuelRowGroup(title: "Your usual \(type.rawValue)") {
+                FuelRowGroup(title: usualTitle) {
                     rows(usual)
                 }
                 .accessibilityIdentifier("quick.usual")
             }
             if let yesterday {
-                FuelRowGroup(title: "Same as yesterday") {
+                FuelRowGroup(title: String(localized: "Same as yesterday")) {
                     rows([yesterday])
                 }
                 .accessibilityIdentifier("quick.yesterday")
             }
             if !saved.isEmpty {
-                FuelRowGroup(title: "Saved meals") {
+                FuelRowGroup(title: String(localized: "Saved meals")) {
                     rows(saved)
                 }
                 .accessibilityIdentifier("quick.saved")
@@ -178,7 +188,7 @@ struct QuickLogRows: View {
             }
             HapticManager.lightImpact()
         } catch {
-            onFailure(ToastData(message: "Couldn't save that change. Try again.", style: .error))
+            onFailure(ToastData(message: String(localized: "Couldn't save that change. Try again."), style: .error))
         }
     }
 
@@ -188,11 +198,11 @@ struct QuickLogRows: View {
             try MealOutcomeService.deletePreset(preset, modelContext: modelContext)
             HapticManager.lightImpact()
             let context = modelContext
-            onFailure(ToastData(message: "\(snapshot.name) deleted.", style: .info, actionTitle: "Undo") {
+            onFailure(ToastData(message: String(localized: "\(snapshot.name) deleted."), style: .info, actionTitle: String(localized: "Undo")) {
                 snapshot.restore(in: context)
             })
         } catch {
-            onFailure(ToastData(message: "Couldn't remove that meal. Try again.", style: .error))
+            onFailure(ToastData(message: String(localized: "Couldn't remove that meal. Try again."), style: .error))
         }
     }
 }
@@ -253,14 +263,14 @@ private struct QuickLogRow: View {
                     if !typeSize.isAccessibilitySize {
                         Spacer(minLength: Tide.s2)
                     }
-                    TideNumber("\(Int(choice.macros.calories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                    TideNumber("\(Int(choice.macros.calories.rounded()))", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 }
                 .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Log \(choice.title)")
-            .accessibilityHint("\(Int(choice.macros.calories.rounded())) kilocalories as \(choice.type.rawValue)")
+            .accessibilityHint("\(Int(choice.macros.calories.rounded())) kilocalories as \(choice.type.displayName.lowercased())")
             .accessibilityIdentifier(identifier)
 
             Button(action: onTogglePin) {
@@ -271,12 +281,12 @@ private struct QuickLogRow: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isPinned ? "Remove \(choice.title) from favourites" : "Add \(choice.title) to favourites")
+            .accessibilityLabel(isPinned ? String(localized: "Remove \(choice.title) from favourites") : String(localized: "Add \(choice.title) to favourites"))
             .accessibilityIdentifier("\(identifier).pin")
         }
         .contextMenu {
             Button(action: onTogglePin) {
-                Label(isPinned ? "Remove from favourites" : "Add to favourites", systemImage: isPinned ? "star.slash" : "star")
+                Label(isPinned ? String(localized: "Remove from favourites") : String(localized: "Add to favourites"), systemImage: isPinned ? "star.slash" : "star")
             }
             if let onDelete {
                 Button(role: .destructive, action: onDelete) {

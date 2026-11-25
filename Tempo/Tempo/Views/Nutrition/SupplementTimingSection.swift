@@ -31,6 +31,14 @@ private enum SupplementTimingMode: String, CaseIterable, Identifiable {
     var id: String {
         rawValue
     }
+
+    var displayName: String {
+        switch self {
+        case .auto: String(localized: "Auto")
+        case .anchor: String(localized: "Anchor")
+        case .fixed: String(localized: "Fixed time")
+        }
+    }
 }
 
 // MARK: - SupplementTimingSection
@@ -78,7 +86,7 @@ struct SupplementTimingSection: View {
         Section {
             // The three ways the time is decided, as the glass control the rest
             // of the Kitchen uses. It floats on the field, so no row fill.
-            KitchenSegmented(options: Array(SupplementTimingMode.allCases), selection: $mode) { $0.rawValue }
+            KitchenSegmented(options: Array(SupplementTimingMode.allCases), selection: $mode) { $0.displayName }
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: Tide.s2, trailing: 0))
                 .listRowBackground(Color.clear)
                 .accessibilityIdentifier("supplementTimingMode")
@@ -125,11 +133,11 @@ struct SupplementTimingSection: View {
     private var footerText: String {
         switch mode {
         case .auto:
-            "The app decides — from your plan's timing, or a sensible default for this kind of supplement."
+            String(localized: "The app decides — from your plan's timing, or a sensible default for this kind of supplement.")
         case .anchor:
-            "Anchored to your real day — the app resolves it to a clock time from your meals, training, and sleep."
+            String(localized: "Anchored to your real day — the app resolves it to a clock time from your meals, training, and sleep.")
         case .fixed:
-            "Always at this exact time, every day."
+            String(localized: "Always at this exact time, every day.")
         }
     }
 

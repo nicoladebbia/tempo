@@ -237,9 +237,9 @@ struct SupplementsView: View {
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
                 : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
             statLayout {
-                KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
+                KitchenStat(value: "\(total)", label: total == 1 ? String(localized: "Supplement") : String(localized: "Supplements"))
                 if lowCount > 0 {
-                    KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
+                    KitchenStat(value: "\(lowCount)", label: String(localized: "To reorder"), color: Tide.Kitchen.warn)
                         .explains(.fuelSupplementDaysLeft)
                 }
             }
@@ -310,7 +310,7 @@ struct SupplementsView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityAddTraits(.isHeader)
                 Text(
-                    "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
+                    String(localized: "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day.")
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -410,7 +410,7 @@ struct SupplementsView: View {
                     reorderTarget = row.supplement
                 } label: {
                     let tone = row.daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn
-                    Label(row.stockLine ?? "Low", systemImage: "cart")
+                    Label(row.stockLine ?? String(localized: "Low"), systemImage: "cart")
                         .font(Tide.label)
                         .foregroundStyle(tone)
                         .padding(.horizontal, Tide.s3)

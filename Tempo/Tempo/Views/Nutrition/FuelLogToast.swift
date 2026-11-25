@@ -34,15 +34,15 @@ enum FuelLogToast {
         modelContext: ModelContext,
         notifications: (any NotificationServiceProtocol)?
     ) -> ToastData {
-        ToastData(message: message, style: .success, actionTitle: "Undo") {
+        ToastData(message: message, style: .success, actionTitle: String(localized: "Undo")) {
             let env = MealOutcomeService.Env(modelContext: modelContext, notifications: notifications)
             do {
                 if try EatenMealRecorder.undoLog(result, env: env) {
                     NotificationCenter.default.post(name: .tempoFuelLogUndone, object: nil)
-                    post(ToastData(message: "Log taken back.", style: .info))
+                    post(ToastData(message: String(localized: "Log taken back."), style: .info))
                 }
             } catch {
-                post(ToastData(message: "Couldn't undo that log. Delete it from Logged today.", style: .error))
+                post(ToastData(message: String(localized: "Couldn't undo that log. Delete it from Logged today."), style: .error))
             }
         }
     }

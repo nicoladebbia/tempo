@@ -133,8 +133,8 @@ final class WeeklyPlanService {
         switch code {
         case "subscription_required": PlanGenerationBlocker.proRequired.message
         case "ai_consent_required": PlanGenerationBlocker.aiConsentRequired.message
-        case "ai_budget_exhausted": "The AI is at capacity right now. Try again in a bit."
-        case "timed out": "The plan build timed out. Try again."
+        case "ai_budget_exhausted": String(localized: "The AI is at capacity right now. Try again in a bit.")
+        case "timed out": String(localized: "The plan build timed out. Try again.")
         default: String(localized: "Couldn't build the plan. Try again.")
         }
     }

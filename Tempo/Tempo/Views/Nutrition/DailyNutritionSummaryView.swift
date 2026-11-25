@@ -95,11 +95,11 @@ struct DailyNutritionSummaryView: View {
         let remaining = calorieTarget - caloriesConsumed
 
         switch ratio {
-        case ..<0.5: return "You running on fumes?"
-        case 0.5 ..< 0.8: return "Still got room for \(remaining) kcal."
-        case 0.8 ... 1.0: return "On track. Don't blow it at dinner."
-        case 1.0 ..< 1.2: return "Over by \(caloriesConsumed - calorieTarget). Noted."
-        default: return "That's a surplus, not a strategy."
+        case ..<0.5: return String(localized: "You running on fumes?")
+        case 0.5 ..< 0.8: return String(localized: "Still got room for \(remaining) kcal.")
+        case 0.8 ... 1.0: return String(localized: "On track. Don't blow it at dinner.")
+        case 1.0 ..< 1.2: return String(localized: "Over by \(caloriesConsumed - calorieTarget). Noted.")
+        default: return String(localized: "That's a surplus, not a strategy.")
         }
     }
 
@@ -196,10 +196,10 @@ struct DailyNutritionSummaryView: View {
 
     private func modeBannerTitle(_ mode: NutritionMode) -> String {
         switch mode {
-        case .repair: "Repair mode"
-        case .fuel: "Fuel mode"
-        case .rest: "Rest day"
-        case .standard: "Standard"
+        case .repair: String(localized: "Repair mode")
+        case .fuel: String(localized: "Fuel mode")
+        case .rest: String(localized: "Rest day")
+        case .standard: String(localized: "Standard")
         }
     }
 
@@ -209,8 +209,8 @@ struct DailyNutritionSummaryView: View {
         // The button for it is the bar at the bottom of the page.
         FuelEmptyState(
             icon: "fork.knife",
-            title: "Nothing logged yet",
-            message: "Log your first meal. The numbers below start moving."
+            title: String(localized: "Nothing logged yet"),
+            message: String(localized: "Log your first meal. The numbers below start moving.")
         )
     }
 
@@ -233,7 +233,7 @@ struct DailyNutritionSummaryView: View {
     private var calorieHeroSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             TideSectionLabel(
-                title: "Calories",
+                title: String(localized: "Calories"),
                 trailing: FuelCalorieHero.remaining(consumed: caloriesConsumed, target: calorieTarget)
             )
 
@@ -265,13 +265,13 @@ struct DailyNutritionSummaryView: View {
 
             // Remaining macro messages
             VStack(alignment: .leading, spacing: Tide.s1) {
-                if let protMsg = NutritionEngine.remainingText(macroName: "Protein", current: proteinGrams, target: proteinTarget) {
+                if let protMsg = NutritionEngine.remainingText(macroName: String(localized: "Protein"), current: proteinGrams, target: proteinTarget) {
                     remainingMacroLabel(protMsg, color: statusColor(fuelData?.proteinStatus ?? .onTrack))
                 }
-                if let carbMsg = NutritionEngine.remainingText(macroName: "Carbs", current: carbsGrams, target: carbsTarget) {
+                if let carbMsg = NutritionEngine.remainingText(macroName: String(localized: "Carbs"), current: carbsGrams, target: carbsTarget) {
                     remainingMacroLabel(carbMsg, color: statusColor(fuelData?.carbsStatus ?? .onTrack))
                 }
-                if let fatMsg = NutritionEngine.remainingText(macroName: "Fat", current: fatGrams, target: fatTarget) {
+                if let fatMsg = NutritionEngine.remainingText(macroName: String(localized: "Fat"), current: fatGrams, target: fatTarget) {
                     remainingMacroLabel(fatMsg, color: statusColor(fuelData?.fatStatus ?? .onTrack))
                 }
             }
@@ -316,10 +316,10 @@ struct DailyNutritionSummaryView: View {
             )
 
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Energy balance")
+                TideSectionLabel(title: String(localized: "Energy balance"))
 
                 balanceLayout {
-                    balanceFigure("\(balance.caloriesIn)", label: "In")
+                    balanceFigure("\(balance.caloriesIn)", label: String(localized: "In"))
                     if !typeSize.isAccessibilitySize {
                         Image(systemName: "arrow.left.arrow.right")
                             .font(Tide.caption)
@@ -327,7 +327,7 @@ struct DailyNutritionSummaryView: View {
                             .frame(height: Tide.numeralS)
                             .accessibilityHidden(true)
                     }
-                    balanceFigure("\(balance.caloriesOut)", label: "Out")
+                    balanceFigure("\(balance.caloriesOut)", label: String(localized: "Out"))
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(balance.balanceText)
                             .font(Tide.bodyStrong)
@@ -367,7 +367,7 @@ struct DailyNutritionSummaryView: View {
         let suggestions = fuelData?.mealTimingSuggestions ?? []
         if !suggestions.isEmpty {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Meal timing")
+                TideSectionLabel(title: String(localized: "Meal timing"))
 
                 ForEach(Array(suggestions.prefix(3).enumerated()), id: \.element.text) { _, suggestion in
                     HStack(alignment: .top, spacing: Tide.s3) {
@@ -392,7 +392,7 @@ struct DailyNutritionSummaryView: View {
 
     private var mealsSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Meals")
+            TideSectionLabel(title: String(localized: "Meals"))
 
             if meals.isEmpty {
                 Text("No meals on the board today.")
@@ -423,7 +423,7 @@ struct DailyNutritionSummaryView: View {
             )
 
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(meal.type)
+                Text(PlannedMeal.displayName(forMealName: meal.type))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .lineLimit(2)
@@ -445,13 +445,13 @@ struct DailyNutritionSummaryView: View {
 
             VStack(alignment: .trailing, spacing: Tide.s1) {
                 if let calories = meal.calories {
-                    TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                    TideNumber("\(calories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 } else {
                     Text("--").font(Tide.body).foregroundStyle(Tide.text3)
                 }
                 if meal.status != .planned {
                     FuelPill(
-                        text: meal.status == .logged ? "Eaten" : "Skipped",
+                        text: meal.status == .logged ? String(localized: "Eaten") : String(localized: "Skipped"),
                         color: meal.statusColor
                     )
                 }
@@ -466,7 +466,7 @@ struct DailyNutritionSummaryView: View {
 
     private var calorieTrendSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Calorie trend", trailing: "7 days")
+            TideSectionLabel(title: String(localized: "Calorie trend"), trailing: String(localized: "7 days"))
 
             if calorieTrend.contains(where: \.hasData) {
                 trendChart

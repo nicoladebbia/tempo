@@ -149,12 +149,12 @@ enum UsualMeals {
     static func title(of foods: [PlannedFood]) -> String {
         let names = foods.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard !names.isEmpty else {
-            return "Meal"
+            return String(localized: "Meal")
         }
         // Sentence case: "Oats, banana", not "oats, banana".
         let title = names.count <= 2
             ? names.joined(separator: ", ")
-            : "\(names[0]), \(names[1]) and \(names.count - 2) more"
+            : String(localized: "\(names[0]), \(names[1]) and \(names.count - 2) more")
         return title.prefix(1).uppercased() + title.dropFirst()
     }
 

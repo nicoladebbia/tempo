@@ -45,7 +45,7 @@ struct CheaperSwapsSheet: View {
                         .accessibilityLabel("Thinking of cheaper swaps")
                     } else if let error = viewModel.groceryStoreModeState.swapsError {
                         KitchenFailure(
-                            title: "Couldn't find swaps",
+                            title: String(localized: "Couldn't find swaps"),
                             message: error,
                             retry: { Task { await viewModel.fetchCheaperSwaps() } }
                         )
@@ -54,8 +54,8 @@ struct CheaperSwapsSheet: View {
                     } else if viewModel.groceryStoreModeState.cheaperSwaps.isEmpty {
                         KitchenEmpty(
                             systemImage: "checkmark.seal",
-                            title: "Nothing to swap",
-                            message: "The list is lean already."
+                            title: String(localized: "Nothing to swap"),
+                            message: String(localized: "The list is lean already.")
                         )
                     } else {
                         ForEach(viewModel.groceryStoreModeState.cheaperSwaps, id: \.self) { swap in

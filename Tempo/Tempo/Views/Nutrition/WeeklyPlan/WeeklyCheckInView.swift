@@ -34,10 +34,10 @@ struct WeeklyCheckInView: View {
     private let weekStart = WeeklyPlanService.weekStart()
 
     private static let quickPicks = [
-        "Exam week — less time to cook",
-        "Travelling part of the week",
-        "Eating out more than usual",
-        "Training harder this week",
+        String(localized: "Exam week — less time to cook"),
+        String(localized: "Travelling part of the week"),
+        String(localized: "Eating out more than usual"),
+        String(localized: "Training harder this week"),
     ]
 
     var body: some View {
@@ -92,14 +92,14 @@ struct WeeklyCheckInView: View {
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(
-                    "Week of \(weekStart.formatted(.dateTime.month(.wide).day())). Your usual routine is already in. 30 seconds — exams, travel, a dinner out, a new gym time."
+                    String(localized: "Week of \(weekStart.formatted(.dateTime.month(.wide).day())). Your usual routine is already in. 30 seconds — exams, travel, a dinner out, a new gym time.")
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
                 .fixedSize(horizontal: false, vertical: true)
             }
             // Say it first: the voice box is the answer, the lines below only fill it in.
-            VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 160)
+            VoiceTextField(text: $said, placeholder: String(localized: "Tap the mic and talk — or type."), minHeight: 160)
                 .accessibilityIdentifier("weeklyCheckInSaid")
             if let blocker {
                 AIBlockerCard(blocker: blocker, message: PlanGenerationBlocker(from: blocker).message) {
@@ -123,7 +123,7 @@ struct WeeklyCheckInView: View {
                     ProgressView()
                         .tint(Tide.ink)
                 } else {
-                    Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
+                    Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? String(localized: "Same as usual — build it") : String(localized: "Build my week"))
                         .multilineTextAlignment(.center)
                 }
             }
@@ -136,7 +136,7 @@ struct WeeklyCheckInView: View {
     /// Tap a line to add it to what you say. The lines are long, so each one
     /// is a full-width row that wraps instead of a chip that cuts.
     private var quickPickList: some View {
-        FuelRowGroup(title: "Tap to add") {
+        FuelRowGroup(title: String(localized: "Tap to add")) {
             ForEach(Self.quickPicks, id: \.self) { pick in
                 Button {
                     HapticManager.lightImpact()
@@ -173,7 +173,7 @@ struct WeeklyCheckInView: View {
                     .foregroundStyle(Tide.text)
                     .accessibilityAddTraits(.isHeader)
                 Text(
-                    "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
+                    String(localized: "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app.")
                 )
                 .font(Tide.body)
                 .foregroundStyle(Tide.text2)
@@ -217,11 +217,11 @@ struct WeeklyCheckInView: View {
         switch error as? APIError {
         case .subscriptionRequired?: PlanGenerationBlocker.proRequired.message
         case .aiConsentRequired?: PlanGenerationBlocker.aiConsentRequired.message
-        case .unauthorized?: "Sign in to build your week."
+        case .unauthorized?: String(localized: "Sign in to build your week.")
         case .networkError?,
              .timeout?,
-             .connectionRefused?: "No connection. Try again when you're online."
-        default: (error as? LocalizedError)?.errorDescription ?? "Couldn't start the plan. Try again."
+             .connectionRefused?: String(localized: "No connection. Try again when you're online.")
+        default: (error as? LocalizedError)?.errorDescription ?? String(localized: "Couldn't start the plan. Try again.")
         }
     }
 }

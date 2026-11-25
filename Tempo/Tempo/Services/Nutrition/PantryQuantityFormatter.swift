@@ -37,14 +37,31 @@ enum PantryQuantityFormatter {
         return trimmed
     }
 
-    /// Text for an editable field (decimal point, no unit).
+    /// `number` with the user's decimal separator ("0,8" in Italian), for text on
+    /// screen. `number` itself keeps the point: text for the AI and logic use it.
+    static func displayNumber(_ value: Double) -> String {
+        let plain = number(value)
+        guard let separator = Locale.current.decimalSeparator, separator != "." else {
+            return plain
+        }
+        return plain.replacingOccurrences(of: ".", with: separator)
+    }
+
+    /// Text for an editable field (no unit), in the user's decimal format.
+    /// The edit sheet reads a comma back as a point.
     static func editText(_ value: Double) -> String {
-        number(value)
+        displayNumber(value)
     }
 
     /// Approximate weight of a countable quantity, e.g. "~400 g". nil when the
     /// food has no per-unit weight or the unit is already mass/volume.
-    static func approxWeight(quantity: Double, unit: PantryUnit, canonicalName: String, purchased: Bool = false) -> String? {
+    static func approxWeight(
+        quantity: Double,
+        unit: PantryUnit,
+        canonicalName: String,
+        purchased: Bool = false,
+        english: Bool = false
+    ) -> String? {
         // Staples (salt, olive oil) carry a 1 g placeholder weight, so a hint
         // like "1 bottle (~1 g)" is wrong: omit it for staples and <= 1 g.
         if FoodMacroDatabase.naturalPortions[canonicalName.lowercased()]?.isStaple == true {
@@ -57,7 +74,7 @@ enum PantryQuantityFormatter {
             return nil
         }
         if grams >= 1000 {
-            return "~" + number(grams / 1000) + " kg"
+            return "~" + (english ? number(grams / 1000) : displayNumber(grams / 1000)) + " kg"
         }
         return "~\(Int(grams.rounded())) g"
     }
@@ -71,7 +88,7 @@ enum PantryQuantityFormatter {
         purchased: Bool = false,
         english: Bool = false
     ) -> String {
-        let n = number(quantity)
+        let n = english ? number(quantity) : displayNumber(quantity)
         guard unit.isCountable else {
             return "\(n)\(english ? unit.englishName : unit.displayName)"
         }
@@ -80,7 +97,7 @@ enum PantryQuantityFormatter {
         // Weight hint for containers always; for pieces only once fractional
         // (3 whole pcs needs no gram hint, 0.5 pc does).
         if let canonicalName, unit.isContainer || !isWhole,
-           let weight = approxWeight(quantity: quantity, unit: unit, canonicalName: canonicalName, purchased: purchased)
+           let weight = approxWeight(quantity: quantity, unit: unit, canonicalName: canonicalName, purchased: purchased, english: english)
         {
             out += " (\(weight))"
         }

@@ -36,7 +36,7 @@ struct WizardStepScaffold<Content: View>: View {
         eyebrow: String? = nil,
         progress: Double,
         canGoBack: Bool,
-        primaryButtonLabel: String = "Next",
+        primaryButtonLabel: String = String(localized: "Next"),
         primaryButtonEnabled: Bool = true,
         onBack: @escaping () -> Void,
         onPrimary: @escaping () -> Void,
@@ -174,6 +174,6 @@ extension WizardCoordinator {
         guard let index = visibleSteps.firstIndex(of: currentStep) else {
             return ""
         }
-        return "Step \(index + 1) of \(visibleSteps.count)"
+        return String(localized: "Step \(index + 1) of \(visibleSteps.count)")
     }
 }

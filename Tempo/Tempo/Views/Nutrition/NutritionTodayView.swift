@@ -160,8 +160,8 @@ struct NutritionTodayView: View {
                         let saved = !name.isEmpty
                             && viewModel.savePreset(from: meal, name: name, modelContext: modelContext, pinned: true)
                         toast = saved
-                            ? ToastData(message: "\(name) saved. It's at the top of Log meal.", style: .success)
-                            : ToastData(message: "Couldn't save that favourite.", style: .error)
+                            ? ToastData(message: String(localized: "\(name) saved. It's at the top of Log meal."), style: .success)
+                            : ToastData(message: String(localized: "Couldn't save that favourite."), style: .error)
                     }
                     presetSourceMeal = nil
                 }
@@ -178,19 +178,19 @@ struct NutritionTodayView: View {
 
     /// Four thumb-sized shortcuts at the top of Today.
     private func actionRow(scrollTo: @escaping (String) -> Void) -> some View {
-        let quickLog = actionButton(icon: "fork.knife", label: "Log meal", id: "today.action.logmeal") {
+        let quickLog = actionButton(icon: "fork.knife", label: String(localized: "Log meal"), id: "today.action.logmeal") {
             onLogMeal()
         }
-        let scan = actionButton(icon: "barcode.viewfinder", label: "Scan", id: "today.action.scan") {
+        let scan = actionButton(icon: "barcode.viewfinder", label: String(localized: "Scan"), id: "today.action.scan") {
             onScan()
         }
         // One tap logs a glass; the water card (scrolled into view) shows
         // the new total, and the toast takes back exactly that glass.
-        let water = actionButton(icon: "drop.fill", label: "+250 ml", id: "today.action.water", tint: Tide.water) {
+        let water = actionButton(icon: "drop.fill", label: String(localized: "+250 ml"), id: "today.action.water", tint: Tide.water) {
             addGlassOfWater()
             scrollTo(Self.waterID)
         }
-        let supplements = actionButton(icon: "pills.fill", label: "Supps", id: "today.action.supplements") {
+        let supplements = actionButton(icon: "pills.fill", label: String(localized: "Supps"), id: "today.action.supplements") {
             viewModel.openKitchen(.supplements)
         }
         // Four across while they fit; two by two at large text sizes.
@@ -223,7 +223,10 @@ struct NutritionTodayView: View {
             HapticManager.lightImpact()
             action()
         }
-        .accessibilityLabel(label == "Supps" ? "Supplements" : label == "+250 ml" ? "Log 250 ml of water" : label)
+        .accessibilityLabel(
+            id == "today.action.supplements" ? String(localized: "Supplements")
+                : id == "today.action.water" ? String(localized: "Log 250 ml of water") : label
+        )
     }
 
     // MARK: - Undo / delete / preset
@@ -232,33 +235,33 @@ struct NutritionTodayView: View {
     private func addGlassOfWater() {
         let store = WaterStore(context: modelContext, healthKit: services.healthKit)
         guard let log = store.add(ml: 250) else {
-            toast = ToastData(message: "Couldn't save that water. Try again.", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't save that water. Try again."), style: .error)
             return
         }
         let id = log.id
-        toast = ToastData(message: "250 ml of water added.", style: .success, actionTitle: "Undo") {
+        toast = ToastData(message: String(localized: "250 ml of water added."), style: .success, actionTitle: String(localized: "Undo")) {
             let undone = WaterStore(context: modelContext, healthKit: services.healthKit).remove(id: id)
             toast = undone
-                ? ToastData(message: "Water taken back.", style: .info)
-                : ToastData(message: "Couldn't undo that water. Use Undo on the water card.", style: .error)
+                ? ToastData(message: String(localized: "Water taken back."), style: .info)
+                : ToastData(message: String(localized: "Couldn't undo that water. Use Undo on the water card."), style: .error)
         }
     }
 
     /// Undo an eaten/skipped meal (plan slot → planned, ad-hoc log → deleted)
     /// with a 5-second Undo toast.
     private func undoMeal(_ meal: PlannedMeal) {
-        let name = meal.mealName
+        let name = meal.displayMealName
         guard let snapshot = viewModel.undoMealEaten(
             meal, modelContext: modelContext, notifications: services.notifications
         )
         else {
-            toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't undo \(name). Try again."), style: .error)
             return
         }
-        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
-        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+        let message = snapshot.kind == .removed ? String(localized: "\(name) log deleted.") : String(localized: "\(name) is back on the plan.")
+        toast = ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             if !viewModel.restoreLog(snapshot, modelContext: modelContext, notifications: services.notifications) {
-                toast = ToastData(message: "Couldn't restore \(name).", style: .error)
+                toast = ToastData(message: String(localized: "Couldn't restore \(name)."), style: .error)
             }
         }
     }
@@ -267,7 +270,7 @@ struct NutritionTodayView: View {
     /// as "Not eaten" (`undoMeal`), so the plan slot, pantry, reminders and the
     /// other meals come back exactly, and that toast can put it back again.
     private func offerTakeBack(_ message: String, meal: PlannedMeal) {
-        toast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+        toast = ToastData(message: message, style: .success, actionTitle: String(localized: "Undo")) {
             undoMeal(meal)
         }
     }
@@ -285,7 +288,7 @@ struct NutritionTodayView: View {
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             TideSectionLabel(
-                title: "Calories",
+                title: String(localized: "Calories"),
                 trailing: FuelCalorieHero.remaining(
                     consumed: viewModel.todayCaloriesConsumed, target: viewModel.todayCalorieTarget
                 )
@@ -296,7 +299,7 @@ struct NutritionTodayView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
-            .explains(.fuelCalorieTarget.showing("\(viewModel.todayCaloriesConsumed) / \(viewModel.todayCalorieTarget) kcal"))
+            .explains(.fuelCalorieTarget.showing(String(localized: "\(viewModel.todayCaloriesConsumed) / \(viewModel.todayCalorieTarget) kcal")))
             FuelMacroColumns(
                 protein: (viewModel.todayProteinConsumed, viewModel.todayProteinTarget),
                 carbs: (viewModel.todayCarbsConsumed, viewModel.todayCarbsTarget),
@@ -329,12 +332,12 @@ struct NutritionTodayView: View {
     private var calorieQuip: String {
         let ratio = viewModel.calorieProgress
         switch ratio {
-        case ..<0.25: return "Empty tank, soldier."
-        case 0.25 ..< 0.5: return "Running on fumes."
-        case 0.5 ..< 0.8: return "Keep it moving."
-        case 0.8 ... 1.0: return "Almost there."
-        case 1.0 ..< 1.2: return "Over. Noted."
-        default: return "That's a surplus."
+        case ..<0.25: return String(localized: "Empty tank, soldier.")
+        case 0.25 ..< 0.5: return String(localized: "Running on fumes.")
+        case 0.5 ..< 0.8: return String(localized: "Keep it moving.")
+        case 0.8 ... 1.0: return String(localized: "Almost there.")
+        case 1.0 ..< 1.2: return String(localized: "Over. Noted.")
+        default: return String(localized: "That's a surplus.")
         }
     }
 
@@ -345,7 +348,7 @@ struct NutritionTodayView: View {
             // Extra logs aren't part of the plan, so they stay out of both numbers.
             let planned = viewModel.todayMeals.filter { !$0.isUnplannedLog }
             let eaten = planned.count(where: { $0.status == .eaten })
-            TideSectionLabel(title: "Today's meals", trailing: "\(eaten)/\(planned.count) done")
+            TideSectionLabel(title: String(localized: "Today's meals"), trailing: String(localized: "\(eaten)/\(planned.count) done"))
 
             if viewModel.todayMeals.isEmpty {
                 if let plan = viewModel.weeklyPlan,
@@ -361,7 +364,7 @@ struct NutritionTodayView: View {
                     rowGap: Tide.s3,
                     swipe: { meal in
                         meal.status == .eaten
-                            ? .init(label: meal.isUnplannedLog ? "Delete" : "Not eaten") { undoMeal(meal) }
+                            ? .init(label: meal.isUnplannedLog ? String(localized: "Delete") : String(localized: "Not eaten")) { undoMeal(meal) }
                             : nil
                     }
                 ) { meal in
@@ -388,10 +391,10 @@ struct NutritionTodayView: View {
                                 notifications: services.notifications
                             )
                             else {
-                                toast = ToastData(message: "Couldn't skip \(meal.mealName). Try again.", style: .error)
+                                toast = ToastData(message: String(localized: "Couldn't skip \(meal.displayMealName). Try again."), style: .error)
                                 return
                             }
-                            offerTakeBack("\(meal.mealName) skipped.", meal: meal)
+                            offerTakeBack(String(localized: "\(meal.displayMealName) skipped."), meal: meal)
                             // Fire-and-forget AI redistribution. UX
                             // stays snappy; banner appears when the call
                             // returns (sub-second on Haiku, ~2s on retry)
@@ -433,7 +436,7 @@ struct NutritionTodayView: View {
         FuelBanner(
             icon: "sparkles",
             tint: Tide.water,
-            title: "Macros redistributed",
+            title: String(localized: "Macros redistributed"),
             message: text,
             onDismiss: {
                 viewModel.lastRedistributionBanner = nil
@@ -445,8 +448,8 @@ struct NutritionTodayView: View {
     private var emptyMealsState: some View {
         FuelEmptyState(
             icon: "tray",
-            title: "No meals planned today.",
-            message: "Generate a weekly plan or log meals manually."
+            title: String(localized: "No meals planned today."),
+            message: String(localized: "Generate a weekly plan or log meals manually.")
         )
     }
 
@@ -457,14 +460,14 @@ struct NutritionTodayView: View {
     /// path; we don't mutate the existing plan silently.
     private func stalePlanState(plan: WeeklyMealPlan) -> some View {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, MMM d"
+        formatter.dateFormat = String(localized: "EEE, MMM d", comment: "DATE_FORMAT")
         let startStr = formatter.string(from: plan.startDate)
         let endStr = formatter.string(from: plan.endDate)
 
         return FuelEmptyState(
             icon: "calendar.badge.clock",
-            title: "Your plan starts \(startStr).",
-            message: "Covers \(startStr) – \(endStr). Regenerate to anchor it to today."
+            title: String(localized: "Your plan starts \(startStr)."),
+            message: String(localized: "Covers \(startStr) – \(endStr). Regenerate to anchor it to today.")
         ) {
             Button {
                 HapticManager.lightImpact()
@@ -477,7 +480,7 @@ struct NutritionTodayView: View {
                     healthKit: services.healthKit
                 )
             } label: {
-                Text(viewModel.isGeneratingPlan ? "Regenerating…" : "Regenerate for Today")
+                Text(viewModel.isGeneratingPlan ? String(localized: "Regenerating…") : String(localized: "Regenerate for Today"))
             }
             .buttonStyle(.tidePrimary)
             .disabled(viewModel.isGeneratingPlan)
@@ -507,9 +510,9 @@ struct NutritionTodayView: View {
                 notifications: services.notifications, feel: feel, satiety: satiety
             ) {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
-                offerTakeBack("\(meal.mealName) marked eaten.", meal: meal)
+                offerTakeBack(String(localized: "\(meal.displayMealName) marked eaten."), meal: meal)
             } else {
-                toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
+                toast = ToastData(message: String(localized: "Couldn't save \(meal.displayMealName). Try again."), style: .error)
             }
             return
         }
@@ -541,7 +544,7 @@ struct NutritionTodayView: View {
             let items = try await nl.parseNaturalLanguage(note)
             guard !items.isEmpty else {
                 toast = ToastData(
-                    message: "Couldn't recognize any food in \"\(note)\". Edit it and try again.",
+                    message: String(localized: "Couldn't recognize any food in \"\(note)\". Edit it and try again."),
                     style: .error
                 )
                 return
@@ -560,9 +563,9 @@ struct NutritionTodayView: View {
                 pantry: usedPantry ? .foods : .none
             ) {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
-                offerTakeBack("\(meal.mealName) marked eaten.", meal: meal)
+                offerTakeBack(String(localized: "\(meal.displayMealName) marked eaten."), meal: meal)
             } else {
-                toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
+                toast = ToastData(message: String(localized: "Couldn't save \(meal.displayMealName). Try again."), style: .error)
             }
         } catch {
             // Parse failed — the meal stays planned so the user can retry.
@@ -571,7 +574,7 @@ struct NutritionTodayView: View {
                 return
             }
             toast = ToastData(
-                message: "Couldn't read that: \(AIBlocker.message(for: error)). Your meal is unchanged.",
+                message: String(localized: "Couldn't read that: \(AIBlocker.message(for: error)). Your meal is unchanged."),
                 style: .error
             )
         }

@@ -103,9 +103,9 @@ struct WriteRecipeView: View {
                     }
                 }
                 .frame(minHeight: Tide.hit + Tide.s3)
-            numberRow("Servings", placeholder: "2", text: $servingsText)
-            numberRow("Prep time (min)", placeholder: "optional", text: $prepMinutesText)
-            numberRow("Cook time (min)", placeholder: "optional", text: $cookMinutesText)
+            numberRow(String(localized: "Servings"), placeholder: "2", text: $servingsText)
+            numberRow(String(localized: "Prep time (min)"), placeholder: String(localized: "optional"), text: $prepMinutesText)
+            numberRow(String(localized: "Cook time (min)"), placeholder: String(localized: "optional"), text: $cookMinutesText)
         } header: {
             Text("Basics").tideLabel()
         }
@@ -189,7 +189,7 @@ struct WriteRecipeView: View {
             Text("Ingredients").tideLabel()
         } footer: {
             Text(
-                "Macros come from a built-in food database when the name matches and grams are filled in. Unknown items still save — they just won't contribute to totals."
+                String(localized: "Macros come from a built-in food database when the name matches and grams are filled in. Unknown items still save — they just won't contribute to totals.")
             )
             .font(Tide.caption)
             .foregroundStyle(Tide.text3)

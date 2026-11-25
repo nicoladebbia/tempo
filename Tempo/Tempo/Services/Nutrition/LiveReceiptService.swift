@@ -93,7 +93,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
     @discardableResult
     func scan(images: [UIImage], storeHint: String?) async throws -> Receipt {
         guard let firstImage = images.first else {
-            throw ReceiptServiceError.visionFailed("No photos to scan.")
+            throw ReceiptServiceError.visionFailed(String(localized: "No photos to scan."))
         }
         guard images.count > 1 else {
             return try await scan(image: firstImage, storeHint: storeHint)
@@ -149,7 +149,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         // and trips the backend's request-body limit (413). 1568px is Claude's
         // max vision edge, so anything larger is bytes the model never reads.
         guard let downsampled = coverImage.downsampledJPEGData() else {
-            throw ReceiptServiceError.visionFailed("Could not encode receipt image.")
+            throw ReceiptServiceError.visionFailed(String(localized: "Could not encode receipt image."))
         }
 
         // Persist a stub Receipt right away in .processing state, so the UI
@@ -600,7 +600,7 @@ final class LiveReceiptService: ReceiptServiceProtocol {
         guard let jpeg = ReceiptPhotoStore.load(for: receipt.id) else {
             // Photo never persisted (older receipt, or the write failed at
             // scan time). The only recourse is a fresh capture.
-            throw ReceiptServiceError.structuringFailed("Re-capture the receipt to retry.")
+            throw ReceiptServiceError.structuringFailed(String(localized: "Re-capture the receipt to retry."))
         }
         receipt.ocrStatus = .processing
         receipt.updatedAt = Date()

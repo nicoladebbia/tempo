@@ -98,7 +98,7 @@ struct StaplesSheet: View {
                             row(suggestion)
                         }
                     }
-                    KitchenFormSection("Something else?") {
+                    KitchenFormSection(String(localized: "Something else?")) {
                         HStack {
                             TextField("Add your own staple", text: $customName)
                                 .font(Tide.body)
@@ -131,7 +131,7 @@ struct StaplesSheet: View {
                     Text("Track your staples")
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
-                    Text(unanswered == 0 ? "All answered." : "\(unanswered) left. Do you have it?")
+                    Text(unanswered == 0 ? String(localized: "All answered.") : String(localized: "\(unanswered) left. Do you have it?"))
                         .font(Tide.body)
                         .foregroundStyle(Tide.text2)
                         .contentTransition(.numericText())
@@ -194,7 +194,7 @@ struct StaplesSheet: View {
                 Spacer()
             }
             HStack(spacing: Tide.s2) {
-                answerButton("Yes", selected: current == true, tint: Tide.Kitchen.good) {
+                answerButton(String(localized: "Yes"), selected: current == true, tint: Tide.Kitchen.good) {
                     viewModel.answerStaple(suggestion, have: true)
                     HapticManager.selection()
                 }

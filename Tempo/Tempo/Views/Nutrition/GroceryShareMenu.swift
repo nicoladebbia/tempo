@@ -167,7 +167,7 @@ struct GroceryShareMenu: View {
             showLiveLinkSheet = true
             HapticManager.lightImpact()
         } catch {
-            errorMessage = (error as? APIError)?.userMessage ?? "Couldn't create the share link. Try again."
+            errorMessage = (error as? APIError)?.userMessage ?? String(localized: "Couldn't create the share link. Try again.")
         }
     }
 
@@ -227,18 +227,18 @@ struct ShareLiveLinkSheet: View {
     var body: some View {
         NavigationStack {
             KitchenStatePage(actions: [
-                KitchenStateAction(title: "Share Link", systemImage: "square.and.arrow.up", role: .primary) {
+                KitchenStateAction(title: String(localized: "Share Link"), systemImage: "square.and.arrow.up", role: .primary) {
                     showSystemShareSheet = true
                 },
-                KitchenStateAction(title: "Stop Sharing", role: .destructive) {
+                KitchenStateAction(title: String(localized: "Stop Sharing"), role: .destructive) {
                     showStopConfirmation = true
                 },
             ]) {
                 VStack(spacing: Tide.s5) {
                     KitchenStateHero(
                         systemImage: "link",
-                        title: "Your list is live",
-                        message: "Anyone with this link can check off items while you shop. No Tempo account needed."
+                        title: String(localized: "Your list is live"),
+                        message: String(localized: "Anyone with this link can check off items while you shop. No Tempo account needed.")
                     )
                     Text(share.url)
                         .font(Tide.caption)
@@ -263,7 +263,7 @@ struct ShareLiveLinkSheet: View {
                 }
             }
             .confirmationDialog(
-                "Stop sharing this list?",
+                String(localized: "Stop sharing this list?"),
                 isPresented: $showStopConfirmation,
                 titleVisibility: .visible
             ) {
@@ -300,8 +300,8 @@ struct GroceryOrderLinksSheet: View {
                 Section {
                     KitchenSheetHeader(
                         systemImage: "magnifyingglass",
-                        title: "Find these online",
-                        subtitle: "Instacart ordering isn't set up yet, or the request failed. Search for each item instead:"
+                        title: String(localized: "Find these online"),
+                        subtitle: String(localized: "Instacart ordering isn't set up yet, or the request failed. Search for each item instead:")
                     )
                 }
                 Section {

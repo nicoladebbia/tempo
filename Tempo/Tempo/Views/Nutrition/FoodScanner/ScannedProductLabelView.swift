@@ -348,7 +348,7 @@ struct ScannedProductLabelView: View {
         }
         .frame(minHeight: Tide.Kitchen.tile)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? "unknown") level")
+        .accessibilityLabel("\(name) \(FoodProductView.amount(value, unit: "g")), \(level?.label ?? String(localized: "unknown")) level")
     }
 
     private static func pips(for level: LabelFacts.Level?) -> Int {
@@ -375,8 +375,16 @@ struct ScannedProductLabelView: View {
     private var fitCard: some View {
         let density = FoodFit.proteinPer100Kcal(product)
         // The protein-density line below already says it; drop the duplicate.
+        // FoodFit words these two lines itself; rebuild them (same catalog keys) so the match works in every language.
+        let densityLines: [String] = density.map { value in
+            let shown = value < 10 ? value.tempoDecimal(1) : String(Int(value.rounded()))
+            return [
+                String(localized: "High protein: \(shown) g per 100 kcal"),
+                String(localized: "Low protein: \(shown) g per 100 kcal"),
+            ]
+        } ?? []
         let checks = FoodFit.checks(for: product, grams: grams, context: fitContext)
-            .filter { !$0.text.hasPrefix("High protein") && !$0.text.hasPrefix("Low protein") }
+            .filter { !densityLines.contains($0.text) }
         if !checks.isEmpty || density != nil {
             VStack(alignment: .leading, spacing: Tide.s2) {
                 sectionTitle(String(localized: "Fits your plan? · \(FoodProductView.format(grams)) \(product.unit)"))
@@ -424,7 +432,8 @@ struct ScannedProductLabelView: View {
                     sectionTitle(String(localized: "Allergens"))
                     FlowChips(items: allergens.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? String(localized: "\(name) · your allergy") : name, flagged ? Tide.danger : Tide.Kitchen.warn, flagged)
+                        let shown = FoodProduct.localizedAllergenName(name)
+                        return (flagged ? String(localized: "\(shown) · your allergy") : shown, flagged ? Tide.danger : Tide.Kitchen.warn, flagged)
                     })
                 }
                 if !traces.isEmpty {
@@ -432,7 +441,8 @@ struct ScannedProductLabelView: View {
                         .padding(.top, allergens.isEmpty ? 0 : Tide.s1)
                     FlowChips(items: traces.map { name in
                         let flagged = LabelFacts.isFlagged(displayAllergen: name, context: fitContext)
-                        return (flagged ? String(localized: "\(name) · your allergy") : name, flagged ? Tide.danger : Tide.text2, flagged)
+                        let shown = FoodProduct.localizedAllergenName(name)
+                        return (flagged ? String(localized: "\(shown) · your allergy") : shown, flagged ? Tide.danger : Tide.text2, flagged)
                     })
                 }
                 if !text.isEmpty {

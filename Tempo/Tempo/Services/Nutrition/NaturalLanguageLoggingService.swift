@@ -274,7 +274,7 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
             throw lastError
         }
         throw NaturalLanguageLoggingError.parseFailed(
-            lastError.map(AIBlocker.readableDescription) ?? "Unknown error"
+            lastError.map(AIBlocker.readableDescription) ?? String(localized: "Unknown error")
         )
     }
 

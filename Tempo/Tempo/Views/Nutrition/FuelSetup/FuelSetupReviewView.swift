@@ -87,11 +87,11 @@ struct DayRoutineEditor: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s5) {
-                FuelRowGroup(title: "Day") {
-                    OptionalTimeRow(label: "Wake up", minutes: $day.wakeMinutes, defaultMinutes: 7 * 60)
-                    OptionalTimeRow(label: "Leave home", minutes: $day.leaveHomeMinutes, defaultMinutes: 8 * 60)
-                    OptionalTimeRow(label: "Back home", minutes: $day.backHomeMinutes, defaultMinutes: 17 * 60)
-                    OptionalTimeRow(label: "Bed", minutes: $day.bedMinutes, defaultMinutes: 23 * 60)
+                FuelRowGroup(title: String(localized: "Day")) {
+                    OptionalTimeRow(label: String(localized: "Wake up"), minutes: $day.wakeMinutes, defaultMinutes: 7 * 60)
+                    OptionalTimeRow(label: String(localized: "Leave home"), minutes: $day.leaveHomeMinutes, defaultMinutes: 8 * 60)
+                    OptionalTimeRow(label: String(localized: "Back home"), minutes: $day.backHomeMinutes, defaultMinutes: 17 * 60)
+                    OptionalTimeRow(label: String(localized: "Bed"), minutes: $day.bedMinutes, defaultMinutes: 23 * 60)
                 }
                 training
                 events
@@ -109,7 +109,7 @@ struct DayRoutineEditor: View {
     }
 
     private var training: some View {
-        FuelRowGroup(title: "Training") {
+        FuelRowGroup(title: String(localized: "Training")) {
             Toggle(isOn: Binding(
                 get: { day.training != nil },
                 set: { day.training = $0 ? (day.training ?? TrainingSlot(startMinutes: 17 * 60)) : nil }
@@ -147,7 +147,7 @@ struct DayRoutineEditor: View {
 
     private var events: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Fixed events")
+            TideSectionLabel(title: String(localized: "Fixed events"))
                 .padding(.horizontal, Tide.s1)
             ForEach($day.events) { $event in
                 RoutineEventRow(event: $event, places: places) {
@@ -161,7 +161,7 @@ struct DayRoutineEditor: View {
                 layout {
                     Button {
                         withAnimation(Tide.snap) {
-                            day.events.append(RoutineEvent(kind: .classOrWork, title: "Class", startMinutes: 11 * 60, endMinutes: 12 * 60))
+                            day.events.append(RoutineEvent(kind: .classOrWork, title: String(localized: "Class"), startMinutes: 11 * 60, endMinutes: 12 * 60))
                         }
                     } label: {
                         Label("Add class / work", systemImage: "plus")
@@ -173,7 +173,7 @@ struct DayRoutineEditor: View {
                         withAnimation(Tide.snap) {
                             day.events.append(RoutineEvent(
                                 kind: .mealOut,
-                                title: "Lunch out",
+                                title: String(localized: "Lunch out"),
                                 startMinutes: 13 * 60,
                                 placeID: places.first?.id
                             ))
@@ -251,7 +251,7 @@ struct RoutineEventRow: View {
                 Picker("Where", selection: $event.placeID) {
                     Text("—").tag(UUID?.none)
                     ForEach(places) { place in
-                        Text(place.name.isEmpty ? "Unnamed place" : place.name).tag(UUID?.some(place.id))
+                        Text(place.name.isEmpty ? String(localized: "Unnamed place") : place.name).tag(UUID?.some(place.id))
                     }
                 }
             }

@@ -155,15 +155,16 @@ enum MealReviewCommitter {
                 modelContext: modelContext,
                 notifications: notifications
             )
-            var message = "\(type.displayName) logged. \(Int(result.logged.calories.rounded())) kcal."
+            var message = String(localized: "\(type.displayName) logged. \(Int(result.logged.calories.rounded())) kcal.")
             if resolution == .add, !pantryLines.isEmpty {
-                message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
-                    + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
+                let names = pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
+                    + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "")
+                message += " " + String(localized: "Off your pantry: \(names).")
             }
             // A few seconds to take it back, exactly as it was written.
             return .logged(FuelLogToast.logged(message, result: result, modelContext: modelContext, notifications: notifications))
         } catch {
-            return .failed(ToastData(message: "Couldn't save: \(error.localizedDescription)", style: .error))
+            return .failed(ToastData(message: String(localized: "Couldn't save: \(error.localizedDescription)"), style: .error))
         }
     }
 }
@@ -221,10 +222,10 @@ struct MealReviewHost: ViewModifier {
             .sheet(item: $duplicate, onDismiss: showPendingReview) { pending in
                 FuelDecisionSheet(
                     icon: "square.on.square",
-                    title: "Already logged",
-                    message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
+                    title: String(localized: "Already logged"),
+                    message: String(localized: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?"),
                     chips: pending.names,
-                    primaryTitle: "Add another",
+                    primaryTitle: String(localized: "Add another"),
                     primary: {
                         // A second tap while the sheet is leaving must not log twice.
                         guard duplicate != nil else {
@@ -232,7 +233,7 @@ struct MealReviewHost: ViewModifier {
                         }
                         finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
                     },
-                    secondaryTitle: "Edit existing",
+                    secondaryTitle: String(localized: "Edit existing"),
                     secondary: {
                         // A second tap while the sheet is leaving must not log twice.
                         guard duplicate != nil else {

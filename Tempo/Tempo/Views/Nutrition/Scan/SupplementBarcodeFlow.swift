@@ -90,17 +90,17 @@ struct SupplementBarcodeFlow: View {
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
-                    prompt: "Point at the label's barcode",
+                    prompt: String(localized: "Point at the label's barcode"),
                     detail: scannerDetail,
                     fallbackActions: [
-                        ScanFallbackAction(title: "Search by name") { flowSheet = .search(upc: nil) },
-                        ScanFallbackAction(title: "Type it") { flowSheet = .manual(upc: nil) },
+                        ScanFallbackAction(title: String(localized: "Search by name")) { flowSheet = .search(upc: nil) },
+                        ScanFallbackAction(title: String(localized: "Type it")) { flowSheet = .manual(upc: nil) },
                     ]
                 ) { barcode in
                     lookUp(barcode)
                 }
             case let .loading(code):
-                loadingContent("Looking up \(code)…")
+                loadingContent(String(localized: "Looking up \(code)…"))
             case let .duplicate(dto, existing):
                 duplicateContent(dto: dto, existing: existing)
             case let .found(dto):
@@ -108,14 +108,16 @@ struct SupplementBarcodeFlow: View {
             case let .notFound(upc):
                 unresolvedContent(
                     icon: "barcode.viewfinder",
-                    title: "Not in any database yet",
-                    message: "\(upc.isEmpty ? "This product" : "Barcode \(upc)") isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute.",
+                    title: String(localized: "Not in any database yet"),
+                    message: upc.isEmpty
+                        ? String(localized: "This product isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute.")
+                        : String(localized: "Barcode \(upc) isn't listed. Photograph the label and Tempo reads it for you, or add it yourself. Takes a minute."),
                     upc: upc
                 )
             case let .failed(upc, message):
                 unresolvedContent(
                     icon: "wifi.exclamationmark",
-                    title: "Couldn't look that up",
+                    title: String(localized: "Couldn't look that up"),
                     message: message,
                     upc: upc,
                     canRetry: true
@@ -123,7 +125,7 @@ struct SupplementBarcodeFlow: View {
             case let .invalid(message):
                 unresolvedContent(
                     icon: "barcode.viewfinder",
-                    title: "That barcode looks off",
+                    title: String(localized: "That barcode looks off"),
                     message: message,
                     upc: nil
                 )
@@ -131,7 +133,7 @@ struct SupplementBarcodeFlow: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(addedCount == 0 ? "Done" : "Done (\(addedCount))") {
+                Button(addedCount == 0 ? String(localized: "Done") : String(localized: "Done (\(addedCount))")) {
                     dismiss()
                 }
                 .fontWeight(.semibold)
@@ -182,7 +184,7 @@ struct SupplementBarcodeFlow: View {
 
     private var scannerDetail: String? {
         var parts: [String] = []
-        if addedCount > 0 { parts.append("\(addedCount) added — scan another or tap Done") }
+        if addedCount > 0 { parts.append(String(localized: "\(addedCount) added — scan another or tap Done")) }
         if let catalogNote { parts.append(catalogNote) }
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
@@ -234,8 +236,8 @@ struct SupplementBarcodeFlow: View {
 
     private func foundContent(_ dto: SupplementLookupDTO) -> some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Add to Shelf", systemImage: "plus", role: .primary) { add(dto) },
-            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
+            KitchenStateAction(title: String(localized: "Add to Shelf"), systemImage: "plus", role: .primary) { add(dto) },
+            KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
         ]) {
             VStack(spacing: Tide.s4) {
                 KitchenHeroDisc(systemImage: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
@@ -287,11 +289,11 @@ struct SupplementBarcodeFlow: View {
         if dto.source == "tempo", dto.disputed == true { return SupplementEditSheet.disputedLine }
         return switch dto.source {
         case "tempo":
-            dto.communityConfirmations.map { "Added by Tempo users · confirmed by \($0). Check it against your label." }
-                ?? "Added by Tempo users. Check it against your label."
-        case "dsld": "NIH supplement label database"
-        case "openfoodfacts", "openproductsfacts", "openbeautyfacts": "Open Facts database"
-        case "shelf": "From your shelf"
+            dto.communityConfirmations.map { String(localized: "Added by Tempo users · confirmed by \($0). Check it against your label.") }
+                ?? String(localized: "Added by Tempo users. Check it against your label.")
+        case "dsld": String(localized: "NIH supplement label database")
+        case "openfoodfacts", "openproductsfacts", "openbeautyfacts": String(localized: "Open Facts database")
+        case "shelf": String(localized: "From your shelf")
         default: nil
         }
     }
@@ -306,7 +308,7 @@ struct SupplementBarcodeFlow: View {
             parts.append(dose)
         }
         if let servings = dto.servingsPerContainer, servings > 0 {
-            parts.append("\(Int(servings)) \(Int(servings) == 1 ? "serving" : "servings")/container")
+            parts.append(Int(servings) == 1 ? String(localized: "1 serving/container") : String(localized: "\(Int(servings)) servings/container"))
         }
         return parts.joined(separator: " · ")
     }
@@ -315,16 +317,16 @@ struct SupplementBarcodeFlow: View {
 
     private func duplicateContent(dto: SupplementLookupDTO, existing: Supplement) -> some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Restocked", systemImage: "arrow.triangle.2.circlepath", role: .primary) {
+            KitchenStateAction(title: String(localized: "Restocked"), systemImage: "arrow.triangle.2.circlepath", role: .primary) {
                 restock(dto: dto, existing: existing)
             },
-            KitchenStateAction(title: "Add as new anyway") { scanState = .found(dto) },
-            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
+            KitchenStateAction(title: String(localized: "Add as new anyway")) { scanState = .found(dto) },
+            KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
         ]) {
             KitchenStateHero(
                 systemImage: "arrow.triangle.2.circlepath",
-                title: "Already on your shelf",
-                message: "You already have \(existing.name). Restocked instead of adding a new item?"
+                title: String(localized: "Already on your shelf"),
+                message: String(localized: "You already have \(existing.name). Restocked instead of adding a new item?")
             )
         }
     }
@@ -342,29 +344,29 @@ struct SupplementBarcodeFlow: View {
         var actions: [KitchenStateAction] = []
         if canRetry, let upc {
             actions.append(KitchenStateAction(
-                title: "Try again",
+                title: String(localized: "Try again"),
                 systemImage: "arrow.clockwise",
                 role: .primary,
                 identifier: "supplementRetryLookup"
             ) { lookUp(upc) })
         }
         actions.append(KitchenStateAction(
-            title: "Photograph the label",
+            title: String(localized: "Photograph the label"),
             systemImage: "camera.viewfinder",
             role: canRetry ? .secondary : .primary,
             identifier: "supplementPhotographLabel"
         ) { flowSheet = .readLabel(upc: upc) })
         actions.append(KitchenStateAction(
-            title: "Search by name",
+            title: String(localized: "Search by name"),
             systemImage: "magnifyingglass",
             identifier: "supplementSearchByName"
         ) { flowSheet = .search(upc: upc) })
         actions.append(KitchenStateAction(
-            title: "Type it",
+            title: String(localized: "Type it"),
             systemImage: "square.and.pencil",
             identifier: "supplementTypeIt"
         ) { flowSheet = .manual(upc: upc) })
-        actions.append(KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+        actions.append(KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .quiet) {
             resetScanner()
         })
         return KitchenStatePage(actions: actions) {
@@ -409,7 +411,7 @@ struct SupplementBarcodeFlow: View {
                 HapticManager.warning()
                 scanState = .failed(
                     upc: code,
-                    message: "You're offline. Type it in now and fill in the rest later, or try again when you have signal."
+                    message: String(localized: "You're offline. Type it in now and fill in the rest later, or try again when you have signal.")
                 )
             case let .invalid(message):
                 HapticManager.warning()

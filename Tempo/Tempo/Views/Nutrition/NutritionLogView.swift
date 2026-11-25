@@ -93,8 +93,8 @@ struct NutritionLogView: View {
     private var loggedEmptyState: some View {
         FuelEmptyState(
             icon: "fork.knife.circle",
-            title: "Nothing logged yet today",
-            message: "Tap Log a meal: your usual, a search, a scan, a photo or a typed line. It lands here."
+            title: String(localized: "Nothing logged yet today"),
+            message: String(localized: "Tap Log a meal: your usual, a search, a scan, a photo or a typed line. It lands here.")
         )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("loggedTodayEmpty")
@@ -105,8 +105,8 @@ struct NutritionLogView: View {
         FuelRowGroup {
             FuelActionRow(
                 icon: "checkmark.seal",
-                title: "Check a food",
-                detail: "See if it fits your day before you eat it"
+                title: String(localized: "Check a food"),
+                detail: String(localized: "See if it fits your day before you eat it")
             ) {
                 HapticManager.lightImpact()
                 showFoodCheck = true
@@ -126,24 +126,24 @@ struct NutritionLogView: View {
             pinned: true
         )
         toast = saved
-            ? ToastData(message: "Saved as a favourite.", style: .success)
-            : ToastData(message: "Couldn't save that favourite. Try again.", style: .error)
+            ? ToastData(message: String(localized: "Saved as a favourite."), style: .success)
+            : ToastData(message: String(localized: "Couldn't save that favourite. Try again."), style: .error)
     }
 
     /// Delete a wrong log (or take a plan slot back) with a 5-second Undo.
     private func undoLog(_ meal: PlannedMeal) {
-        let name = meal.mealName
+        let name = meal.displayMealName
         guard let snapshot = viewModel.undoMealEaten(
             meal, modelContext: modelContext, notifications: services.notifications
         )
         else {
-            toast = ToastData(message: "Couldn't undo \(name). Try again.", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't undo \(name). Try again."), style: .error)
             return
         }
-        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
-        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+        let message = snapshot.kind == .removed ? String(localized: "\(name) log deleted.") : String(localized: "\(name) is back on the plan.")
+        toast = ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             if !viewModel.restoreLog(snapshot, modelContext: modelContext, notifications: services.notifications) {
-                toast = ToastData(message: "Couldn't restore \(name).", style: .error)
+                toast = ToastData(message: String(localized: "Couldn't restore \(name)."), style: .error)
             }
         }
     }

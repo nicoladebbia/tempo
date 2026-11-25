@@ -80,8 +80,8 @@ struct GroceryStoreModeView: View {
                     if totalCount == 0 {
                         KitchenEmpty(
                             systemImage: "cart",
-                            title: "Nothing left to buy",
-                            message: "The list is empty. Add items on the Groceries list, then come back."
+                            title: String(localized: "Nothing left to buy"),
+                            message: String(localized: "The list is empty. Add items on the Groceries list, then come back.")
                         )
                     }
                     ForEach(orderedCategories, id: \.self) { category in
@@ -133,11 +133,11 @@ struct GroceryStoreModeView: View {
         let allDone = totalCount > 0 && checkedCount == totalCount
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
-                title: "Your trip",
-                trailing: allDone ? "All checked" : "\(max(totalCount - checkedCount, 0)) left"
+                title: String(localized: "Your trip"),
+                trailing: allDone ? String(localized: "All checked") : String(localized: "\(max(totalCount - checkedCount, 0)) left")
             )
             TideNumber(
-                "\(checkedCount)", unit: "of \(totalCount) checked off",
+                "\(checkedCount)", unit: String(localized: "of \(totalCount) checked off"),
                 size: Tide.numeralL, relativeTo: .largeTitle,
                 color: allDone ? Tide.Kitchen.good : Tide.text
             )
@@ -169,7 +169,7 @@ struct GroceryStoreModeView: View {
                 }
             } label: {
                 HStack(spacing: Tide.s2) {
-                    Text(category).tideLabel(isComplete ? Tide.Kitchen.good : Tide.text2)
+                    Text(GroceryAisleName.display(category)).tideLabel(isComplete ? Tide.Kitchen.good : Tide.text2)
                     if isComplete {
                         Image(systemName: "checkmark.circle.fill")
                             .font(Tide.label)
@@ -193,7 +193,7 @@ struct GroceryStoreModeView: View {
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(.isHeader)
-            .accessibilityHint(isComplete ? (isExpanded ? "Collapse" : "Expand") : "")
+            .accessibilityHint(isComplete ? (isExpanded ? String(localized: "Collapse") : String(localized: "Expand")) : "")
 
             if isExpanded {
                 aisleRows(items)
@@ -271,7 +271,7 @@ struct GroceryStoreModeView: View {
             .contentShape(.rect)
         }
         .buttonStyle(KitchenRowPressStyle())
-        .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
+        .accessibilityValue(item.isChecked ? String(localized: "Checked") : String(localized: "Not checked"))
     }
 
     // MARK: - Done shopping

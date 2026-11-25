@@ -13,6 +13,13 @@ struct ManualWeighInSheet: View {
     enum When: String, CaseIterable {
         case before = "Before the session"
         case after = "After the session"
+
+        var title: String {
+            switch self {
+            case .before: String(localized: "Before the session")
+            case .after: String(localized: "After the session")
+            }
+        }
     }
 
     let session: CoachSession
@@ -75,7 +82,7 @@ struct ManualWeighInSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Tide.s2)
-                FuelIconButton(systemImage: "xmark", label: "Close") { dismiss() }
+                FuelIconButton(systemImage: "xmark", label: String(localized: "Close")) { dismiss() }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s4)
@@ -88,7 +95,7 @@ struct ManualWeighInSheet: View {
                                 HapticManager.selection()
                                 when = option
                             } label: {
-                                Text(option.rawValue)
+                                Text(option.title)
                                     .font(Tide.bodyStrong)
                                     .multilineTextAlignment(.center)
                                     .padding(.horizontal, Tide.s2)
@@ -141,7 +148,7 @@ struct ManualWeighInSheet: View {
                     }
 
                     Text(
-                        "Same clothes (or none), towel-dry, after the toilet, before you drink. A weight from the 3 hours before the session works as your \"before\"."
+                        String(localized: "Same clothes (or none), towel-dry, after the toilet, before you drink. A weight from the 3 hours before the session works as your \"before\".")
                     )
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
@@ -169,7 +176,9 @@ struct ManualWeighInSheet: View {
 
     private func save() {
         guard let kg = Self.kg(from: text, useLb: useLb) else {
-            error = "That doesn't look like a body weight. Enter \(useLb ? "pounds, like 172" : "kilograms, like 78.0")."
+            error = useLb
+                ? String(localized: "That doesn't look like a body weight. Enter pounds, like 172.")
+                : String(localized: "That doesn't look like a body weight. Enter kilograms, like 78.0.")
             return
         }
         onSave(kg, time)

@@ -372,12 +372,12 @@ enum ReceiptSizeInference {
     }
 
     private static func sizeLabel(value: Double, unit: String, packCount: Int?) -> String {
-        let formattedValue = value.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(value)) : String(format: "%.1f", value)
+        let formattedValue = value.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(value)) : value.tempoDecimal(1)
         let base = "\(formattedValue) \(unit)"
         guard let packCount, packCount > 1 else {
             return base
         }
-        return "\(packCount)-pack of \(base)"
+        return String(localized: "\(packCount)-pack of \(base)")
     }
 
     /// Rough, honestly-approximate 2026 US price-per-gram by broad category

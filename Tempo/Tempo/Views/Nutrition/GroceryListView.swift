@@ -168,8 +168,8 @@ struct GroceryListView: View {
             Button {
                 let removed = viewModel.reapplyPantryToGrocery()
                 pantrySyncMessage = removed == 0
-                    ? "List is already in sync with pantry"
-                    : "Removed \(removed) item\(removed == 1 ? "" : "s") already in pantry"
+                    ? String(localized: "List is already in sync with pantry")
+                    : String(localized: "Removed \(removed) items already in pantry")
                 HapticManager.lightImpact()
             } label: {
                 Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
@@ -228,14 +228,14 @@ struct GroceryListView: View {
             HStack(spacing: Tide.s2) {
                 Text("This week").tideLabel()
                 if progress >= 1 {
-                    KitchenTag(text: "All checked", tint: Tide.Kitchen.good)
+                    KitchenTag(text: String(localized: "All checked"), tint: Tide.Kitchen.good)
                 }
                 Spacer(minLength: Tide.s2)
                 GroceryShareMenu(list: list)
                 moreMenu
             }
             TideNumber(
-                "\(list.checkedCount)", unit: "of \(list.itemCount) checked",
+                "\(list.checkedCount)", unit: String(localized: "of \(list.itemCount) checked"),
                 size: Tide.numeralL, relativeTo: .largeTitle,
                 color: progress >= 1 ? Tide.Kitchen.good : Tide.text
             )
@@ -297,7 +297,7 @@ struct GroceryListView: View {
                     if !stacked {
                         Spacer(minLength: Tide.s2)
                     }
-                    TideChip(title: "Cheaper swaps") {
+                    TideChip(title: String(localized: "Cheaper swaps")) {
                         showCheaperSwaps = true
                         Task { await viewModel.fetchCheaperSwaps() }
                     }
@@ -307,14 +307,14 @@ struct GroceryListView: View {
     }
 
     private func formatUSD(_ value: Double) -> String {
-        "$" + String(format: "%.2f", value)
+        "$" + value.tempoDecimal(2)
     }
 
     // MARK: - Bought section (Done-shopping record)
 
     private func boughtSection(for list: GroceryList) -> some View {
         KitchenGroup(
-            title: "Bought",
+            title: String(localized: "Bought"),
             systemImage: "checkmark.circle.fill",
             trailing: "\(list.boughtItems.count)",
             tint: Tide.Kitchen.good
@@ -344,8 +344,8 @@ struct GroceryListView: View {
     private func categorySection(category: String, items: [GroceryListItem]) -> some View {
         let left = items.filter { !$0.isChecked }.count
         return KitchenGroup(
-            title: category,
-            trailing: left == 0 ? "Done" : "\(left) left"
+            title: GroceryAisleName.display(category),
+            trailing: left == 0 ? String(localized: "Done") : String(localized: "\(left) left")
         ) {
             ForEach(items, id: \.id) { item in
                 Button {
@@ -361,7 +361,7 @@ struct GroceryListView: View {
                     itemRow(item)
                 }
                 .buttonStyle(.plain)
-                .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
+                .accessibilityValue(item.isChecked ? String(localized: "Checked") : String(localized: "Not checked"))
                 // Long-press to delete. Can't use SwiftUI swipeActions here
                 // because the list isn't inside a List/Form — these rows
                 // are a custom VStack. The contextMenu works on any tap
@@ -419,7 +419,7 @@ struct GroceryListView: View {
                     ProgressView()
                 }
                 Label(
-                    list.exportedToReminders ? "Re-export to Reminders" : "Export to Reminders",
+                    list.exportedToReminders ? String(localized: "Re-export to Reminders") : String(localized: "Export to Reminders"),
                     systemImage: "list.bullet.rectangle.fill"
                 )
             }
@@ -435,7 +435,7 @@ struct GroceryListView: View {
         let generating = viewModel.groceryState.isGenerating
         return KitchenStatePage(actions: [
             KitchenStateAction(
-                title: generating ? "Generating…" : "Generate",
+                title: generating ? String(localized: "Generating…") : String(localized: "Generate"),
                 systemImage: "wand.and.stars",
                 role: .primary,
                 isEnabled: !generating
@@ -444,8 +444,8 @@ struct GroceryListView: View {
             VStack(spacing: Tide.s4) {
                 KitchenStateHero(
                     systemImage: "cart",
-                    title: "No grocery list yet",
-                    message: "Generate a meal plan first, then tap Generate to build your shopping list."
+                    title: String(localized: "No grocery list yet"),
+                    message: String(localized: "Generate a meal plan first, then tap Generate to build your shopping list.")
                 )
                 if let error = viewModel.groceryState.lastError {
                     KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
@@ -487,11 +487,11 @@ private struct AddGroceryItemSheet: View {
     var body: some View {
         NavigationStack {
             KitchenForm {
-                KitchenFormSection("Item") {
+                KitchenFormSection(String(localized: "Item")) {
                     TextField("Name (e.g. olive oil)", text: $name)
                         .textInputAutocapitalization(.never)
                 }
-                KitchenFormSection("Quantity") {
+                KitchenFormSection(String(localized: "Quantity")) {
                     HStack {
                         TextField("Amount", text: $quantityText)
                             .keyboardType(.decimalPad)
@@ -520,5 +520,26 @@ private struct AddGroceryItemSheet: View {
             }
         }
         .kitchenSheet()
+    }
+}
+
+// MARK: - Aisle names
+
+/// Grocery categories are stored as lowercase English keys ("produce", "dairy"); this is the name
+/// the shopping list and Store Mode show. A key it does not know is shown as it is.
+enum GroceryAisleName {
+    static func display(_ category: String) -> String {
+        switch category {
+        case "produce": String(localized: "produce")
+        case "grains": String(localized: "grains")
+        case "meat": String(localized: "meat")
+        case "seafood": String(localized: "seafood")
+        case "protein": String(localized: "protein")
+        case "dairy": String(localized: "dairy")
+        case "frozen": String(localized: "frozen")
+        case "oils": String(localized: "oils")
+        case "pantry": String(localized: "pantry")
+        default: category
+        }
     }
 }

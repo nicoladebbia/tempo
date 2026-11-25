@@ -86,13 +86,13 @@ struct ReceiptProcessingView: View {
         return layout {
             thumbnail
             VStack(alignment: .leading, spacing: Tide.s4) {
-                summaryCell(title: "Store", value: progress.storeName)
+                summaryCell(title: String(localized: "Store"), value: progress.storeName)
                 summaryCell(
-                    title: "Total",
-                    value: progress.totalAmount.map { String(format: "$%.2f", $0) },
+                    title: String(localized: "Total"),
+                    value: progress.totalAmount.map { "$" + $0.tempoDecimal(2) },
                     large: true
                 )
-                summaryCell(title: "Items", value: progress.itemCandidateCount.map { "~\($0)" })
+                summaryCell(title: String(localized: "Items"), value: progress.itemCandidateCount.map { "~\($0)" })
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

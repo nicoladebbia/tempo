@@ -525,6 +525,28 @@ extension FoodProduct {
         (["sulphite", "sulfite", "sulphur-dioxide", "sulfur-dioxide"], "Sulphites"),
     ]
 
+    /// Screen text for one of the stable English names above. `displayAllergens`
+    /// and `displayTraces` keep the English form (matching, tests); show this.
+    static func localizedAllergenName(_ name: String) -> String {
+        switch name {
+        case "Milk": String(localized: "Milk")
+        case "Eggs": String(localized: "Eggs")
+        case "Fish": String(localized: "Fish")
+        case "Crustaceans": String(localized: "Crustaceans")
+        case "Molluscs": String(localized: "Molluscs")
+        case "Tree nuts": String(localized: "Tree nuts")
+        case "Peanuts": String(localized: "Peanuts")
+        case "Gluten": String(localized: "Gluten")
+        case "Soy": String(localized: "Soy")
+        case "Sesame": String(localized: "Sesame")
+        case "Celery": String(localized: "Celery")
+        case "Mustard": String(localized: "Mustard")
+        case "Lupin": String(localized: "Lupin")
+        case "Sulphites": String(localized: "Sulphites")
+        default: name
+        }
+    }
+
     /// nil when the tag matches none of the EU-14 / US-major allergens.
     static func displayAllergenName(for rawTag: String) -> String? {
         let tag = rawTag.split(separator: ":").last.map(String.init) ?? rawTag

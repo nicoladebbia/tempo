@@ -110,27 +110,34 @@ enum FoodFit {
         let glutenFreeLabel = product.labels.contains { $0.contains("gluten-free") || $0.contains("no-gluten") }
         if context.glutenFree {
             allergenRule(
-                &checks, label: "gluten", display: ["Gluten"], terms: glutenTerms, text: text, product: product,
+                &checks, label: String(localized: "gluten"), display: ["Gluten"], terms: glutenTerms, text: text, product: product,
                 skipText: glutenFreeLabel
             )
         }
         if context.nutFree {
-            allergenRule(&checks, label: "nuts", display: ["Tree nuts", "Peanuts"], terms: nutTerms, text: text, product: product)
+            allergenRule(
+                &checks,
+                label: String(localized: "nuts"),
+                display: ["Tree nuts", "Peanuts"],
+                terms: nutTerms,
+                text: text,
+                product: product
+            )
         }
         if context.shellfishAllergy {
             allergenRule(
-                &checks, label: "shellfish", display: ["Crustaceans", "Molluscs"], terms: shellfishTerms, text: text,
+                &checks, label: String(localized: "shellfish"), display: ["Crustaceans", "Molluscs"], terms: shellfishTerms, text: text,
                 product: product
             )
         }
         if context.vegan {
             if analysis.contains("non-vegan") {
-                checks.append(.init(kind: .conflict, text: "Not vegan"))
+                checks.append(.init(kind: .conflict, text: String(localized: "Not vegan")))
             } else if analysis.contains("maybe-vegan") || analysis.contains("vegan-status-unknown") {
-                checks.append(.init(kind: .warning, text: "May not be vegan — check the ingredients"))
+                checks.append(.init(kind: .warning, text: String(localized: "May not be vegan — check the ingredients")))
             }
         } else if context.vegetarian, analysis.contains("non-vegetarian") {
-            checks.append(.init(kind: .conflict, text: "Not vegetarian"))
+            checks.append(.init(kind: .conflict, text: String(localized: "Not vegetarian")))
         }
         if context.halal, let halalCheck = halalCheck(for: product) {
             checks.append(halalCheck)
@@ -141,12 +148,12 @@ enum FoodFit {
         for (allergy, term) in namedAllergies {
             let tagged = allergens.contains { $0.contains(term) || term.contains($0) }
             if tagged || text.body.contains(term) {
-                checks.append(.init(kind: .conflict, text: "Contains \(allergy) (your allergy)"))
+                checks.append(.init(kind: .conflict, text: String(localized: "Contains \(allergy) (your allergy)")))
             } else if (product.traces ?? []).contains(where: { $0.contains(term) || term.contains($0) })
                 || product.displayTraces.contains(where: { $0.lowercased().contains(term) || term.contains($0.lowercased()) })
                 || text.traces.contains(term)
             {
-                checks.append(.init(kind: .warning, text: "May contain \(allergy) (your allergy) — shared line"))
+                checks.append(.init(kind: .warning, text: String(localized: "May contain \(allergy) (your allergy) — shared line")))
             }
         }
         // No allergen or ingredient data at all on a packaged product: that is
@@ -155,7 +162,7 @@ enum FoodFit {
         if hasAllergyRule, claimsAllergenData(product), !hasAllergenData(product) {
             checks.append(.init(
                 kind: .warning,
-                text: "Can't verify allergens — no ingredient data. Read the pack before you eat it."
+                text: String(localized: "Can't verify allergens — no ingredient data. Read the pack before you eat it.")
             ))
         }
 
@@ -163,16 +170,19 @@ enum FoodFit {
         let hasMilk = allergens.contains("milk")
         let lactoseFreeLabel = product.labels.contains { $0.contains("lactose-free") || $0.contains("no-lactose") }
         if context.lactoseFree, hasMilk, !lactoseFreeLabel {
-            checks.append(.init(kind: .warning, text: "Contains lactose"))
+            checks.append(.init(kind: .warning, text: String(localized: "Contains lactose")))
         } else if context.clearSkinFocus, hasMilk {
-            checks.append(.init(kind: .warning, text: "Dairy — you're in clear-skin mode"))
+            checks.append(.init(kind: .warning, text: String(localized: "Dairy — you're in clear-skin mode")))
         }
         let noAddedSugarLabel = product.labels.contains { $0.contains("no-added-sugar") }
         if context.avoidAddedSugars, let sugars = product.per100g.sugars, sugars > 5, !noAddedSugarLabel {
-            checks.append(.init(kind: .warning, text: "\(format(sugars)) g sugar per 100 g — you're avoiding added sugar"))
+            checks.append(.init(
+                kind: .warning,
+                text: String(localized: "\(format(sugars)) g sugar per 100 g — you're avoiding added sugar")
+            ))
         }
         if product.novaGroup == 4 {
-            checks.append(.init(kind: .warning, text: "Ultra-processed (NOVA 4)"))
+            checks.append(.init(kind: .warning, text: String(localized: "Ultra-processed (NOVA 4)")))
         }
 
         // Today's numbers.
@@ -180,22 +190,25 @@ enum FoodFit {
         if let kcal = portion.kcal, let remaining = context.remainingCalories {
             let portionKcal = Int(kcal.rounded())
             if remaining <= 0 {
-                checks.append(.init(kind: .warning, text: "You've hit today's calories — this adds \(portionKcal) kcal"))
+                checks.append(.init(kind: .warning, text: String(localized: "You've hit today's calories — this adds \(portionKcal) kcal")))
             } else if portionKcal <= remaining {
-                checks.append(.init(kind: .good, text: "Fits today: \(portionKcal) kcal of \(remaining) left"))
+                checks.append(.init(kind: .good, text: String(localized: "Fits today: \(portionKcal) kcal of \(remaining) left")))
             } else {
-                checks.append(.init(kind: .warning, text: "\(portionKcal) kcal — only \(remaining) left today"))
+                checks.append(.init(kind: .warning, text: String(localized: "\(portionKcal) kcal — only \(remaining) left today")))
             }
         }
         if let density = proteinPer100Kcal(product) {
             if density >= 8 {
-                checks.append(.init(kind: .good, text: "High protein: \(format(density)) g per 100 kcal"))
+                checks.append(.init(kind: .good, text: String(localized: "High protein: \(format(density)) g per 100 kcal")))
             } else if density < 2, (product.per100g.kcal ?? 0) >= 150 {
-                checks.append(.init(kind: .warning, text: "Low protein: \(format(density)) g per 100 kcal"))
+                checks.append(.init(kind: .warning, text: String(localized: "Low protein: \(format(density)) g per 100 kcal")))
             }
         }
         if let protein = portion.protein, let remainingProtein = context.remainingProtein, remainingProtein > 0, protein >= 10 {
-            checks.append(.init(kind: .good, text: "\(Int(protein.rounded())) g protein toward the \(remainingProtein) g you still need"))
+            checks.append(.init(
+                kind: .good,
+                text: String(localized: "\(Int(protein.rounded())) g protein toward the \(remainingProtein) g you still need")
+            ))
         }
         if let goalCheck = goalCheck(for: product, context: context) {
             checks.append(goalCheck)
@@ -274,12 +287,12 @@ enum FoodFit {
     ) {
         let confirmed = !Set(product.displayAllergens).isDisjoint(with: display)
         if confirmed || (!skipText && text.mentions(terms, in: text.body)) {
-            checks.append(.init(kind: .conflict, text: "Contains \(label)"))
+            checks.append(.init(kind: .conflict, text: String(localized: "Contains \(label)")))
             return
         }
         let traced = !Set(product.displayTraces).isDisjoint(with: display) || text.mentions(terms, in: text.traces)
         if traced {
-            checks.append(.init(kind: .warning, text: "May contain traces of \(label) — shared line"))
+            checks.append(.init(kind: .warning, text: String(localized: "May contain traces of \(label) — shared line")))
         }
     }
 
@@ -291,7 +304,7 @@ enum FoodFit {
         let ingredients = (product.ingredientsText ?? "").lowercased()
             .replacingOccurrences(of: #"sugar alcohols?"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: "wine vinegar", with: "")
-        // Whole words only — "chamomile" must not read as "ham", "collard" as "lard".
+        /// Whole words only — "chamomile" must not read as "ham", "collard" as "lard".
         func mentions(_ term: String) -> Bool {
             ingredients.range(of: "\\b\(NSRegularExpression.escapedPattern(for: term))\\b", options: .regularExpression) != nil
         }
@@ -308,18 +321,18 @@ enum FoodFit {
         ]
 
         if let term = porkTerms.first(where: mentions) {
-            return FoodFitCheck(kind: .conflict, text: "May not be halal — contains \(term)")
+            return FoodFitCheck(kind: .conflict, text: String(localized: "May not be halal — contains \(localizedPorkTerm(term))"))
         }
         if alcoholTerms.contains(where: mentions) {
-            return FoodFitCheck(kind: .conflict, text: "May not be halal — contains alcohol")
+            return FoodFitCheck(kind: .conflict, text: String(localized: "May not be halal — contains alcohol"))
         }
         if ingredients.contains("gelatin") || ingredients.contains("gelatine"),
            !gelatinSourced.contains(where: { ingredients.contains($0) })
         {
-            return FoodFitCheck(kind: .conflict, text: "May not be halal — gelatin source not specified")
+            return FoodFitCheck(kind: .conflict, text: String(localized: "May not be halal — gelatin source not specified"))
         }
         if product.labels.contains(where: { $0.contains("halal") }) {
-            return FoodFitCheck(kind: .good, text: "Halal certified")
+            return FoodFitCheck(kind: .good, text: String(localized: "Halal certified"))
         }
         return nil
     }
@@ -335,15 +348,18 @@ enum FoodFit {
             if kcal > 350, product.foodGroup != .nuts {
                 return FoodFitCheck(
                     kind: .warning,
-                    text: "Calorie-dense (\(Int(kcal.rounded())) kcal/100g) — watch the portion while cutting"
+                    text: String(localized: "Calorie-dense (\(Int(kcal.rounded())) kcal/100g) — watch the portion while cutting")
                 )
             }
             if let density = proteinPer100Kcal(product), density >= 8 {
-                return FoodFitCheck(kind: .good, text: "Protein-dense — solid pick for a cut")
+                return FoodFitCheck(kind: .good, text: String(localized: "Protein-dense — solid pick for a cut"))
             }
         case .leanGain:
             if kcal > 350 {
-                return FoodFitCheck(kind: .good, text: "Energy-dense (\(Int(kcal.rounded())) kcal/100g) — helps hit your surplus")
+                return FoodFitCheck(
+                    kind: .good,
+                    text: String(localized: "Energy-dense (\(Int(kcal.rounded())) kcal/100g) — helps hit your surplus")
+                )
             }
         case .maintain:
             return nil
@@ -359,7 +375,23 @@ enum FoodFit {
     }
 
     private static func format(_ value: Double) -> String {
-        value < 10 ? String(format: "%.1f", value) : String(Int(value.rounded()))
+        value < 10 ? value.tempoDecimal(1) : String(Int(value.rounded()))
+    }
+
+    /// Screen text for an English pork keyword matched in the ingredients.
+    private static func localizedPorkTerm(_ term: String) -> String {
+        switch term {
+        case "pork": String(localized: "pork")
+        case "bacon": String(localized: "bacon")
+        case "lard": String(localized: "lard")
+        case "ham": String(localized: "ham")
+        case "prosciutto": String(localized: "prosciutto")
+        case "salami": String(localized: "salami")
+        case "pepperoni": String(localized: "pepperoni")
+        case "chorizo": String(localized: "chorizo")
+        case "pancetta": String(localized: "pancetta")
+        default: term
+        }
     }
 }
 
@@ -374,10 +406,18 @@ extension FoodProduct {
             return self
         }
         var merged = self
-        if merged.allergens.isEmpty { merged.allergens = source.allergens }
-        if (merged.traces ?? []).isEmpty { merged.traces = source.traces }
-        if merged.ingredientsText == nil { merged.ingredientsText = source.ingredientsText }
-        if merged.ingredientsAnalysis.isEmpty { merged.ingredientsAnalysis = source.ingredientsAnalysis }
+        if merged.allergens.isEmpty {
+            merged.allergens = source.allergens
+        }
+        if (merged.traces ?? []).isEmpty {
+            merged.traces = source.traces
+        }
+        if merged.ingredientsText == nil {
+            merged.ingredientsText = source.ingredientsText
+        }
+        if merged.ingredientsAnalysis.isEmpty {
+            merged.ingredientsAnalysis = source.ingredientsAnalysis
+        }
         return merged
     }
 }

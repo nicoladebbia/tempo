@@ -41,7 +41,7 @@ struct VoiceMealLogView: View {
         case blocked(AIBlocker)
     }
 
-    private static let noFoodMessage = "No food items found."
+    private static let noFoodMessage = String(localized: "No food items found.")
 
     @State private var phase: Phase = .idle
     @State private var questions: [VoiceClarifyingQuestion] = []
@@ -109,8 +109,8 @@ struct VoiceMealLogView: View {
             Spacer()
 
             Text(transcriber.isListening
-                ? "Listening… describe your meal"
-                : "Tap the mic and say what you ate")
+                ? String(localized: "Listening… describe your meal")
+                : String(localized: "Tap the mic and say what you ate"))
                 .font(Tide.headline)
                 .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
@@ -128,7 +128,7 @@ struct VoiceMealLogView: View {
             }
             .buttonStyle(FuelPressStyle())
             .animation(Tide.snap, value: transcriber.isListening)
-            .accessibilityLabel(transcriber.isListening ? "Stop recording" : "Start recording")
+            .accessibilityLabel(transcriber.isListening ? String(localized: "Stop recording") : String(localized: "Start recording"))
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
@@ -169,7 +169,7 @@ struct VoiceMealLogView: View {
     private var thinkingSection: some View {
         VStack(spacing: Tide.s4) {
             Spacer()
-            FuelAIState(kind: .working("Reading your meal…"))
+            FuelAIState(kind: .working(String(localized: "Reading your meal…")))
             Spacer()
         }
     }
@@ -202,7 +202,7 @@ struct VoiceMealLogView: View {
 
     private var clarifyingSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Question \(questionIndex + 1) of \(questions.count)")
+            TideSectionLabel(title: String(localized: "Question \(questionIndex + 1) of \(questions.count)"))
 
             if questionIndex < questions.count {
                 let q = questions[questionIndex]
@@ -265,10 +265,10 @@ struct VoiceMealLogView: View {
         let kcal = Int(resolved.filter { !$0.isLowConfidence }.reduce(0.0) { $0 + $1.calories }.rounded())
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
-                title: "Confirm your meal",
+                title: String(localized: "Confirm your meal"),
                 trailing: FuelWords.count(resolved.count, "item")
             )
-            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralL)
+            TideNumber("\(kcal)", unit: String(localized: "kcal"), size: Tide.numeralL)
 
             ScrollView {
                 VStack(spacing: Tide.s2) {
@@ -290,12 +290,11 @@ struct VoiceMealLogView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: Tide.s2)
                 if item.isLowConfidence {
-                    FuelPill(text: "Low confidence", color: Tide.warn)
+                    FuelPill(text: String(localized: "Low confidence"), color: Tide.warn)
                 }
             }
 
-            Text("\(Int(item.quantityG)) g · \(Int(item.calories.rounded())) kcal · "
-                + "P \(Int(item.proteinG.rounded())) / C \(Int(item.carbsG.rounded())) / F \(Int(item.fatG.rounded()))")
+            Text(String(localized: "\(Int(item.quantityG)) g · \(Int(item.calories.rounded())) kcal · P \(Int(item.proteinG.rounded())) / C \(Int(item.carbsG.rounded())) / F \(Int(item.fatG.rounded()))"))
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text2)
                 .monospacedDigit()
@@ -364,15 +363,15 @@ struct VoiceMealLogView: View {
             if message == Self.noFoodMessage {
                 FuelAIState(
                     kind: .empty(
-                        title: "No food found",
-                        message: "Nothing in that sounded like food. Say what was on the plate, with amounts if you can."
+                        title: String(localized: "No food found"),
+                        message: String(localized: "Nothing in that sounded like food. Say what was on the plate, with amounts if you can.")
                     ),
-                    actionTitle: "Try again", action: retry
+                    actionTitle: String(localized: "Try again"), action: retry
                 )
             } else {
                 FuelAIState(
-                    kind: .failed(title: "Couldn't read that", message: message),
-                    actionTitle: "Try again", action: retry
+                    kind: .failed(title: String(localized: "Couldn't read that"), message: message),
+                    actionTitle: String(localized: "Try again"), action: retry
                 )
             }
             Spacer()

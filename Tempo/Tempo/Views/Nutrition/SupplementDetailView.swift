@@ -54,7 +54,7 @@ struct SupplementDetailView: View {
                 }
             }
             if let notes = supplement.userNotes, !notes.isEmpty {
-                KitchenFormSection("Notes") {
+                KitchenFormSection(String(localized: "Notes")) {
                     Text(notes).font(Tide.body)
                 }
             }
@@ -110,7 +110,7 @@ struct SupplementDetailView: View {
         notify()
         HapticManager.warning()
         dismiss()
-        KitchenUndo.offer("\(name) deleted.") {
+        KitchenUndo.offer(String(localized: "\(name) deleted.")) {
             KitchenUndo.restoreSupplement(id: id, in: context)
         }
     }
@@ -149,10 +149,10 @@ struct SupplementDetailView: View {
                 }
                 if let daysLeft {
                     VStack(alignment: .leading, spacing: Tide.s2) {
-                        TideSectionLabel(title: "Stock", trailing: low ? "Reorder soon" : nil)
+                        TideSectionLabel(title: String(localized: "Stock"), trailing: low ? String(localized: "Reorder soon") : nil)
                         TideNumber(
-                            daysLeft <= 0 ? "Out" : "\(daysLeft)",
-                            unit: daysLeft <= 0 ? nil : "days left",
+                            daysLeft <= 0 ? String(localized: "Out") : "\(daysLeft)",
+                            unit: daysLeft <= 0 ? nil : String(localized: "days left"),
                             size: Tide.numeralL, relativeTo: .largeTitle, color: tone
                         )
                         if let per = supplement.servingsPerContainer, per > 0, supplement.servingsRemaining > 0 {
@@ -167,7 +167,7 @@ struct SupplementDetailView: View {
                     .accessibilityElement(children: .combine)
                 }
                 VStack(alignment: .leading, spacing: Tide.s2) {
-                    TideSectionLabel(title: "Last \(history.windowDays) days", trailing: "\(history.takenDays) taken")
+                    TideSectionLabel(title: String(localized: "Last \(history.windowDays) days"), trailing: String(localized: "\(history.takenDays) taken"))
                     KitchenHistoryStrip(days: strip)
                 }
                 .accessibilityElement(children: .combine)
@@ -195,7 +195,7 @@ struct SupplementDetailView: View {
                 if !takenToday { HapticManager.success() }
                 refreshToken += 1
             } label: {
-                Label(takenToday ? "Taken today. Tap to undo" : "Took it", systemImage: takenToday ? "checkmark.circle.fill" : "circle")
+                Label(takenToday ? String(localized: "Taken today. Tap to undo") : String(localized: "Took it"), systemImage: takenToday ? "checkmark.circle.fill" : "circle")
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.tidePrimary)
@@ -204,21 +204,21 @@ struct SupplementDetailView: View {
     }
 
     private func scheduleSection(dose: SupplementDose) -> some View {
-        KitchenFormSection("Schedule") {
-            LabeledContent("Today", value: dose.take ? "\(dose.timeLabel) · \(dose.timingLabel)" : "Skip today")
+        KitchenFormSection(String(localized: "Schedule")) {
+            LabeledContent("Today", value: dose.take ? "\(dose.timeLabel) · \(dose.timingLabel)" : String(localized: "Skip today"))
             LabeledContent("Why", value: dose.reason)
-            LabeledContent("Dose", value: supplement.dosePerServing.isEmpty ? "Not set" : supplement.dosePerServing)
+            LabeledContent("Dose", value: supplement.dosePerServing.isEmpty ? String(localized: "Not set") : supplement.dosePerServing)
         }
     }
 
     private func stockSection(daysLeft: Int?, low: Bool) -> some View {
-        KitchenFormSection("Stock") {
+        KitchenFormSection(String(localized: "Stock")) {
             LabeledContent("Left in container") {
-                Text(supplement.servingsRemaining > 0 ? FuelWords.count(Int(supplement.servingsRemaining), "serving") : "Not tracked")
+                Text(supplement.servingsRemaining > 0 ? FuelWords.count(Int(supplement.servingsRemaining), "serving") : String(localized: "Not tracked"))
             }
             if let daysLeft {
                 LabeledContent("Lasts about") {
-                    Text(daysLeft <= 0 ? "Out" : FuelWords.count(daysLeft, "day"))
+                    Text(daysLeft <= 0 ? String(localized: "Out") : FuelWords.count(daysLeft, "day"))
                         .foregroundStyle(low ? Tide.Kitchen.warn : Tide.text)
                 }
             }
@@ -228,7 +228,7 @@ struct SupplementDetailView: View {
             Button {
                 showReorder = true
             } label: {
-                Label(low ? "Reorder now" : "Reorder or restock", systemImage: "cart")
+                Label(low ? String(localized: "Reorder now") : String(localized: "Reorder or restock"), systemImage: "cart")
             }
             .foregroundStyle(low ? Tide.Kitchen.warn : mood.accent)
             .accessibilityIdentifier("supplementReorder")
@@ -240,7 +240,7 @@ struct SupplementDetailView: View {
         Section {
             if supplement.hasMacros {
                 let m = supplement.macrosPerServing
-                LabeledContent("Calories", value: "\(Int(m.calories.rounded())) kcal")
+                LabeledContent("Calories", value: String(localized: "\(Int(m.calories.rounded())) kcal"))
                 LabeledContent("Protein", value: "\(Int(m.protein.rounded())) g")
                 LabeledContent("Carbs", value: "\(Int(m.carbs.rounded())) g")
                 LabeledContent("Fat", value: "\(Int(m.fat.rounded())) g")
@@ -261,7 +261,7 @@ struct SupplementDetailView: View {
     @ViewBuilder
     private var ingredientsSection: some View {
         if let text = supplement.ingredientsSummary, !text.isEmpty {
-            KitchenFormSection("What's in it") {
+            KitchenFormSection(String(localized: "What's in it")) {
                 ForEach(Array(text.split(separator: "\n").map(String.init).enumerated()), id: \.offset) { _, line in
                     Text(line).font(Tide.caption)
                 }

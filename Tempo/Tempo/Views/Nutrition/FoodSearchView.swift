@@ -67,6 +67,14 @@ struct FoodSearchView: View {
         var id: String {
             rawValue
         }
+
+        var displayName: String {
+            switch self {
+            case .all: String(localized: "All")
+            case .recent: String(localized: "Recent")
+            case .favorites: String(localized: "Favorites")
+            }
+        }
     }
 
     // MARK: - Body
@@ -76,7 +84,7 @@ struct FoodSearchView: View {
             VStack(spacing: 0) {
                 Picker("Tab", selection: $selectedTab) {
                     ForEach(SearchTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(tab.displayName).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -89,9 +97,9 @@ struct FoodSearchView: View {
                     case .all:
                         allTabContent(catalog)
                     case .recent:
-                        savedList(filteredRecents, catalog: catalog, empty: "Nothing scanned or opened yet.")
+                        savedList(filteredRecents, catalog: catalog, empty: String(localized: "Nothing scanned or opened yet."))
                     case .favorites:
-                        savedList(filteredFavorites, catalog: catalog, empty: "No favourites yet. Tap the star on a product.")
+                        savedList(filteredFavorites, catalog: catalog, empty: String(localized: "No favourites yet. Tap the star on a product."))
                     }
                 }
             }
@@ -153,7 +161,7 @@ struct FoodSearchView: View {
             if filteredRecents.isEmpty {
                 searchEmptyState
             } else {
-                savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: "Recent")
+                savedList(Array(filteredRecents.prefix(15)), catalog: catalog, empty: "", header: String(localized: "Recent"))
             }
         } else if results.isEmpty, isLoading {
             // The shape of the rows that are coming, not a lone spinner.
@@ -176,9 +184,9 @@ struct FoodSearchView: View {
                         }
                     }
                 }
-                resultSection("Yours", results.yours, catalog: catalog)
-                resultSection("Basic foods", results.basics, catalog: catalog)
-                resultSection("Packaged products", results.products, catalog: catalog)
+                resultSection(String(localized: "Yours"), results.yours, catalog: catalog)
+                resultSection(String(localized: "Basic foods"), results.basics, catalog: catalog)
+                resultSection(String(localized: "Packaged products"), results.products, catalog: catalog)
                 if isLoading || isLoadingMore {
                     HStack {
                         Spacer()
@@ -232,8 +240,8 @@ struct FoodSearchView: View {
                     icon: selectedTab == .favorites ? "star.fill" : "clock.fill",
                     title: empty,
                     message: selectedTab == .favorites
-                        ? "Open any food and tap its star. It waits for you here."
-                        : "Foods you scan or open show up here, newest first."
+                        ? String(localized: "Open any food and tap its star. It waits for you here.")
+                        : String(localized: "Foods you scan or open show up here, newest first.")
                 )
             }
         } else {
@@ -280,9 +288,9 @@ struct FoodSearchView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 FuelRowGroup {
-                    coverageRow(icon: "leaf.fill", title: "Basic foods", detail: "Chicken breast, rice, eggs, oats")
-                    coverageRow(icon: "shippingbox.fill", title: "Packaged products", detail: "By name or brand, with a Tempo score")
-                    coverageRow(icon: "clock.fill", title: "Yours", detail: "What you scanned, saved or starred")
+                    coverageRow(icon: "leaf.fill", title: String(localized: "Basic foods"), detail: String(localized: "Chicken breast, rice, eggs, oats"))
+                    coverageRow(icon: "shippingbox.fill", title: String(localized: "Packaged products"), detail: String(localized: "By name or brand, with a Tempo score"))
+                    coverageRow(icon: "clock.fill", title: String(localized: "Yours"), detail: String(localized: "What you scanned, saved or starred"))
                 }
                 Button {
                     HapticManager.lightImpact()
@@ -320,8 +328,8 @@ struct FoodSearchView: View {
         centered {
             if results.notices.isEmpty {
                 FuelAIState(
-                    kind: .empty(title: "Nothing found", message: "Try a shorter name, or scan the barcode."),
-                    actionTitle: "Scan a barcode",
+                    kind: .empty(title: String(localized: "Nothing found"), message: String(localized: "Try a shorter name, or scan the barcode.")),
+                    actionTitle: String(localized: "Scan a barcode"),
                     action: {
                         HapticManager.lightImpact()
                         showScanner = true
@@ -330,10 +338,10 @@ struct FoodSearchView: View {
             } else {
                 FuelAIState(
                     kind: .failed(
-                        title: "Couldn't reach the food database",
+                        title: String(localized: "Couldn't reach the food database"),
                         message: results.notices.joined(separator: " ")
                     ),
-                    actionTitle: "Try again",
+                    actionTitle: String(localized: "Try again"),
                     action: {
                         HapticManager.lightImpact()
                         Task { await runSearch() }

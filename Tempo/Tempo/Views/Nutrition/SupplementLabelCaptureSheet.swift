@@ -93,31 +93,31 @@ struct SupplementLabelCaptureSheet: View {
     private var idleContent: some View {
         KitchenStatePage(actions: [
             KitchenStateAction(
-                title: "Take a photo", systemImage: "camera", role: .primary,
+                title: String(localized: "Take a photo"), systemImage: "camera", role: .primary,
                 identifier: "supplementLabelTakePhoto"
             ) {
                 pickerSource = .camera
             },
             KitchenStateAction(
-                title: "Choose from library", systemImage: "photo.on.rectangle",
+                title: String(localized: "Choose from library"), systemImage: "photo.on.rectangle",
                 identifier: "supplementLabelChoosePhoto"
             ) {
                 pickerSource = .library
             },
-            KitchenStateAction(title: "Type it instead", role: .quiet) {
+            KitchenStateAction(title: String(localized: "Type it instead"), role: .quiet) {
                 onTypeIt()
             },
         ]) {
             VStack(spacing: Tide.s5) {
                 KitchenStateHero(
                     systemImage: "text.viewfinder",
-                    title: "Photograph the label",
-                    message: "Get the Supplement Facts panel in frame. Tempo reads it and you check it before anything is saved."
+                    title: String(localized: "Photograph the label"),
+                    message: String(localized: "Get the Supplement Facts panel in frame. Tempo reads it and you check it before anything is saved.")
                 )
                 VStack(alignment: .leading, spacing: Tide.s3) {
-                    tip("rectangle.portrait", "Hold it flat, the whole panel in frame")
-                    tip("sun.max", "Good light, no glare on the print")
-                    tip("viewfinder", "Close enough that the small print is sharp")
+                    tip("rectangle.portrait", String(localized: "Hold it flat, the whole panel in frame"))
+                    tip("sun.max", String(localized: "Good light, no glare on the print"))
+                    tip("viewfinder", String(localized: "Close enough that the small print is sharp"))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -143,8 +143,8 @@ struct SupplementLabelCaptureSheet: View {
         KitchenStatePage {
             KitchenStateHero(
                 systemImage: "text.viewfinder",
-                title: "Reading your label…",
-                message: "This takes about 10 seconds. Hold tight.",
+                title: String(localized: "Reading your label…"),
+                message: String(localized: "This takes about 10 seconds. Hold tight."),
                 working: true
             )
             .accessibilityIdentifier("supplementLabelReading")
@@ -157,7 +157,7 @@ struct SupplementLabelCaptureSheet: View {
                 KitchenStateHero(
                     systemImage: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder",
                     tint: Tide.Kitchen.warn,
-                    title: failure == .unreadable ? "Couldn't read that one" : "Couldn't read the label",
+                    title: failure == .unreadable ? String(localized: "Couldn't read that one") : String(localized: "Couldn't read the label"),
                     // The blocker card below carries the same line.
                     message: failure.isBlocked ? "" : failure.message
                 )
@@ -175,13 +175,13 @@ struct SupplementLabelCaptureSheet: View {
     private func failureActions(_ failure: SupplementLabelPhotoModel.Failure) -> [KitchenStateAction] {
         var actions: [KitchenStateAction] = []
         if failure.canRetrySamePhoto {
-            actions.append(KitchenStateAction(title: "Try again", systemImage: "arrow.clockwise", role: .primary) {
+            actions.append(KitchenStateAction(title: String(localized: "Try again"), systemImage: "arrow.clockwise", role: .primary) {
                 retry()
             })
         }
         if failure != .busy {
             actions.append(KitchenStateAction(
-                title: "Retake", systemImage: "camera",
+                title: String(localized: "Retake"), systemImage: "camera",
                 role: failure.canRetrySamePhoto ? .secondary : .primary,
                 identifier: "supplementLabelRetake"
             ) {
@@ -190,7 +190,7 @@ struct SupplementLabelCaptureSheet: View {
             })
         }
         actions.append(KitchenStateAction(
-            title: "Type it", systemImage: "square.and.pencil",
+            title: String(localized: "Type it"), systemImage: "square.and.pencil",
             role: failure == .busy ? .primary : .secondary,
             identifier: "supplementLabelTypeIt"
         ) {

@@ -40,17 +40,22 @@ struct WeeklyHabitsSettingsView: View {
     @State
     private var loaded = false
 
-    private static let mealNames = [1: "Breakfast", 2: "Lunch", 3: "Dinner", 4: "Snack", 5: "Second snack"]
+    private static var mealNames: [Int: String] {
+        [
+            1: String(localized: "Breakfast"), 2: String(localized: "Lunch"), 3: String(localized: "Dinner"),
+            4: String(localized: "Snack"), 5: String(localized: "Second snack"),
+        ]
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s5) {
                 hero
                 FuelRowGroup(
-                    title: "Sunday planning",
+                    title: String(localized: "Sunday planning"),
                     footnote: notificationsDenied
-                        ? "Notifications are off for Tempo — turn them on in iOS Settings to get the Sunday prompt."
-                        : "Tap Yes on the notification and next week is built in the background, around your routine."
+                        ? String(localized: "Notifications are off for Tempo — turn them on in iOS Settings to get the Sunday prompt.")
+                        : String(localized: "Tap Yes on the notification and next week is built in the background, around your routine.")
                 ) {
                     Toggle("Ask me every Sunday", isOn: $promptEnabled)
                         .font(Tide.bodyStrong)
@@ -66,12 +71,12 @@ struct WeeklyHabitsSettingsView: View {
                         HapticManager.lightImpact()
                         services.appState.weeklyCheckInRequested = true
                     } label: {
-                        actionLabel("Plan next week now", icon: "calendar.badge.plus")
+                        actionLabel(String(localized: "Plan next week now"), icon: "calendar.badge.plus")
                     }
                     .buttonStyle(.plain)
                     if notificationsDenied {
                         Button { CameraPermission.openSettings() } label: {
-                            actionLabel("Open Settings", icon: "gearshape")
+                            actionLabel(String(localized: "Open Settings"), icon: "gearshape")
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("weeklyOpenSettings")
@@ -79,8 +84,8 @@ struct WeeklyHabitsSettingsView: View {
                 }
 
                 FuelRowGroup(
-                    title: "Your week",
-                    footnote: "Every Sunday plan reads this. Change it any time — by voice or by hand."
+                    title: String(localized: "Your week"),
+                    footnote: String(localized: "Every Sunday plan reads this. Change it any time — by voice or by hand.")
                 ) {
                     NavigationLink {
                         FuelSetupView(embedded: true)
@@ -104,7 +109,7 @@ struct WeeklyHabitsSettingsView: View {
                     }
                 }
 
-                FuelRowGroup(title: "Learned from your logs") {
+                FuelRowGroup(title: String(localized: "Learned from your logs")) {
                     if observedTimes.isEmpty, expenditure == nil {
                         Text("Log meals for a couple of weeks and your real eating times and calorie burn show up here.")
                             .font(Tide.caption)
@@ -117,10 +122,10 @@ struct WeeklyHabitsSettingsView: View {
                     }
                     if let expenditure {
                         VStack(alignment: .leading, spacing: Tide.s1) {
-                            LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
+                            LabeledContent("Your real maintenance", value: String(localized: "\(Int(expenditure.kcal.rounded())) kcal"))
                                 .font(Tide.bodyStrong)
                             Text(
-                                "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
+                                "From \(expenditure.loggedDays) logged days and a \(Self.signedDecimal(expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
                             )
                             .font(Tide.caption)
                             .foregroundStyle(Tide.text2)
@@ -131,7 +136,7 @@ struct WeeklyHabitsSettingsView: View {
                 }
 
                 FuelRowGroup(
-                    footnote: "Per-supplement reminders can still be turned off individually from the shelf."
+                    footnote: String(localized: "Per-supplement reminders can still be turned off individually from the shelf.")
                 ) {
                     Toggle("Remind me to take my supplements", isOn: $supplementRemindersEnabled)
                         .font(Tide.bodyStrong)
@@ -200,13 +205,13 @@ struct WeeklyHabitsSettingsView: View {
                 size: Tide.tileLarge
             )
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(promptEnabled ? "Next week gets planned every Sunday" : "Sunday planning is off")
+                Text(promptEnabled ? String(localized: "Next week gets planned every Sunday") : String(localized: "Sunday planning is off"))
                     .font(Tide.title2)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                Text(promptEnabled ? "Asked at \(promptTime.formatted(date: .omitted, time: .shortened))." :
-                    "You can still plan a week by hand.")
+                Text(promptEnabled ? String(localized: "Asked at \(promptTime.formatted(date: .omitted, time: .shortened)).") :
+                    String(localized: "You can still plan a week by hand."))
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,7 +267,7 @@ struct WeeklyHabitsSettingsView: View {
         supplementRemindersEnabled = settings?.supplementRemindersEnabled ?? true
 
         let observed = MealPlanGeneratorService(apiClient: services.apiClient).observedMealTimes(modelContext: modelContext) ?? [:]
-        observedTimes = observed.sorted { $0.key < $1.key }.map { (Self.mealNames[$0.key] ?? "Meal \($0.key)", $0.value) }
+        observedTimes = observed.sorted { $0.key < $1.key }.map { (Self.mealNames[$0.key] ?? String(localized: "Meal \($0.key)"), $0.value) }
         expenditure = AdaptiveExpenditure.observe(in: modelContext)
         routineSummary = Self.summary(of: UserDailyPlanProfile.current(in: modelContext)?.weeklyRoutine)
         // Set after the state above so the initial values don't trigger a save.
@@ -280,25 +285,35 @@ struct WeeklyHabitsSettingsView: View {
         Task { await WeeklyPlanReminder.sync(settings: settings) }
     }
 
+    /// "+0.3" or "-0.3" with the user's decimal separator; always carries a sign, like `%+.1f`.
+    private static func signedDecimal(_ value: Double) -> String {
+        (value < 0 ? "-" : "+") + abs(value).tempoDecimal(1)
+    }
+
     /// One line per weekday that has something in it.
     static func summary(of routine: WeeklyRoutine?) -> [String] {
         guard let routine else {
             return []
         }
-        let names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        let names = [
+            String(localized: "Mon"), String(localized: "Tue"), String(localized: "Wed"), String(localized: "Thu"),
+            String(localized: "Fri"), String(localized: "Sat"), String(localized: "Sun"),
+        ]
         return routine.days.compactMap { day in
             var parts: [String] = []
             if let wake = RoutineTime.string(day.wakeMinutes) {
-                parts.append("up \(wake)")
+                parts.append(String(localized: "up \(wake)"))
             }
             if let leave = RoutineTime.string(day.leaveHomeMinutes) {
-                parts.append("out \(leave)")
+                parts.append(String(localized: "out \(leave)"))
             }
             for event in day.events where event.kind == .mealOut {
-                parts.append("eat out \(RoutineTime.string(event.startMinutes) ?? "")")
+                let eatTime = RoutineTime.string(event.startMinutes) ?? ""
+                parts.append(String(localized: "eat out \(eatTime)"))
             }
             if let training = day.training {
-                parts.append("train \(RoutineTime.string(training.startMinutes) ?? "")")
+                let trainTime = RoutineTime.string(training.startMinutes) ?? ""
+                parts.append(String(localized: "train \(trainTime)"))
             }
             guard !parts.isEmpty, (1 ... 7).contains(day.weekday) else {
                 return nil

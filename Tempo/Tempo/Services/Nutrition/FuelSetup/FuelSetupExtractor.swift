@@ -398,7 +398,7 @@ extension FuelSetupExtractor.Wire.Profile {
                 let kind = event.kind.flatMap(RoutineEvent.Kind.init(rawValue:)) ?? .other
                 return RoutineEvent(
                     kind: kind,
-                    title: event.title?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? kind.label,
+                    title: event.title?.trimmingCharacters(in: .whitespaces).nilIfEmpty ?? kind.englishLabel,
                     startMinutes: start,
                     endMinutes: RoutineTime.minutes(from: event.end),
                     placeID: placeID,
@@ -458,5 +458,19 @@ private extension String {
     var nilIfEmpty: String? {
         let trimmed = trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+// MARK: - RoutineEvent.Kind English name
+
+private extension RoutineEvent.Kind {
+    /// Stable English name stored as the default event title (the routine can
+    /// reach the AI prompt); `label` is the localized text for the screen.
+    var englishLabel: String {
+        switch self {
+        case .classOrWork: "Class / work"
+        case .mealOut: "Meal out"
+        case .other: "Other"
+        }
     }
 }

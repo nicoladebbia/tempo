@@ -116,7 +116,7 @@ struct MarkEatenSheet: View {
             .tidePage()
             // A sheet is its own page, even when it comes up from inside one.
             .environment(\.tideInsidePage, false)
-            .navigationTitle(meal.mealName)
+            .navigationTitle(meal.displayMealName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -136,7 +136,7 @@ struct MarkEatenSheet: View {
             HStack(spacing: Tide.s3) {
                 TideIconTile(systemName: FuelMealStyle.icon(forName: meal.mealName))
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(meal.mealName)
+                    Text(meal.displayMealName)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                         .lineLimit(2)
@@ -198,7 +198,7 @@ struct MarkEatenSheet: View {
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "h:mm a"
+        f.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return f
     }()
 
@@ -297,14 +297,14 @@ struct MarkEatenSheet: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityValue(ateSomethingElse ? "Expanded" : "Collapsed")
+            .accessibilityValue(ateSomethingElse ? String(localized: "Expanded") : String(localized: "Collapsed"))
 
             if ateSomethingElse {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         Text("What did you eat?").tideLabel()
                         TextField(
-                            "Chicken, rice, beans, olive oil…",
+                            String(localized: "Chicken, rice, beans, olive oil…"),
                             text: $substituteText,
                             axis: .vertical
                         )
@@ -317,15 +317,15 @@ struct MarkEatenSheet: View {
                     VStack(alignment: .leading, spacing: Tide.s2) {
                         Text("Where from?").tideLabel()
                         originLayout {
-                            originChoice("Ate out", icon: "takeoutbag.and.cup.and.straw.fill", pantry: false)
-                            originChoice("Used my pantry", icon: "refrigerator.fill", pantry: true)
+                            originChoice(String(localized: "Ate out"), icon: "takeoutbag.and.cup.and.straw.fill", pantry: false)
+                            originChoice(String(localized: "Used my pantry"), icon: "refrigerator.fill", pantry: true)
                         }
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel("Where from")
                     }
                     Text(usedPantry
-                        ? "We'll take what you ate off your pantry stock and log the real macros for today."
-                        : "We'll log the real macros for today. Your pantry stays as-is (you ate out / used something untracked).")
+                        ? String(localized: "We'll take what you ate off your pantry stock and log the real macros for today.")
+                        : String(localized: "We'll log the real macros for today. Your pantry stays as-is (you ate out / used something untracked)."))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -453,12 +453,18 @@ struct MarkEatenSheet: View {
     /// wins over feel when both are set — it's the higher-signal action.
     private var saveLabel: String {
         if let sub = builtSubstitute {
-            return "Save substitute (\(sub.note.prefix(20))…)"
+            return String(localized: "Save substitute (\(String(sub.note.prefix(20)))…)")
         }
         if let feel = selectedFeel {
-            return "Save with \(feel.displayName.lowercased())"
+            switch feel {
+            case .light: return String(localized: "Save with light")
+            case .clean: return String(localized: "Save with clean")
+            case .energising: return String(localized: "Save with energising")
+            case .heavy: return String(localized: "Save with heavy")
+            case .sluggish: return String(localized: "Save with sluggish")
+            }
         }
-        return "Save"
+        return String(localized: "Save")
     }
 
     /// Returns a non-nil substitute only when the toggle is on AND the
@@ -485,13 +491,13 @@ struct MarkEatenSheet: View {
     private var timeAgoLabel: String {
         let minutes = Int(secondsAgo / 60)
         if minutes < 1 {
-            return "Just now"
+            return String(localized: "Just now")
         }
         if minutes < 60 {
-            return "\(minutes) min ago"
+            return String(localized: "\(minutes) min ago")
         }
         let hours = minutes / 60
         let remMin = minutes % 60
-        return remMin == 0 ? "\(hours) h ago" : "\(hours) h \(remMin) min ago"
+        return remMin == 0 ? String(localized: "\(hours) h ago") : String(localized: "\(hours) h \(remMin) min ago")
     }
 }

@@ -33,10 +33,10 @@ struct LoggedMealsList: View {
         let totals = CanonicalMeals.roundedTotals(of: meals)
         return VStack(alignment: .leading, spacing: Tide.s3) {
             TideSectionLabel(
-                title: "Logged today",
+                title: String(localized: "Logged today"),
                 trailing: FuelWords.count(meals.count, "meal")
             )
-            TideNumber("\(totals.calories)", unit: "kcal", size: Tide.numeralL)
+            TideNumber("\(totals.calories)", unit: String(localized: "kcal"), size: Tide.numeralL)
             // How the day's calories divide, then the grams (stacked at large text sizes).
             FuelMacroSplitBar(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
             FuelMacroInline(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
@@ -54,7 +54,7 @@ struct LoggedMealsList: View {
             items: meals,
             rowGap: Tide.s2,
             swipe: { meal in
-                .init(label: meal.isUnplannedLog ? "Delete" : "Not eaten") { onDelete(meal) }
+                .init(label: meal.isUnplannedLog ? String(localized: "Delete") : String(localized: "Not eaten")) { onDelete(meal) }
             }
         ) { meal in
             Button {
@@ -76,7 +76,7 @@ struct LoggedMealsList: View {
                 Button(role: .destructive) {
                     onDelete(meal)
                 } label: {
-                    Label(meal.isUnplannedLog ? "Delete log" : "Undo, not eaten", systemImage: "trash")
+                    Label(meal.isUnplannedLog ? String(localized: "Delete log") : String(localized: "Undo, not eaten"), systemImage: "trash")
                 }
             }
         }
@@ -112,7 +112,7 @@ struct LoggedMealRow: View {
 
             VStack(alignment: .leading, spacing: Tide.s1) {
                 titleLayout {
-                    Text(meal.mealName)
+                    Text(meal.displayMealName)
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                         .lineLimit(3)
@@ -120,7 +120,7 @@ struct LoggedMealRow: View {
                         Spacer(minLength: Tide.s1)
                     }
                     TideNumber(
-                        "\(Int(meal.totalCalories.rounded()))", unit: "kcal",
+                        "\(Int(meal.totalCalories.rounded()))", unit: String(localized: "kcal"),
                         size: Tide.numeralS, relativeTo: .headline
                     )
                     .fixedSize()
@@ -158,7 +158,7 @@ struct LoggedMealRow: View {
     private func originBadge(_ origin: MealOrigin) -> some View {
         let isKitchen = origin == .kitchen
         return FuelPill(
-            text: isKitchen ? "Kitchen" : "Eaten out",
+            text: isKitchen ? String(localized: "Kitchen") : String(localized: "Eaten out"),
             color: isKitchen ? Tide.good : Tide.warn
         )
     }

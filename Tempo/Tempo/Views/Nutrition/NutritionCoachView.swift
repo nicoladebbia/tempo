@@ -137,11 +137,11 @@ struct NutritionCoachView: View {
         Task {
             await model.addManualWeighIn(kg: kg, at: time)
             FuelLogToast.post(ToastData(
-                message: "Weight saved. \(String(format: "%.1f", kg)) kg.", style: .success, actionTitle: "Undo"
+                message: String(localized: "Weight saved. \(kg.tempoDecimal(1)) kg."), style: .success, actionTitle: String(localized: "Undo")
             ) {
                 Task {
                     await model.undoManualWeighIn(at: time, restoring: replaced)
-                    FuelLogToast.post(ToastData(message: "Weight taken back.", style: .info))
+                    FuelLogToast.post(ToastData(message: String(localized: "Weight taken back."), style: .info))
                 }
             })
         }
@@ -152,11 +152,11 @@ struct NutritionCoachView: View {
         Task {
             await model.removeManualWeighIn(at: weighIn.time)
             FuelLogToast.post(ToastData(
-                message: "Weight removed. \(String(format: "%.1f", weighIn.kg)) kg.", style: .info, actionTitle: "Undo"
+                message: String(localized: "Weight removed. \(weighIn.kg.tempoDecimal(1)) kg."), style: .info, actionTitle: String(localized: "Undo")
             ) {
                 Task {
                     await model.addManualWeighIn(kg: weighIn.kg, at: weighIn.time)
-                    FuelLogToast.post(ToastData(message: "Weight put back.", style: .info))
+                    FuelLogToast.post(ToastData(message: String(localized: "Weight put back."), style: .info))
                 }
             })
         }
@@ -336,13 +336,13 @@ struct NutritionCoachView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
             : AnyLayout(HStackLayout(spacing: Tide.s2))
         return layout {
-            cardTitle("Daily briefing", icon: "brain.head.profile", tint: mood.accent)
+            cardTitle(String(localized: "Daily briefing"), icon: "brain.head.profile", tint: mood.accent)
             if !stacked {
                 Spacer(minLength: Tide.s2)
             }
             HStack(spacing: Tide.s2) {
                 if !isOnline {
-                    FuelPill(text: "Offline", color: Tide.warn)
+                    FuelPill(text: String(localized: "Offline"), color: Tide.warn)
                 }
                 Text(todayTimeString)
                     .font(Tide.caption)
@@ -362,7 +362,7 @@ struct NutritionCoachView: View {
             dailyHeader
 
             if insights.daily.isLoading {
-                insightLoadingRow("Reading your day…")
+                insightLoadingRow(String(localized: "Reading your day…"))
             } else {
                 // The briefing is the hero of this page.
                 Text(insights.daily.value ?? dailyMessage)
@@ -393,10 +393,10 @@ struct NutritionCoachView: View {
 
     private var mealSuggestionSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            cardTitle("Meal suggestion", icon: "sparkles", tint: mood.accent)
+            cardTitle(String(localized: "Meal suggestion"), icon: "sparkles", tint: mood.accent)
 
             if viewModel.isLoadingMealSuggestions {
-                insightLoadingRow("Finding meals for your remaining macros…")
+                insightLoadingRow(String(localized: "Finding meals for your remaining macros…"))
             } else if !viewModel.mealSuggestions.isEmpty {
                 VStack(alignment: .leading, spacing: Tide.s3) {
                     ForEach(viewModel.mealSuggestions) { suggestion in
@@ -408,7 +408,7 @@ struct NutritionCoachView: View {
                 }
             } else if let error = viewModel.mealSuggestionError {
                 FuelAIState(
-                    kind: .failed(title: "No suggestion this time", message: error),
+                    kind: .failed(title: String(localized: "No suggestion this time"), message: error),
                     isCard: false
                 )
             } else {
@@ -429,7 +429,7 @@ struct NutritionCoachView: View {
                     } else {
                         Image(systemName: "wand.and.stars")
                     }
-                    Text(viewModel.mealSuggestions.isEmpty ? "Get Meal Suggestion" : "New Suggestion")
+                    Text(viewModel.mealSuggestions.isEmpty ? String(localized: "Get Meal Suggestion") : String(localized: "New Suggestion"))
                         .multilineTextAlignment(.center)
                 }
             }
@@ -460,7 +460,7 @@ struct NutritionCoachView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
-                TideNumber("\(suggestion.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                TideNumber("\(suggestion.calories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 FuelMacroInline(protein: suggestion.protein, carbs: suggestion.carbs, fat: suggestion.fat)
             }
         }
@@ -471,7 +471,7 @@ struct NutritionCoachView: View {
     private var recoveryGuidanceCard: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(spacing: Tide.s2) {
-                cardTitle("Recovery-aware guidance", icon: "heart.circle.fill", tint: recoveryColor)
+                cardTitle(String(localized: "Recovery-aware guidance"), icon: "heart.circle.fill", tint: recoveryColor)
 
                 Spacer(minLength: Tide.s2)
 
@@ -493,7 +493,7 @@ struct NutritionCoachView: View {
             }
 
             if insights.recovery.isLoading {
-                insightLoadingRow("Building recovery guidance…")
+                insightLoadingRow(String(localized: "Building recovery guidance…"))
             } else {
                 Text(insights.recovery.value?.message ?? recoveryNutritionMessage)
                     .font(Tide.body)
@@ -516,19 +516,29 @@ struct NutritionCoachView: View {
         .animation(Tide.snap, value: insights.recovery.isLoading)
     }
 
+    /// The zone word on the recovery stat: "RED", "YELLOW", "GREEN".
+    private static func zoneLabel(_ zone: String) -> String {
+        switch zone.lowercased() {
+        case "red": String(localized: "RED")
+        case "yellow": String(localized: "YELLOW")
+        case "green": String(localized: "GREEN")
+        default: zone.uppercased()
+        }
+    }
+
     private func recoveryStats(_ recovery: WhoopRecoveryData) -> [Stat] {
         var stats = [
             Stat(
-                label: "Recovery",
+                label: String(localized: "Recovery"),
                 value: "\(Int(recovery.score))%",
-                unit: viewModel.recoveryZone?.uppercased() ?? "",
+                unit: viewModel.recoveryZone.map(Self.zoneLabel) ?? "",
                 color: recoveryColor
             ),
-            Stat(label: "HRV", value: String(format: "%.0f", recovery.hrvRmssd), unit: "ms", color: Tide.text),
-            Stat(label: "RHR", value: String(format: "%.0f", recovery.restingHeartRate), unit: "bpm", color: Tide.text),
+            Stat(label: String(localized: "HRV"), value: recovery.hrvRmssd.tempoDecimal(0), unit: String(localized: "ms"), color: Tide.text),
+            Stat(label: String(localized: "RHR"), value: recovery.restingHeartRate.tempoDecimal(0), unit: String(localized: "bpm"), color: Tide.text),
         ]
         if let sleep = viewModel.todaySleep {
-            stats.append(Stat(label: "Sleep", value: String(format: "%.1f", sleep.totalHours), unit: "hrs", color: Tide.text))
+            stats.append(Stat(label: String(localized: "Sleep"), value: sleep.totalHours.tempoDecimal(1), unit: String(localized: "hrs"), color: Tide.text))
         }
         return stats
     }
@@ -552,7 +562,7 @@ struct NutritionCoachView: View {
 
     private var recentMealFeedback: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            cardTitle("Meal feedback", icon: "chart.bar.fill", tint: mood.accent)
+            cardTitle(String(localized: "Meal feedback"), icon: "chart.bar.fill", tint: mood.accent)
 
             if eatenMeals.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
@@ -589,14 +599,14 @@ struct NutritionCoachView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: Tide.hair) {
-                Text(meal.mealName)
+                Text(meal.displayMealName)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
 
                 let feedback = insights.feedbackState(for: meal.id)
                 if feedback.isLoading {
-                    insightLoadingRow("Reviewing…")
+                    insightLoadingRow(String(localized: "Reviewing…"))
                 } else {
                     Text(feedback.value ?? mealFeedback(for: meal))
                         .font(Tide.caption)
@@ -607,7 +617,7 @@ struct NutritionCoachView: View {
 
             Spacer(minLength: Tide.s2)
 
-            TideNumber("\(Int(meal.totalCalories.rounded()))", unit: "kcal", size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
+            TideNumber("\(Int(meal.totalCalories.rounded()))", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline, color: Tide.text2)
         }
         .accessibilityElement(children: .combine)
     }
@@ -630,37 +640,37 @@ struct NutritionCoachView: View {
         let recoveryPrefix = if let zone = viewModel.recoveryZone, let score = viewModel.recoveryScore {
             switch zone {
             case "red":
-                "Recovery at \(Int(score))% (RED). Your body is depleted. "
+                String(localized: "Recovery at \(Int(score))% (RED). Your body is depleted.") + " "
             case "yellow":
-                "Recovery at \(Int(score))% (YELLOW). Not fully charged. "
+                String(localized: "Recovery at \(Int(score))% (YELLOW). Not fully charged.") + " "
             default:
-                "Recovery at \(Int(score))% (GREEN). Body is primed. "
+                String(localized: "Recovery at \(Int(score))% (GREEN). Body is primed.") + " "
             }
         } else {
             ""
         }
 
         if viewModel.todayMeals.isEmpty {
-            return "\(recoveryPrefix)Day hasn't started. Your body needs fuel to perform. Don't make me repeat myself."
+            return recoveryPrefix + String(localized: "Day hasn't started. Your body needs fuel to perform. Don't make me repeat myself.")
         }
 
         if progress < 0.3 {
-            return "\(recoveryPrefix)You're underfueling. At this rate you'll be running on fumes by afternoon. Fix it."
+            return recoveryPrefix + String(localized: "You're underfueling. At this rate you'll be running on fumes by afternoon. Fix it.")
         }
 
         if proteinRatio < 0.5, progress > 0.5 {
-            return "\(recoveryPrefix)Calories are moving but your protein is lagging behind. Prioritize lean protein in your next meal."
+            return recoveryPrefix + String(localized: "Calories are moving but your protein is lagging behind. Prioritize lean protein in your next meal.")
         }
 
         if progress >= 0.8, progress <= 1.05 {
-            return "\(recoveryPrefix)Solid execution today. Macros are tracking well. Keep the discipline."
+            return recoveryPrefix + String(localized: "Solid execution today. Macros are tracking well. Keep the discipline.")
         }
 
         if progress > 1.1 {
-            return "\(recoveryPrefix)Over target. It happens. Don't spiral. Tomorrow is a clean slate. Hydrate and move on."
+            return recoveryPrefix + String(localized: "Over target. It happens. Don't spiral. Tomorrow is a clean slate. Hydrate and move on.")
         }
 
-        return "\(recoveryPrefix)You're on pace. Stay focused. Every meal is a rep."
+        return recoveryPrefix + String(localized: "You're on pace. Stay focused. Every meal is a rep.")
     }
 
     private var recoveryColor: Color {
@@ -677,16 +687,16 @@ struct NutritionCoachView: View {
 
     private var recoveryNutritionMessage: String {
         guard let zone = viewModel.recoveryZone, let score = viewModel.recoveryScore else {
-            return "Connect Whoop to get recovery-aware nutrition guidance. Your recovery score drives personalized recommendations."
+            return String(localized: "Connect Whoop to get recovery-aware nutrition guidance. Your recovery score drives personalized recommendations.")
         }
 
         switch zone {
         case "red":
-            return "Recovery is critically low at \(Int(score))%. Your body is in repair mode. Increase protein by 15-20%, prioritize anti-inflammatory foods, and avoid processed sugar and alcohol. Hydration is non-negotiable."
+            return String(localized: "Recovery is critically low at \(Int(score))%. Your body is in repair mode. Increase protein by 15-20%, prioritize anti-inflammatory foods, and avoid processed sugar and alcohol. Hydration is non-negotiable.")
         case "yellow":
-            return "Recovery at \(Int(score))% — your body is working hard. Increase protein by 10-15%, focus on nutrient-dense meals, and add anti-inflammatory foods like berries, fatty fish, and turmeric."
+            return String(localized: "Recovery at \(Int(score))% — your body is working hard. Increase protein by 10-15%, focus on nutrient-dense meals, and add anti-inflammatory foods like berries, fatty fish, and turmeric.")
         default:
-            return "Recovery is strong at \(Int(score))%. You're cleared to push hard. Fuel for performance — high carbs if training today, maintain protein targets, and stay hydrated."
+            return String(localized: "Recovery is strong at \(Int(score))%. You're cleared to push hard. Fuel for performance — high carbs if training today, maintain protein targets, and stay hydrated.")
         }
     }
 
@@ -706,12 +716,13 @@ struct NutritionCoachView: View {
     /// The hydration tip for a recovery zone. It quotes the same water target the Water
     /// card shows ("3,100 ml"), never a number of its own.
     static func hydrationTip(zone: String, waterTargetMl: Int?) -> String {
-        let target = waterTargetMl.map { " Your target today is \($0.formatted()) ml." } ?? ""
-        switch zone {
-        case "red": return "Hydration is critical." + target + " Add electrolytes."
-        case "yellow": return "Prioritize hydration." + target
-        default: return "Stay hydrated, and more if training hard." + target
+        let target = waterTargetMl.map { String(localized: "Your target today is \($0.formatted()) ml.") }
+        let sentences: [String?] = switch zone {
+        case "red": [String(localized: "Hydration is critical."), target, String(localized: "Add electrolytes.")]
+        case "yellow": [String(localized: "Prioritize hydration."), target]
+        default: [String(localized: "Stay hydrated, and more if training hard."), target]
         }
+        return sentences.compactMap(\.self).joined(separator: " ")
     }
 
     private var recoveryTips: [RecoveryTipData] {
@@ -721,21 +732,21 @@ struct NutritionCoachView: View {
         case "red":
             return [
                 RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
-                RecoveryTipData(icon: "leaf.fill", text: "Anti-inflammatory priority: berries, salmon, turmeric, ginger."),
-                RecoveryTipData(icon: "bed.double.fill", text: "Consider lighter training. Your body needs repair, not more stress."),
-                RecoveryTipData(icon: "xmark.circle.fill", text: "Avoid alcohol, processed sugar, and fried foods today."),
+                RecoveryTipData(icon: "leaf.fill", text: String(localized: "Anti-inflammatory priority: berries, salmon, turmeric, ginger.")),
+                RecoveryTipData(icon: "bed.double.fill", text: String(localized: "Consider lighter training. Your body needs repair, not more stress.")),
+                RecoveryTipData(icon: "xmark.circle.fill", text: String(localized: "Avoid alcohol, processed sugar, and fried foods today.")),
             ]
         case "yellow":
             return [
                 RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
-                RecoveryTipData(icon: "leaf.fill", text: "Anti-inflammatory foods: berries, fish, turmeric."),
-                RecoveryTipData(icon: "clock.fill", text: "Eat within 30 min post-workout for optimal recovery."),
+                RecoveryTipData(icon: "leaf.fill", text: String(localized: "Anti-inflammatory foods: berries, fish, turmeric.")),
+                RecoveryTipData(icon: "clock.fill", text: String(localized: "Eat within 30 min post-workout for optimal recovery.")),
             ]
         default:
             return [
-                RecoveryTipData(icon: "bolt.fill", text: "Green zone — fuel for performance. High carbs pre-workout."),
+                RecoveryTipData(icon: "bolt.fill", text: String(localized: "Green zone — fuel for performance. High carbs pre-workout.")),
                 RecoveryTipData(icon: "drop.fill", text: Self.hydrationTip(zone: zone, waterTargetMl: waterTargetMl)),
-                RecoveryTipData(icon: "clock.fill", text: "Eat within 30 min post-workout for optimal recovery."),
+                RecoveryTipData(icon: "clock.fill", text: String(localized: "Eat within 30 min post-workout for optimal recovery.")),
             ]
         }
     }
@@ -746,11 +757,11 @@ struct NutritionCoachView: View {
             : 0
 
         if proteinRatio > 0.35 {
-            return "High protein. Good discipline."
+            return String(localized: "High protein. Good discipline.")
         } else if proteinRatio < 0.15 {
-            return "Low protein. Add a source next time."
+            return String(localized: "Low protein. Add a source next time.")
         } else {
-            return "Balanced macros. Solid."
+            return String(localized: "Balanced macros. Solid.")
         }
     }
 }

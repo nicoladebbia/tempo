@@ -557,6 +557,6 @@ struct AddProductView: View {
         guard let value else {
             return ""
         }
-        return value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
+        return value == value.rounded() ? "\(Int(value))" : value.tempoDecimal(1)
     }
 }

@@ -84,10 +84,7 @@ final class MealLog {
 
     @Transient
     var formattedCalories: String {
-        NumberFormatter.localizedString(
-            from: NSNumber(value: Int(totalCalories)),
-            number: .decimal
-        ) + " kcal"
+        String(localized: "\(NumberFormatter.localizedString(from: NSNumber(value: Int(totalCalories)), number: .decimal)) kcal")
     }
 
     @Transient

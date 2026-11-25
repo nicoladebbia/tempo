@@ -37,7 +37,7 @@ enum KitchenUndo {
 
     /// "<message>" with an Undo button. `undo` runs on tap and dismisses the toast.
     static func undoToast(_ message: String, undo: @escaping @MainActor () -> Void) -> ToastData {
-        ToastData(message: message, style: .info, actionTitle: "Undo") {
+        ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             undo()
         }
     }
@@ -160,7 +160,7 @@ extension KitchenUndo {
         let nowTaken = SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context)
         HapticManager.lightImpact()
         NotificationCenter.default.post(name: .tempoSupplementsChanged, object: nil)
-        offer(nowTaken ? "\(name) taken." : "\(name) marked not taken.", present: present) {
+        offer(nowTaken ? String(localized: "\(name) taken.") : String(localized: "\(name) marked not taken."), present: present) {
             // If something else changed it in the meantime, leave it as it is now.
             if SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context) == nowTaken {
                 SupplementIntakeStore.toggle(supplementID: supplementID, name: name, day: day, in: context)
@@ -330,7 +330,7 @@ extension NutritionTabViewModel {
         let states = KitchenUndo.pantryStates(of: [item])
         let name = item.displayName
         archivePantryItem(item)
-        KitchenUndo.offer("\(name) removed.") { [self] in
+        KitchenUndo.offer(String(localized: "\(name) removed.")) { [self] in
             restorePantry(states)
         }
     }
@@ -340,7 +340,7 @@ extension NutritionTabViewModel {
         let states = KitchenUndo.pantryStates(of: [item])
         let name = item.displayName
         updatePantryItem(item, quantity: 0)
-        KitchenUndo.offer("\(name) used up.") { [self] in
+        KitchenUndo.offer(String(localized: "\(name) used up.")) { [self] in
             restorePantry(states)
         }
     }
@@ -352,7 +352,7 @@ extension NutritionTabViewModel {
         guard removed > 0 else {
             return
         }
-        KitchenUndo.offer("\(FuelWords.count(removed, "item")) removed.") { [self] in
+        KitchenUndo.offer(String(localized: "\(FuelWords.count(removed, "item")) removed.")) { [self] in
             restorePantry(states)
         }
     }
@@ -375,7 +375,7 @@ extension NutritionTabViewModel {
         guard groceryState.lastError == nil else {
             return
         }
-        KitchenUndo.offer("\(name) removed.", present: present) { [self] in
+        KitchenUndo.offer(String(localized: "\(name) removed."), present: present) { [self] in
             guard let context = groceryState.latest?.modelContext ?? pantryModelContext else {
                 return
             }
@@ -406,7 +406,7 @@ extension NutritionTabViewModel {
             return
         }
         let id = item.id
-        KitchenUndo.offer("\(item.displayName) is on your list.", present: present) { [self] in
+        KitchenUndo.offer(String(localized: "\(item.displayName) is on your list."), present: present) { [self] in
             guard let context = groceryState.latest?.modelContext ?? pantryModelContext,
                   let row = KitchenUndo.groceryItem(id: id, in: context)
             else {
@@ -439,7 +439,7 @@ extension NutritionTabViewModel {
             return
         }
         let name = pantryState.items.first { $0.id == first.id }?.displayName ?? staged[0].name
-        let message = staged.count == 1 ? "\(name) is in your pantry." : "\(FuelWords.count(staged.count, "item")) added to your pantry."
+        let message = staged.count == 1 ? String(localized: "\(name) is in your pantry.") : String(localized: "\(FuelWords.count(staged.count, "item")) added to your pantry.")
         let ids = Set(changes.map(\.id))
         KitchenUndo.offer(message) { [self] in
             if let context = pantryModelContext {
@@ -456,7 +456,7 @@ extension NutritionTabViewModel {
         guard stapleState.loadError == nil else {
             return
         }
-        KitchenUndo.offer("\(snapshot.displayName) removed.") { [self] in
+        KitchenUndo.offer(String(localized: "\(snapshot.displayName) removed.")) { [self] in
             if let context = pantryModelContext, snapshot.restore(in: context) {
                 reloadStaples()
             }
@@ -480,8 +480,8 @@ extension NutritionTabViewModel {
         guard groceryState.lastError == nil else {
             return nil
         }
-        let message = wasChecked ? "\(name) is back on your list." : "\(name) checked off."
-        return ToastData(message: message, style: .info, actionTitle: "Undo") { [self] in
+        let message = wasChecked ? String(localized: "\(name) is back on your list.") : String(localized: "\(name) checked off.")
+        return ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) { [self] in
             // The row is a live model object, so the page follows the flag by itself.
             if let context = groceryState.latest?.modelContext ?? pantryModelContext {
                 KitchenUndo.setGroceryChecked(id: id, to: wasChecked, in: context)

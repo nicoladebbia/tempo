@@ -58,7 +58,7 @@ struct VoicePantryView: View {
         var components: [String]
         var isLowConfidence: Bool
 
-        var quantity: Double { Double(quantityText) ?? 0 }
+        var quantity: Double { Double(quantityText.replacingOccurrences(of: ",", with: ".")) ?? 0 }
     }
 
     @State private var phase: Phase = .idle
@@ -126,10 +126,10 @@ struct VoicePantryView: View {
             ScrollView {
                 VStack(spacing: Tide.s5) {
                     KitchenStateText(
-                        title: transcriber.isListening ? "Listening…" : "List what's in your pantry",
+                        title: transcriber.isListening ? String(localized: "Listening…") : String(localized: "List what's in your pantry"),
                         message: transcriber.isListening
-                            ? "Name everything, then tap stop."
-                            : "Tap the mic and go one after another, the way you'd say it out loud."
+                            ? String(localized: "Name everything, then tap stop.")
+                            : String(localized: "Tap the mic and go one after another, the way you'd say it out loud.")
                     )
                     .padding(.top, Tide.s6)
                     if transcriber.isListening || !transcriber.transcribedText.isEmpty {
@@ -175,9 +175,9 @@ struct VoicePantryView: View {
     private var examplesCard: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             Text("Try saying").tideLabel(Tide.text3)
-            example("Two cartons of eggs in the fridge")
-            example("A kilo of basmati rice")
-            example("Olive oil and a jar of peanut butter")
+            example(String(localized: "Two cartons of eggs in the fridge"))
+            example(String(localized: "A kilo of basmati rice"))
+            example(String(localized: "Olive oil and a jar of peanut butter"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -217,8 +217,8 @@ struct VoicePantryView: View {
             }
             .buttonStyle(.plain)
             .sensoryFeedback(.impact, trigger: transcriber.isListening)
-            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
-            Text(transcriber.isListening ? "Tap to stop" : "Tap to start")
+            .accessibilityLabel(transcriber.isListening ? String(localized: "Stop listening") : String(localized: "Start listening"))
+            Text(transcriber.isListening ? String(localized: "Tap to stop") : String(localized: "Tap to start"))
                 .tideLabel(Tide.text3)
         }
         .padding(.top, Tide.s5)
@@ -253,8 +253,8 @@ struct VoicePantryView: View {
             VStack(spacing: Tide.s5) {
                 KitchenStateHero(
                     systemImage: "list.bullet.clipboard",
-                    title: "Reading your pantry…",
-                    message: "Turning what you said into items.",
+                    title: String(localized: "Reading your pantry…"),
+                    message: String(localized: "Turning what you said into items."),
                     working: true
                 )
                 .padding(.top, Tide.s6)
@@ -297,7 +297,7 @@ struct VoicePantryView: View {
         guard !transcript.isEmpty else {
             // Don't vanish silently — tell the user nothing was captured so the
             // screen never just sits there after a Stop.
-            phase = .failed("I didn't catch anything. Tap the mic and try again, speaking clearly.")
+            phase = .failed(String(localized: "I didn't catch anything. Tap the mic and try again, speaking clearly."))
             return
         }
         phase = .thinking
@@ -321,7 +321,7 @@ struct VoicePantryView: View {
                 )
             }
             phase = editable.isEmpty
-                ? .failed("No pantry items found. Try again.")
+                ? .failed(String(localized: "No pantry items found. Try again."))
                 : .confirming
         } catch {
             phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
@@ -331,7 +331,7 @@ struct VoicePantryView: View {
     private var confirmationSection: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tide.s3) {
-                TideSectionLabel(title: "Confirm your pantry", trailing: "\(editable.count) found")
+                TideSectionLabel(title: String(localized: "Confirm your pantry"), trailing: String(localized: "\(editable.count) found"))
                 Text("Edit anything, remove what's wrong, then save.")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
@@ -348,7 +348,7 @@ struct VoicePantryView: View {
             Button {
                 saveEditableItems()
             } label: {
-                Text(editable.isEmpty ? "Nothing to save" : "Save \(editable.count) to Pantry")
+                Text(editable.isEmpty ? String(localized: "Nothing to save") : String(localized: "Save \(editable.count) to Pantry"))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.kitchenBar)
@@ -367,7 +367,7 @@ struct VoicePantryView: View {
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     if item.isLowConfidence {
-                        KitchenTag(text: "Low confidence", tint: Tide.Kitchen.warn)
+                        KitchenTag(text: String(localized: "Low confidence"), tint: Tide.Kitchen.warn)
                     }
                 }
                 Spacer(minLength: Tide.s2)
@@ -567,21 +567,21 @@ struct VoicePantryView: View {
     private func failureSection(_ message: String) -> some View {
         // transcriber.start() clears transcribedText itself.
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Try again", systemImage: "mic.fill", role: .primary) {
+            KitchenStateAction(title: String(localized: "Try again"), systemImage: "mic.fill", role: .primary) {
                 phase = .idle
             },
         ]) {
             KitchenStateHero(
                 systemImage: "exclamationmark.triangle.fill",
                 tint: Tide.danger,
-                title: "That didn't work",
+                title: String(localized: "That didn't work"),
                 message: message
             )
         }
     }
 
     private func formatQuantity(_ value: Double) -> String {
-        PantryQuantityFormatter.number(value)
+        PantryQuantityFormatter.displayNumber(value)
     }
 
     private func storageIcon(_ loc: PantryStorageLocation) -> String {

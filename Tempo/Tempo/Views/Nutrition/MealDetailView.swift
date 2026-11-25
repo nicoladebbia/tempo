@@ -176,7 +176,7 @@ struct MealDetailView: View {
         .fuelBottomBar(isShown: needsAnswer) { mealActions }
         .animation(Tide.snap, value: needsAnswer)
         .tidePage()
-        .navigationTitle(meal.mealName)
+        .navigationTitle(meal.displayMealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
         .onAppear {
@@ -212,7 +212,7 @@ struct MealDetailView: View {
             Text("It sits at the top of Log a meal, one tap to log again.")
         }
         .alert(
-            "Something went wrong",
+            String(localized: "Something went wrong"),
             isPresented: Binding(get: { actionError != nil }, set: {
                 if !$0 {
                     actionError = nil
@@ -229,7 +229,7 @@ struct MealDetailView: View {
             }
         }
         .alert(
-            "Couldn't log that",
+            String(localized: "Couldn't log that"),
             isPresented: Binding(
                 get: { substituteError != nil },
                 set: {
@@ -241,7 +241,7 @@ struct MealDetailView: View {
         ) {
             Button("OK", role: .cancel) { substituteError = nil }
         } message: {
-            Text(substituteError ?? "Try describing what you ate a bit differently.")
+            Text(substituteError ?? String(localized: "Try describing what you ate a bit differently."))
         }
         .aiBlockerAlert($substituteBlocker)
     }
@@ -273,11 +273,11 @@ struct MealDetailView: View {
     private var eatTimeEditorSheet: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: Tide.s4) {
-                Text("Set the time you actually ate \(meal.mealName.lowercased()).")
+                Text("Set the time you actually ate \(meal.displayMealName.lowercased()).")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                 DatePicker(
-                    "Eaten at",
+                    String(localized: "Eaten at"),
                     selection: $eatTimeEdit,
                     in: ...Date(),
                     displayedComponents: .hourAndMinute
@@ -419,7 +419,7 @@ struct MealDetailView: View {
             HStack(alignment: .top, spacing: Tide.s3) {
                 TideIconTile(systemName: FuelMealStyle.icon(forName: meal.mealName), tint: tone)
                 VStack(alignment: .leading, spacing: Tide.hair) {
-                    Text(meal.mealName)
+                    Text(meal.displayMealName)
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
@@ -433,7 +433,7 @@ struct MealDetailView: View {
                 Spacer(minLength: Tide.s2)
                 FuelPill(text: meal.status.displayName, color: tone)
             }
-            TideNumber("\(totals.kcal)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
+            TideNumber("\(totals.kcal)", unit: String(localized: "kcal"), size: Tide.numeralL, relativeTo: .largeTitle)
             FuelMacroRings(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
                 .explains(.fuelMacroShare)
             if let recipe = meal.recipe, !shouldRenderActualFoods {
@@ -449,8 +449,8 @@ struct MealDetailView: View {
 
     @ViewBuilder
     private func recipeMetrics(_ recipe: Recipe) -> some View {
-        inlineMetric(icon: "clock", text: "\(recipe.totalMinutes) min")
-        inlineMetric(icon: "person.2", text: "\(recipe.servings) serving\(recipe.servings == 1 ? "" : "s")")
+        inlineMetric(icon: "clock", text: String(localized: "\(recipe.totalMinutes) min"))
+        inlineMetric(icon: "person.2", text: FuelWords.count(recipe.servings, "serving"))
         inlineMetric(icon: "flame", text: recipe.difficulty.displayName)
     }
 
@@ -466,7 +466,7 @@ struct MealDetailView: View {
         let display = scheduleDisplay
         return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                sectionLabel("Schedule")
+                sectionLabel(String(localized: "Schedule"))
                 Spacer()
                 if display.hasShift {
                     shiftChip(minutes: display.shiftMinutes)
@@ -519,17 +519,17 @@ struct MealDetailView: View {
         case .overdue:
             let minutes = max(1, Int(now.timeIntervalSince(display.eatFinish) / 60))
             Text(
-                "Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)"
+                String(localized: "Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)")
             )
             .font(Tide.bodyStrong)
             .foregroundStyle(Tide.warn)
         case let .eaten(at):
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(at.map { "Eaten at \(Self.clockFormatter.string(from: $0))." } ?? "Eaten.")
+                Text(at.map { String(localized: "Eaten at \(Self.clockFormatter.string(from: $0)).") } ?? String(localized: "Eaten."))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.good)
                 Divider().overlay(Tide.hairline)
-                FuelActionRow(icon: "clock.arrow.circlepath", title: "Edit time") {
+                FuelActionRow(icon: "clock.arrow.circlepath", title: String(localized: "Edit time")) {
                     eatTimeEdit = at ?? Date()
                     presentEatTimeEditor = true
                     HapticManager.lightImpact()
@@ -538,12 +538,12 @@ struct MealDetailView: View {
                 // Correct what was eaten after the fact — re-opens the swap
                 // sheet so "actually I ate something else" works even once the
                 // meal is already marked eaten. commitMarkEaten re-records it.
-                FuelActionRow(icon: "arrow.triangle.swap", title: "Change what I ate") {
+                FuelActionRow(icon: "arrow.triangle.swap", title: String(localized: "Change what I ate")) {
                     resolveAsSubstitute()
                 }
                 .accessibilityLabel("Change what I ate")
                 if !meal.foods.isEmpty {
-                    FuelActionRow(icon: "star", title: "Save as favourite") {
+                    FuelActionRow(icon: "star", title: String(localized: "Save as favourite")) {
                         presetNameDraft = meal.foods.count == 1 ? meal.foods[0].name : meal.mealName
                         presentPresetAlert = true
                         HapticManager.lightImpact()
@@ -556,24 +556,24 @@ struct MealDetailView: View {
                 // eaten state, feedback and pantry stock back exactly.
                 FuelActionRow(
                     icon: isUnplannedLog ? "trash" : "arrow.uturn.backward",
-                    title: isUnplannedLog ? "Delete log" : "Undo — not eaten",
+                    title: isUnplannedLog ? String(localized: "Delete log") : String(localized: "Undo — not eaten"),
                     isDestructive: true
                 ) {
                     undoEaten()
                     HapticManager.lightImpact()
                 }
-                .accessibilityLabel(isUnplannedLog ? "Delete this log" : "Undo, mark as not eaten")
+                .accessibilityLabel(isUnplannedLog ? String(localized: "Delete this log") : String(localized: "Undo, mark as not eaten"))
             }
         case .skipped:
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(skipRedistributionNote.map { "Skipped. \($0)" } ?? "Skipped.")
+                Text(skipRedistributionNote.map { String(localized: "Skipped. \($0)") } ?? String(localized: "Skipped."))
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text2)
                 Divider().overlay(Tide.hairline)
                 // Un-skip: put the meal back to planned so it counts again.
                 // The shared undo also re-balances the other meals, so macros
                 // that were moved onto them when this was skipped move back.
-                FuelActionRow(icon: "arrow.uturn.backward", title: "Undo skip — back to planned") {
+                FuelActionRow(icon: "arrow.uturn.backward", title: String(localized: "Undo skip — back to planned")) {
                     skipRedistributionNote = nil
                     runAction { try MealOutcomeService.undo(meal, env: outcomeEnv) }
                     HapticManager.lightImpact()
@@ -669,7 +669,7 @@ struct MealDetailView: View {
     private func undoEaten() {
         let env = outcomeEnv
         let target = meal
-        let name = target.mealName
+        let name = target.displayMealName
         let deletesLog = target.isUnplannedLog && target.status == .eaten
         let snapshot: MealOutcomeService.LogSnapshot
         do {
@@ -687,12 +687,12 @@ struct MealDetailView: View {
             isRemoved = true
         }
         HapticManager.notification(.success)
-        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
-        FuelLogToast.post(ToastData(message: message, style: .info, actionTitle: "Undo") {
+        let message = snapshot.kind == .removed ? String(localized: "\(name) log deleted.") : String(localized: "\(name) is back on the plan.")
+        FuelLogToast.post(ToastData(message: message, style: .info, actionTitle: String(localized: "Undo")) {
             do {
                 try MealOutcomeService.restore(snapshot, env: env)
             } catch {
-                FuelLogToast.post(ToastData(message: "Couldn't restore \(name).", style: .error))
+                FuelLogToast.post(ToastData(message: String(localized: "Couldn't restore \(name)."), style: .error))
             }
         })
         dismiss()
@@ -704,14 +704,14 @@ struct MealDetailView: View {
     private func offerTakeBack(_ message: String) {
         let env = outcomeEnv
         let mealID = meal.id
-        let name = meal.mealName
-        FuelLogToast.post(ToastData(message: message, style: .success, actionTitle: "Undo") {
+        let name = meal.displayMealName
+        FuelLogToast.post(ToastData(message: message, style: .success, actionTitle: String(localized: "Undo")) {
             if let target = Self.fetchMeal(mealID, in: env.modelContext),
                (try? MealOutcomeService.undo(target, env: env)) != nil
             {
-                FuelLogToast.post(ToastData(message: "\(name) is back on the plan.", style: .info))
+                FuelLogToast.post(ToastData(message: String(localized: "\(name) is back on the plan."), style: .info))
             } else {
-                FuelLogToast.post(ToastData(message: "Couldn't undo \(name).", style: .error))
+                FuelLogToast.post(ToastData(message: String(localized: "Couldn't undo \(name)."), style: .error))
             }
         })
     }
@@ -739,7 +739,7 @@ struct MealDetailView: View {
         }
         if saved {
             HapticManager.notification(.success)
-            FuelLogToast.post(ToastData(message: "Saved as a favourite.", style: .success))
+            FuelLogToast.post(ToastData(message: String(localized: "Saved as a favourite."), style: .success))
         }
     }
 
@@ -753,7 +753,7 @@ struct MealDetailView: View {
         substitute: MarkEatenSheet.Substitute?
     ) {
         guard !isFutureDay else {
-            actionError = "That meal is on a later day. You can log it once the day comes."
+            actionError = String(localized: "That meal is on a later day. You can log it once the day comes.")
             return
         }
         let eatTime = eatTimeOnMealDay(eatTime)
@@ -764,7 +764,7 @@ struct MealDetailView: View {
             }
             if done {
                 HapticManager.notification(.success)
-                offerTakeBack("\(meal.mealName) marked eaten.")
+                offerTakeBack(String(localized: "\(meal.displayMealName) marked eaten."))
             }
             return
         }
@@ -789,7 +789,7 @@ struct MealDetailView: View {
         do {
             let items = try await nlService.parseNaturalLanguage(note)
             guard !items.isEmpty else {
-                substituteError = "Couldn't recognize any food in \"\(note)\". Edit and try again."
+                substituteError = String(localized: "Couldn't recognize any food in \"\(note)\". Edit and try again.")
                 return
             }
             let foods = items.map {
@@ -814,13 +814,13 @@ struct MealDetailView: View {
                 env: outcomeEnv
             )
             HapticManager.notification(.success)
-            offerTakeBack("\(meal.mealName) marked eaten.")
+            offerTakeBack(String(localized: "\(meal.displayMealName) marked eaten."))
         } catch {
             if let blocker = AIBlocker(error) {
                 substituteBlocker = blocker
                 return
             }
-            substituteError = "Couldn't read that: \(AIBlocker.message(for: error)). Your note is kept — try again."
+            substituteError = String(localized: "Couldn't read that: \(AIBlocker.message(for: error)). Your note is kept — try again.")
         }
     }
 
@@ -834,7 +834,7 @@ struct MealDetailView: View {
             return
         }
         HapticManager.lightImpact()
-        offerTakeBack("\(target.mealName) skipped.")
+        offerTakeBack(String(localized: "\(target.displayMealName) skipped."))
         Task { @MainActor in
             // Same inputs as the Today card: today's Whoop recovery + sleep.
             let whoop = services.whoop
@@ -850,7 +850,7 @@ struct MealDetailView: View {
                 dayType: "unknown"
             )
             if let result {
-                skipRedistributionNote = "Your other meals were adjusted. \(result.reasoning)"
+                skipRedistributionNote = String(localized: "Your other meals were adjusted. \(result.reasoning)")
             }
         }
     }
@@ -896,9 +896,9 @@ struct MealDetailView: View {
 
     private func timelinePoints(display: MealScheduleDisplay) -> [TimelinePoint] {
         [
-            TimelinePoint(id: .prep, label: "Prep", date: display.prepStart),
-            TimelinePoint(id: .eat, label: "Eat", date: display.mealTime),
-            TimelinePoint(id: .finish, label: "Finish", date: display.eatFinish),
+            TimelinePoint(id: .prep, label: String(localized: "Prep"), date: display.prepStart),
+            TimelinePoint(id: .eat, label: String(localized: "Eat"), date: display.mealTime),
+            TimelinePoint(id: .finish, label: String(localized: "Finish"), date: display.eatFinish),
         ]
     }
 
@@ -928,11 +928,11 @@ struct MealDetailView: View {
 
     private func formatDuration(minutes: Int) -> String {
         if minutes < 60 {
-            return "\(minutes) min"
+            return String(localized: "\(minutes) min")
         }
         let h = minutes / 60
         let m = minutes % 60
-        return m == 0 ? "\(h) h" : "\(h) h \(m) min"
+        return m == 0 ? String(localized: "\(h) h") : String(localized: "\(h) h \(m) min")
     }
 
     // MARK: - Prep Checklist
@@ -947,13 +947,13 @@ struct MealDetailView: View {
                 PrepChecklistItem(
                     id: ingredient.id,
                     title: ingredient.displayName,
-                    detail: "Move from freezer \(ingredient.defrostLeadTimeHours) h before mealtime"
+                    detail: String(localized: "Move from freezer \(ingredient.defrostLeadTimeHours) h before mealtime")
                 )
             }
     }
 
     private var prepChecklistSection: some View {
-        FuelSection(title: "Prep checklist") {
+        FuelSection(title: String(localized: "Prep checklist")) {
             ForEach(prepChecklistItems) { item in
                 FuelCheckRow(
                     title: item.title,
@@ -985,7 +985,7 @@ struct MealDetailView: View {
         let ingredients = recipe.orderedIngredients
         let groups = groupIngredients(ingredients)
         let collected = ingredients.filter(\.isCollected).count
-        return FuelSection(title: "Ingredients", trailing: ingredients.isEmpty ? nil : "\(collected)/\(ingredients.count)") {
+        return FuelSection(title: String(localized: "Ingredients"), trailing: ingredients.isEmpty ? nil : "\(collected)/\(ingredients.count)") {
             if groups.isEmpty {
                 Text("No ingredients listed.")
                     .font(Tide.caption)
@@ -1037,7 +1037,7 @@ struct MealDetailView: View {
             parts.append(portionLabel)
         }
         if let cal = ingredient.calories, cal > 0 {
-            parts.append("\(Int(cal)) kcal")
+            parts.append(String(localized: "\(Int(cal)) kcal"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -1047,7 +1047,7 @@ struct MealDetailView: View {
     private func stepsSection(recipe: Recipe) -> some View {
         let steps = recipe.orderedSteps
         let done = steps.filter(\.isComplete).count
-        return FuelSection(title: "Steps", trailing: steps.isEmpty ? nil : "\(done)/\(steps.count)") {
+        return FuelSection(title: String(localized: "Steps"), trailing: steps.isEmpty ? nil : "\(done)/\(steps.count)") {
             if steps.isEmpty {
                 Text("No steps were generated for this meal.")
                     .font(Tide.caption)
@@ -1106,7 +1106,7 @@ struct MealDetailView: View {
             // "regenerate" message. The hero above carries the totals.
             foodsListCard(foods: foods)
         } else {
-            FuelSection(title: "Recipe") {
+            FuelSection(title: String(localized: "Recipe")) {
                 Text("AI couldn't generate a recipe for this meal. Regenerate the weekly plan to retry.")
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
@@ -1134,11 +1134,11 @@ struct MealDetailView: View {
             return
         }
         HapticManager.lightImpact()
-        FuelLogToast.post(ToastData(message: "\(removed.name) removed.", style: .info, actionTitle: "Undo") {
+        FuelLogToast.post(ToastData(message: String(localized: "\(removed.name) removed."), style: .info, actionTitle: String(localized: "Undo")) {
             guard let back = Self.fetchMeal(mealID, in: env.modelContext),
                   (try? MealOutcomeService.restoreFood(removed, at: index, to: back, env: env)) != nil
             else {
-                FuelLogToast.post(ToastData(message: "Couldn't put \(removed.name) back.", style: .error))
+                FuelLogToast.post(ToastData(message: String(localized: "Couldn't put \(removed.name) back."), style: .error))
                 return
             }
         })
@@ -1148,7 +1148,7 @@ struct MealDetailView: View {
     /// calories as a quiet bar.
     private func foodsListCard(foods: [PlannedFood]) -> some View {
         let totalKcal = foods.reduce(0.0) { $0 + $1.calories }
-        return FuelSection(title: "What you ate", trailing: "\(foods.count)") {
+        return FuelSection(title: String(localized: "What you ate"), trailing: "\(foods.count)") {
             ForEach(Array(foods.enumerated()), id: \.offset) { index, food in
                 HStack(spacing: Tide.s2) {
                     VStack(alignment: .leading, spacing: Tide.s1) {
@@ -1248,7 +1248,7 @@ struct MealDetailView: View {
             return IngredientGroup(title: loc.displayName, icon: loc.icon, items: items)
         }
         if !ungrouped.isEmpty {
-            groups.append(IngredientGroup(title: "Other", icon: "questionmark.circle", items: ungrouped))
+            groups.append(IngredientGroup(title: String(localized: "Other"), icon: "questionmark.circle", items: ungrouped))
         }
         return groups
     }
@@ -1271,7 +1271,7 @@ struct MealDetailView: View {
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "h:mm a"
+        f.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return f
     }()
 

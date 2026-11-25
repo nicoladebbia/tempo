@@ -29,7 +29,7 @@ struct FluidSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Tide.s2)
-                FuelIconButton(systemImage: "xmark", label: "Close") { dismiss() }
+                FuelIconButton(systemImage: "xmark", label: String(localized: "Close")) { dismiss() }
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s4)
@@ -168,7 +168,7 @@ struct FluidSheet: View {
                         .font(Tide.bodyStrong)
                         .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.leading)
-                    Text(ml == 0 ? "0 mL" : "about \(ml) mL")
+                    Text(ml == 0 ? String(localized: "0 mL") : String(localized: "about \(ml) mL"))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
@@ -183,7 +183,7 @@ struct FluidSheet: View {
 
     private func saveExact() {
         guard let ml = Int(exactText.trimmingCharacters(in: .whitespaces)), ml >= 0, ml <= 10000 else {
-            error = "Enter millilitres between 0 and 10000."
+            error = String(localized: "Enter millilitres between 0 and 10000.")
             return
         }
         Task { await model.editFluid(liters: Double(ml) / 1000) }

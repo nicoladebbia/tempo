@@ -14,12 +14,12 @@ struct ReviewStepView: View {
 
     var body: some View {
         WizardStepScaffold(
-            title: "Lock it in.",
-            subtitle: "Final read. Tap Generate when ready.",
+            title: String(localized: "Lock it in."),
+            subtitle: String(localized: "Final read. Tap Generate when ready."),
             eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
-            primaryButtonLabel: "Generate Plan",
+            primaryButtonLabel: String(localized: "Generate Plan"),
             onBack: coordinator.goBack,
             onPrimary: coordinator.submit,
             onCancel: coordinator.cancel
@@ -28,21 +28,21 @@ struct ReviewStepView: View {
                 // What the plan will be built on: the cook count leads.
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Cookable days").tideLabel()
-                    TideNumber("\(coordinator.intake.cookableDaysThisWeek)", unit: "of 7 days", size: Tide.numeralL)
+                    TideNumber("\(coordinator.intake.cookableDaysThisWeek)", unit: String(localized: "of 7 days"), size: Tide.numeralL)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .accessibilityElement(children: .combine)
-                FuelRowGroup(title: "Also this week") {
+                FuelRowGroup(title: String(localized: "Also this week")) {
                     summaryRow(
-                        label: "Excluding",
+                        label: String(localized: "Excluding"),
                         value: coordinator.intake.temporaryExclusions.isEmpty
-                            ? "Nothing"
+                            ? String(localized: "Nothing")
                             : coordinator.intake.temporaryExclusions.joined(separator: ", ")
                     )
                     if coordinator.snapshot.hasWhoop {
                         summaryRow(
-                            label: "Recovery skew",
-                            value: coordinator.intake.recoveryAdjusted ? "On" : "Off"
+                            label: String(localized: "Recovery skew"),
+                            value: coordinator.intake.recoveryAdjusted ? String(localized: "On") : String(localized: "Off")
                         )
                     }
                 }

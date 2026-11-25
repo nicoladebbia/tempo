@@ -153,7 +153,7 @@ final class MealRedistributionService {
         throw lastError ?? NSError(
             domain: "MealRedistribution",
             code: -1,
-            userInfo: [NSLocalizedDescriptionKey: "AI call failed"]
+            userInfo: [NSLocalizedDescriptionKey: String(localized: "AI call failed")]
         )
     }
 

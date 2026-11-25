@@ -45,7 +45,7 @@ struct NutritionWeeklyPlanView: View {
 
     private static let rangeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.dateFormat = String(localized: "MMM d", comment: "DATE_FORMAT")
         return f
     }()
 
@@ -63,7 +63,7 @@ struct NutritionWeeklyPlanView: View {
                     // First plan being built: say so, in the same look as every AI wait.
                     FuelAIState(kind: .working(
                         viewModel.planGenerationStatusLabel.isEmpty
-                            ? "Building your week…" : viewModel.planGenerationStatusLabel
+                            ? String(localized: "Building your week…") : viewModel.planGenerationStatusLabel
                     ))
                 } else {
                     emptyPlanState
@@ -105,9 +105,9 @@ struct NutritionWeeklyPlanView: View {
             FuelDecisionSheet(
                 icon: "sparkles",
                 tint: Tide.warn,
-                title: "AI-generated meal plan",
-                message: "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan.",
-                primaryTitle: "I Understand",
+                title: String(localized: "AI-generated meal plan"),
+                message: String(localized: "Meal plans are created by AI for general wellness guidance. They are not a substitute for professional dietary advice. If you have medical conditions, allergies, or eating disorders, consult a healthcare professional before following any meal plan."),
+                primaryTitle: String(localized: "I Understand"),
                 primary: {
                     disclaimerAccepted = true
                     showDisclaimerAlert = false
@@ -191,7 +191,7 @@ struct NutritionWeeklyPlanView: View {
                     .tideLabel()
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: Tide.s2)
-                FuelPill(text: stale ? "Out of date" : "Active", color: stale ? Tide.warn : Tide.good)
+                FuelPill(text: stale ? String(localized: "Out of date") : String(localized: "Active"), color: stale ? Tide.warn : Tide.good)
             }
 
             Text("\(Self.rangeFormatter.string(from: plan.startDate)) - \(Self.rangeFormatter.string(from: plan.endDate))")
@@ -254,7 +254,7 @@ struct NutritionWeeklyPlanView: View {
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+                    .accessibilityValue(isExpanded ? String(localized: "Expanded") : String(localized: "Collapsed"))
 
                     // Expanded meals
                     if isExpanded, !dayMeals.isEmpty {
@@ -310,13 +310,13 @@ struct NutritionWeeklyPlanView: View {
                 HStack(spacing: Tide.s2) {
                     name
                     if isToday {
-                        FuelPill(text: "Today", color: mood.accent)
+                        FuelPill(text: String(localized: "Today"), color: mood.accent)
                     }
                 }
                 VStack(alignment: .leading, spacing: Tide.s1) {
                     name
                     if isToday {
-                        FuelPill(text: "Today", color: mood.accent)
+                        FuelPill(text: String(localized: "Today"), color: mood.accent)
                     }
                 }
             }
@@ -326,7 +326,7 @@ struct NutritionWeeklyPlanView: View {
         }
         let stats = { (alignment: HorizontalAlignment) in
             VStack(alignment: alignment, spacing: Tide.hair) {
-                TideNumber("\(totalCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                TideNumber("\(totalCalories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
 
                 Text(FuelWords.count(mealCount, "meal"))
                     .font(Tide.caption)
@@ -378,7 +378,7 @@ struct NutritionWeeklyPlanView: View {
                 .frame(width: Tide.s2, height: Tide.s2)
                 .accessibilityHidden(true)
 
-            Text(meal.mealName)
+            Text(meal.displayMealName)
                 .font(Tide.body)
                 .foregroundStyle(Tide.text)
                 .lineLimit(2)
@@ -416,15 +416,15 @@ struct NutritionWeeklyPlanView: View {
     private var emptyPlanState: some View {
         FuelEmptyState(
             icon: "calendar.badge.plus",
-            title: "No Weekly Plan",
-            message: "Generate a personalized meal plan based on your goals, training schedule, and dietary preferences."
+            title: String(localized: "No Weekly Plan"),
+            message: String(localized: "Generate a personalized meal plan based on your goals, training schedule, and dietary preferences.")
         ) {
             if !viewModel.hasProfile || FuelSetupDraft.requiredMissingMessage(in: modelContext) != nil {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(Tide.caption)
                         .accessibilityHidden(true)
-                    Text(FuelSetupDraft.requiredMissingMessage(in: modelContext) ?? "Set up your dietary profile first.")
+                    Text(FuelSetupDraft.requiredMissingMessage(in: modelContext) ?? String(localized: "Set up your dietary profile first."))
                         .font(Tide.caption)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -474,7 +474,7 @@ struct NutritionWeeklyPlanView: View {
                     Image(systemName: "sparkles")
                         .accessibilityHidden(true)
                 }
-                Text(viewModel.weeklyPlan != nil ? "Regenerate Plan" : "Generate New Plan")
+                Text(viewModel.weeklyPlan != nil ? String(localized: "Regenerate Plan") : String(localized: "Generate New Plan"))
             }
         }
         .buttonStyle(.tidePrimary)
@@ -483,9 +483,9 @@ struct NutritionWeeklyPlanView: View {
         .sheet(isPresented: $showRebuildConfirm) {
             FuelDecisionSheet(
                 icon: "arrow.triangle.2.circlepath",
-                title: "Rebuild the rest of the week?",
-                message: "Meals you've eaten and past days stay. Planned meals from today on are replaced.",
-                primaryTitle: "Rebuild",
+                title: String(localized: "Rebuild the rest of the week?"),
+                message: String(localized: "Meals you've eaten and past days stay. Planned meals from today on are replaced."),
+                primaryTitle: String(localized: "Rebuild"),
                 primary: {
                     showRebuildConfirm = false
                     // Let this sheet finish leaving before the next one can come up.
@@ -564,7 +564,7 @@ struct NutritionWeeklyPlanView: View {
 
     private func dayLabel(for date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE, MMM d"
+        formatter.dateFormat = String(localized: "EEE, MMM d", comment: "DATE_FORMAT")
         return formatter.string(from: date)
     }
 

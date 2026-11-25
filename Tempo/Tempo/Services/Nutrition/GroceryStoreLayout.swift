@@ -36,7 +36,7 @@ enum GroceryStore: String, Codable, CaseIterable, Sendable, Identifiable {
         case .publix: "Publix"
         case .aldiTraderJoes: "Aldi / Trader Joe's"
         case .wholeFoods: "Whole Foods"
-        case .generic: "Other store"
+        case .generic: String(localized: "Other store")
         }
     }
 

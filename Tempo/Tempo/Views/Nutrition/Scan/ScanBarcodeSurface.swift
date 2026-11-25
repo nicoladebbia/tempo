@@ -25,7 +25,7 @@ struct ScanFallbackAction: Identifiable {
 // MARK: - ScanBarcodeSurface
 
 struct ScanBarcodeSurface: View {
-    var prompt = "Point at a barcode"
+    var prompt = String(localized: "Point at a barcode")
     var detail: String?
     /// Shown when the camera is denied/unsupported, after "Type the barcode".
     var fallbackActions: [ScanFallbackAction] = []
@@ -54,14 +54,14 @@ struct ScanBarcodeSurface: View {
                 scanner
             case .notDetermined:
                 KitchenStatePage(actions: [
-                    KitchenStateAction(title: "Allow camera", systemImage: "camera.fill", role: .primary) {
+                    KitchenStateAction(title: String(localized: "Allow camera"), systemImage: "camera.fill", role: .primary) {
                         Task { await ask() }
                     },
                 ]) {
                     KitchenStateHero(
                         systemImage: "camera.fill",
-                        title: "Allow the camera to scan.",
-                        message: "Tempo reads the barcode with the camera."
+                        title: String(localized: "Allow the camera to scan."),
+                        message: String(localized: "Tempo reads the barcode with the camera.")
                     )
                 }
             case .denied,
@@ -206,7 +206,7 @@ struct ScanBarcodeSurface: View {
         let isUnsupported = permission == .unsupported
         var actions: [KitchenStateAction] = []
         if permission == .denied {
-            actions.append(KitchenStateAction(title: "Open Settings", role: .primary, identifier: "scanOpenSettings") {
+            actions.append(KitchenStateAction(title: String(localized: "Open Settings"), role: .primary, identifier: "scanOpenSettings") {
                 if let info = resumeInfo {
                     ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
                 }
@@ -214,7 +214,7 @@ struct ScanBarcodeSurface: View {
             })
         }
         actions.append(KitchenStateAction(
-            title: "Type the barcode",
+            title: String(localized: "Type the barcode"),
             systemImage: "keyboard",
             role: permission == .denied ? .secondary : .primary,
             identifier: "scanTypeBarcode"
@@ -235,17 +235,17 @@ struct ScanBarcodeSurface: View {
 
     static func title(for permission: CameraPermission) -> String {
         switch permission {
-        case .denied: "Camera is off for Tempo"
-        case .restricted: "Camera is restricted"
-        default: "Camera scanning unavailable"
+        case .denied: String(localized: "Camera is off for Tempo")
+        case .restricted: String(localized: "Camera is restricted")
+        default: String(localized: "Camera scanning unavailable")
         }
     }
 
     static func message(for permission: CameraPermission) -> String {
         switch permission {
-        case .denied: "Turn the camera on in Settings to scan. You can still type the numbers under the barcode."
-        case .restricted: "This device doesn't let Tempo use the camera. You can still type the numbers under the barcode."
-        default: "This device can't scan barcodes. Type the numbers under the barcode instead."
+        case .denied: String(localized: "Turn the camera on in Settings to scan. You can still type the numbers under the barcode.")
+        case .restricted: String(localized: "This device doesn't let Tempo use the camera. You can still type the numbers under the barcode.")
+        default: String(localized: "This device can't scan barcodes. Type the numbers under the barcode instead.")
         }
     }
 }

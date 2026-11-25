@@ -100,7 +100,7 @@ struct TodaySupplementsCard: View {
                 }
             }
             if !board.skipped.isEmpty {
-                Text("Skipping today: " + board.skipped.map(\.name).joined(separator: ", "))
+                Text(String(localized: "Skipping today: \(board.skipped.map(\.name).joined(separator: ", "))"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +137,7 @@ struct TodaySupplementsCard: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(board.allTaken ? "All supplements taken" : "Taken \(board.takenCount) of \(board.total)")
+        .accessibilityLabel(board.allTaken ? String(localized: "All supplements taken") : String(localized: "Taken \(board.takenCount) of \(board.total)"))
         return VStack(alignment: .leading, spacing: Tide.s2) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
@@ -208,7 +208,7 @@ struct TodaySupplementsCard: View {
                     reorderTarget = SupplementIntakeStore.supplement(id: row.dose.supplementID, name: row.dose.name, in: modelContext)
                 } label: {
                     KitchenTag(
-                        text: days <= 0 ? "Out" : "\(days)d left",
+                        text: days <= 0 ? String(localized: "Out") : String(localized: "\(days)d left"),
                         tint: days <= 0 ? Tide.danger : Tide.Kitchen.warn
                     )
                     .frame(minHeight: Tide.hit)
@@ -222,7 +222,7 @@ struct TodaySupplementsCard: View {
 
     private func detailText(_ row: SupplementBoardRow) -> String {
         if let takenAt = row.takenAt {
-            return "Taken \(takenAt.formatted(date: .omitted, time: .shortened))"
+            return String(localized: "Taken \(takenAt.formatted(date: .omitted, time: .shortened))")
         }
         let dose = row.dose.dosePerServing
         return dose.isEmpty ? row.dose.timeLabel : "\(dose) · \(row.dose.timeLabel)"
@@ -246,7 +246,7 @@ struct TodaySupplementsCard: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(row.isTaken ? "\(row.dose.name) taken, tap to undo" : "Mark \(row.dose.name) taken")
+        .accessibilityLabel(row.isTaken ? String(localized: "\(row.dose.name) taken, tap to undo") : String(localized: "Mark \(row.dose.name) taken"))
         .accessibilityIdentifier("supplementCheck.\(row.dose.name)")
     }
 }

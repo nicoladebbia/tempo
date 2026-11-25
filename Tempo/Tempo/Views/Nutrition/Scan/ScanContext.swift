@@ -24,10 +24,10 @@ enum ScanMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .barcode: "Barcode"
-        case .receipt: "Receipt"
-        case .label: "Label"
-        case .mealPhoto: "Meal photo"
+        case .barcode: String(localized: "Barcode")
+        case .receipt: String(localized: "Receipt")
+        case .label: String(localized: "Label")
+        case .mealPhoto: String(localized: "Meal photo")
         }
     }
 
@@ -95,8 +95,8 @@ enum ScanContextKind: CaseIterable {
     var dismissTitle: String {
         switch self {
         case .today,
-             .foodCheck: "Done"
-        default: "Cancel"
+             .foodCheck: String(localized: "Done")
+        default: String(localized: "Cancel")
         }
     }
 

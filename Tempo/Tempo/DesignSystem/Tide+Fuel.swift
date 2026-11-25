@@ -126,7 +126,11 @@ struct FuelMacroColumns: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(item.name) \(item.value)\(item.target > 0 ? " of \(item.target)" : "") grams")
+        .accessibilityLabel(
+            item.target > 0
+                ? String(localized: "\(item.name) \(item.value) of \(item.target) grams")
+                : String(localized: "\(item.name) \(item.value) grams")
+        )
     }
 }
 

@@ -120,7 +120,7 @@ struct ParsedFoodReviewSheet: View {
                     .accessibilityIdentifier("reviewSaveError")
             }
             Button(action: confirm) {
-                Text(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kcal")
+                Text(draft.items.isEmpty ? String(localized: "Nothing to log") : String(localized: "Log \(draft.totalCalories) kcal"))
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -128,7 +128,7 @@ struct ParsedFoodReviewSheet: View {
             .disabled(didConfirm || draft.items.isEmpty)
             .animation(Tide.snap, value: draft.totalCalories)
             .accessibilityIdentifier("reviewLog")
-            .accessibilityLabel(draft.items.isEmpty ? "Nothing to log" : "Log \(draft.totalCalories) kilocalories")
+            .accessibilityLabel(draft.items.isEmpty ? String(localized: "Nothing to log") : String(localized: "Log \(draft.totalCalories) kilocalories"))
         }
         .animation(Tide.snap, value: saveError)
     }
@@ -155,7 +155,7 @@ struct ParsedFoodReviewSheet: View {
 
     private var summaryCard: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideNumber("\(draft.totalCalories)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
+            TideNumber("\(draft.totalCalories)", unit: String(localized: "kcal"), size: Tide.numeralL, relativeTo: .largeTitle)
             FuelMacroRings(
                 protein: Int(draft.totalProtein.rounded()), carbs: Int(draft.totalCarbs.rounded()), fat: Int(draft.totalFat.rounded())
             )
@@ -164,7 +164,7 @@ struct ParsedFoodReviewSheet: View {
         .animation(Tide.snap, value: draft.totalCalories)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Total \(draft.totalCalories) kilocalories. Protein \(Int(draft.totalProtein.rounded())) grams, carbs \(Int(draft.totalCarbs.rounded())) grams, fat \(Int(draft.totalFat.rounded())) grams."
+            String(localized: "Total \(draft.totalCalories) kilocalories. Protein \(Int(draft.totalProtein.rounded())) grams, carbs \(Int(draft.totalCarbs.rounded())) grams, fat \(Int(draft.totalFat.rounded())) grams.")
         )
         .accessibilityIdentifier("reviewTotal")
     }
@@ -179,7 +179,7 @@ struct ParsedFoodReviewSheet: View {
                     .foregroundStyle(Tide.text)
                 Spacer()
                 DatePicker(
-                    "Time eaten",
+                    String(localized: "Time eaten"),
                     selection: Binding(get: { draft.eatenAt }, set: { draft.setEatenAt($0) }),
                     in: ...Date().addingTimeInterval(60),
                     displayedComponents: [.date, .hourAndMinute]
@@ -234,10 +234,10 @@ struct ParsedFoodReviewSheet: View {
     private static func relativeDay(_ date: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) {
-            return "Today"
+            return String(localized: "Today")
         }
         if calendar.isDateInYesterday(date) {
-            return "Yesterday"
+            return String(localized: "Yesterday")
         }
         return date.formatted(.dateTime.weekday(.wide).day().month())
     }
@@ -245,10 +245,10 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Where from
 
     private func originCard(pantry: [String: [PantryPreviewLine]]) -> some View {
-        card("WHERE FROM") {
+        card(String(localized: "WHERE FROM")) {
             HStack(spacing: Tide.s2) {
-                originChoice(.kitchen, icon: "house.fill", title: "Kitchen")
-                originChoice(.out, icon: "fork.knife", title: "Ate out")
+                originChoice(.kitchen, icon: "house.fill", title: String(localized: "Kitchen"))
+                originChoice(.out, icon: "fork.knife", title: String(localized: "Ate out"))
             }
             .accessibilityIdentifier("reviewOrigin")
             if draft.origin == .mixed {
@@ -291,8 +291,8 @@ struct ParsedFoodReviewSheet: View {
         if lines.isEmpty {
             Label(
                 draft
-                    .origin == .out ? "Nothing from home. Your pantry stays as it is." :
-                    "Nothing from home. Nothing comes off your pantry.",
+                    .origin == .out ? String(localized: "Nothing from home. Your pantry stays as it is.") :
+                    String(localized: "Nothing from home. Nothing comes off your pantry."),
                 systemImage: "checkmark.circle"
             )
             .font(Tide.caption)
@@ -316,7 +316,7 @@ struct ParsedFoodReviewSheet: View {
                 }
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Comes off your pantry: " + lines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))
+            .accessibilityLabel(String(localized: "Comes off your pantry: \(lines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))"))
             .accessibilityIdentifier("reviewOriginPreview")
         }
     }
@@ -325,12 +325,12 @@ struct ParsedFoodReviewSheet: View {
         Button {
             showHomeSetting = true
         } label: {
-            Label(home == nil ? "Set home" : "Home: set", systemImage: home == nil ? "house" : "house.fill")
+            Label(home == nil ? String(localized: "Set home") : String(localized: "Home: set"), systemImage: home == nil ? "house" : "house.fill")
                 .font(Tide.caption)
                 .fuelChip(selected: home == nil)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(home == nil ? "Set home location" : "Home is set. Change home location")
+        .accessibilityLabel(home == nil ? String(localized: "Set home location") : String(localized: "Home is set. Change home location"))
         .accessibilityIdentifier("reviewSetHome")
     }
 
@@ -339,9 +339,9 @@ struct ParsedFoodReviewSheet: View {
             return nil
         }
         switch atHome {
-        case true?: return draft.origin == .kitchen ? "You're home. From your kitchen?" : "You're home. Logged as eaten out."
-        case false?: return draft.origin == .out ? "Not home. Logged as eaten out." : "Not home, but from your kitchen."
-        case nil: return "Can't tell where you are. Using your last choice."
+        case true?: return draft.origin == .kitchen ? String(localized: "You're home. From your kitchen?") : String(localized: "You're home. Logged as eaten out.")
+        case false?: return draft.origin == .out ? String(localized: "Not home. Logged as eaten out.") : String(localized: "Not home, but from your kitchen.")
+        case nil: return String(localized: "Can't tell where you are. Using your last choice.")
         }
     }
 
@@ -382,7 +382,7 @@ struct ParsedFoodReviewSheet: View {
     // MARK: - Foods
 
     private func foodsCard(pantry: [String: [PantryPreviewLine]]) -> some View {
-        card("WHAT YOU ATE") {
+        card(String(localized: "WHAT YOU ATE")) {
             if draft.items.isEmpty {
                 Text("Nothing left to log.")
                     .font(Tide.body)
@@ -431,7 +431,7 @@ struct ParsedFoodReviewSheet: View {
                     .accessibilityIdentifier("reviewBigPortion")
             }
             if fromKitchen, !pantryLines.isEmpty {
-                Text("Off pantry: " + pantryLines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))
+                Text(String(localized: "Off pantry: \(pantryLines.map { "\($0.displayName) \($0.amountText)" }.joined(separator: ", "))"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -493,7 +493,7 @@ struct ParsedFoodReviewSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(original.name) from my kitchen")
-        .accessibilityValue(fromKitchen ? "On" : "Off")
+        .accessibilityValue(fromKitchen ? String(localized: "On") : String(localized: "Off"))
         .accessibilityAddTraits(.isButton)
     }
 
@@ -516,7 +516,7 @@ struct ParsedFoodReviewSheet: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(open ? "Hide exact weight" : "Set exact weight for \(original.name)")
+        .accessibilityLabel(open ? String(localized: "Hide exact weight") : String(localized: "Set exact weight for \(original.name)"))
     }
 
     private func removeButton(_ original: ParsedFoodItem) -> some View {

@@ -60,7 +60,7 @@ struct PlanUpdateBanner: View {
                             if viewModel.isGeneratingPlan {
                                 ProgressView().tint(Tide.ink)
                             }
-                            Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
+                            Text(viewModel.isGeneratingPlan ? String(localized: "Updating…") : String(localized: "Update"))
                         }
                         .frame(maxWidth: .infinity)
                     }

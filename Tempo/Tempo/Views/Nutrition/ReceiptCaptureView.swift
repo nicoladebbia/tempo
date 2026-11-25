@@ -111,7 +111,7 @@ struct ReceiptCaptureView: View {
 
     private var captureOptions: some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Take Photo", systemImage: "camera.fill", role: .primary) {
+            KitchenStateAction(title: String(localized: "Take Photo"), systemImage: "camera.fill", role: .primary) {
                 if documentScannerAvailable {
                     isShowingDocumentScanner = true
                 } else {
@@ -119,7 +119,7 @@ struct ReceiptCaptureView: View {
                     isShowingPicker = true
                 }
             },
-            KitchenStateAction(title: "Choose from Library", systemImage: "photo.on.rectangle") {
+            KitchenStateAction(title: String(localized: "Choose from Library"), systemImage: "photo.on.rectangle") {
                 pickerSource = .library
                 isShowingPicker = true
             },
@@ -128,16 +128,16 @@ struct ReceiptCaptureView: View {
                 KitchenReceiptSketch()
                     .padding(.vertical, Tide.s2)
                 KitchenStateText(
-                    title: "Snap your receipt",
-                    message: "On-device OCR plus AI structuring. Review each line before it goes in your pantry."
+                    title: String(localized: "Snap your receipt"),
+                    message: String(localized: "On-device OCR plus AI structuring. Review each line before it goes in your pantry.")
                 )
                 tips
                 if let scanBlocker {
                     AIBlockerCard(
                         blocker: scanBlocker,
                         message: scanBlocker == .proRequired
-                            ? "Reading receipts is a Tempo Pro feature."
-                            : "AI features are off. Turn them on to read receipts."
+                            ? String(localized: "Reading receipts is a Tempo Pro feature.")
+                            : String(localized: "AI features are off. Turn them on to read receipts.")
                     ) {
                         self.scanBlocker = nil
                         scanError = nil
@@ -153,10 +153,10 @@ struct ReceiptCaptureView: View {
     /// added (the document camera's own + control).
     private var tips: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            tip("rectangle.portrait", "Lay it flat, whole receipt in the frame")
-            tip("sun.max", "Good light, no shadow across the text")
+            tip("rectangle.portrait", String(localized: "Lay it flat, whole receipt in the frame"))
+            tip("sun.max", String(localized: "Good light, no shadow across the text"))
             if documentScannerAvailable {
-                tip("plus.rectangle.on.rectangle", "Long receipt? Tap + after the first page to add more — they're stitched together automatically.")
+                tip("plus.rectangle.on.rectangle", String(localized: "Long receipt? Tap + after the first page to add more — they're stitched together automatically."))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

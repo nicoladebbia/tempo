@@ -42,10 +42,16 @@ struct SupplementQuickAddItem: Identifiable, Hashable, Sendable {
 
     /// "120 kcal · 24g P" — nil for supplements that carry no macros.
     var macroSummary: String? {
-        guard calories > 0 || proteinGrams > 0 else { return nil }
+        guard calories > 0 || proteinGrams > 0 else {
+            return nil
+        }
         var parts: [String] = []
-        if calories > 0 { parts.append("\(Int(calories.rounded())) kcal") }
-        if proteinGrams > 0 { parts.append(String(localized: "\(Int(proteinGrams.rounded()))g P")) }
+        if calories > 0 {
+            parts.append(String(localized: "\(Int(calories.rounded())) kcal"))
+        }
+        if proteinGrams > 0 {
+            parts.append(String(localized: "\(Int(proteinGrams.rounded()))g P"))
+        }
         return parts.joined(separator: " · ")
     }
 }

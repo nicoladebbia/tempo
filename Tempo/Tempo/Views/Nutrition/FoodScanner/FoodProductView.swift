@@ -980,7 +980,7 @@ struct FoodProductView: View {
     }
 
     private func allergenChip(_ text: String) -> some View {
-        Text(text)
+        Text(FoodProduct.localizedAllergenName(text))
             .font(Tide.caption)
             .fontWeight(.semibold)
             .foregroundStyle(Tide.danger)
@@ -993,7 +993,7 @@ struct FoodProductView: View {
     /// "May contain" trace chips — a softer, secondary treatment than a
     /// confirmed allergen: same shape, amber instead of red.
     private func traceChip(_ text: String) -> some View {
-        Text(text)
+        Text(FoodProduct.localizedAllergenName(text))
             .font(Tide.caption)
             .fontWeight(.semibold)
             .foregroundStyle(Tide.Kitchen.warn)

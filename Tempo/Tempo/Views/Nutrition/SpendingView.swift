@@ -69,15 +69,15 @@ struct SpendingView: View {
             if !didLoad {
                 loading
             } else if let error = viewModel.receiptState.loadError, receipts.isEmpty, !summary.hasSpend {
-                KitchenFailure(title: "Couldn't load your receipts", message: error, retry: reload)
+                KitchenFailure(title: String(localized: "Couldn't load your receipts"), message: error, retry: reload)
                     .padding(.horizontal, Tide.edge)
                     .frame(maxHeight: .infinity)
             } else if receipts.isEmpty, !summary.hasSpend {
                 ScrollView {
                     KitchenEmpty(
                         systemImage: "receipt",
-                        title: "No spending yet",
-                        message: "Scan a grocery receipt and your weekly spend builds up here."
+                        title: String(localized: "No spending yet"),
+                        message: String(localized: "Scan a grocery receipt and your weekly spend builds up here.")
                     )
                     .padding(.horizontal, Tide.edge)
                     .padding(.top, Tide.s6)
@@ -146,14 +146,14 @@ struct SpendingView: View {
                     notice
                     ForEach(needsAttention, id: \.id) { receiptLink($0) }
                 } header: {
-                    sectionHeader("Needs attention", trailing: "\(needsAttention.count)")
+                    sectionHeader(String(localized: "Needs attention"), trailing: "\(needsAttention.count)")
                 }
             }
             if !others.isEmpty {
                 Section {
                     ForEach(others, id: \.id) { receiptLink($0) }
                 } header: {
-                    sectionHeader("Receipts", trailing: "\(receipts.count) in all")
+                    sectionHeader(String(localized: "Receipts"), trailing: String(localized: "\(receipts.count) in all"))
                 }
             } else if summary.hasSpend, receipts.isEmpty {
                 Section {
@@ -267,16 +267,16 @@ struct SpendingView: View {
                 color: week.isOverBudget ? Tide.danger : Tide.text
             )
             if week.isOverBudget {
-                KitchenTag(text: "Over", tint: Tide.danger)
+                KitchenTag(text: String(localized: "Over"), tint: Tide.danger)
             }
         }
     }
 
     private func title(of week: GroceryWeeklySpend) -> String {
         if week.id == summary.current?.id {
-            return "This week"
+            return String(localized: "This week")
         }
-        return "Week of \(week.weekStartDate.formatted(date: .abbreviated, time: .omitted))"
+        return String(localized: "Week of \(week.weekStartDate.formatted(date: .abbreviated, time: .omitted))")
     }
 
     /// For this week, the Monday it started on; a past week says its date in the title.
@@ -284,7 +284,7 @@ struct SpendingView: View {
         guard week.id == summary.current?.id else {
             return nil
         }
-        return "from \(week.weekStartDate.formatted(.dateTime.month(.abbreviated).day()))"
+        return String(localized: "from \(week.weekStartDate.formatted(.dateTime.month(.abbreviated).day()))")
     }
 
     /// Receipts that wait for a look are not in the spend yet: say so, once.
@@ -295,8 +295,8 @@ struct SpendingView: View {
             KitchenNotice(
                 systemImage: "eye",
                 text: waiting == 1
-                    ? "1 receipt needs a look. It counts toward your spend once you confirm it."
-                    : "\(waiting) receipts need a look. They count toward your spend once you confirm them."
+                    ? String(localized: "1 receipt needs a look. It counts toward your spend once you confirm it.")
+                    : String(localized: "\(waiting) receipts need a look. They count toward your spend once you confirm them.")
             )
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: Tide.s1, leading: 0, bottom: Tide.s1, trailing: 0))
@@ -356,7 +356,7 @@ struct SpendingView: View {
                     .background(statusColor(receipt.ocrStatus).opacity(0.14), in: .rect(cornerRadius: Tide.controlRadius))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Tide.s1) {
-                    Text(receipt.store.isEmpty ? "Unknown store" : receipt.store)
+                    Text(receipt.store.isEmpty ? String(localized: "Unknown store") : receipt.store)
                         .font(Tide.headline)
                         .foregroundStyle(Tide.text)
                         .lineLimit(2)
@@ -431,11 +431,11 @@ struct SpendingView: View {
 
     private func statusLabel(_ status: ReceiptOCRStatus) -> String {
         switch status {
-        case .pending: "Pending"
-        case .processing: "Processing"
-        case .awaitingReview: "Needs review"
-        case .confirmed: "Confirmed"
-        case .failed: "Failed"
+        case .pending: String(localized: "Pending")
+        case .processing: String(localized: "Processing")
+        case .awaitingReview: String(localized: "Needs review")
+        case .confirmed: String(localized: "Confirmed")
+        case .failed: String(localized: "Failed")
         }
     }
 
@@ -458,7 +458,7 @@ struct SpendingView: View {
             return
         }
         let id = receipt.id
-        let name = receipt.store.isEmpty ? "Receipt" : "\(receipt.store) receipt"
+        let name = receipt.store.isEmpty ? String(localized: "Receipt") : String(localized: "\(receipt.store) receipt")
         let viewModel = viewModel
         let pending = pending
         pending.schedule(
@@ -470,7 +470,7 @@ struct SpendingView: View {
             }
         )
         viewModel.loadGroceryWeeklySpendHistory(hiding: pending.hidden)
-        toast = KitchenUndo.undoToast("\(name) deleted.") {
+        toast = KitchenUndo.undoToast(String(localized: "\(name) deleted.")) {
             pending.undo(id)
             viewModel.loadGroceryWeeklySpendHistory(hiding: pending.hidden)
         }

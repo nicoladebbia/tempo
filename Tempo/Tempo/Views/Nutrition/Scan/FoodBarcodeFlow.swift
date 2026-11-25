@@ -68,8 +68,8 @@ struct FoodBarcodeFlow: View {
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
-                    detail: "Instant score: nutrition, additives, what it means for you today.",
-                    fallbackActions: [ScanFallbackAction(title: "Search by name") { showSearch = true }],
+                    detail: String(localized: "Instant score: nutrition, additives, what it means for you today."),
+                    fallbackActions: [ScanFallbackAction(title: String(localized: "Search by name")) { showSearch = true }],
                     isOffline: network.isOffline,
                     onSearchOffline: { showSearch = true }
                 ) { barcode in
@@ -205,20 +205,20 @@ struct FoodBarcodeFlow: View {
 
     private func notFoundContent(_ barcode: String) -> some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Add this product", systemImage: "plus", role: .primary, identifier: "addMissingProduct") {
+            KitchenStateAction(title: String(localized: "Add this product"), systemImage: "plus", role: .primary, identifier: "addMissingProduct") {
                 showAddProduct = true
             },
-            KitchenStateAction(title: "Search by name", systemImage: "magnifyingglass") {
+            KitchenStateAction(title: String(localized: "Search by name"), systemImage: "magnifyingglass") {
                 showSearch = true
             },
-            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+            KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .quiet) {
                 scanState = .scanning
             },
         ]) {
             KitchenStateHero(
                 systemImage: "barcode.viewfinder",
-                title: "Not in the database yet",
-                message: "Barcode \(barcode). Add it once with two photos — every scan after that is instant."
+                title: String(localized: "Not in the database yet"),
+                message: String(localized: "Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
             )
         }
     }
@@ -227,17 +227,17 @@ struct FoodBarcodeFlow: View {
 
     private func failedContent(barcode: String, message: String) -> some View {
         KitchenStatePage(actions: [
-            KitchenStateAction(title: "Try again", systemImage: "arrow.clockwise", role: .primary) {
+            KitchenStateAction(title: String(localized: "Try again"), systemImage: "arrow.clockwise", role: .primary) {
                 lookUp(barcode)
             },
-            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+            KitchenStateAction(title: String(localized: "Scan again"), systemImage: "barcode.viewfinder", role: .quiet) {
                 scanState = .scanning
             },
         ]) {
             KitchenStateHero(
                 systemImage: "exclamationmark.triangle.fill",
                 tint: Tide.danger,
-                title: "Couldn't look it up",
+                title: String(localized: "Couldn't look it up"),
                 message: message
             )
         }

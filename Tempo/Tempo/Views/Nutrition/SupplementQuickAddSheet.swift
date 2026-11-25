@@ -54,11 +54,11 @@ struct SupplementQuickAddSheet: View {
                     detailsContent
                 }
             }
-            .navigationTitle(step == .picking ? "Quick Add" : "A couple of details")
+            .navigationTitle(step == .picking ? String(localized: "Quick Add") : String(localized: "A couple of details"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(step == .picking ? "Cancel" : "Back") {
+                    Button(step == .picking ? String(localized: "Cancel") : String(localized: "Back")) {
                         if step == .picking {
                             dismiss()
                         } else {
@@ -112,7 +112,7 @@ struct SupplementQuickAddSheet: View {
                     Button {
                         step = .details
                     } label: {
-                        Text(selectedIDs.isEmpty ? "Pick what you own" : "Add \(selectedIDs.count)")
+                        Text(selectedIDs.isEmpty ? String(localized: "Pick what you own") : String(localized: "Add \(selectedIDs.count)"))
                             .contentTransition(.numericText())
                     }
                     .buttonStyle(.kitchenBar)
@@ -126,8 +126,8 @@ struct SupplementQuickAddSheet: View {
     private var emptyAllOnShelf: some View {
         KitchenEmpty(
             systemImage: "checkmark.circle",
-            title: "You've already got every common one",
-            message: "Add anything else manually or by scanning its barcode."
+            title: String(localized: "You've already got every common one"),
+            message: String(localized: "Add anything else manually or by scanning its barcode.")
         )
         .padding(.horizontal, Tide.edge)
         .frame(maxHeight: .infinity)

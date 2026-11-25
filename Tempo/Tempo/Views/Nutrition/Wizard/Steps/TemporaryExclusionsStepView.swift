@@ -28,12 +28,12 @@ struct TemporaryExclusionsStepView: View {
 
     var body: some View {
         WizardStepScaffold(
-            title: "Off the table this week.",
-            subtitle: "Not allergies — just things you're not in the mood for. Skip if nothing.",
+            title: String(localized: "Off the table this week."),
+            subtitle: String(localized: "Not allergies — just things you're not in the mood for. Skip if nothing."),
             eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
-            primaryButtonLabel: "Next",
+            primaryButtonLabel: String(localized: "Next"),
             onBack: coordinator.goBack,
             onPrimary: coordinator.advance,
             onCancel: coordinator.cancel

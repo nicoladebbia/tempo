@@ -83,8 +83,8 @@ struct PantryVoiceEditView: View {
         VStack(spacing: Tide.s5) {
             Spacer()
             Text(transcriber.isListening
-                ? "Listening… say what changed, then tap stop"
-                : "\"I'm out of rice\", \"I used half the chicken\", \"move the salmon to the freezer\"")
+                ? String(localized: "Listening… say what changed, then tap stop")
+                : String(localized: "\"I'm out of rice\", \"I used half the chicken\", \"move the salmon to the freezer\""))
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
@@ -110,7 +110,7 @@ struct PantryVoiceEditView: View {
             .buttonStyle(.plain)
             .padding(.vertical, Tide.s6)
             .sensoryFeedback(.impact, trigger: transcriber.isListening)
-            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
+            .accessibilityLabel(transcriber.isListening ? String(localized: "Stop listening") : String(localized: "Start listening"))
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
@@ -143,12 +143,12 @@ struct PantryVoiceEditView: View {
     private func runParse(_ rawTranscript: String) {
         let transcript = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty else {
-            phase = .failed("I didn't catch anything. Tap the mic and try again.")
+            phase = .failed(String(localized: "I didn't catch anything. Tap the mic and try again."))
             return
         }
         let parsed = VoicePantryEditParser.parse(transcript)
         guard !parsed.isEmpty else {
-            phase = .failed("Didn't recognize an edit in that. Try \"I'm out of X\" or \"move X to the freezer\".")
+            phase = .failed(String(localized: "Didn't recognize an edit in that. Try \"I'm out of X\" or \"move X to the freezer\"."))
             return
         }
         intents = parsed
@@ -159,7 +159,7 @@ struct PantryVoiceEditView: View {
 
     private var confirmSection: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Confirm these changes", trailing: "\(intents.count) to apply")
+            TideSectionLabel(title: String(localized: "Confirm these changes"), trailing: String(localized: "\(intents.count) to apply"))
             Text("Nothing has been changed yet.")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
@@ -190,7 +190,7 @@ struct PantryVoiceEditView: View {
             Button {
                 applyIntents()
             } label: {
-                Text("Apply \(intents.count) change\(intents.count == 1 ? "" : "s")")
+                Text(String(localized: "Apply \(intents.count) changes"))
             }
             .buttonStyle(.tidePrimary)
         }
@@ -215,19 +215,24 @@ struct PantryVoiceEditView: View {
     private func describe(_ intent: PantryEditIntent) -> String {
         switch intent {
         case let .markDepleted(rawName):
-            "Mark \(rawName) as out, add to grocery list"
+            String(localized: "Mark \(rawName) as out, add to grocery list")
         case let .decrement(rawName, fraction):
-            fraction >= 1 ? "Used up \(rawName)" : "Used half of \(rawName)"
+            fraction >= 1 ? String(localized: "Used up \(rawName)") : String(localized: "Used half of \(rawName)")
         case let .move(rawName, location):
-            "Move \(rawName) to the \(location.rawValue)"
+            switch location {
+            case .fridge: String(localized: "Move \(rawName) to the fridge")
+            case .freezer: String(localized: "Move \(rawName) to the freezer")
+            case .pantry: String(localized: "Move \(rawName) to the pantry")
+            case .cupboard: String(localized: "Move \(rawName) to the cupboard")
+            }
         case let .discard(rawName):
-            "Throw out \(rawName)"
+            String(localized: "Throw out \(rawName)")
         }
     }
 
     private func applyIntents() {
         guard let service = viewModel.pantryService else {
-            phase = .failed("Pantry isn't ready yet.")
+            phase = .failed(String(localized: "Pantry isn't ready yet."))
             return
         }
         let results = VoicePantryEditApplier.apply(intents, pantryService: service, modelContext: modelContext)
@@ -266,7 +271,7 @@ struct PantryVoiceEditView: View {
         VStack {
             Spacer()
             KitchenFailure(
-                title: "That didn't work",
+                title: String(localized: "That didn't work"),
                 message: message,
                 retry: { phase = .idle }
             )

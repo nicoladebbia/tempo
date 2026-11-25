@@ -74,8 +74,8 @@ struct SupplementReorderSheet: View {
                     // What the two buttons do, in the scroll so the bar under the thumb stays slim.
                     Text(
                         supplement.servingsPerContainer != nil
-                            ? "Restocking adds a full container to what's left and starts a fresh low-stock check."
-                            : "Set servings per container in this supplement's edit screen first, so a restock can update the count."
+                            ? String(localized: "Restocking adds a full container to what's left and starts a fresh low-stock check.")
+                            : String(localized: "Set servings per container in this supplement's edit screen first, so a restock can update the count.")
                     )
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text3)
@@ -95,7 +95,7 @@ struct SupplementReorderSheet: View {
                         addToGroceryList()
                     } label: {
                         Label(
-                            addedToList ? "Added to grocery list" : "Add to grocery list",
+                            addedToList ? String(localized: "Added to grocery list") : String(localized: "Add to grocery list"),
                             systemImage: addedToList ? "checkmark.circle.fill" : "cart.badge.plus"
                         )
                         .lineLimit(1)
@@ -109,7 +109,7 @@ struct SupplementReorderSheet: View {
                         markRestocked()
                     } label: {
                         Label(
-                            restocked ? "Restocked" : "I already restocked",
+                            restocked ? String(localized: "Restocked") : String(localized: "I already restocked"),
                             systemImage: restocked ? "checkmark.circle.fill" : "shippingbox"
                         )
                         .lineLimit(1)
@@ -151,15 +151,15 @@ struct SupplementReorderSheet: View {
                 }
             }
             VStack(alignment: .leading, spacing: Tide.s2) {
-                TideSectionLabel(title: "Estimated time left", trailing: isLow ? "Reorder soon" : nil)
+                TideSectionLabel(title: String(localized: "Estimated time left"), trailing: isLow ? String(localized: "Reorder soon") : nil)
                 if let daysLeft {
                     TideNumber(
-                        daysLeft <= 0 ? "Out" : "~\(daysLeft)",
+                        daysLeft <= 0 ? String(localized: "Out") : "~\(daysLeft)",
                         unit: daysLeft <= 0 ? nil : (daysLeft == 1 ? "day" : "days"),
                         size: Tide.numeralL, relativeTo: .largeTitle, color: tone
                     )
                 } else {
-                    TideNumber("Unknown", size: Tide.numeralM, relativeTo: .title, color: Tide.text2)
+                    TideNumber(String(localized: "Unknown"), size: Tide.numeralM, relativeTo: .title, color: Tide.text2)
                 }
                 if let per = supplement.servingsPerContainer, per > 0, supplement.servingsRemaining > 0 {
                     TideLevelBar(
@@ -169,7 +169,7 @@ struct SupplementReorderSheet: View {
                     )
                     .accessibilityHidden(true)
                 }
-                Text(supplement.servingsRemaining > 0 ? "\(FuelWords.count(Int(supplement.servingsRemaining), "serving")) left in the container" : "Left in container: unknown")
+                Text(supplement.servingsRemaining > 0 ? String(localized: "\(FuelWords.count(Int(supplement.servingsRemaining), "serving")) left in the container") : String(localized: "Left in container: unknown"))
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }

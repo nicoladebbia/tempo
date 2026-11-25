@@ -125,6 +125,16 @@ struct MealLoggingView: View {
             rawValue
         }
 
+        /// What the chip says: `rawValue` stays the stable English form.
+        var displayName: String {
+            switch self {
+            case .breakfast: String(localized: "Breakfast")
+            case .lunch: String(localized: "Lunch")
+            case .dinner: String(localized: "Dinner")
+            case .snack: String(localized: "Snack")
+            }
+        }
+
         init(_ type: Tempo.MealType) {
             switch type {
             case .breakfast: self = .breakfast
@@ -272,10 +282,10 @@ struct MealLoggingView: View {
             .sheet(item: $quickDuplicate) { pending in
                 FuelDecisionSheet(
                     icon: "square.on.square",
-                    title: "Already logged",
-                    message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Log another portion?",
+                    title: String(localized: "Already logged"),
+                    message: String(localized: "You already have \(pending.names.joined(separator: ", ")) in this meal. Log another portion?"),
                     chips: pending.names,
-                    primaryTitle: "Add another",
+                    primaryTitle: String(localized: "Add another"),
                     primary: {
                         // A second tap while the sheet is leaving must not log twice.
                         guard quickDuplicate != nil else {
@@ -316,7 +326,7 @@ struct MealLoggingView: View {
                         Image(systemName: FuelMealStyle.icon(forName: type.rawValue))
                             .font(Tide.bodyStrong)
                             .accessibilityHidden(true)
-                        Text(type.rawValue)
+                        Text(type.displayName)
                             .font(Tide.caption)
                             .lineLimit(1)
                             .minimumScaleFactor(Tide.labelShrink)
@@ -359,7 +369,7 @@ struct MealLoggingView: View {
                 } else {
                     mealHero
                     TideSectionLabel(
-                        title: "In this meal",
+                        title: String(localized: "In this meal"),
                         trailing: FuelWords.count(foodItems.count, "item")
                     )
                     VStack(spacing: 0) {
@@ -390,10 +400,10 @@ struct MealLoggingView: View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TideNumber(
-                    "\(totalCalories)", unit: "kcal", size: Tide.numeralL
+                    "\(totalCalories)", unit: String(localized: "kcal"), size: Tide.numeralL
                 )
                 Spacer(minLength: Tide.s2)
-                Text(selectedMealType.rawValue)
+                Text(selectedMealType.displayName)
                     .tideLabel()
             }
             FuelMacroSplitBar(protein: Int(totalProtein.rounded()), carbs: Int(totalCarbs.rounded()), fat: Int(totalFat.rounded()))
@@ -420,7 +430,7 @@ struct MealLoggingView: View {
     /// opens on top so the user checks it before anything is saved.
     private var typeField: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
-            TideSectionLabel(title: "Type it")
+            TideSectionLabel(title: String(localized: "Type it"))
             HStack(spacing: Tide.s2) {
                 TextField("What did you eat?", text: $typedText)
                     .font(Tide.body)
@@ -452,7 +462,7 @@ struct MealLoggingView: View {
                 .accessibilityIdentifier("mealLog.typeSend")
             }
             if isParsing {
-                FuelAIState(kind: .working("Reading what you ate…"))
+                FuelAIState(kind: .working(String(localized: "Reading what you ate…")))
                     .transition(.opacity)
             } else if let typedMessage {
                 FuelBanner(icon: "exclamationmark.circle.fill", tint: Tide.warn, title: typedMessage)
@@ -469,18 +479,18 @@ struct MealLoggingView: View {
     }
 
     /// What the typed line says when the AI could not turn the text into foods.
-    nonisolated static let typedFailureMessage = "Couldn't read that. Name the food and an amount, or use Search."
+    nonisolated static let typedFailureMessage = String(localized: "Couldn't read that. Name the food and an amount, or use Search.")
 
     /// A reply that did not make sense gets the plain line; a network or server problem
     /// says what it was (the readable text of the error).
     nonisolated static func typedMessage(for error: Error) -> String {
         switch error as? NaturalLanguageLoggingError {
         case let .parseFailed(detail) where detail != NaturalLanguageLoggingError.unreadableReply:
-            "Couldn't read that: \(detail)"
+            String(localized: "Couldn't read that: \(detail)")
         case .parseFailed, .noFoodsDetected, .emptyInput:
             typedFailureMessage
         case nil:
-            "Couldn't read that: \(AIBlocker.message(for: error))"
+            String(localized: "Couldn't read that: \(AIBlocker.message(for: error))")
         }
     }
 
@@ -524,28 +534,28 @@ struct MealLoggingView: View {
     /// Four big doors into the meal, each with a line on what it does.
     private var emptyMethods: some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Or add food")
+            TideSectionLabel(title: String(localized: "Or add food"))
             LazyVGrid(
                 columns: [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)],
                 spacing: Tide.s3
             ) {
-                methodTile(icon: "magnifyingglass", label: "Search", hint: "Type a food or brand") {
+                methodTile(icon: "magnifyingglass", id: "search", label: String(localized: "Search"), hint: String(localized: "Type a food or brand")) {
                     showFoodSearch = true
                 }
-                methodTile(icon: "camera.fill", label: "Photo", hint: "Snap your plate") {
+                methodTile(icon: "camera.fill", id: "photo", label: String(localized: "Photo"), hint: String(localized: "Snap your plate")) {
                     showPhotoAnalysis = true
                 }
-                methodTile(icon: "barcode.viewfinder", label: "Scan", hint: "Read a barcode") {
+                methodTile(icon: "barcode.viewfinder", id: "scan", label: String(localized: "Scan"), hint: String(localized: "Read a barcode")) {
                     showBarcodeScanner = true
                 }
-                methodTile(icon: "mic.fill", label: "Voice", hint: "Say what you ate") {
+                methodTile(icon: "mic.fill", id: "voice", label: String(localized: "Voice"), hint: String(localized: "Say what you ate")) {
                     showVoiceLog = true
                 }
             }
         }
     }
 
-    private func methodTile(icon: String, label: String, hint: String, action: @escaping () -> Void) -> some View {
+    private func methodTile(icon: String, id: String, label: String, hint: String, action: @escaping () -> Void) -> some View {
         Button {
             HapticManager.lightImpact()
             action()
@@ -571,7 +581,7 @@ struct MealLoggingView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
         .accessibilityHint(hint)
-        .accessibilityIdentifier("mealLog.input.\(label.lowercased())")
+        .accessibilityIdentifier("mealLog.input.\(id)")
     }
 
     // MARK: - Food Item Row
@@ -618,7 +628,7 @@ struct MealLoggingView: View {
                         Spacer(minLength: Tide.s2)
                     }
 
-                    TideNumber("\(item.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                    TideNumber("\(item.calories)", unit: String(localized: "kcal"), size: Tide.numeralS, relativeTo: .headline)
                 }
                 .frame(minHeight: Tide.hit + Tide.s3)
                 .contentShape(.rect)
@@ -653,27 +663,27 @@ struct MealLoggingView: View {
                 ),
                 spacing: Tide.s2
             ) {
-                inputMethodButton(icon: "magnifyingglass", label: "Search") {
+                inputMethodButton(icon: "magnifyingglass", id: "search", label: String(localized: "Search")) {
                     showFoodSearch = true
                 }
 
-                inputMethodButton(icon: "camera.fill", label: "Photo") {
+                inputMethodButton(icon: "camera.fill", id: "photo", label: String(localized: "Photo")) {
                     showPhotoAnalysis = true
                 }
 
-                inputMethodButton(icon: "barcode.viewfinder", label: "Scan") {
+                inputMethodButton(icon: "barcode.viewfinder", id: "scan", label: String(localized: "Scan")) {
                     showBarcodeScanner = true
                 }
 
-                inputMethodButton(icon: "mic.fill", label: "Voice") {
+                inputMethodButton(icon: "mic.fill", id: "voice", label: String(localized: "Voice")) {
                     showVoiceLog = true
                 }
             }
         }
     }
 
-    private func inputMethodButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        FuelActionTile(icon: icon, label: label, identifier: "mealLog.input.\(label.lowercased())") {
+    private func inputMethodButton(icon: String, id: String, label: String, action: @escaping () -> Void) -> some View {
+        FuelActionTile(icon: icon, label: label, identifier: "mealLog.input.\(id)") {
             HapticManager.lightImpact()
             action()
         }
@@ -687,13 +697,13 @@ struct MealLoggingView: View {
         } label: {
             // The total is already the hero; at accessibility sizes the bar
             // keeps just the verb so it stays one line and out of the way.
-            Text(foodItems.isEmpty || typeSize.isAccessibilitySize ? "Log meal" : "Log meal · \(totalCalories) kcal")
+            Text(foodItems.isEmpty || typeSize.isAccessibilitySize ? String(localized: "Log meal") : String(localized: "Log meal · \(totalCalories) kcal"))
                 .contentTransition(.numericText())
         }
         .buttonStyle(.tidePrimary)
         .disabled(foodItems.isEmpty || didLog)
         .accessibilityLabel("Log meal")
-        .accessibilityValue(foodItems.isEmpty ? "" : "\(totalCalories) kilocalories")
+        .accessibilityValue(foodItems.isEmpty ? "" : String(localized: "\(totalCalories) kilocalories"))
         .animation(Tide.snap, value: totalCalories)
     }
 
@@ -747,7 +757,7 @@ struct MealLoggingView: View {
         } catch {
             HapticManager.notification(.error)
             toast = ToastData(
-                message: "Couldn't save: \(error.localizedDescription)",
+                message: String(localized: "Couldn't save: \(error.localizedDescription)"),
                 style: .error
             )
             return
@@ -788,7 +798,7 @@ struct MealLoggingView: View {
             finishLog(type: choice.type, result: result)
         } catch {
             HapticManager.notification(.error)
-            toast = ToastData(message: "Couldn't log \(choice.title). Try again.", style: .error)
+            toast = ToastData(message: String(localized: "Couldn't log \(choice.title). Try again."), style: .error)
         }
     }
 
@@ -797,7 +807,7 @@ struct MealLoggingView: View {
         let kcal = Int(result.logged.calories.rounded())
         HapticManager.notification(.success)
         FuelLogToast.post(FuelLogToast.logged(
-            "\(type.displayName) logged. \(kcal) kcal.",
+            String(localized: "\(type.displayName) logged. \(kcal) kcal."),
             result: result,
             modelContext: modelContext,
             notifications: services.notifications
@@ -840,7 +850,7 @@ struct FoodItem: Identifiable, Equatable {
     var portionDescription: String {
         let qty = servingQuantity == 1.0
             ? servingSize
-            : "\(String(format: "%.1f", servingQuantity)) x \(servingSize)"
+            : "\(servingQuantity.tempoDecimal(1)) x \(servingSize)"
         if let brand {
             return "\(brand) - \(qty)"
         }
@@ -966,7 +976,7 @@ struct PortionEditorView: View {
                 }
 
                 VStack(spacing: Tide.s2) {
-                    TideNumber("\(previewCalories)", unit: "kcal", size: Tide.numeralL)
+                    TideNumber("\(previewCalories)", unit: String(localized: "kcal"), size: Tide.numeralL)
                     FuelMacroInline(
                         protein: Int((densityProtein * grams).rounded()),
                         carbs: Int((densityCarbs * grams).rounded()),
@@ -1035,9 +1045,9 @@ struct PortionEditorView: View {
                     chip("\(Self.format(amount)) \(unitLabel)", grams: amount)
                 }
             } else {
-                chip("½ serving", grams: unitGrams * 0.5)
-                chip("1 serving", grams: unitGrams)
-                chip("2 servings", grams: unitGrams * 2)
+                chip(String(localized: "½ serving"), grams: unitGrams * 0.5)
+                chip(String(localized: "1 serving"), grams: unitGrams)
+                chip(String(localized: "2 servings"), grams: unitGrams * 2)
                 chip("100 \(unitLabel)", grams: 100)
             }
         }
@@ -1097,9 +1107,9 @@ enum ConfidenceLevel {
 
     var label: String {
         switch self {
-        case .high: "Verified"
-        case .medium: "Estimate"
-        case .low: "Best guess"
+        case .high: String(localized: "Verified")
+        case .medium: String(localized: "Estimate")
+        case .low: String(localized: "Best guess")
         }
     }
 

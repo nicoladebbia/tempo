@@ -55,9 +55,13 @@ enum ReceiptCrossChecker {
             let delta = (itemSum - subtotal).rounded(toPlaces: 2)
             subtotalDelta = delta
             if abs(delta) > toleranceCents {
-                let direction = delta > 0 ? "too high" : "too low"
+                let itemsText = currency(itemSum)
+                let subtotalText = currency(subtotal)
+                let gapText = currency(abs(delta))
                 messages.append(
-                    "Items add up to \(currency(itemSum)) but the receipt subtotal is \(currency(subtotal)) (\(currency(abs(delta))) \(direction))."
+                    delta > 0
+                        ? String(localized: "Items add up to \(itemsText) but the receipt subtotal is \(subtotalText) (\(gapText) too high).")
+                        : String(localized: "Items add up to \(itemsText) but the receipt subtotal is \(subtotalText) (\(gapText) too low).")
                 )
                 culprit = closestCulprit(itemTotals: itemTotals, delta: delta)
             }
@@ -69,7 +73,7 @@ enum ReceiptCrossChecker {
             totalDelta = delta
             if abs(delta) > toleranceCents {
                 messages.append(
-                    "Subtotal + tax is \(currency(expectedTotal)) but the printed total is \(currency(total))."
+                    String(localized: "Subtotal + tax is \(currency(expectedTotal)) but the printed total is \(currency(total)).")
                 )
             }
         } else if let total {
@@ -79,7 +83,7 @@ enum ReceiptCrossChecker {
             if abs(delta) > max(toleranceCents, 1.0) { // items-vs-TOTAL naturally excludes tax, wider tolerance
                 totalDelta = delta
                 messages.append(
-                    "Items add up to \(currency(itemSum)) but the printed total is \(currency(total)) — this receipt may include tax or fees not itemized."
+                    String(localized: "Items add up to \(currency(itemSum)) but the printed total is \(currency(total)) — this receipt may include tax or fees not itemized.")
                 )
             }
         }
@@ -87,7 +91,7 @@ enum ReceiptCrossChecker {
         let isConsistent = messages.isEmpty
         return ReceiptCrossCheckResult(
             isConsistent: isConsistent,
-            bannerMessage: isConsistent ? nil : ("Check these lines — " + messages.joined(separator: " ")),
+            bannerMessage: isConsistent ? nil : String(localized: "Check these lines — \(messages.joined(separator: " "))"),
             subtotalDelta: subtotalDelta,
             totalDelta: totalDelta,
             likelyCulpritIndex: culprit

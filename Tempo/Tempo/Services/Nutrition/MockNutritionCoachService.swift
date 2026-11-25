@@ -38,7 +38,7 @@ final class MockNutritionCoachService: NutritionCoachServiceProtocol, @unchecked
         let mealsLeft = target.mealsPerDay - todaySummary.mealsLogged
 
         if proteinRemaining > 40, mealsLeft <= 1 {
-            return "\(Int(meal.totalProtein))g protein in that \(meal.mealType.displayName.lowercased()). Not bad, but you're still \(proteinRemaining)g short with \(mealsLeft) meal left. Next meal needs to be protein-heavy. Think chicken or Greek yogurt."
+            return "\(Int(meal.totalProtein))g protein in that \(meal.mealType.englishName.lowercased()). Not bad, but you're still \(proteinRemaining)g short with \(mealsLeft) meal left. Next meal needs to be protein-heavy. Think chicken or Greek yogurt."
         }
 
         if caloriesRemaining < 0 {
