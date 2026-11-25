@@ -25,7 +25,7 @@ struct FuelFlowScaffold<Content: View>: View {
     var isSaving = false
     var isLast = false
     /// Label of the primary button on the last screen ("Save", "Save & next: Goal").
-    var lastTitle = "Save"
+    var lastTitle = String(localized: "Save")
     /// Optional questions can be skipped; nil hides the button.
     var onSkip: (() -> Void)?
     /// Shown in the top bar once something changed ("Save & close"); nil hides it.
@@ -159,7 +159,7 @@ struct FuelFlowScaffold<Content: View>: View {
                         if isSaving {
                             ProgressView().tint(Tide.ink)
                         } else {
-                            Text(isLast ? lastTitle : "Next")
+                            Text(isLast ? lastTitle : String(localized: "Next"))
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -341,7 +341,7 @@ struct FuelBigStepper: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .accessibilityLabel(symbol == "plus" ? "More" : "Less")
+        .accessibilityLabel(symbol == "plus" ? String(localized: "More") : String(localized: "Less"))
     }
 }
 

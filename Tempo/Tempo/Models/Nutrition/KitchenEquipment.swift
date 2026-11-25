@@ -33,6 +33,24 @@ enum KitchenApplianceKind: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
+        case .stovetop: String(localized: "Stovetop")
+        case .oven: String(localized: "Oven")
+        case .microwave: String(localized: "Microwave")
+        case .riceCooker: String(localized: "Rice cooker")
+        case .airFryer: String(localized: "Air fryer")
+        case .blender: String(localized: "Blender")
+        case .foodProcessor: String(localized: "Food processor")
+        case .slowCooker: String(localized: "Slow cooker")
+        case .toaster: String(localized: "Toaster")
+        case .kettle: String(localized: "Kettle")
+        case .grill: String(localized: "Grill")
+        }
+    }
+
+    /// Fixed English name for the list sent to the meal-plan AI, whatever the
+    /// app language. Use `displayName` on screen.
+    var englishName: String {
+        switch self {
         case .stovetop: "Stovetop"
         case .oven: "Oven"
         case .microwave: "Microwave"
@@ -68,7 +86,9 @@ enum KitchenApplianceKind: String, Codable, CaseIterable, Sendable {
     /// microwave kitchen, not an empty one that blocks all cooking).
     var seededAvailable: Bool {
         switch self {
-        case .stovetop, .oven, .microwave: true
+        case .stovetop,
+             .oven,
+             .microwave: true
         default: false
         }
     }

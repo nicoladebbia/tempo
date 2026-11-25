@@ -97,10 +97,10 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
         trainingToday: String?
     ) async throws -> String {
         let itemNames = meal.items.map(\.name).joined(separator: ", ")
-        let mealItems = itemNames.isEmpty ? meal.mealType.displayName : itemNames
+        let mealItems = itemNames.isEmpty ? meal.mealType.englishName : itemNames
 
         let prompt = NutritionCoachPrompts.mealFeedbackPrompt(
-            mealType: meal.mealType.displayName,
+            mealType: meal.mealType.englishName,
             mealCalories: meal.totalCalories,
             mealProtein: meal.totalProtein,
             mealCarbs: meal.totalCarbs,
@@ -147,7 +147,7 @@ final class NutritionCoachService: NutritionCoachServiceProtocol, @unchecked Sen
 
         let mealTuples = meals.map { meal in
             (
-                type: meal.mealType.displayName,
+                type: meal.mealType.englishName,
                 calories: meal.totalCalories,
                 protein: meal.totalProtein,
                 carbs: meal.totalCarbs,

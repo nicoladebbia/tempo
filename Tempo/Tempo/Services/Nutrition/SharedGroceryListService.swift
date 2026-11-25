@@ -113,7 +113,7 @@ final class SharedGroceryListService {
                 id: idString,
                 name: item.quantityFreeName,
                 quantity: item.quantity,
-                unit: item.unit.displayName,
+                unit: item.unit.englishName,
                 category: item.category,
                 checked: item.isChecked,
                 updatedAt: updatedAt
@@ -211,7 +211,7 @@ final class SharedGroceryListService {
         title: String = "Tempo Grocery List"
     ) async throws -> URL {
         let wireItems = items.map {
-            InstacartCartItemWireDTO(name: $0.quantityFreeName, quantity: $0.quantity, unit: $0.unit.displayName)
+            InstacartCartItemWireDTO(name: $0.quantityFreeName, quantity: $0.quantity, unit: $0.unit.englishName)
         }
         let dto = try await apiClient.request(
             .createInstacartCart(),

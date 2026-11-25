@@ -451,7 +451,7 @@ struct MealDetailView: View {
     private func recipeMetrics(_ recipe: Recipe) -> some View {
         inlineMetric(icon: "clock", text: "\(recipe.totalMinutes) min")
         inlineMetric(icon: "person.2", text: "\(recipe.servings) serving\(recipe.servings == 1 ? "" : "s")")
-        inlineMetric(icon: "flame", text: recipe.difficulty.rawValue.capitalized)
+        inlineMetric(icon: "flame", text: recipe.difficulty.displayName)
     }
 
     // MARK: - Schedule

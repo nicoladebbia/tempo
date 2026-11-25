@@ -21,11 +21,11 @@ enum ReceiptReviewSection: Int, CaseIterable, Hashable, Sendable {
 
     var title: String {
         switch self {
-        case .needsLook: "Needs a look"
-        case .fridge: "Fridge"
-        case .freezer: "Freezer"
-        case .pantry: "Pantry"
-        case .notFood: "Not food"
+        case .needsLook: String(localized: "Needs a look")
+        case .fridge: String(localized: "Fridge")
+        case .freezer: String(localized: "Freezer")
+        case .pantry: String(localized: "Pantry")
+        case .notFood: String(localized: "Not food")
         }
     }
 

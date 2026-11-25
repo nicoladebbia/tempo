@@ -10,13 +10,15 @@
 
 import SwiftUI
 
-// MARK: - Result
+// MARK: - ReceiptLineProductChoice
 
 enum ReceiptLineProductChoice {
     case unchanged
     case keptAsTyped
     case picked(ReceiptProductPickerCandidate)
 }
+
+// MARK: - ReceiptLineEditResult
 
 struct ReceiptLineEditResult {
     var name: String
@@ -228,7 +230,7 @@ struct ReceiptLineEditSheet: View {
                 Spacer(minLength: Tide.s2)
                 Picker("Unit", selection: $unit) {
                     ForEach(ReceiptLineUnit.allCases, id: \.self) { value in
-                        Text(value.rawValue).tag(value)
+                        Text(value.displayName).tag(value)
                     }
                 }
                 .pickerStyle(.menu)

@@ -19,9 +19,9 @@ enum SupplementPeriod: Int, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .morning: "Morning"
-        case .withMeals: "With meals"
-        case .evening: "Evening"
+        case .morning: String(localized: "Morning")
+        case .withMeals: String(localized: "With meals")
+        case .evening: String(localized: "Evening")
         }
     }
 
@@ -73,10 +73,10 @@ struct SupplementBoardRow: Identifiable, Equatable {
         }
         var parts: [String] = []
         if macros.protein >= 1 {
-            parts.append("\(Int(macros.protein.rounded())) g protein")
+            parts.append(String(localized: "\(Int(macros.protein.rounded())) g protein"))
         }
         if macros.calories >= 1 {
-            parts.append("\(Int(macros.calories.rounded())) kcal")
+            parts.append(String(localized: "\(Int(macros.calories.rounded())) kcal"))
         }
         return parts.joined(separator: " · ")
     }

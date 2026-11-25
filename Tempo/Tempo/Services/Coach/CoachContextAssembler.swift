@@ -90,7 +90,7 @@ enum CoachContextAssembler {
             displayName: profile?.displayName ?? "User",
             age: profile?.age,
             sport: profile?.identityLabel,
-            primaryGoal: diet?.primaryGoal.displayName,
+            primaryGoal: diet?.primaryGoal.englishName,
             currentWeightKg: diet?.currentWeightKg ?? profile?.weightKg,
             heightCm: profile?.heightCm
         )
@@ -181,7 +181,9 @@ enum CoachContextAssembler {
                 deviationsFlag: deviations
             ))
 
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else {
+                break
+            }
             cursor = next
         }
         return days
@@ -198,7 +200,9 @@ enum CoachContextAssembler {
         let dayStart = calendar.startOfDay(for: today)
         guard let dayAfter = calendar.date(byAdding: .day, value: 1, to: dayStart),
               let windowEnd = calendar.date(byAdding: .day, value: 8, to: dayStart)
-        else { return [] }
+        else {
+            return []
+        }
 
         let mealDescriptor = FetchDescriptor<PlannedMeal>(
             predicate: #Predicate<PlannedMeal> { meal in
@@ -224,7 +228,9 @@ enum CoachContextAssembler {
                 plannedMealCount: dayMeals.count(where: { !$0.isUnplannedLog }),
                 plannedKcal: dayMeals.reduce(0) { $0 + $1.planBaseline.calories }
             ))
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else {
+                break
+            }
             cursor = next
         }
         return days
@@ -242,7 +248,7 @@ enum CoachContextAssembler {
             return nil
         }
         return GoalProgressBlock(
-            primaryGoal: diet.primaryGoal.displayName,
+            primaryGoal: diet.primaryGoal.englishName,
             currentWeightKg: diet.currentWeightKg,
             // Target + trajectory bound to a follow-up phase (5.x or 7.5)
             // when DietaryProfile gains target-weight + weight-history fields.
@@ -253,7 +259,7 @@ enum CoachContextAssembler {
     }
 }
 
-// MARK: - Snapshot types
+// MARK: - CoachContextSnapshot
 
 struct CoachContextSnapshot: Equatable {
     let identity: IdentityBlock
@@ -279,6 +285,8 @@ struct CoachContextSnapshot: Equatable {
     }
 }
 
+// MARK: - IdentityBlock
+
 struct IdentityBlock: Equatable {
     let displayName: String
     let age: Int?
@@ -287,6 +295,8 @@ struct IdentityBlock: Equatable {
     let currentWeightKg: Double?
     let heightCm: Double?
 }
+
+// MARK: - TodayLiveSnapshot
 
 /// Live values for "today" passed in by the caller. Phase 6's CoachService
 /// fills this with WhoopService + HealthKitService + planner reads.
@@ -310,6 +320,8 @@ struct TodayLiveSnapshot: Equatable {
     /// (e.g. "you ate dinner 90 min late on training days").
     var mealTimings: [PlannedMealTimingEntry] = []
 }
+
+// MARK: - PlannedMealTimingEntry
 
 /// One row in `TodayLiveSnapshot.mealTimings`. Keeping this as a value
 /// type (not a PlannedMeal reference) so the snapshot remains Sendable
@@ -339,6 +351,8 @@ struct PlannedMealTimingEntry: Equatable {
     }
 }
 
+// MARK: - CalendarEventSummary
+
 struct CalendarEventSummary: Equatable {
     let title: String
     let startHHmm: String
@@ -360,6 +374,8 @@ struct CalendarEventSummary: Equatable {
     }
 }
 
+// MARK: - BackwardDay
+
 struct BackwardDay: Equatable {
     let date: Date
     let dayType: WorkoutType?
@@ -374,12 +390,16 @@ struct BackwardDay: Equatable {
     let deviationsFlag: Bool
 }
 
+// MARK: - ForwardDay
+
 struct ForwardDay: Equatable {
     let date: Date
     let dayType: WorkoutType?
     let plannedMealCount: Int
     let plannedKcal: Double
 }
+
+// MARK: - GoalProgressBlock
 
 struct GoalProgressBlock: Equatable {
     let primaryGoal: String
@@ -388,6 +408,8 @@ struct GoalProgressBlock: Equatable {
     let weeklyChangeKg: Double?
     let trajectoryLabel: String?
 }
+
+// MARK: - ConversationSummary
 
 struct ConversationSummary: Equatable {
     let id: UUID
@@ -425,7 +447,7 @@ extension CoachContextSnapshot {
         var estimatedTokens = rendered.count / CoachContextAssembler.charsPerToken
 
         // Pass 1: trim conversation summaries oldest-first.
-        while estimatedTokens > budget && !summaries.isEmpty {
+        while estimatedTokens > budget, !summaries.isEmpty {
             summaries.removeFirst()
             rendered = renderRaw(
                 preferenceCount: preferenceCount,
@@ -461,7 +483,7 @@ extension CoachContextSnapshot {
         }
 
         // Pass 4: trim preference tail until under budget (keep at least 5).
-        while estimatedTokens > budget && preferenceCount > 5 {
+        while estimatedTokens > budget, preferenceCount > 5 {
             preferenceCount -= 1
             rendered = renderRaw(
                 preferenceCount: preferenceCount,
@@ -477,7 +499,7 @@ extension CoachContextSnapshot {
 
     // MARK: - Render pipeline
 
-    fileprivate func renderRaw(
+    private func renderRaw(
         preferenceCount: Int,
         summaries: [ConversationSummary],
         collapseForward: Bool,
@@ -486,9 +508,15 @@ extension CoachContextSnapshot {
         var lines: [String] = []
         lines.append("<identity>")
         lines.append("Name: \(identity.displayName)")
-        if let age = identity.age { lines.append("Age: \(age)") }
-        if let sport = identity.sport { lines.append("Sport: \(sport)") }
-        if let goal = identity.primaryGoal { lines.append("Goal: \(goal)") }
+        if let age = identity.age {
+            lines.append("Age: \(age)")
+        }
+        if let sport = identity.sport {
+            lines.append("Sport: \(sport)")
+        }
+        if let goal = identity.primaryGoal {
+            lines.append("Goal: \(goal)")
+        }
         if let weight = identity.currentWeightKg {
             lines.append(String(format: "Current weight: %.1fkg", weight))
         }
@@ -559,7 +587,10 @@ extension CoachContextSnapshot {
                 let sleepStr = day.sleepHours.map { String(format: ". Sleep %.1fh", $0) } ?? ""
                 let kcalStr = ". Logged \(Int(day.eatenKcal))/\(Int(day.plannedKcal))kcal"
                 let flag = day.deviationsFlag ? " (deviations)" : ""
-                lines.append("\(dateStr)\(typeStr): \(day.eatenMealCount)/\(day.plannedMealCount) meals\(kcalStr)\(workoutStr)\(sleepStr)\(flag)")
+                lines
+                    .append(
+                        "\(dateStr)\(typeStr): \(day.eatenMealCount)/\(day.plannedMealCount) meals\(kcalStr)\(workoutStr)\(sleepStr)\(flag)"
+                    )
             }
         }
         lines.append("</backward-7-days>")
@@ -594,7 +625,7 @@ extension CoachContextSnapshot {
     /// the trailing blank). Extracted from renderRaw to keep that function
     /// below the cyclomatic-complexity limit.
     private func renderTodayLiveBlock() -> [String] {
-        var lines: [String] = ["<today-live>"]
+        var lines = ["<today-live>"]
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd (EEEE)"
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")

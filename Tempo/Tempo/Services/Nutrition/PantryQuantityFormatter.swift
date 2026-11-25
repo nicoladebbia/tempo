@@ -63,12 +63,19 @@ enum PantryQuantityFormatter {
     }
 
     /// "500g", "3 pcs", "0.8 pack (~400 g)".
-    static func text(quantity: Double, unit: PantryUnit, canonicalName: String? = nil, purchased: Bool = false) -> String {
+    /// `english: true` keeps the unit words English, for text sent to the AI.
+    static func text(
+        quantity: Double,
+        unit: PantryUnit,
+        canonicalName: String? = nil,
+        purchased: Bool = false,
+        english: Bool = false
+    ) -> String {
         let n = number(quantity)
         guard unit.isCountable else {
-            return "\(n)\(unit.displayName)"
+            return "\(n)\(english ? unit.englishName : unit.displayName)"
         }
-        var out = "\(n) \(unit.label(forQuantity: quantity))"
+        var out = "\(n) \(english ? unit.englishLabel(forQuantity: quantity) : unit.label(forQuantity: quantity))"
         let isWhole = abs(quantity - quantity.rounded()) < 0.005
         // Weight hint for containers always; for pieces only once fractional
         // (3 whole pcs needs no gram hint, 0.5 pc does).

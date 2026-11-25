@@ -65,9 +65,9 @@ final class WeeklyPlanService {
 
         var errorDescription: String? {
             switch self {
-            case .noProfile: "Set up your fuel profile first."
+            case .noProfile: String(localized: "Set up your fuel profile first.")
             case let .server(code): WeeklyPlanService.message(forServerError: code)
-            case .timedOut: "The plan is taking longer than usual. It'll show up when it's ready."
+            case .timedOut: String(localized: "The plan is taking longer than usual. It'll show up when it's ready.")
             }
         }
     }
@@ -135,7 +135,7 @@ final class WeeklyPlanService {
         case "ai_consent_required": PlanGenerationBlocker.aiConsentRequired.message
         case "ai_budget_exhausted": "The AI is at capacity right now. Try again in a bit."
         case "timed out": "The plan build timed out. Try again."
-        default: "Couldn't build the plan. Try again."
+        default: String(localized: "Couldn't build the plan. Try again.")
         }
     }
 
@@ -250,7 +250,7 @@ final class WeeklyPlanService {
         timeout: Duration = .seconds(420),
         onStatus: ((String) -> Void)? = nil
     ) async throws -> WeeklyMealPlan {
-        onStatus?("Drafting the week…")
+        onStatus?(String(localized: "Drafting the week…"))
         let job = try await requestWeek(weekStart: weekStart, intake: intake, modelContext: modelContext, deps: deps)
         // Superseded or abandoned → forget the job so a later sync can't
         // apply it over the plan that replaced it.
@@ -270,7 +270,7 @@ final class WeeklyPlanService {
             try await Task.sleep(for: .seconds(polls < 6 ? 5 : 8))
             polls += 1
             if polls == 8 {
-                onStatus?("Checking every food against USDA…")
+                onStatus?(String(localized: "Checking every food against USDA…"))
             }
             let current: WeeklyPlanJobDTO = try await deps.apiClient.request(.weeklyPlan(id: job.id))
             switch current.status {
@@ -283,7 +283,7 @@ final class WeeklyPlanService {
                 guard let plan = current.plan else {
                     throw BuildError.server("ai_unreadable")
                 }
-                onStatus?("Writing recipes for every meal…")
+                onStatus?(String(localized: "Writing recipes for every meal…"))
                 let saved = try await apply(
                     current,
                     plan: plan,

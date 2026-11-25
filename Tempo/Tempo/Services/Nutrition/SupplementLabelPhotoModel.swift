@@ -70,9 +70,9 @@ extension SupplementCatalogSubmission {
 }
 
 enum SupplementCatalogSubmitter {
-    static let confirmation = "Added to Tempo's catalog — the next scan finds it."
+    static let confirmation = String(localized: "Added to Tempo's catalog — the next scan finds it.")
     /// Shown on the review screen before saving, when the save will be shared.
-    static let disclosure = "Saving also shares this product (not you) with Tempo's catalog."
+    static let disclosure = String(localized: "Saving also shares this product (not you) with Tempo's catalog.")
 
     /// True when saving a fresh add from the review screen shares it (same rule as `origin`).
     static func willShare(isNew: Bool, prefill: SupplementLookupDTO?, prefillUPC: String?) -> Bool {
@@ -81,7 +81,7 @@ enum SupplementCatalogSubmitter {
         return origin(prefillSource: prefill?.source, hadBarcode: hadBarcode) != nil
     }
 
-    static let reportThanks = "Thanks. We'll look at it."
+    static let reportThanks = String(localized: "Thanks. We'll look at it.")
 
     /// Which origin (if any) a freshly reviewed add should be shared under.
     /// Label photos always; a manual entry only when it came from a barcode
@@ -124,15 +124,15 @@ final class SupplementLabelPhotoModel {
         var message: String {
             switch self {
             case .unreadable:
-                "Couldn't read a supplement label in that photo. Try again closer, with the facts panel flat and lit."
+                String(localized: "Couldn't read a supplement label in that photo. Try again closer, with the facts panel flat and lit.")
             case .busy:
-                "Label reading is maxed out for now. Type it in, or try again in a bit."
+                String(localized: "Label reading is maxed out for now. Type it in, or try again in a bit.")
             case .offline:
-                "You're offline. Reconnect to have Tempo read the label, or type it in now."
+                String(localized: "You're offline. Reconnect to have Tempo read the label, or type it in now.")
             case .blocked(.proRequired):
-                "Reading labels with AI is a Tempo Pro feature. You can still search or type it."
+                String(localized: "Reading labels with AI is a Tempo Pro feature. You can still search or type it.")
             case .blocked(.aiConsentRequired):
-                "AI features are off. Turn them on to read labels, or type it in."
+                String(localized: "AI features are off. Turn them on to read labels, or type it in.")
             case let .other(message):
                 message
             }
@@ -211,7 +211,7 @@ final class SupplementLabelPhotoModel {
         case let .unknown(status) where status == 422 || status == 415: return .unreadable
         case .rateLimited, .serverError(statusCode: 503): return .busy
         case .networkError, .connectionRefused, .timeout, .noResponse: return .offline
-        case .unauthorized: return .other("Sign in to read labels with AI, or type it in.")
+        case .unauthorized: return .other(String(localized: "Sign in to read labels with AI, or type it in."))
         case .payloadTooLarge: return .unreadable
         default: return .other(api.userMessage)
         }

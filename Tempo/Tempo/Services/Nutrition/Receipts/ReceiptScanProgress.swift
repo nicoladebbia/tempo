@@ -26,19 +26,19 @@ final class ReceiptScanProgress {
 
         var title: String {
             switch self {
-            case .reading: "Reading receipt"
-            case .findingItems: "Finding items"
-            case .matchingProducts: "Matching your products"
-            case .checkingPrices: "Checking prices"
+            case .reading: String(localized: "Reading receipt")
+            case .findingItems: String(localized: "Finding items")
+            case .matchingProducts: String(localized: "Matching your products")
+            case .checkingPrices: String(localized: "Checking prices")
             }
         }
 
         var detail: String {
             switch self {
-            case .reading: "On-device text recognition"
-            case .findingItems: "Splitting the text into line items"
-            case .matchingProducts: "Looks up exact products as you review"
-            case .checkingPrices: "Compares with what you paid before"
+            case .reading: String(localized: "On-device text recognition")
+            case .findingItems: String(localized: "Splitting the text into line items")
+            case .matchingProducts: String(localized: "Looks up exact products as you review")
+            case .checkingPrices: String(localized: "Compares with what you paid before")
             }
         }
     }

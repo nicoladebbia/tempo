@@ -29,6 +29,21 @@ enum SupplementKind: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
+        case .protein: String(localized: "Protein")
+        case .creatine: String(localized: "Creatine")
+        case .omega3: String(localized: "Omega-3")
+        case .multivitamin: String(localized: "Multivitamin")
+        case .vitamin: String(localized: "Vitamin / Mineral")
+        case .preworkout: String(localized: "Pre-workout")
+        case .electrolytes: String(localized: "Electrolytes")
+        case .other: String(localized: "Other")
+        }
+    }
+
+    /// Fixed English name for the supplement shelf sent to the meal-plan AI,
+    /// whatever the app language. Use `displayName` on screen.
+    var englishName: String {
+        switch self {
         case .protein: "Protein"
         case .creatine: "Creatine"
         case .omega3: "Omega-3"

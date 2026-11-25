@@ -34,6 +34,26 @@ enum ReceiptLineUnit: String, Codable, CaseIterable, Sendable {
     case bottle
     case jar
 
+    /// What the user reads in the unit picker and on receipt lines. The
+    /// symbols (lb, oz, kg, g, ml, l) stay as printed on the receipt; only the
+    /// words are localized. `rawValue` stays the stable storage/wire value.
+    var displayName: String {
+        switch self {
+        case .pounds,
+             .ounces,
+             .kilograms,
+             .grams,
+             .milliliters,
+             .liters: rawValue
+        case .each: String(localized: "each")
+        case .unit: String(localized: "unit")
+        case .pack: String(localized: "pack")
+        case .can: String(localized: "can")
+        case .bottle: String(localized: "bottle")
+        case .jar: String(localized: "jar")
+        }
+    }
+
     /// Map to a PantryUnit for ingest. Weight units (lb/oz/kg/g) and
     /// volume units (ml/l) convert later via quantityGrams, but the chosen
     /// pantry unit follows the receipt verbatim — a `lb` receipt line

@@ -71,9 +71,9 @@ enum GroceryListServiceError: Error, LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case .noMealsToShop: "No meals found in the active plan."
-        case .remindersAccessDenied: "Tempo can't add items to Reminders without permission. Enable Reminders access in Settings."
-        case let .remindersExportFailed(detail): "Reminders export failed: \(detail)"
+        case .noMealsToShop: String(localized: "No meals found in the active plan.")
+        case .remindersAccessDenied: String(localized: "Tempo can't add items to Reminders without permission. Enable Reminders access in Settings.")
+        case let .remindersExportFailed(detail): String(localized: "Reminders export failed: \(detail)")
         }
     }
 }

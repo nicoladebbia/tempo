@@ -32,7 +32,7 @@ enum GroceryShareTextFormatter {
         "produce", "meat", "seafood", "protein", "dairy", "frozen", "grains", "oils", "pantry",
     ]
 
-    static func text(for list: GroceryList, title: String = "Grocery List") -> String {
+    static func text(for list: GroceryList, title: String = String(localized: "Grocery List")) -> String {
         let items = list.activeItems
         guard !items.isEmpty else {
             return title

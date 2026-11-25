@@ -35,6 +35,25 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
         case .kilograms: "kg"
         case .milliliters: "mL"
         case .liters: "L"
+        case .pieces: String(localized: "pcs")
+        case .servings: String(localized: "servings")
+        case .ounces: "oz"
+        case .pounds: "lb"
+        case .cans: String(localized: "cans")
+        case .bottles: String(localized: "bottles")
+        case .jars: String(localized: "jars")
+        case .packs: String(localized: "packs")
+        }
+    }
+
+    /// Fixed English unit text for anything sent to a server, a share page or
+    /// the AI, whatever the app language. Use `displayName` on screen.
+    var englishName: String {
+        switch self {
+        case .grams: "g"
+        case .kilograms: "kg"
+        case .milliliters: "mL"
+        case .liters: "L"
         case .pieces: "pcs"
         case .servings: "servings"
         case .ounces: "oz"
@@ -132,7 +151,10 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
     /// and `.servings` use the per-item `grams` instead.
     var isContainer: Bool {
         switch self {
-        case .cans, .bottles, .jars, .packs: true
+        case .cans,
+             .bottles,
+             .jars,
+             .packs: true
         default: false
         }
     }
@@ -171,13 +193,29 @@ enum PantryUnit: String, Codable, CaseIterable, Sendable {
             return displayName
         }
         switch self {
+        case .cans: return String(localized: "can")
+        case .bottles: return String(localized: "bottle")
+        case .jars: return String(localized: "jar")
+        case .packs: return String(localized: "pack")
+        case .pieces: return String(localized: "pc")
+        case .servings: return String(localized: "serving")
+        default: return displayName
+        }
+    }
+
+    /// English twin of `label(forQuantity:)` for text sent to the AI.
+    func englishLabel(forQuantity quantity: Double) -> String {
+        guard quantity <= 1.0001 else {
+            return englishName
+        }
+        switch self {
         case .cans: return "can"
         case .bottles: return "bottle"
         case .jars: return "jar"
         case .packs: return "pack"
         case .pieces: return "pc"
         case .servings: return "serving"
-        default: return displayName
+        default: return englishName
         }
     }
 
@@ -206,6 +244,17 @@ enum PantryStorageLocation: String, Codable, CaseIterable, Sendable {
     case cupboard
 
     var displayName: String {
+        switch self {
+        case .fridge: String(localized: "Fridge")
+        case .freezer: String(localized: "Freezer")
+        case .pantry: String(localized: "Pantry")
+        case .cupboard: String(localized: "Cupboard")
+        }
+    }
+
+    /// Fixed English name for the pantry list sent to the meal-plan AI,
+    /// whatever the app language. Use `displayName` on screen.
+    var englishName: String {
         switch self {
         case .fridge: "Fridge"
         case .freezer: "Freezer"

@@ -71,19 +71,21 @@ struct PendingQuestion: Equatable {
     let choices: [String]
 }
 
-// MARK: - Activity placement
+// MARK: - ActivityImpact
 
 enum ActivityImpact: Equatable {
     case shiftsMealsOnly
     case changesDayType(DayType)
 }
 
+// MARK: - MealPlacement
+
 enum MealPlacement: Equatable {
     case beforeActivity(bufferMin: Int)
     case afterActivity(bufferMin: Int)
 }
 
-// MARK: - Notifications
+// MARK: - CoachMealNotificationScheduler
 
 /// Notification side-effect protocol so tools stay pure-Swift and testable.
 /// The real implementation lives in Phase 6 wiring (UNUserNotificationCenter
@@ -92,6 +94,8 @@ protocol CoachMealNotificationScheduler {
     func cancelMealNotification(mealID: UUID)
     func scheduleMealNotification(mealID: UUID, fireAt: Date)
 }
+
+// MARK: - NoopCoachMealNotificationScheduler
 
 /// No-op default. Used in tests and as the placeholder until Phase 6
 /// wires a real bridge.
@@ -109,8 +113,8 @@ enum CoachToolHelpers {
         guard parts.count == 2,
               let h = Int(parts[0]),
               let m = Int(parts[1]),
-              (0...23).contains(h),
-              (0...59).contains(m)
+              (0 ... 23).contains(h),
+              (0 ... 59).contains(m)
         else {
             throw CoachToolError.invalidTimeFormat(raw)
         }
@@ -250,7 +254,7 @@ enum CoachTools {
         let currentRaw = plan.dayTypeAssignments[dayKeyMon1] ?? DayType.rest.rawValue
         let currentType = DayType(rawValue: currentRaw) ?? .rest
         guard currentType != newType else {
-            return ToolOutput(summary: "Already \(newType.displayName) on this day — no change.")
+            return ToolOutput(summary: "Already \(newType.englishName) on this day — no change.")
         }
         var assignments = plan.dayTypeAssignments
         assignments[dayKeyMon1] = newType.rawValue
@@ -285,7 +289,7 @@ enum CoachTools {
         try context.save()
 
         return ToolOutput(
-            summary: "Day type: \(currentType.displayName) → \(newType.displayName)",
+            summary: "Day type: \(currentType.englishName) → \(newType.englishName)",
             sideEffects: sideEffects
         )
     }
@@ -385,12 +389,11 @@ enum CoachTools {
         }
 
         // Compute the new meal time around the activity window.
-        let targetMinute: Int
-        switch mealPlacement {
+        let targetMinute: Int = switch mealPlacement {
         case let .beforeActivity(buffer):
-            targetMinute = max(0, startMin - buffer)
+            max(0, startMin - buffer)
         case let .afterActivity(buffer):
-            targetMinute = min(24 * 60 - 1, endMin + buffer)
+            min(24 * 60 - 1, endMin + buffer)
         }
         let h = targetMinute / 60
         let m = targetMinute % 60
@@ -562,8 +565,12 @@ enum CoachTools {
             }
             pref.supersede(by: supersededByID)
         case .keepClarifyScope:
-            if let newScope { pref.scope = newScope }
-            if let newText { pref.text = newText }
+            if let newScope {
+                pref.scope = newScope
+            }
+            if let newText {
+                pref.text = newText
+            }
             pref.needsReview = false
         case .deactivate:
             pref.deactivate()

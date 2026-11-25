@@ -152,7 +152,7 @@ struct SupplementDose: Identifiable, Equatable, Sendable {
 
     /// "With breakfast" / "Fixed time" — for a pinned dose with no anchor.
     var timingLabel: String {
-        anchor?.displayName ?? "Fixed time"
+        anchor?.displayName ?? String(localized: "Fixed time")
     }
 }
 
@@ -271,24 +271,24 @@ enum SupplementScheduleEngine {
         if let planDecision {
             let trimmed = planDecision.reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let reason = trimmed.isEmpty
-                ? (planDecision.take ? "Per your plan" : "Skip per your plan")
+                ? (planDecision.take ? String(localized: "Per your plan") : String(localized: "Skip per your plan"))
                 : trimmed
             return (planDecision.take, reason)
         }
         if supplement.takeDaily {
-            return (true, "Daily")
+            return (true, String(localized: "Daily"))
         }
         switch supplement.kind {
         case .protein,
              .preworkout,
              .electrolytes:
-            return isTrainingDay ? (true, "Training day") : (false, "Rest day — nothing to fuel")
+            return isTrainingDay ? (true, String(localized: "Training day")) : (false, String(localized: "Rest day — nothing to fuel"))
         case .creatine,
              .omega3,
              .multivitamin,
              .vitamin,
              .other:
-            return (true, "Daily")
+            return (true, String(localized: "Daily"))
         }
     }
 

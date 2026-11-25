@@ -231,7 +231,7 @@ struct ReceiptReviewView: View {
                         line.totalPrice > 0 ? String(format: "$%.2f", line.totalPrice) : "$—",
                         size: Tide.numeralS, relativeTo: .headline, weight: .semibold
                     )
-                    if notFood && !included {
+                    if notFood, !included {
                         chip("Excluded", icon: "minus.circle", color: Tide.text3)
                     } else {
                         chip(storage.displayName, icon: storage.icon, color: Tide.text2)
@@ -256,7 +256,7 @@ struct ReceiptReviewView: View {
     }
 
     private func detailText(_ line: ReceiptLineItem) -> String {
-        var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.rawValue]
+        var parts = [ReceiptQuantityParser.format(line.quantity) + " " + line.unit.displayName]
         if let size = line.sizeValue, let unit = line.sizeUnit {
             parts.append(ReceiptQuantityParser.format(size) + " " + unit)
         }
@@ -277,8 +277,8 @@ struct ReceiptReviewView: View {
         .fixedSize()
         .foregroundStyle(color)
         .padding(.horizontal, Tide.s2)
-            .padding(.vertical, Tide.s1)
-            .background(Tide.fill, in: .capsule)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.fill, in: .capsule)
     }
 
     private var emptyState: some View {

@@ -231,8 +231,8 @@ enum RecipeParseError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .networkFailed(detail): "Couldn't read that recipe: \(detail)"
-        case .invalidResponse: "Couldn't read the AI response. Try simplifying the recipe."
+        case let .networkFailed(detail): String(localized: "Couldn't read that recipe: \(detail)")
+        case .invalidResponse: String(localized: "Couldn't read the AI response. Try simplifying the recipe.")
         }
     }
 }

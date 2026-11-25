@@ -463,7 +463,7 @@ extension NutritionCoachService: NutritionCoachInsightProviding {
 
     func recoveryGuidance(_ day: CoachDayContext) async throws -> CoachRecoveryGuidance {
         guard let recovery = day.recovery, let zone = day.recoveryZone else {
-            throw NutritionCoachError.unavailable("Connect Whoop to get recovery-aware guidance.")
+            throw NutritionCoachError.unavailable(String(localized: "Connect Whoop to get recovery-aware guidance."))
         }
         let prompt = NutritionCoachPrompts.recoveryNutritionPrompt(
             recoveryScore: recovery.score,

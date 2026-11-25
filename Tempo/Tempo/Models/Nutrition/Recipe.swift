@@ -27,6 +27,15 @@ enum RecipeDifficulty: String, Codable, CaseIterable, Sendable {
     case easy
     case medium
     case hard
+
+    /// What the user reads. `rawValue` stays English (stored, sent to the AI).
+    var displayName: String {
+        switch self {
+        case .easy: String(localized: "Easy")
+        case .medium: String(localized: "Medium")
+        case .hard: String(localized: "Hard")
+        }
+    }
 }
 
 // MARK: - RecipeSkill

@@ -66,7 +66,7 @@ final class MealRedistributionService {
             return MealRedistributionResult(
                 perMeal: [],
                 totalDroppedCalories: skipped.totalCalories,
-                reasoning: "No remaining planned meals — calories drop today.",
+                reasoning: String(localized: "No remaining planned meals — calories drop today."),
                 source: .fallback
             )
         }
@@ -226,7 +226,7 @@ final class MealRedistributionService {
             return MealRedistributionResult(
                 perMeal: [],
                 totalDroppedCalories: skipped.totalCalories,
-                reasoning: "Fallback: remaining meals have zero target — nothing to add to.",
+                reasoning: String(localized: "Fallback: remaining meals have zero target — nothing to add to."),
                 source: .fallback
             )
         }
@@ -257,7 +257,7 @@ final class MealRedistributionService {
         return MealRedistributionResult(
             perMeal: perMeal,
             totalDroppedCalories: max(0, skipped.totalCalories - appliedCal),
-            reasoning: "Fallback: proportional split.",
+            reasoning: String(localized: "Fallback: proportional split."),
             source: .fallback
         )
     }

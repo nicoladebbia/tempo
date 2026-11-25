@@ -22,9 +22,9 @@ enum SpiceLevel: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .mild: "Mild"
-        case .medium: "Medium"
-        case .hot: "Hot"
+        case .mild: String(localized: "Mild")
+        case .medium: String(localized: "Medium")
+        case .hot: String(localized: "Hot")
         }
     }
 
@@ -50,9 +50,9 @@ enum BreakfastStyle: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .sweet: "Sweet"
-        case .savoury: "Savoury"
-        case .quick: "Quick"
+        case .sweet: String(localized: "Sweet")
+        case .savoury: String(localized: "Savoury")
+        case .quick: String(localized: "Quick")
         }
     }
 
@@ -78,9 +78,9 @@ enum AppetiteSize: String, CaseIterable, Codable, Sendable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .light: "Light eater"
-        case .normal: "Normal"
-        case .big: "Big eater"
+        case .light: String(localized: "Light eater")
+        case .normal: String(localized: "Normal")
+        case .big: String(localized: "Big eater")
         }
     }
 
@@ -112,9 +112,9 @@ enum SnackHabit {
 
     static func label(_ perDay: Int) -> String {
         switch perDay {
-        case ...0: "no snacks"
-        case 1: "1 snack"
-        default: "\(perDay) snacks"
+        case ...0: String(localized: "no snacks")
+        case 1: String(localized: "1 snack")
+        default: String(localized: "\(perDay) snacks")
         }
     }
 }

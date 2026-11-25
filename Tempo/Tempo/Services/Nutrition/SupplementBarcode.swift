@@ -29,8 +29,8 @@ struct SupplementBarcode: Equatable, Sendable {
 
         var message: String {
             switch self {
-            case .badLength: "A barcode has 8, 12 or 13 digits. Check what you typed."
-            case .badCheckDigit: "That barcode doesn't add up — one digit is off. Check it or scan again."
+            case .badLength: String(localized: "A barcode has 8, 12 or 13 digits. Check what you typed.")
+            case .badCheckDigit: String(localized: "That barcode doesn't add up — one digit is off. Check it or scan again.")
             }
         }
     }

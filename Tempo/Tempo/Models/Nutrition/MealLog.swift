@@ -78,7 +78,7 @@ final class MealLog {
     @Transient
     var formattedTime: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
+        formatter.dateFormat = String(localized: "h:mm a", comment: "DATE_FORMAT")
         return formatter.string(from: loggedAt)
     }
 

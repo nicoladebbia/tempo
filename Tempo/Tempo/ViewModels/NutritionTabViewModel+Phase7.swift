@@ -254,7 +254,7 @@ extension NutritionTabViewModel {
         } catch {
             // Surface via the load error channel since it's the existing
             // user-visible field; renaming the field is a follow-up.
-            pantryState.loadError = "Couldn't archive item: \(error.localizedDescription)"
+            pantryState.loadError = String(localized: "Couldn't archive item: \(error.localizedDescription)")
         }
         reloadPantry()
         reapplyPantryToGrocery()
@@ -275,7 +275,7 @@ extension NutritionTabViewModel {
                 removed += 1
             }
         } catch {
-            pantryState.loadError = "Couldn't empty the pantry: \(error.localizedDescription)"
+            pantryState.loadError = String(localized: "Couldn't empty the pantry: \(error.localizedDescription)")
         }
         reloadPantry()
         // Nothing on hand any more — the grocery list needs the full amounts.
@@ -304,7 +304,7 @@ extension NutritionTabViewModel {
                 storageLocation: storageLocation, useBy: useBy, brand: brand
             )
         } catch {
-            pantryState.loadError = "Couldn't update item: \(error.localizedDescription)"
+            pantryState.loadError = String(localized: "Couldn't update item: \(error.localizedDescription)")
         }
         reloadPantry()
         // Quantity/unit edits change what the list still needs to buy.
@@ -425,7 +425,7 @@ extension NutritionTabViewModel {
             return
         }
         guard let plan = weeklyPlan else {
-            groceryState.lastError = "Generate a meal plan first."
+            groceryState.lastError = String(localized: "Generate a meal plan first.")
             return
         }
         groceryState.isGenerating = true
@@ -519,7 +519,7 @@ extension NutritionTabViewModel {
 
     func exportGroceryListToReminders() async {
         guard let groceryService, let list = groceryState.latest else {
-            groceryState.lastError = "No grocery list to export."
+            groceryState.lastError = String(localized: "No grocery list to export.")
             return
         }
         groceryState.isExporting = true

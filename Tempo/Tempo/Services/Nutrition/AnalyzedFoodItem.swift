@@ -52,9 +52,9 @@ struct AnalyzedFoodItem: Identifiable {
             return question
         }
         if let first = alternatives.first {
-            return "Is this \(name.lowercased()) or \(first.name.lowercased())?"
+            return String(localized: "Is this \(name.lowercased()) or \(first.name.lowercased())?")
         }
-        return "Is this \(name.lowercased())?"
+        return String(localized: "Is this \(name.lowercased())?")
     }
 
     /// Grams of the estimated portion, 0 when the portion isn't a weight ("1 cup").

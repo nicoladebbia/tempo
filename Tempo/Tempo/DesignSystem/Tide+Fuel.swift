@@ -66,7 +66,7 @@ struct FuelCalorieHero: View {
             return nil
         }
         let left = target - consumed
-        return left >= 0 ? "\(left.formatted()) left" : "\((-left).formatted()) over"
+        return left >= 0 ? String(localized: "\(left.formatted()) left") : String(localized: "\((-left).formatted()) over")
     }
 }
 
@@ -90,9 +90,9 @@ struct FuelMacroColumns: View {
 
     init(protein: (Int, Int), carbs: (Int, Int), fat: (Int, Int), barHeight: CGFloat = Tide.barSlim) {
         items = [
-            Item(name: "Protein", value: protein.0, target: protein.1, color: Tide.protein),
-            Item(name: "Carbs", value: carbs.0, target: carbs.1, color: Tide.carbs),
-            Item(name: "Fat", value: fat.0, target: fat.1, color: Tide.fat),
+            Item(name: String(localized: "Protein"), value: protein.0, target: protein.1, color: Tide.protein),
+            Item(name: String(localized: "Carbs"), value: carbs.0, target: carbs.1, color: Tide.carbs),
+            Item(name: String(localized: "Fat"), value: fat.0, target: fat.1, color: Tide.fat),
         ]
         self.barHeight = barHeight
     }
@@ -142,14 +142,14 @@ struct FuelMacroInline: View {
         // Three in a row while they fit, stacked at large text sizes.
         ViewThatFits(in: .horizontal) {
             HStack(spacing: Tide.s3) {
-                figure("P", protein, Tide.protein)
-                figure("C", carbs, Tide.carbs)
-                figure("F", fat, Tide.fat)
+                figure(String(localized: "P", comment: "One-letter abbreviation for protein"), protein, Tide.protein)
+                figure(String(localized: "C", comment: "One-letter abbreviation for carbs"), carbs, Tide.carbs)
+                figure(String(localized: "F", comment: "One-letter abbreviation for fat"), fat, Tide.fat)
             }
             VStack(alignment: .leading, spacing: Tide.s1) {
-                figure("P", protein, Tide.protein)
-                figure("C", carbs, Tide.carbs)
-                figure("F", fat, Tide.fat)
+                figure(String(localized: "P", comment: "One-letter abbreviation for protein"), protein, Tide.protein)
+                figure(String(localized: "C", comment: "One-letter abbreviation for carbs"), carbs, Tide.carbs)
+                figure(String(localized: "F", comment: "One-letter abbreviation for fat"), fat, Tide.fat)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -490,12 +490,12 @@ struct FuelMacroRings: View {
             total > 0 ? kcal[index] / total : 0
         }
         func caption(_ index: Int) -> String {
-            "\(Int((share(index) * 100).rounded()))% of kcal"
+            String(localized: "\(Int((share(index) * 100).rounded()))% of kcal")
         }
         items = [
-            Item(name: "Protein", grams: protein, progress: share(0), caption: caption(0), color: Tide.protein),
-            Item(name: "Carbs", grams: carbs, progress: share(1), caption: caption(1), color: Tide.carbs),
-            Item(name: "Fat", grams: fat, progress: share(2), caption: caption(2), color: Tide.fat),
+            Item(name: String(localized: "Protein"), grams: protein, progress: share(0), caption: caption(0), color: Tide.protein),
+            Item(name: String(localized: "Carbs"), grams: carbs, progress: share(1), caption: caption(1), color: Tide.carbs),
+            Item(name: String(localized: "Fat"), grams: fat, progress: share(2), caption: caption(2), color: Tide.fat),
         ]
     }
 
@@ -505,14 +505,14 @@ struct FuelMacroRings: View {
             Item(
                 name: name, grams: pair.0,
                 progress: pair.1 > 0 ? min(Double(pair.0) / Double(pair.1), 1) : 0,
-                caption: pair.1 > 0 ? "of \(pair.1) g" : "g",
+                caption: pair.1 > 0 ? String(localized: "of \(pair.1) g") : "g",
                 color: color
             )
         }
         items = [
-            item("Protein", protein, Tide.protein),
-            item("Carbs", carbs, Tide.carbs),
-            item("Fat", fat, Tide.fat),
+            item(String(localized: "Protein"), protein, Tide.protein),
+            item(String(localized: "Carbs"), carbs, Tide.carbs),
+            item(String(localized: "Fat"), fat, Tide.fat),
         ]
     }
 
@@ -565,7 +565,7 @@ struct FuelMacroRings: View {
     }
 
     private func spoken(_ item: Item) -> String {
-        "\(item.name) \(item.grams) grams, \(item.caption)"
+        String(localized: "\(item.name) \(item.grams) grams, \(item.caption)")
     }
 }
 
@@ -873,7 +873,7 @@ struct FuelAIState: View {
                 FuelSkeletonRows(count: 2)
                 HStack(spacing: Tide.s2) {
                     ProgressView().tint(mood.accent)
-                    Text(isSlow ? "Still working. This one is taking a while." : message)
+                    Text(isSlow ? String(localized: "Still working. This one is taking a while.") : message)
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                         .contentTransition(.opacity)
@@ -1093,7 +1093,7 @@ struct FuelDecisionSheet: View {
     let primary: () -> Void
     var secondaryTitle: String?
     var secondary: (() -> Void)?
-    var cancelTitle = "Cancel"
+    var cancelTitle = String(localized: "Cancel")
     let cancel: () -> Void
 
     @Environment(\.dynamicTypeSize)

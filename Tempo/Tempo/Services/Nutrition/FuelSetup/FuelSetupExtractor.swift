@@ -113,7 +113,7 @@ enum FuelSetupExtractor {
         case unreadable
 
         var errorDescription: String? {
-            "Couldn't turn that into a profile. Try again, or fill it in below."
+            String(localized: "Couldn't turn that into a profile. Try again, or fill it in below.")
         }
     }
 
@@ -135,13 +135,13 @@ enum FuelSetupExtractor {
     /// Friendly message for a failed call.
     static func message(for error: Error) -> String {
         switch error as? APIError {
-        case .subscriptionRequired?: "Talking it through uses AI — that's a Pro feature. Fill it in below instead."
-        case .aiConsentRequired?: "Allow AI features in Settings to use this, or fill it in below."
-        case .unauthorized?: "Sign in to use this, or fill it in below."
+        case .subscriptionRequired?: String(localized: "Talking it through uses AI — that's a Pro feature. Fill it in below instead.")
+        case .aiConsentRequired?: String(localized: "Allow AI features in Settings to use this, or fill it in below.")
+        case .unauthorized?: String(localized: "Sign in to use this, or fill it in below.")
         case .networkError?,
              .timeout?,
-             .connectionRefused?: "No connection. Try again, or fill it in below."
-        default: (error as? LocalizedError)?.errorDescription ?? "Something went wrong. Try again, or fill it in below."
+             .connectionRefused?: String(localized: "No connection. Try again, or fill it in below.")
+        default: (error as? LocalizedError)?.errorDescription ?? String(localized: "Something went wrong. Try again, or fill it in below.")
         }
     }
 

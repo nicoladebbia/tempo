@@ -136,7 +136,7 @@ enum MealPlanPrompts {
                 breakfastStyle?.promptLine,
                 snacksPerDay.map { SnackHabit.promptLine(min(max($0, 0), 2)) },
                 appetite?.promptLine,
-            ].compactMap { $0 }
+            ].compactMap(\.self)
             if !favoriteFoods.isEmpty {
                 let safe = favoriteFoods.map(MealPlanPrompts.sanitizeForPrompt).joined(separator: ", ")
                 lines.append("LOVES (prefer these foods/cuisines, work them in often): \(safe)")
@@ -570,7 +570,7 @@ enum MealPlanPrompts {
         }
 
         let lines = active.map { supp -> String in
-            var parts = ["- \(sanitizeForPrompt(supp.name)) (\(supp.kind.displayName))"]
+            var parts = ["- \(sanitizeForPrompt(supp.name)) (\(supp.kind.englishName))"]
             if !supp.dosePerServing.isEmpty {
                 parts.append("dose \(sanitizeForPrompt(supp.dosePerServing))")
             }
@@ -591,7 +591,7 @@ enum MealPlanPrompts {
                 let mm = pinned % 60
                 parts.append("USER FIXED TIME: \(String(format: "%02d:%02d", hh, mm)) — do not change")
             } else if let anchor = supp.timingAnchorOverride {
-                parts.append("USER FIXED TIMING: \(anchor.displayName.lowercased()) — do not change")
+                parts.append("USER FIXED TIMING: \(anchor.englishName.lowercased()) — do not change")
             }
             if let notes = supp.userNotes, !notes.isEmpty {
                 parts.append("note: \(sanitizeForPrompt(notes))")
@@ -846,7 +846,7 @@ enum MealPlanPrompts {
         for dayType in DayType.allCases {
             if let t = targets[dayType] {
                 targetLines += """
-                - \(dayType.displayName): \(t.calories) kcal, \(t.proteinGrams)g P, \(t.carbsGrams)g C, \(t.fatGrams)g F
+                - \(dayType.englishName): \(t.calories) kcal, \(t.proteinGrams)g P, \(t.carbsGrams)g C, \(t.fatGrams)g F
                 \n
                 """
             }

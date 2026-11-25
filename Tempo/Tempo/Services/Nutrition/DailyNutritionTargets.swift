@@ -279,19 +279,19 @@ struct DailyNutritionTargets: Equatable {
         var parts: [String] = []
         switch mode {
         case .rest:
-            parts.append("Rest day −15%")
+            parts.append(String(localized: "Rest day −15%"))
         case .repair:
-            parts.append("Red recovery +10% kcal, +15% protein")
+            parts.append(String(localized: "Red recovery +10% kcal, +15% protein"))
         case .fuel:
-            parts.append("Green recovery + training +20% carbs")
+            parts.append(String(localized: "Green recovery + training +20% carbs"))
         case .standard:
             if adjusted.carbsTarget > beforeAdjustment.carbs {
-                parts.append("Yellow recovery + training +10% carbs")
+                parts.append(String(localized: "Yellow recovery + training +10% carbs"))
             }
         }
         let refund = Int(carryover.calories.rounded())
         if carryover.hasActiveCarryover, refund > 0 {
-            parts.append("+\(refund) kcal from yesterday")
+            parts.append(String(localized: "+\(refund) kcal from yesterday"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

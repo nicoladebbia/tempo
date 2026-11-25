@@ -205,8 +205,8 @@ struct NutritionCoachView: View {
             mealsPlanned: viewModel.todayMeals.count,
             recovery: viewModel.todayRecovery,
             sleep: viewModel.todaySleep,
-            trainingToday: todayType?.displayName,
-            tomorrowTraining: tomorrowType?.displayName
+            trainingToday: todayType?.englishName,
+            tomorrowTraining: tomorrowType?.englishName
         )
     }
 

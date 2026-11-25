@@ -39,9 +39,9 @@ enum UseItUpNotificationPlanner {
         let names = urgent.prefix(3).map(\.displayName)
         let namesJoined = names.joined(separator: ", ")
         let body = if urgent.count <= 3 {
-            "\(namesJoined) — use it up or lose it. Check the pantry."
+            String(localized: "\(namesJoined) — use it up or lose it. Check the pantry.")
         } else {
-            "\(namesJoined) and \(urgent.count - 3) more expire soon. Check the pantry before it's trash."
+            String(localized: "\(namesJoined) and \(urgent.count - 3) more expire soon. Check the pantry before it's trash.")
         }
         return Decision(shouldFire: true, body: body, urgentCount: urgent.count)
     }

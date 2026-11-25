@@ -432,9 +432,9 @@ enum NaturalLanguageLoggingError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .emptyInput: "Type what you ate first."
+        case .emptyInput: String(localized: "Type what you ate first.")
         case let .parseFailed(detail): detail
-        case .noFoodsDetected: "Couldn't find any food in that. Try being more specific."
+        case .noFoodsDetected: String(localized: "Couldn't find any food in that. Try being more specific.")
         }
     }
 }

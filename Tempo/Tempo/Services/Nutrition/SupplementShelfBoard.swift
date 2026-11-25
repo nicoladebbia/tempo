@@ -34,7 +34,7 @@ struct SupplementShelfRow: Identifiable {
     /// brand-new item never is): it reads "Training days only".
     var statusLine: String {
         if dose.take { return scheduleLine }
-        return dose.skippedByPlan ? "Skipping today" : "Training days only"
+        return dose.skippedByPlan ? String(localized: "Skipping today") : String(localized: "Training days only")
     }
 
     /// "Brand · 5 g".
@@ -52,11 +52,12 @@ struct SupplementShelfRow: Identifiable {
     /// "34 days left" / "Out" / "40 servings left" / nil when nothing is tracked.
     var stockLine: String? {
         if let daysLeft {
-            if daysLeft <= 0 { return "Out" }
-            return "\(FuelWords.count(daysLeft, "day")) left"
+            if daysLeft <= 0 { return String(localized: "Out") }
+            return String(localized: "\(daysLeft) days left")
         }
         if supplement.servingsRemaining > 0 {
-            return "\(FuelWords.count(Int(supplement.servingsRemaining), "serving")) left"
+            let servings = Int(supplement.servingsRemaining)
+            return String(localized: "\(servings) servings left")
         }
         return nil
     }

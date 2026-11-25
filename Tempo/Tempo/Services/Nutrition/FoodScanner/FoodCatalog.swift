@@ -80,7 +80,7 @@ final class FoodCatalog {
             if let cached = saved?.product {
                 return .found(cached)
             }
-            return .failed((error as? LocalizedError)?.errorDescription ?? "Couldn't look up this barcode. Try again.")
+            return .failed((error as? LocalizedError)?.errorDescription ?? String(localized: "Couldn't look up this barcode. Try again."))
         }
     }
 

@@ -251,7 +251,7 @@ struct NutritionTabView: View {
     private var sectionPicker: some View {
         Picker("Section", selection: $viewModel.selectedTab) {
             ForEach(NutritionSection.allCases) { section in
-                Text(section.rawValue).tag(section)
+                Text(section.displayName).tag(section)
             }
         }
         .pickerStyle(.segmented)

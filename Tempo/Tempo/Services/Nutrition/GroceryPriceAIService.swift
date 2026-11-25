@@ -50,9 +50,9 @@ enum GroceryPriceAIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .emptyRequest: "Nothing to price."
-        case let .apiFailed(error): "Couldn't reach the assistant: \(error.localizedDescription)"
-        case let .parseFailed(detail): "Couldn't read the assistant's reply: \(detail)"
+        case .emptyRequest: String(localized: "Nothing to price.")
+        case let .apiFailed(error): String(localized: "Couldn't reach the assistant: \(error.localizedDescription)")
+        case let .parseFailed(detail): String(localized: "Couldn't read the assistant's reply: \(detail)")
         }
     }
 }

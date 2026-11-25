@@ -51,9 +51,9 @@ enum FoodLookupError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .rateLimited: "Too many lookups in a minute. Wait a moment and try again."
-        case .offline: "You're offline. Connect to look up products."
-        case let .server(code): "The food database didn't answer (\(code)). Try again."
+        case .rateLimited: String(localized: "Too many lookups in a minute. Wait a moment and try again.")
+        case .offline: String(localized: "You're offline. Connect to look up products.")
+        case let .server(code): String(localized: "The food database didn't answer (\(code)). Try again.")
         }
     }
 }

@@ -111,7 +111,7 @@ enum EatenMealRecorder {
         }
         return PlannedMealTimingMatcher.bestMatch(
             for: candidates,
-            mealType: type.displayName,
+            mealType: type.englishName,
             eatenAt: eatenAt,
             now: now
         )
@@ -557,7 +557,7 @@ enum EatenMealRecorder {
         let created = PlannedMeal(
             dayDate: now,
             mealNumber: type.sortOrder + 1,
-            mealName: type.displayName,
+            mealName: type.englishName,
             scheduledTime: timeFormatter.string(from: eatenAt),
             foods: plannedFoods,
             totalCalories: logged.calories,

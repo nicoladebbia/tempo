@@ -84,10 +84,10 @@ enum ReceiptServiceError: Error, LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case let .visionFailed(detail): "Vision OCR failed: \(detail)"
-        case let .structuringFailed(detail): "Receipt structuring failed: \(detail)"
-        case .malformedResponse: "Backend returned a malformed receipt response."
-        case .noLinesToIngest: "No confirmed lines to add to the pantry."
+        case let .visionFailed(detail): String(localized: "Vision OCR failed: \(detail)")
+        case let .structuringFailed(detail): String(localized: "Receipt structuring failed: \(detail)")
+        case .malformedResponse: String(localized: "Backend returned a malformed receipt response.")
+        case .noLinesToIngest: String(localized: "No confirmed lines to add to the pantry.")
         }
     }
 }

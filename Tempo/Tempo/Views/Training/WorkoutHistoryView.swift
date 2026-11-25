@@ -415,11 +415,14 @@ struct WorkoutHistoryView: View {
             total + (ex.sets ?? []).filter { $0.completed && !$0.isWarmup }.count
         }
         let name = workout.type.displayName
-        return """
-        \(name): permanently removes this session — its \(setCount) logged set\(setCount == 1 ? "" : "s"), \
+        let sets = setCount == 1
+            ? String(localized: "1 logged set")
+            : String(localized: "\(setCount) logged sets")
+        return String(localized: """
+        \(name): permanently removes this session — its \(sets), \
         set feedback, pain flags, and the progress-chart history & PRs it created. Weekly volume and charts \
         will update. Weight adjustments Tempo already learned from it stay. You can undo for a few seconds.
-        """
+        """)
     }
 
     /// See `WorkoutPurge.historyRowsToDelete` (kept as a forwarder for the

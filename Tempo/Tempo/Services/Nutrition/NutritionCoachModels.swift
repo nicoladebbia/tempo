@@ -94,11 +94,11 @@ extension NutritionCoachError {
             if let localized = underlying as? LocalizedError, let description = localized.errorDescription {
                 return description
             }
-            return "Coach unavailable. Try again."
+            return String(localized: "Coach unavailable. Try again.")
         case .invalidResponse, .jsonParsingFailed:
-            return "Coach sent back something unreadable. Try again."
+            return String(localized: "Coach sent back something unreadable. Try again.")
         case .circuitOpen:
-            return "Coach is cooling down. Try again in a minute."
+            return String(localized: "Coach is cooling down. Try again in a minute.")
         case let .unavailable(reason):
             return reason
         }
