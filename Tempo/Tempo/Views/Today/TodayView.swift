@@ -312,14 +312,26 @@ struct TodayView: View {
         .accessibilityIdentifier("today.page")
     }
 
+    /// A saved weigh-in or a progress photo exists: Body progress has something to show.
+    private var hasStoredBodyData: Bool {
+        var descriptor = FetchDescriptor<BodyComposition>()
+        descriptor.fetchLimit = 1
+        let hasRow = ((try? modelContext.fetchCount(descriptor)) ?? 0) > 0
+        return hasRow || !ProgressPhotoStore().photos().isEmpty
+    }
+
     private var actions: TodayActions {
         TodayActions(
             open: { route in
                 var route = route
                 // The Body detail only knows the live Whoop/Health feed. When
                 // tonight's sleep came from the saved recovery row instead,
-                // open the Recovery page, which shows that same row.
-                if route == .body, let body = viewModel?.body, !body.isConnected, body.sleepHours == nil {
+                // open the Recovery page, which shows that same row. A person
+                // with saved weigh-ins or progress photos still gets Body (and
+                // Body progress inside it).
+                if route == .body, let body = viewModel?.body, !body.isConnected, body.sleepHours == nil,
+                   !hasStoredBodyData
+                {
                     route = .recovery
                 }
                 // A second tap on the same card must not open the page twice.

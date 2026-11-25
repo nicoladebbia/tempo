@@ -57,6 +57,9 @@ enum Tide {
     static let edge: CGFloat = 20
     /// Smallest tap target.
     static let hit: CGFloat = 44
+    /// The floating tab bar's height above the home indicator: what a toast hosted outside the
+    /// tabs keeps clear.
+    static let tabBarClearance: CGFloat = 56
 
     static let cardRadius: CGFloat = 28
     static let tileRadius: CGFloat = 20

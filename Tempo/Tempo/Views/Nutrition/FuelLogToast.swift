@@ -61,6 +61,8 @@ enum FuelLogToast {
 // MARK: - FuelLogToastHost
 
 struct FuelLogToastHost: ViewModifier {
+    var placement: ToastPlacement = .top
+
     @Environment(\.fuelLogToastHosted)
     private var alreadyHosted
     @State
@@ -72,7 +74,7 @@ struct FuelLogToastHost: ViewModifier {
         } else {
             content
                 .environment(\.fuelLogToastHosted, true)
-                .tempoToast($toast)
+                .tempoToast($toast, placement: placement)
                 .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
                     if let next = FuelLogToast.toast(from: note) {
                         toast = next
@@ -101,8 +103,8 @@ extension View {
     /// Shows the toasts Fuel logs post (with Undo) on top of this screen. A
     /// second host inside a first one does nothing, so the Fuel tab and the app
     /// shell can both use it without double toasts.
-    func fuelLogToastHost() -> some View {
-        modifier(FuelLogToastHost())
+    func fuelLogToastHost(placement: ToastPlacement = .top) -> some View {
+        modifier(FuelLogToastHost(placement: placement))
     }
 }
 

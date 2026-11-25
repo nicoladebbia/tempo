@@ -153,8 +153,11 @@ struct FuelQuadrantData {
 
     /// Today's saved water (WaterStore), set by the Dashboard refresh.
     var hydrationMl: Int = 0
+    /// Today's water target from `DailyNutritionTargets.todayWaterTargetMl`, the single source
+    /// every screen reads. Set with the saved water; nil until the first read.
+    var canonicalHydrationTargetMl: Int?
     var hydrationTargetMl: Int {
-        adjustedTargets?.hydrationTargetMl ?? 2500
+        canonicalHydrationTargetMl ?? adjustedTargets?.hydrationTargetMl ?? DailyHydrationTarget.fallbackBaseMl
     }
 
     var hydrationProgress: Double {

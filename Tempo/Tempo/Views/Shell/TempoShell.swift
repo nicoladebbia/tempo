@@ -73,6 +73,9 @@ struct TempoShell: View {
             .captureHost(isPresented: $appState.captureRequested, nutritionViewModel: nutritionViewModel)
             // The one place the workout screens are presented from.
             .workoutSessionHost()
+            // Fuel logs made from the "+" sheet or the Scan tile end with an Undo toast; it rests
+            // above the tab bar. Inside the Fuel tab its own host takes over (a second one does nothing).
+            .fuelLogToastHost(placement: .aboveTabBar)
             // The mood goes on last, outside the hosts: a cover or sheet the shell
             // presents inherits what its presenter has, so it needs the day's
             // colour there, not only on the tabs.

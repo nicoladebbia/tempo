@@ -10,8 +10,10 @@ import SwiftUI
 
 // MARK: - TempoToast
 
-// A glass capsule that drops in from the top: symbol, one or two lines, and an
-// optional action ("Undo"). The ink tint keeps white text readable over any page.
+// A glass capsule that rises from the bottom (or drops from the top): symbol, one
+// or two lines, and an optional action ("Undo"). The ink tint keeps white text
+// readable over any page. At accessibility sizes the action sits under the
+// message, so neither has to squeeze the other.
 
 struct TempoToast: View {
     let message: String
@@ -60,19 +62,27 @@ struct TempoToast: View {
     private var typeSize
 
     var body: some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: style.icon)
-                .font(Tide.headline)
-                .foregroundStyle(style.iconColor)
-                .accessibilityHidden(true)
+        // The action sits beside a short message, and under a long one at accessibility sizes.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: style.icon)
+                    .font(Tide.headline)
+                    .foregroundStyle(style.iconColor)
+                    .accessibilityHidden(true)
 
-            Text(message)
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
-                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(message)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Spacer(minLength: Tide.s2)
+                if !typeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
+                }
+            }
 
             if let actionTitle, let action {
                 Button(action: action) {
@@ -80,39 +90,71 @@ struct TempoToast: View {
                         .font(Tide.bodyStrong)
                         .foregroundStyle(mood.accent)
                         .padding(.horizontal, Tide.s2)
-                        .frame(minHeight: Tide.hit)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("toast.action")
             }
         }
         .padding(.leading, Tide.s5)
-        .padding(.trailing, actionTitle == nil ? Tide.s5 : Tide.s3)
+        .padding(.trailing, actionTitle == nil || typeSize.isAccessibilitySize ? Tide.s5 : Tide.s3)
         .padding(.vertical, Tide.s2)
         .frame(minHeight: Tide.hit + Tide.s2)
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .glassEffect(
             .regular.tint(Tide.glassCard),
             // A capsule cuts into a message that runs to several lines.
             in: typeSize.isAccessibilitySize ? AnyShape(.rect(cornerRadius: Tide.tileRadius)) : AnyShape(.capsule)
         )
         .padding(.horizontal, Tide.edge)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("toast")
+    }
+}
+
+// MARK: - ToastPlacement
+
+/// Where a toast sits. `.top` is the original place and the default, so a screen that
+/// does nothing keeps what it had. `.bottom` never covers a navigation bar (Cancel, Save),
+/// a page title or the workout timer: use it on pages with no bottom bar of their own.
+/// `.aboveTabBar` is for a toast hosted outside the tabs (the app shell), so it rests
+/// above the floating tab bar instead of on it.
+enum ToastPlacement {
+    case top
+    case bottom
+    case aboveTabBar
+
+    var alignment: Alignment {
+        self == .top ? .top : .bottom
+    }
+
+    var edge: Edge {
+        self == .top ? .top : .bottom
+    }
+
+    /// Space kept between the toast and the edge it sits on.
+    var inset: CGFloat {
+        switch self {
+        case .top, .bottom: Tide.s2
+        case .aboveTabBar: Tide.s2 + Tide.tabBarClearance
+        }
     }
 }
 
 // MARK: - ToastModifier
 
 // Attach with `.tempoToast($toast)`. Setting the binding shows the toast;
-// it clears itself after `ToastData.duration`, or on an upward swipe.
+// it clears itself after `ToastData.duration`, or on a swipe back the way it came.
 
 struct ToastModifier: ViewModifier {
     @Binding
     var toast: ToastData?
+    var placement: ToastPlacement = .top
 
     func body(content: Content) -> some View {
         content
-            .overlay(alignment: .top) {
+            .overlay(alignment: placement.alignment) {
                 if let toast {
                     TempoToast(
                         message: toast.message,
@@ -128,11 +170,11 @@ struct ToastModifier: ViewModifier {
                             }
                         }
                     )
-                    .padding(.top, Tide.s2)
+                    .padding(placement == .top ? .top : .bottom, placement.inset)
                     // Per-toast identity so a replacement re-runs onAppear
                     // (haptic + its own auto-dismiss timer).
                     .id(toast.id)
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(.move(edge: placement.edge).combined(with: .opacity))
                     .onAppear {
                         HapticManager.notification(toast.style.haptic)
                         // A toast with an action stays long enough to use it;
@@ -150,7 +192,9 @@ struct ToastModifier: ViewModifier {
                     .gesture(
                         DragGesture(minimumDistance: 10)
                             .onEnded { value in
-                                if value.translation.height < -10 {
+                                // Swipe it away the way it came in.
+                                let away = placement == .top ? value.translation.height < -10 : value.translation.height > 10
+                                if away {
                                     withAnimation(Tide.snap) {
                                         self.toast = nil
                                     }
@@ -184,7 +228,7 @@ struct ToastData: Identifiable, Equatable {
 }
 
 extension View {
-    func tempoToast(_ toast: Binding<ToastData?>) -> some View {
-        modifier(ToastModifier(toast: toast))
+    func tempoToast(_ toast: Binding<ToastData?>, placement: ToastPlacement = .top) -> some View {
+        modifier(ToastModifier(toast: toast, placement: placement))
     }
 }
