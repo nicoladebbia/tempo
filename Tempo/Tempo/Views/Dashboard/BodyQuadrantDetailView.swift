@@ -180,6 +180,10 @@ struct BodyQuadrantDetailView: View {
                 caption: "Recovery",
                 diameter: Tide.dialHero
             )
+            .explains(
+                Explainer.bodyRecovery(zone: data.recoveryZone)
+                    .showing(data.recoveryScore.map { "\(Int($0.rounded())) percent" })
+            )
         } side: {
             if data.dataSource != .none {
                 TideStatusPill(
@@ -230,24 +234,30 @@ struct BodyQuadrantDetailView: View {
         ) {
             vitalTile(
                 label: "HRV", value: data.hrv.map { String(format: "%.0f", $0) }, unit: "ms",
+                explainer: .bodyHRV,
                 note: comparisonNote(current: data.hrv, baseline: baseline.hrv, higherIsBetter: true)
             )
             vitalTile(
                 label: "Resting HR", value: data.rhr.map { "\(Int($0))" }, unit: "bpm",
+                explainer: .bodyRestingHeartRate,
                 note: comparisonNote(current: data.rhr, baseline: baseline.rhr, higherIsBetter: false)
             )
             vitalTile(
                 label: "Sleep", value: data.sleepHours.map { String(format: "%.1f", $0) }, unit: "h",
+                explainer: .bodySleep,
                 note: comparisonNote(current: data.sleepHours, baseline: baseline.sleepHours, higherIsBetter: true)
             )
             vitalTile(
                 label: "SpO2", value: data.spo2.map { "\(Int($0))" }, unit: "%",
+                explainer: .bodyOxygen,
                 note: oxygenNote
             )
         }
     }
 
-    private func vitalTile(label: String, value: String?, unit: String, note: (String, Color)) -> some View {
+    private func vitalTile(
+        label: String, value: String?, unit: String, explainer: Explainer, note: (String, Color)
+    ) -> some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             Text(label)
                 .tideLabel()
@@ -267,6 +277,7 @@ struct BodyQuadrantDetailView: View {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityElement(children: .combine)
+        .explains(explainer.showing(value.map { "\($0) \(unit)" }))
     }
 
     /// How today sits against the average of the days before. Silent without a
@@ -369,6 +380,7 @@ struct BodyQuadrantDetailView: View {
                     }
                 }
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .explains(.bodySleepStages)
             } else {
                 TideEmptyPanel(
                     systemImage: "moon.zzz",
@@ -439,6 +451,7 @@ struct BodyQuadrantDetailView: View {
                 .accessibilityLabel(
                     "Strain \(String(format: "%.1f", data.strain ?? 0)) out of 21, \(level.name)"
                 )
+                .explains(Explainer.recoveryStrain.showing("\(String(format: "%.1f", data.strain ?? 0)) of 21"))
             } else {
                 TideEmptyPanel(
                     systemImage: "flame",
@@ -520,6 +533,7 @@ struct BodyQuadrantDetailView: View {
                     }
                 }
                 .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .explains(.bodyComparison)
             }
         }
         .accessibilityIdentifier("body-comparison")

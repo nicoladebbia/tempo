@@ -97,14 +97,27 @@ struct BodyProgressView: View {
                     .pinnedBarScrim()
             }
         }
+        .firstTip(
+            "body.progress",
+            "Tap Weight, Body fat or Lean mass to change the chart, and tap the headline to see how the trend is worked out.",
+            systemImage: "figure.stand"
+        )
         .navigationTitle("Body progress")
         .navigationBarTitleDisplayMode(.inline)
+        .tempoToast($toast)
+        .onChange(of: toast) { _, newValue in
+            // The Undo window is over (or the toast was swiped away): the file goes for good.
+            if newValue == nil {
+                commitPendingPhoto()
+            }
+        }
+        .onDisappear { commitPendingPhoto() }
         .tideCovered(viewing != nil || comparing || showCamera)
         .sheet(item: $viewing) { photo in
             ProgressPhotoViewer(photo: photo, store: store, onDelete: delete)
         }
         .sheet(isPresented: $comparing) {
-            ProgressPhotoCompare(photos: photos, store: store)
+            ProgressPhotoCompare(photos: shownPhotos, store: store)
         }
         .fullScreenCover(isPresented: $showCamera) {
             ProgressPhotoCamera { image in
@@ -192,8 +205,17 @@ struct BodyProgressView: View {
     private var libraryItem: PhotosPickerItem?
     @State
     private var problem: String?
+    @State
+    private var pendingPhoto = PendingRemoval<ProgressPhoto>()
+    @State
+    private var toast: ToastData?
 
     private let store = ProgressPhotoStore()
+
+    /// The photos on screen: the one in its Undo window is hidden, not yet deleted.
+    private var shownPhotos: [ProgressPhoto] {
+        photos.filter { !pendingPhoto.hides($0) }
+    }
 
     private var unit: WeightUnit {
         settings.first?.weightUnit ?? .kg
@@ -269,21 +291,30 @@ struct BodyProgressView: View {
         let points = series(metric, days: range.days)
         let trend = BodyProgress.trend(of: points)
         return VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "\(metric.rawValue) trend")
+            HStack(spacing: Tide.s2) {
+                TideSectionLabel(title: "\(metric.rawValue) trend")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                TideInfoButton(explainer: metric.explainer)
+            }
 
             TidePillPicker(options: Range.allCases, selection: $range, title: \.title, label: "Range")
 
             VStack(alignment: .leading, spacing: Tide.s3) {
-                Text(headline(trend))
-                    .font(Tide.headline)
-                    .foregroundStyle(Tide.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let detail = detail(trend) {
-                    Text(detail)
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text(headline(trend))
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let detail = detail(trend) {
+                        Text(detail)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                .contentShape(.rect)
+                .explains(Explainer.bodyTrend.showing(headline(trend)))
 
                 if points.count >= 2 {
                     let shown = points.map {
@@ -350,7 +381,7 @@ struct BodyProgressView: View {
 
     private var photosSection: some View {
         VStack(alignment: .leading, spacing: Tide.s4) {
-            TideSectionLabel(title: "Progress photos", trailing: photos.isEmpty ? nil : "\(photos.count)")
+            TideSectionLabel(title: "Progress photos", trailing: shownPhotos.isEmpty ? nil : "\(shownPhotos.count)")
 
             HStack(alignment: .top, spacing: Tide.s3) {
                 Image(systemName: "lock.fill")
@@ -366,7 +397,7 @@ struct BodyProgressView: View {
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("progress-photos-privacy")
 
-            if photos.isEmpty {
+            if shownPhotos.isEmpty {
                 TideEmptyPanel(
                     systemImage: "camera",
                     title: "No photos yet",
@@ -378,12 +409,12 @@ struct BodyProgressView: View {
                     columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 160 : 100), spacing: Tide.s2)],
                     spacing: Tide.s3
                 ) {
-                    ForEach(photos) { photo in
+                    ForEach(shownPhotos) { photo in
                         photoCell(photo)
                     }
                 }
 
-                if photos.count >= 2 {
+                if shownPhotos.count >= 2 {
                     Button {
                         comparing = true
                     } label: {
@@ -479,7 +510,26 @@ struct BodyProgressView: View {
         }
     }
 
+    /// The photo disappears at once and comes back with Undo. Its file is only
+    /// deleted when the toast ends, because a deleted file cannot be brought back.
     private func delete(_ photo: ProgressPhoto) {
+        if let replaced = pendingPhoto.begin(photo) {
+            remove(replaced)
+        }
+        toast = ToastData(message: "Photo deleted.", style: .info, actionTitle: "Undo") {
+            withAnimation(Tide.snap) {
+                _ = pendingPhoto.undo()
+            }
+        }
+    }
+
+    private func commitPendingPhoto() {
+        if let photo = pendingPhoto.finish() {
+            remove(photo)
+        }
+    }
+
+    private func remove(_ photo: ProgressPhoto) {
         do {
             try store.delete(photo)
         } catch {
