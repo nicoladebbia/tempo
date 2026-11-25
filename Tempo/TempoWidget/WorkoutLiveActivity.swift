@@ -2,144 +2,191 @@
 // WorkoutLiveActivity.swift
 // TempoWidget
 //
-// §3.9 — lock-screen + Dynamic Island presentation for a live workout.
-// Resting shows a live countdown to the next set; lifting shows the current
-// exercise and set position; the bottom bar tracks whole-session working-set
-// progress. Mirrors FocusTimerLiveActivity's structure.
+// §3.9 — lock-screen + Dynamic Island presentation for a live workout, in the
+// Tide look. Resting shows a live countdown to the next set (system timer
+// text, so it ticks without the app pushing every second); lifting shows the
+// current exercise and set position; the bar tracks whole-session
+// working-set progress.
 //
 
 import ActivityKit
 import SwiftUI
 import WidgetKit
 
+// MARK: - Presentation
+
+private extension WorkoutActivityAttributes.ContentState {
+    var symbol: String {
+        isPaused ? "pause.fill" : (isResting ? "hourglass" : "dumbbell.fill")
+    }
+
+    /// The second line: where in the exercise, or what the pause is.
+    var detail: String {
+        if isPaused {
+            return "Paused"
+        }
+        return isResting ? "Resting · \(setText)" : setText
+    }
+
+    var progress: Double? {
+        totalSets > 0 ? min(max(Double(completedSets) / Double(totalSets), 0), 1) : nil
+    }
+
+    /// "12 of 20 sets"
+    var progressText: String {
+        "\(completedSets) of \(totalSets) sets"
+    }
+}
+
+// MARK: - WorkoutLiveActivity
+
 struct WorkoutLiveActivity: Widget {
+    private let tone = ActivityTone.workout
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
             WorkoutLockScreenView(state: context.state)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let state = context.state
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Tide.s1) {
                         Image(systemName: "dumbbell.fill")
-                            .foregroundStyle(.orange)
-                        Text(context.state.workoutType)
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(tone)
+                        WidgetLabel(state.workoutType, color: tone)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.isPaused {
-                        Text("PAUSED")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.secondary)
-                    } else if context.state.isResting, let end = context.state.restEndsAt {
-                        Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .monospacedDigit()
-                            .frame(width: 60)
-                    } else {
-                        Text("\(context.state.completedSets)/\(context.state.totalSets)")
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .monospacedDigit()
-                    }
+                    WorkoutReadout(state: state)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.isResting ? "Rest — next: \(context.state.exerciseName)" : context.state.exerciseName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    Text(state.isResting ? "Rest · next: \(state.exerciseName)" : state.exerciseName)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 4) {
-                        Text(context.state.setText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        ProgressView(
-                            value: Double(context.state.completedSets),
-                            total: Double(max(1, context.state.totalSets))
-                        )
-                        .tint(.orange)
+                    VStack(spacing: Tide.s2) {
+                        Text(state.detail)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(1)
+                        WidgetBar(progress: state.progress, color: tone)
                     }
                 }
             } compactLeading: {
-                Image(systemName: "dumbbell.fill")
-                    .foregroundStyle(.orange)
+                Image(systemName: state.isPaused ? "pause.fill" : "dumbbell.fill")
+                    .foregroundStyle(tone)
             } compactTrailing: {
-                if context.state.isResting, let end = context.state.restEndsAt, !context.state.isPaused {
-                    Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
+                if state.isResting, let end = state.restEndsAt, !state.isPaused {
+                    Text.countdown(to: end)
+                        .font(Tide.numeral(Tide.numeralS * 0.8))
                         .monospacedDigit()
-                        .frame(width: 44)
+                        .foregroundStyle(tone)
+                        .frame(maxWidth: 48, alignment: .trailing)
                 } else {
-                    Text("\(context.state.completedSets)/\(context.state.totalSets)")
+                    Text("\(state.completedSets)/\(state.totalSets)")
+                        .font(Tide.numeral(Tide.numeralS * 0.8))
                         .monospacedDigit()
+                        .foregroundStyle(Tide.text)
                 }
             } minimal: {
-                Image(systemName: "dumbbell.fill")
-                    .foregroundStyle(.orange)
+                if state.isResting, let end = state.restEndsAt, !state.isPaused {
+                    Text.countdown(to: end)
+                        .font(Tide.label)
+                        .monospacedDigit()
+                        .foregroundStyle(tone)
+                        .minimumScaleFactor(0.5)
+                } else {
+                    Image(systemName: state.isPaused ? "pause.fill" : "dumbbell.fill")
+                        .foregroundStyle(tone)
+                }
+            }
+            .keylineTint(tone)
+        }
+    }
+}
+
+// MARK: - WorkoutReadout
+
+/// The right-hand figure: the rest countdown, the sets done, or the pause.
+private struct WorkoutReadout: View {
+    let state: WorkoutActivityAttributes.ContentState
+
+    var body: some View {
+        if state.isPaused {
+            ActivityReadout(label: "Session") { Text("Paused").font(Tide.headline) }
+        } else if state.isResting, let end = state.restEndsAt {
+            ActivityReadout(label: "Rest", tone: ActivityTone.workout) {
+                Text.countdown(to: end)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 110, alignment: .trailing)
+            }
+        } else {
+            ActivityReadout(label: "Sets") {
+                Text("\(state.completedSets)/\(state.totalSets)")
             }
         }
     }
 }
 
-// MARK: - Lock Screen
+// MARK: - WorkoutLockScreenView
 
 private struct WorkoutLockScreenView: View {
     let state: WorkoutActivityAttributes.ContentState
+    private let tone = ActivityTone.workout
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: state.isResting ? "hourglass" : "dumbbell.fill")
-                .font(.title2)
-                .foregroundStyle(.orange)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(state.workoutType)
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
-                Text(state.exerciseName)
-                    .font(.headline)
-                    .lineLimit(1)
-                Text(state.isPaused ? "Paused" : state.setText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 3) {
-                if state.isPaused {
-                    Text("PAUSED")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                } else if state.isResting, let end = state.restEndsAt {
-                    Text("REST")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.secondary)
-                    Text(timerInterval: SafeTimerRange.countdown(to: end), countsDown: true)
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .monospacedDigit()
-                        .frame(width: 70)
-                } else {
-                    Text("SETS")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.secondary)
-                    Text("\(state.completedSets)/\(state.totalSets)")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .monospacedDigit()
+        Group {
+            if typeSize.isAccessibilitySize {
+                // The lock screen is a fixed height: at the largest text sizes
+                // the row stacks and the bar is left out, so nothing is cut off.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    heading
+                    WorkoutReadout(state: state)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    HStack(spacing: Tide.s3) {
+                        ActivityTile(symbol: state.symbol, tone: tone)
+                        heading
+                        Spacer(minLength: Tide.s2)
+                        WorkoutReadout(state: state)
+                    }
+                    if let progress = state.progress {
+                        HStack(spacing: Tide.s3) {
+                            WidgetBar(progress: progress, color: tone)
+                            Text(state.progressText)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .lineLimit(1)
+                                .fixedSize()
+                        }
+                    }
                 }
             }
         }
-        .padding(14)
-        .activityBackgroundTint(Color.black.opacity(0.6))
-        .activitySystemActionForegroundColor(.orange)
+        .padding(Tide.s4)
+        .tideActivityField(tone)
+    }
+
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            WidgetLabel(state.workoutType, color: tone)
+            Text(state.exerciseName)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(state.detail)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .lineLimit(1)
+        }
     }
 }
