@@ -234,6 +234,9 @@ struct DayTimelineView: View {
     let reload: () async -> Void
     let onOpen: (DayItem) -> Void
 
+    @State
+    private var explainer: Explainer?
+
     var body: some View {
         TideScrollPage(spacing: Tide.s4, spacer: Tide.s2) {
             if model.items.isEmpty {
@@ -256,6 +259,18 @@ struct DayTimelineView: View {
         }
         .navigationTitle("Your day")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    explainer = Explainer.dayOrder
+                } label: {
+                    Image(systemName: "info.circle")
+                }
+                .accessibilityLabel("How your day is ordered")
+                .accessibilityIdentifier("day.info")
+            }
+        }
+        .explainerSheet($explainer)
         .task { await reload() }
         .accessibilityIdentifier("day.page")
     }
@@ -290,10 +305,25 @@ struct TodayTomorrowCard: View {
 
     @Environment(\.tideMood)
     private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
         VStack(alignment: .leading, spacing: Tide.s3) {
-            TideSectionLabel(title: "Tomorrow", trailing: "Wake \(preview.wakeTime)")
+            layout {
+                TideSectionLabel(title: "Tomorrow")
+                // The wake time is the one setting-based number here: tap it to see where it comes from.
+                Label("Wake \(preview.wakeTime)", systemImage: "info.circle")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
+                    .explains(Explainer.tomorrowWake.showing(preview.wakeTime))
+                    .accessibilityIdentifier("today.tomorrow.wake")
+            }
             VStack(alignment: .leading, spacing: Tide.s3) {
                 if preview.isRestDay {
                     line("bed.double.fill", "Rest day", "No session planned")
@@ -384,35 +414,63 @@ struct WeekReviewView: View {
     let model: TodayDayModel
     let reload: () async -> Void
 
+    @Environment(\.modelContext)
+    private var modelContext
+
+    private var hasReview: Bool {
+        model.week.map { !$0.thisWeek.isEmpty } ?? false
+    }
+
     var body: some View {
+        // The tip only makes sense when there are numbers to tap: on the empty page it
+        // would be spent (it shows once) before it could help.
+        Group {
+            if hasReview {
+                page.firstTip("today.weekReview", "Tap any number to see how it is worked out.", systemImage: "chart.bar.fill")
+            } else {
+                page
+            }
+        }
+        .task { await reload() }
+    }
+
+    private var page: some View {
         TideScrollPage(spacing: Tide.s4, spacer: Tide.s2) {
             if let review = model.week, !review.thisWeek.isEmpty {
-                // TODO(share): the "Share this week" action goes here:
-                // ShareCard.present(.week(review)) once the share cards lane lands its `.week` card.
                 Text(WeekReviewFormat.range(of: review))
                     .tideLabel()
                     .frame(maxWidth: .infinity, alignment: .leading)
                 area(
                     "Training", icon: "dumbbell.fill", sentence: review.training,
                     value: "\(review.thisWeek.sessions)", unit: review.thisWeek.sessions == 1 ? "session" : "sessions",
-                    last: "\(review.lastWeek.sessions)", id: "training"
+                    last: "\(review.lastWeek.sessions)", id: "training", explainer: Explainer.weekSessions
                 )
                 area(
                     "Food", icon: "fork.knife", sentence: review.food,
                     value: review.thisWeek.avgKcal.map { $0.formatted() } ?? "none", unit: "kcal a day",
-                    last: review.lastWeek.avgKcal.map { $0.formatted() }, id: "food"
+                    last: review.lastWeek.avgKcal.map { $0.formatted() }, id: "food", explainer: Explainer.weekCalories
                 )
                 area(
                     "Recovery", icon: "heart.fill", sentence: review.recovery,
                     value: review.thisWeek.avgRecovery.map { "\($0)%" } ?? "none", unit: "average",
-                    last: review.lastWeek.avgRecovery.map { "\($0)%" }, id: "recovery"
+                    last: review.lastWeek.avgRecovery.map { "\($0)%" }, id: "recovery", explainer: Explainer.weekRecovery
                 )
                 area(
                     "Tasks and study", icon: "checklist", sentence: review.discipline,
                     value: review.thisWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" } ?? "none",
                     unit: "tasks done",
-                    last: review.lastWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" }, id: "discipline"
+                    last: review.lastWeek.completionRate.map { "\(Int(($0 * 100).rounded()))%" }, id: "discipline",
+                    explainer: Explainer.weekTasks
                 )
+                Button {
+                    ShareCard.present(WeekShare.card(
+                        for: review, xp: WeekShare.xp(in: modelContext, weekStart: review.weekStart)
+                    ))
+                } label: {
+                    Label("Share this week", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("weekReview.share")
             } else {
                 TideEmptyPanel(
                     systemImage: "chart.bar.fill",
@@ -424,18 +482,21 @@ struct WeekReviewView: View {
         }
         .navigationTitle("Week in review")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await reload() }
         .accessibilityIdentifier("weekReview.page")
     }
 
     private func area(
-        _ title: String, icon: String, sentence: String, value: String, unit: String, last: String?, id: String
+        _ title: String, icon: String, sentence: String, value: String, unit: String, last: String?, id: String,
+        explainer: Explainer
     ) -> some View {
         VStack(alignment: .leading, spacing: Tide.s3) {
             Label(title, systemImage: icon)
                 .tideLabel()
             HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                // The number explains itself: the card is not a link, so a tap here is free.
                 TideNumber(value, unit: unit, size: Tide.numeralM, relativeTo: .title)
+                    .frame(minHeight: Tide.hit, alignment: .leading)
+                    .explains(explainer.showing(value == "none" ? nil : "\(value) \(unit)"))
                 Spacer(minLength: Tide.s2)
                 if let last {
                     Text("Last week \(last)")
@@ -449,7 +510,7 @@ struct WeekReviewView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .tideCard()
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("weekReview.\(id)")
     }
 }

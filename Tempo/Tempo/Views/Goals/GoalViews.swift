@@ -115,7 +115,10 @@ struct GoalProgressChip: View {
             Button(action: onOpen) { content }
                 .buttonStyle(.plain)
         } else {
+            // Nothing to open from here, so the chip explains the pace instead.
             content
+                .explains(Explainer.goalPace(snapshot.progress.pace).showing(snapshot.paceLine))
+                .accessibilityIdentifier("goal.chip")
         }
     }
 }

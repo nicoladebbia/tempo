@@ -41,7 +41,10 @@ Gotchas:
 - A frozen screen with an empty AX tree is usually a redraw loop: `ps -o %cpu -p <pid>` shows 100% and `sample <pid> 3` shows the view bodies. Seen once: the Goal editor had its own `@Query` for active goals while the Profile screen that pushes it had the same one, and both spun forever. Fetching the goal once in `onAppear` fixed it.
 - Kill only your own simulator's app: `xcrun simctl terminate $UDID app.tempo.Tempo.dev`. `pkill -f "Tempo Dev"` also stops the apps of every other worktree's simulator.
 - A swipe often registers as a tap; for scrolling, start the swipe on empty space.
-- The Undo toast lasts 5 s. Tap it right away.
+- The Undo toast lasts 5 s, and a screenshot plus a reply takes longer than that. Do the action and the Undo tap in ONE bash call: `axe tap --label "Remove goal" --udid "$UDID"; sleep 1; axe tap --label "Undo" --udid "$UDID"`.
+- First-time tips ("tip.<area>.<feature>" in `describe-ui`, close button `tip.dismiss.<id>`) show once, 0.6 s after a page opens, as a bar above the tab bar; they go when you leave the page (another tab, a pushed screen) and never come back. A wiped app (`--scenario`, `--fresh`) shows them again. Launch with `-noTips` to turn them all off (UI tests do); `FirstTips.resetAll` is what "show tips again" calls.
+- Tap-a-number: anything with an `explain.<id>` identifier opens a three-answer sheet (what it is, how it is worked out, what to do) with a "Got it" button. Today header streak `today.streak`, the score dial inside the breakdown sheet, each score row, the week review numbers, the goal chip without a destination, the "Now" row of the goal editor, the Wake time on the Tomorrow card, the info button in "Your day".
+- Today layout (iPhone 17, points): search 255,95 / bell 307,95 / settings 359,95 / streak chip 345,141 / score dial 100,265. Tab bar y≈820: Today 63, Train 132, Fuel 200, Arena 268, "+" (Log) 349.
 - The trainer import sheet has "Load Sample Program (DEBUG)", so no backend is needed for it.
 
 If AXe can't reach something, a temporary XCUITest in `TempoUITests` that writes `app.screenshot().pngRepresentation` to the scratchpad works too (run with `scripts/sim.sh test -only-testing:TempoUITests/<Test>`). Delete it afterwards and rerun `xcodegen generate`.

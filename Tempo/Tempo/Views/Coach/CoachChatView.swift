@@ -46,10 +46,13 @@ struct CoachChatView: View {
     private var dismiss
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.scenePhase)
+    private var scenePhase
     @State
     private var inputText: String = ""
+    /// "Chat cleared" with Undo, shown over the transcript, never over the input.
     @State
-    private var endChatConfirm = false
+    private var toast: ToastData?
     /// Snapshot of the last partial transcript pushed into the field so
     /// the user can still type alongside the live mic stream without
     /// having the field overwritten on every partial tick.
@@ -95,6 +98,14 @@ struct CoachChatView: View {
                 budgetBanner(state)
             }
             transcript
+                // Top of the transcript: under the title bar, clear of the input bar.
+                .tempoToast($toast, placement: .top)
+                // On the transcript, so it rests above the input bar instead of under it.
+                .firstTip(
+                    "coach.chat",
+                    "Ask a question, or tell me something to remember, like \"I never eat before 11am\".",
+                    systemImage: "sparkles"
+                )
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
@@ -107,17 +118,42 @@ struct CoachChatView: View {
             }
         }
         .tidePage()
-        .alert("End this chat?", isPresented: $endChatConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("End", role: .destructive) {
-                viewModel.endConversation(context: modelContext)
-                dismiss()
-            }
-        } message: {
-            Text("I'll save what we discussed and start fresh next time.")
-        }
         .onAppear {
             viewModel.loadOrStartConversation(context: modelContext)
+        }
+        // A toast that ran out (or was swiped away) without Undo makes the clear final.
+        .onChange(of: toast) { _, newValue in
+            if newValue == nil {
+                viewModel.commitPendingEnd()
+            }
+        }
+        // The clear became final some other way (you wrote in the new chat): the toast's
+        // Undo would do nothing, so it goes too.
+        .onChange(of: viewModel.pendingEnd == nil) { _, isFinal in
+            if isFinal {
+                toast = nil
+            }
+        }
+        // So does leaving the chat, or the app: there is no toast left to undo from.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                viewModel.commitPendingEnd()
+            }
+        }
+        .onDisappear { viewModel.commitPendingEnd() }
+    }
+
+    /// Clears the chat at once; the toast brings it back. An empty chat has
+    /// nothing to bring back, so the button just closes it.
+    private func endChat() {
+        if viewModel.endConversationWithUndo(context: modelContext) {
+            // The message you were waiting on is in the transcript; what you were typing stays.
+            pendingText = nil
+            toast = ToastData(message: "Chat cleared.", style: .info, actionTitle: "Undo") {
+                viewModel.undoEnd()
+            }
+        } else {
+            dismiss()
         }
     }
 
@@ -144,15 +180,19 @@ struct CoachChatView: View {
                         .buttonStyle(.tideCoachCircle)
                     }
                     Button(role: .destructive) {
-                        endChatConfirm = true
+                        endChat()
                     } label: {
                         Image(systemName: "xmark")
                             .accessibilityLabel(Text("End chat"))
                     }
                     .buttonStyle(.tideCoachCircle)
+                    // An answer still on its way would land in the chat that was just cleared.
+                    .disabled(viewModel.isThinking)
                 }
             }
         }
+        // Title bar chrome: bigger text would push the End button off the top of the sheet.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.horizontal, Tide.edge)
         .padding(.vertical, Tide.s2)
     }
@@ -302,39 +342,51 @@ struct CoachChatView: View {
     /// Why the last message didn't get an answer, in place of a pop-up. Your
     /// message stays in the transcript; the banner just says what happened.
     private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: "exclamationmark.bubble.fill")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.danger)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Tide.s2)
-            if viewModel.canRetry {
-                Button("Retry") {
-                    Task {
-                        await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+        // At accessibility sizes the message gets the whole width and the buttons sit under it,
+        // instead of squeezing the words into a column of two letters.
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: "exclamationmark.bubble.fill")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.danger)
+                    .accessibilityHidden(true)
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !stacked {
+                Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s3) {
+                if viewModel.canRetry {
+                    Button("Retry") {
+                        Task {
+                            await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                        }
                     }
-                }
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
-                .frame(minHeight: Tide.hit)
-                .contentShape(.rect)
-                .accessibilityIdentifier("coachRetryButton")
-            }
-            Button {
-                viewModel.pendingError = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .frame(width: Tide.hit, height: Tide.hit)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit)
                     .contentShape(.rect)
+                    .accessibilityIdentifier("coachRetryButton")
+                }
+                Button {
+                    viewModel.pendingError = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
         }
         .padding(.leading, Tide.s4)
         .padding(.vertical, Tide.s1)
@@ -466,6 +518,8 @@ struct CoachChatView: View {
             .foregroundStyle(Tide.text2)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
+            // A footnote: at the biggest sizes it would eat a quarter of the screen.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .padding(.horizontal, Tide.edge)
             .frame(maxWidth: .infinity, alignment: .center)
     }

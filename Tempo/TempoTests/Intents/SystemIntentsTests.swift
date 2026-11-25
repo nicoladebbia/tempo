@@ -241,4 +241,91 @@ final class SystemIntentsTests: XCTestCase {
     func testReaderOnAnEmptyStoreIsEmpty() {
         XCTAssertTrue(NextUpReader.read(in: context).isEmpty)
     }
+
+    // MARK: - What's next says what the Today card says
+
+    private struct StubCache: TodayCaching {
+        let snapshot: TodaySnapshot?
+        func load(now _: Date, calendar _: Calendar) -> TodaySnapshot? {
+            snapshot
+        }
+
+        func save(_: TodaySnapshot) {}
+        func clear() {}
+    }
+
+    private func noon() -> Date {
+        Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date()) ?? Date()
+    }
+
+    private func savedToday(workout: TodaySnapshot.Workout.Status = .none, name: String? = nil) -> TodaySnapshot {
+        TodaySnapshot(
+            day: Calendar.current.startOfDay(for: noon()), firstName: nil, score: nil,
+            workout: .init(status: workout, name: name, inProgress: false, durationMinutes: nil),
+            recovery: .init(score: 80, sleepHours: 7, sleepPerformance: nil, hrv: nil, restingHR: nil, hasSource: true),
+            fuel: .init(
+                calories: 900, calorieTarget: 2200, protein: nil, proteinTarget: nil, carbs: nil, carbsTarget: nil,
+                fat: nil, fatTarget: nil, waterMl: 0, waterTargetMl: 2500
+            ),
+            tasks: [], study: .init(minutes: 0, targetMinutes: 0, nextExam: nil), streakDays: 0, steps: nil,
+            stepsTarget: 8000, moveConnected: true, nextMeal: nil
+        )
+    }
+
+    private func insertOpenTask(named name: String) throws {
+        let task = NonNegotiable(name: name, type: .custom, targetValue: 1)
+        let today = DailyAccountability(date: Date())
+        context.insert(task)
+        context.insert(today)
+        context.insert(NonNegotiableProgress(date: Date(), targetValue: 1, nonNegotiable: task, dailyAccountability: today))
+        try context.save()
+    }
+
+    func testTheAnswerLeadsWithTheSameStepTodayShows() throws {
+        try insertOpenTask(named: "Stretch")
+        let saved = savedToday(workout: .planned, name: "Push")
+        let summary = NextUpReader.read(in: context, now: noon(), cache: StubCache(snapshot: saved))
+
+        var withTask = saved
+        withTask.tasks = [.init(id: UUID(), title: "Stretch", done: false)]
+        let today = try XCTUnwrap(NextStepEngine.next(for: withTask, hour: 12))
+        XCTAssertEqual(summary.next?.line, today.line)
+        XCTAssertTrue(summary.spoken.hasPrefix(today.line), summary.spoken)
+        XCTAssertTrue(summary.spoken.contains("1 task left, starting with Stretch."), summary.spoken)
+    }
+
+    func testTheLeadIsNotSaidTwice() {
+        let next = NextStepEngine.step(for: .tasks(left: 2), snapshot: savedToday())
+        let summary = NextUpSummary(
+            session: nil, meal: nil, tasksLeft: 2, tasksTotal: 3, firstTask: "Read", next: next
+        )
+        XCTAssertEqual(summary.spoken, "Next: 2 tasks left. Start with Read.")
+    }
+
+    func testAMealLeadKeepsTheOtherFacts() {
+        let next = NextStepEngine.step(
+            for: .meal(.init(id: UUID(), name: "Lunch", time: "13:00", calories: 600, protein: 40, imminent: true)),
+            snapshot: savedToday()
+        )
+        let summary = NextUpSummary(
+            session: .init(name: "Push", inProgress: false), meal: .init(name: "Lunch", time: "13:00"),
+            tasksLeft: 1, tasksTotal: 1, firstTask: "Read", next: next
+        )
+        XCTAssertEqual(
+            summary.spoken, "Next: Lunch at 13:00. Next session: Push. 1 task left, starting with Read."
+        )
+    }
+
+    func testWithoutTodaysSavedCopyTheFactsAreListedAsBefore() throws {
+        try insertOpenTask(named: "Stretch")
+        let summary = NextUpReader.read(in: context, now: noon(), cache: StubCache(snapshot: nil))
+        XCTAssertNil(summary.next, "no saved Today to run the engine on: never guess 'log your first meal'")
+        XCTAssertEqual(summary.spoken, "1 task left, starting with Stretch.")
+    }
+
+    func testAnEmptyDayStillSaysNothingIsPlanned() {
+        let summary = NextUpReader.read(in: context, now: noon(), cache: StubCache(snapshot: savedToday()))
+        XCTAssertNil(summary.next)
+        XCTAssertEqual(summary.spoken, "Nothing is planned yet today. Open Tempo to set up your day.")
+    }
 }

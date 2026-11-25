@@ -13,7 +13,8 @@ import SwiftUI
 // A glass capsule that rises from the bottom (or drops from the top): symbol, one
 // or two lines, and an optional action ("Undo"). The ink tint keeps white text
 // readable over any page. At accessibility sizes the action sits under the
-// message, so neither has to squeeze the other.
+// message, so neither has to squeeze the other, and the message stops at
+// `accessibilityLineLimit` lines so a toast never takes over the screen.
 
 struct TempoToast: View {
     let message: String
@@ -56,6 +57,10 @@ struct TempoToast: View {
         }
     }
 
+    /// Two lines at normal sizes, three at accessibility sizes (where each line is huge).
+    static let lineLimit = 2
+    static let accessibilityLineLimit = 3
+
     @Environment(\.tideMood)
     private var mood
     @Environment(\.dynamicTypeSize)
@@ -76,7 +81,7 @@ struct TempoToast: View {
                 Text(message)
                     .font(Tide.bodyStrong)
                     .foregroundStyle(Tide.text)
-                    .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                    .lineLimit(typeSize.isAccessibilitySize ? Self.accessibilityLineLimit : Self.lineLimit)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !typeSize.isAccessibilitySize {
@@ -152,6 +157,9 @@ struct ToastModifier: ViewModifier {
     var toast: ToastData?
     var placement: ToastPlacement = .top
 
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
     func body(content: Content) -> some View {
         content
             .overlay(alignment: placement.alignment) {
@@ -174,9 +182,11 @@ struct ToastModifier: ViewModifier {
                     // Per-toast identity so a replacement re-runs onAppear
                     // (haptic + its own auto-dismiss timer).
                     .id(toast.id)
-                    .transition(.move(edge: placement.edge).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: placement.edge).combined(with: .opacity))
                     .onAppear {
                         HapticManager.notification(toast.style.haptic)
+                        // A toast is not focused, so VoiceOver would never read it.
+                        AccessibilityNotification.Announcement(toast.spokenText).post()
                         // A toast with an action stays long enough to use it;
                         // a newer toast must not be dismissed by an older timer.
                         let shownID = toast.id
@@ -220,6 +230,14 @@ struct ToastData: Identifiable, Equatable {
     /// 5 s when there is an action to tap, 3 s otherwise.
     var duration: TimeInterval {
         actionTitle == nil ? 3 : 5
+    }
+
+    /// What VoiceOver says when it appears: the message, and that there is an action to take.
+    var spokenText: String {
+        guard let actionTitle else {
+            return message
+        }
+        return "\(message) \(actionTitle) is available."
     }
 
     static func == (lhs: ToastData, rhs: ToastData) -> Bool {

@@ -22,6 +22,9 @@ enum TestLaunchArguments {
     /// Reset all user defaults on launch.
     static let resetDefaults = "--uitesting-reset"
 
+    /// No first-time tips: a tip sits at the bottom of a screen and could cover a tap target.
+    static let noTips = "-noTips"
+
     /// Start from an empty in-memory SwiftData store (no profile, no plans).
     static let emptyStore = "--uitesting-empty-store"
 

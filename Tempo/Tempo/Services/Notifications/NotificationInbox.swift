@@ -249,7 +249,13 @@ final class NotificationInbox {
         if load == .idle {
             load = .loading
         }
-        let seen = await delivered()
+        var seen = await delivered()
+        // Cleared a moment ago and still waiting out its Undo: iOS still lists them,
+        // but they must not come back onto the page.
+        if let pendingClear {
+            let hidden = Set(pendingClear.items.map(\.requestID))
+            seen.removeAll { hidden.contains($0.requestID) }
+        }
         authorization = await authorizationStatus()
         let all = store.record(seen, now: now())
         items = NotificationInboxStore.today(all, now: now())
@@ -288,7 +294,8 @@ final class NotificationInbox {
 
     /// Sign-out or account deletion: the next person on this phone must not see this person's reminders.
     func reset() {
-        clearDelivered(items.map(\.requestID))
+        clearDelivered((items + (pendingClear?.items ?? [])).map(\.requestID))
+        pendingClear = nil
         store.wipe()
         items = []
         load = .idle
@@ -296,8 +303,54 @@ final class NotificationInbox {
 
     /// Empties today's list, and takes the same notifications out of Notification Centre so they don't come back.
     func clearToday() {
-        clearDelivered(items.map(\.requestID))
+        clearTodayWithUndo()
+        commitPendingClear()
+    }
+
+    // MARK: Clear with Undo
+
+    /// What "Clear today" took off the list, kept for a few seconds so Undo can put it back.
+    struct ClearedToday: Equatable {
+        let items: [InboxNotification]
+    }
+
+    /// Cleared but not final: Notification Centre is only touched when it is.
+    private(set) var pendingClear: ClearedToday?
+
+    /// Empties today's list at once. The same notifications stay in Notification Centre
+    /// until `commitPendingClear`, so `undoClearToday` can bring the list back exactly
+    /// as it was (read marks included). Nil when there was nothing to clear.
+    @discardableResult
+    func clearTodayWithUndo() -> ClearedToday? {
+        // A second clear makes the first one final.
+        commitPendingClear()
+        guard !items.isEmpty else {
+            return nil
+        }
+        let cleared = ClearedToday(items: items)
         store.clear(on: now())
         items = NotificationInboxStore.today(store.load(), now: now())
+        pendingClear = cleared
+        return cleared
+    }
+
+    /// Puts back what the last clear took. Nothing happens when it is already final.
+    func undoClearToday() {
+        guard let pending = pendingClear else {
+            return
+        }
+        pendingClear = nil
+        store.record(pending.items, now: now())
+        items = NotificationInboxStore.today(store.load(), now: now())
+    }
+
+    /// Makes the clear final: the notifications leave Notification Centre too.
+    /// Safe to call when nothing is pending.
+    func commitPendingClear() {
+        guard let pending = pendingClear else {
+            return
+        }
+        pendingClear = nil
+        clearDelivered(pending.items.map(\.requestID))
     }
 }

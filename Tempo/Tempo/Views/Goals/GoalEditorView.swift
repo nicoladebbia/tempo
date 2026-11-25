@@ -39,9 +39,10 @@ struct GoalEditorView: View {
     @State
     private var loaded = false
     @State
-    private var showRemove = false
-    @State
     private var saved = 0
+    /// The "Goal removed" toast, with Undo.
+    @State
+    private var toast: ToastData?
     /// The reading the goal starts from, read when the screen opens and again
     /// when the type, lift or distance changes. Never fetched in `body`: a
     /// fetch there made the screen redraw itself forever.
@@ -91,6 +92,7 @@ struct GoalEditorView: View {
 
             SettingsFormCard(footnote: startFootnote) {
                 SettingsInfoRow(label: "Now", value: currentText, icon: "scope")
+                    .explains(Explainer.goalReading(draft.kind).showing(reading == nil ? nil : currentText))
             }
 
             Button(action: save) {
@@ -108,7 +110,8 @@ struct GoalEditorView: View {
             }
 
             if existing != nil {
-                Button("Remove goal", role: .destructive) { showRemove = true }
+                // No "are you sure?": the toast that follows has Undo.
+                Button("Remove goal", role: .destructive, action: remove)
                     .buttonStyle(.tideGlass)
                     .accessibilityIdentifier("goal.remove")
             }
@@ -116,12 +119,9 @@ struct GoalEditorView: View {
         .navigationTitle("Goal")
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.success, trigger: saved)
-        .confirmationDialog("Remove this goal?", isPresented: $showRemove, titleVisibility: .visible) {
-            Button("Remove goal", role: .destructive, action: remove)
-            Button("Keep it", role: .cancel) {}
-        } message: {
-            Text("Your readings stay. Only the target goes.")
-        }
+        // At the bottom, so it never covers the navigation bar or the Remove button.
+        .tempoToast($toast, placement: .bottom)
+        .firstTip("goals.editor", "Pick a type, a target and a date. Tempo draws a line to it and tells you if you are ahead.", systemImage: "target")
         .onAppear {
             load()
             reading = readCurrent()
@@ -273,17 +273,33 @@ struct GoalEditorView: View {
         }
         try? modelContext.save()
         saved += 1
+        toast = nil
         NotificationCenter.default.post(name: .tempoGoalChanged, object: nil)
         dismiss()
     }
 
+    /// Takes the goal off at once and offers Undo. The screen stays, back to an
+    /// empty "set a goal" form, so the toast has somewhere to be seen.
     private func remove() {
-        if let existing {
-            existing.isActive = false
-            try? modelContext.save()
-            NotificationCenter.default.post(name: .tempoGoalChanged, object: nil)
+        guard let goal = existing else {
+            return
         }
-        dismiss()
+        let state = GoalUndo.remove(goal, in: modelContext)
+        existing = nil
+        draft = GoalDraft(targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
+        textKind = draft.kind
+        reading = readCurrent()
+        toast = ToastData(message: "Goal removed.", style: .info, actionTitle: "Undo") {
+            if GoalUndo.restore(state, in: modelContext) {
+                // Read the goal back into the form, exactly as it was.
+                loaded = false
+                load()
+                reading = readCurrent()
+            } else {
+                // Another goal was set in the meantime: say so rather than do nothing.
+                toast = ToastData(message: "Can't bring that goal back: you set another.", style: .info)
+            }
+        }
     }
 }
 

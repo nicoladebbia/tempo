@@ -929,16 +929,13 @@ final class DashboardViewModel {
         })
         let studyTarget = Int(studyProgress?.targetValue ?? 120)
 
-        // Fetch streak
-        let streakDescriptor = FetchDescriptor<Streak>(
-            predicate: #Predicate { s in s.typeRaw == "overall" }
-        )
-        let streak = try? modelContext.fetch(streakDescriptor).first
+        // The overall streak, read the one way every screen reads it.
+        let streakDays = ArenaXPLedger.streakDays(in: modelContext)
 
         mind = MindQuadrantData(
             studyMinutesToday: studyMinutes,
             studyTargetMinutes: studyTarget,
-            currentStreakDays: streak?.currentCount ?? 0,
+            currentStreakDays: streakDays,
             exams: mind.exams // Preserve existing exam data
         )
 

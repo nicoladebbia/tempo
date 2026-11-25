@@ -142,6 +142,7 @@ struct TodayView: View {
                 switch phase {
                 case let .content(snapshot, isLive):
                     page(snapshot, isLive: isLive)
+                        .firstTip("today.home", "Tap the big score to see what your day is made of.", systemImage: "gauge.with.dots.needle.67percent")
                         .onAppear {
                             TempoSignpost.todayContentShown(source: isLive ? "fresh" : "saved")
                         }
