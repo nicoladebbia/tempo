@@ -194,6 +194,9 @@ private struct FirstTipModifier: ViewModifier {
                 FirstTips.markSeen(id)
                 withAnimation(Tide.lively) { visible = true }
             }
+            // Leaving the page (another tab, a pushed screen) puts the tip away for good:
+            // it was marked seen when it showed, so coming back never shows it again.
+            .onDisappear { visible = false }
     }
 
     private var tip: some View {
