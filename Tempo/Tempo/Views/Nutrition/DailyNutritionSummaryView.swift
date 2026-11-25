@@ -319,7 +319,7 @@ struct DailyNutritionSummaryView: View {
                 TideSectionLabel(title: String(localized: "Energy balance"))
 
                 balanceLayout {
-                    balanceFigure("\(balance.caloriesIn)", label: String(localized: "In"))
+                    balanceFigure("\(balance.caloriesIn)", label: String(localized: "energy-balance.in", defaultValue: "In", comment: "Calories eaten, label under the figure in the energy balance"))
                     if !typeSize.isAccessibilitySize {
                         Image(systemName: "arrow.left.arrow.right")
                             .font(Tide.caption)
@@ -327,7 +327,7 @@ struct DailyNutritionSummaryView: View {
                             .frame(height: Tide.numeralS)
                             .accessibilityHidden(true)
                     }
-                    balanceFigure("\(balance.caloriesOut)", label: String(localized: "Out"))
+                    balanceFigure("\(balance.caloriesOut)", label: String(localized: "energy-balance.out", defaultValue: "Out", comment: "Calories burned, label under the figure in the energy balance"))
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(balance.balanceText)
                             .font(Tide.bodyStrong)

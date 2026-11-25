@@ -76,7 +76,15 @@
       }
     },
     "%@ of %lld kilocalories" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ di %lld chilocalorie"
+          }
+        }
+      }
     },
     "%@/%@" : {
       "extractionState" : "automatic",
@@ -87,7 +95,15 @@
       "shouldTranslate" : false
     },
     "%lld millilitres" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld millilitri"
+          }
+        }
+      }
     },
     "%lld ml added. %@ ml today." : {
       "extractionState" : "automatic",
@@ -123,7 +139,15 @@
       }
     },
     "%lld of %lld millilitres" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld di %lld millilitri"
+          }
+        }
+      }
     },
     "%lld of %lld sets" : {
       "extractionState" : "automatic",
@@ -244,7 +268,15 @@
       }
     },
     "Calories" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calorie"
+          }
+        }
+      }
     },
     "Calories, protein, carbs and fat against today's targets." : {
       "extractionState" : "automatic",
@@ -258,7 +290,15 @@
       }
     },
     "Carbs" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carbo"
+          }
+        }
+      }
     },
     "Day" : {
       "extractionState" : "automatic",
@@ -316,7 +356,15 @@
       }
     },
     "Fat" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grassi"
+          }
+        }
+      }
     },
     "Focus" : {
       "extractionState" : "automatic",
@@ -529,6 +577,7 @@
     },
     "P %@ · C %@ · F %@ g" : {
       "extractionState" : "automatic",
+      "localizations" : {},
       "shouldTranslate" : false
     },
     "Paused" : {
@@ -543,7 +592,15 @@
       }
     },
     "Protein" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proteine"
+          }
+        }
+      }
     },
     "Rest" : {
       "extractionState" : "automatic",
@@ -667,7 +724,15 @@
       }
     },
     "Time" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ora"
+          }
+        }
+      }
     },
     "Timer" : {
       "extractionState" : "automatic",
@@ -703,10 +768,26 @@
       }
     },
     "Water %@ ml" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acqua %@ ml"
+          }
+        }
+      }
     },
     "Water %@ of %@ ml" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acqua %@ di %@ ml"
+          }
+        }
+      }
     },
     "Water today" : {
       "extractionState" : "automatic",
@@ -731,7 +812,15 @@
       }
     },
     "ml" : {
-      "extractionState" : "automatic"
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ml"
+          }
+        }
+      }
     },
     "of %@ kcal" : {
       "extractionState" : "automatic",
