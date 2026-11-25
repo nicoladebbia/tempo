@@ -487,11 +487,15 @@ final class AccountabilityViewModel {
             if keepingPartial {
                 if elapsed > 5 * 60 {
                     session.endTime = now
-                    session.durationMinutes = Int(elapsed / 60)
+                    // A pomodoro that already finished saved its own minutes (the ones counted
+                    // toward today); a break or a half-done next one must not stretch them.
+                    if session.completedPomodoros == 0 {
+                        session.durationMinutes = Int(elapsed / 60)
+                    }
                     session.distractions = distractionCount
                     session.focusScore = computeFocusScore(for: session)
                     try? modelContext.save()
-                } else {
+                } else if session.completedPomodoros == 0 {
                     modelContext.delete(session)
                     try? modelContext.save()
                 }

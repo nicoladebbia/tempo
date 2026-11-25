@@ -55,6 +55,12 @@ struct BodyQuadrantDetailView: View {
                     .pinnedBarScrim()
             }
         }
+        // The page the Sleep card opens: there is no separate sleep screen.
+        .firstTip(
+            "recovery.sleep",
+            "Tap a number to see how it is worked out. Weight and photos are under Body progress.",
+            systemImage: "moon.zzz"
+        )
         .navigationTitle("Body")
         .navigationBarTitleDisplayMode(.inline)
         .tideCovered(showWhoopConnect)

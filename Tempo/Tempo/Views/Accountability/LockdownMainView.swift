@@ -644,6 +644,9 @@ struct NonNegotiableCardView: View {
     private var mood
     @Environment(\.dynamicTypeSize)
     private var typeSize
+    /// The card is one VoiceOver element, so the streak explainer is also reachable as an action.
+    @State
+    private var streakExplainer: Explainer?
 
     private var nn: NonNegotiable? {
         progress.nonNegotiable
@@ -686,6 +689,14 @@ struct NonNegotiableCardView: View {
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(progress.isCompleted ? "" : (isExpanded ? "Hides actions" : "Shows actions"))
+        .accessibilityActions {
+            if habitStreakCount > 0 {
+                Button("How the streak works") {
+                    streakExplainer = Explainer.habitStreak.showing("\(habitStreakCount) days")
+                }
+            }
+        }
+        .explainerSheet($streakExplainer)
     }
 
     // MARK: - Header Row

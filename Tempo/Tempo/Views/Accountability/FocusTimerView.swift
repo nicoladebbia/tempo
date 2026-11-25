@@ -125,6 +125,11 @@ struct FocusTimerView: View {
             }
         }
         .onAppear {
+            // Start needs today's tasks. Every entry point (Study, Today, the + sheet) builds a
+            // fresh model, so the timer loads them itself when nobody did.
+            if viewModel.accountability == nil {
+                viewModel.loadToday(modelContext: modelContext)
+            }
             // Start colon blink timer for paused state
             startColonBlink()
         }

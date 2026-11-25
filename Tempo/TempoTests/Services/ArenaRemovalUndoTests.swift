@@ -35,6 +35,17 @@ final class ArenaRemovalUndoTests: XCTestCase {
     }
 
     override func tearDown() async throws {
+        // A removal that went out refreshes the lists afterwards. Let that finish, or its
+        // requests land in the next test's record.
+        var last = -1
+        for _ in 0 ..< 100 {
+            let count = MockURLProtocol.recordedRequests.count
+            if count == last {
+                break
+            }
+            last = count
+            try? await Task.sleep(for: .milliseconds(40))
+        }
         MockURLProtocol.reset()
     }
 

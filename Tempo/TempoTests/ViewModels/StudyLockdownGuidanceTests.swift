@@ -120,6 +120,23 @@ final class StudyLockdownGuidanceTests: XCTestCase {
         XCTAssertNil(viewModel.currentStudySession)
     }
 
+    /// A pomodoro that finished saved its minutes and counted them toward today.
+    /// Stopping during the break after it must not stretch them with the break time.
+    func testStopAndSaveDuringABreakKeepsTheMinutesAlreadyCounted() throws {
+        let session = startSession()
+        session.completedPomodoros = 1
+        session.durationMinutes = 25
+        session.endTime = Date()
+        try context.save()
+
+        viewModel.cancelFocus(modelContext: context, now: Date().addingTimeInterval(28 * 60))
+        let sessions = try context.fetch(FetchDescriptor<StudySession>())
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions.first?.durationMinutes, 25)
+        XCTAssertNotNil(sessions.first?.focusScore)
+        XCTAssertNil(viewModel.currentStudySession)
+    }
+
     func testDiscardingTheRunningPomodoroKeepsOneThatAlreadyFinished() throws {
         let session = startSession()
         // A pomodoro that finished was saved and counted when it ended.
