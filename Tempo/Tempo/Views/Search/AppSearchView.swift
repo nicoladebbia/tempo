@@ -78,6 +78,7 @@ struct AppSearchView: View {
                 .padding(.bottom, Tide.s2)
         }
         .scrollDismissesKeyboard(.interactively)
+        .firstTip("search.sheet", "Type a word, then tap a result to jump straight to that screen or setting.", systemImage: "magnifyingglass")
         .onAppear {
             entries = AppSearchLoader.entries(in: modelContext)
             focused = true

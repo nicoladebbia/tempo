@@ -121,6 +121,7 @@ struct TodayHeader: View {
             .glassEffect(.regular.tint(Tide.glassControl), in: .capsule)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(snapshot.streakDays) day streak")
+            .explains(Explainer.streak(tasksLeft: snapshot.tasksLeft).showing("\(snapshot.streakDays) days"))
             .accessibilityIdentifier("today.streak")
         }
     }
