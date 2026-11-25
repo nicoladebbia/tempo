@@ -145,7 +145,7 @@ enum NextUpReader {
         }
         snapshot.nextMeal = meal.map {
             .init(
-                id: $0.id, name: $0.mealName, time: $0.scheduledTime, calories: Int($0.totalCalories.rounded()),
+                id: $0.id, name: $0.displayMealName, time: $0.scheduledTime, calories: Int($0.totalCalories.rounded()),
                 protein: Int($0.totalProtein.rounded()), imminent: MealScheduleHelpers.isImminent(meal: $0, now: now)
             )
         }

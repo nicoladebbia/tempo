@@ -31,6 +31,14 @@ final class WeightFormatTests: XCTestCase {
         XCTAssertEqual(WeightFormat.volumeText(kg: 360.6, unit: .kg), "361 kg", "Rounded, not truncated")
     }
 
+    func testInvariantNumberAlwaysUsesADot() {
+        // The CSV export is read back by a program, so it never follows the phone's decimal comma.
+        XCTAssertEqual(WeightFormat.invariantNumber(kg: 62.5, unit: .kg), "62.5")
+        XCTAssertEqual(WeightFormat.invariantNumber(kg: 62.04, unit: .kg), "62")
+        XCTAssertEqual(WeightFormat.invariantNumber(kg: 79.99999, unit: .kg), "80")
+        XCTAssertEqual(WeightFormat.invariantNumber(kg: 22.549, unit: .kg), "22.5")
+    }
+
     func testDecimalCommaIsAccepted() {
         XCTAssertEqual(WeightFormat.parseDecimal("5,2"), 5.2)
         XCTAssertEqual(WeightFormat.parseDecimal(" 62.5 "), 62.5)

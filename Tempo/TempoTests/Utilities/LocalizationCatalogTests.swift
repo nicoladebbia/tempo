@@ -184,7 +184,11 @@ final class LocalizationCatalogTests: XCTestCase {
                 if (entry["shouldTranslate"] as? Bool) == false {
                     continue
                 }
-                let expected = placeholders(key)
+                // An explicit key ("rest.duration.min") carries no placeholders itself; its
+                // explicit English value does.
+                let explicitEnglish = (((entry["localizations"] as? [String: Any])?["en"] as? [String: Any])?["stringUnit"]
+                    as? [String: Any])?["value"] as? String
+                let expected = placeholders(explicitEnglish ?? key)
                 for value in italianValues(entry) {
                     var found = placeholders(value)
                     // A plural "one" form may spell the number out ("un giorno").
