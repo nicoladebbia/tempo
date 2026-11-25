@@ -129,7 +129,8 @@ struct RecoveryPeriodView: View {
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
         }
-        .accessibilityElement(children: .combine)
+        // `.contain`, not `.combine`: the dial is a button that opens its explainer.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(
             stats.dayCount == 1
                 ? "Average recovery \(Int(stats.avgRecovery)) percent over 1 day, \(zone.displayName) zone"

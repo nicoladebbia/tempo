@@ -146,6 +146,37 @@ final class ArenaRemovalUndoTests: XCTestCase {
         XCTAssertEqual(friendIDs(), ["f2"])
     }
 
+    // MARK: Leaderboard
+
+    private func board() -> ArenaLeaderboardDTO {
+        func row(_ rank: Int, _ id: String, _ xp: Int, me: Bool = false) -> ArenaLeaderboardRankingDTO {
+            ArenaLeaderboardRankingDTO(
+                rank: rank, user: ArenaLeaderboardUserDTO(id: id, displayName: id, level: 3), xp: xp, isMe: me
+            )
+        }
+        return ArenaLeaderboardDTO(
+            period: "weekly", weekStart: .now, myRank: 2, myXP: 100,
+            rankings: [row(1, "u-f1", 200), row(2, "me", 100, me: true), row(3, "u-f2", 50)]
+        )
+    }
+
+    func testAFriendBeingRemovedLeavesTheBoardAndTheRanksCloseUp() {
+        let original = board()
+        arena.apply(
+            friends: [friend("f1", "Ana"), friend("f2", "Ben")], requests: [], leaderboard: original, challenges: []
+        )
+        XCTAssertEqual(arena.leaderboard?.rankings.count, 3)
+
+        arena.beginRemoval(ArenaRemoval(kind: .friend, id: "f1"))
+        XCTAssertEqual(arena.leaderboard?.rankings.map(\.user.id), ["me", "u-f2"])
+        XCTAssertEqual(arena.leaderboard?.rankings.map(\.rank), [1, 2])
+        XCTAssertEqual(arena.leaderboard?.myRank, 1)
+
+        arena.undoRemoval()
+        XCTAssertEqual(arena.leaderboard, original)
+        XCTAssertEqual(arena.leaderboard?.myRank, 2)
+    }
+
     // MARK: Requests and challenges
 
     func testDecliningARequestWaitsThenSendsTheDecline() async {

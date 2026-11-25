@@ -21,10 +21,10 @@ extension Explainer {
         what: "Your level, and how far you are from the next one. The ring fills as your total XP gets closer to the XP the next level needs.",
         how: """
         Your level comes from your total XP: level 2 needs 100, level 5 needs 500, level 10 needs 2,000 and level 20 needs 10,000. \
-        The title changes at levels 5, 10, 15, 20, 25 and 30. XP is worked out from what you really did: workouts, meals, \
+        The title gets a new number at every level, and a new name at levels 5, 10, 15, 20, 25, 30 and 35. XP is worked out from what you really did: workouts, meals, \
         focus time and finishing your daily tasks. Delete a workout or a study session and its XP goes with it.
         """,
-        action: "Finish every daily task today: it is the biggest single award, 100 XP.",
+        action: "Finish every daily task today: that alone pays 100 XP.",
         systemImage: "star.fill"
     )
 

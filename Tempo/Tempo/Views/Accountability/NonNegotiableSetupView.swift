@@ -117,7 +117,10 @@ struct NonNegotiableSetupView: View {
                 }
             }
             // Leaving the page makes it final too: there is no toast left to undo from.
-            .onDisappear { commitPendingDeletion() }
+            .onDisappear {
+                commitPendingDeletion()
+                toast = nil
+            }
         }
     }
 

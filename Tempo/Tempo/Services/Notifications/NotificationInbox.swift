@@ -211,11 +211,15 @@ final class NotificationInbox {
     /// Notifications "Clear today" took off the list while Undo is still offered. They are
     /// only removed from the record and from Notification Centre when that window ends.
     private var hiddenIDs: Set<String> = []
+    /// Notifications a finished "Clear today" removed. A read of iOS that was already under way
+    /// when it finished can still list them, so `refresh` leaves these out.
+    private var clearedIDs: Set<String> = []
 
     /// Today's notifications that are on the list, newest first.
     var items: [InboxNotification] {
         hiddenIDs.isEmpty ? storedItems : storedItems.filter { !hiddenIDs.contains($0.id) }
     }
+
     private(set) var load: Load = .idle
     /// What iOS says about permission, so the page can explain an empty list.
     private(set) var authorization: UNAuthorizationStatus?
@@ -259,7 +263,7 @@ final class NotificationInbox {
         }
         let seen = await delivered()
         authorization = await authorizationStatus()
-        let all = store.record(seen, now: now())
+        let all = store.record(seen.filter { !clearedIDs.contains($0.id) }, now: now())
         storedItems = NotificationInboxStore.today(all, now: now())
         load = .loaded
     }
@@ -300,6 +304,7 @@ final class NotificationInbox {
         store.wipe()
         storedItems = []
         hiddenIDs = []
+        clearedIDs = []
         load = .idle
     }
 
@@ -335,7 +340,11 @@ final class NotificationInbox {
         }
         let gone = hiddenIDs
         hiddenIDs = []
-        clearDelivered(storedItems.filter { gone.contains($0.id) }.map(\.requestID))
+        clearedIDs.formUnion(gone)
+        // A reminder with a fixed request id can come back inside the window: that new one stays.
+        let staying = Set(storedItems.filter { !gone.contains($0.id) }.map(\.requestID))
+        let leaving = storedItems.filter { gone.contains($0.id) }.map(\.requestID).filter { !staying.contains($0) }
+        clearDelivered(leaving)
         store.save(store.load().filter { !gone.contains($0.id) })
         storedItems = NotificationInboxStore.today(store.load(), now: now())
     }

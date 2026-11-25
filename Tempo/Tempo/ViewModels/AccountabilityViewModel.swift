@@ -489,6 +489,7 @@ final class AccountabilityViewModel {
                     session.endTime = now
                     session.durationMinutes = Int(elapsed / 60)
                     session.distractions = distractionCount
+                    session.focusScore = computeFocusScore(for: session)
                     try? modelContext.save()
                 } else {
                     modelContext.delete(session)

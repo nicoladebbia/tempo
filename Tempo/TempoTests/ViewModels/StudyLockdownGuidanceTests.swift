@@ -108,13 +108,16 @@ final class StudyLockdownGuidanceTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<StudySession>()).isEmpty)
     }
 
-    func testTheWatchStopStillKeepsASessionThatRanLongerThanFiveMinutes() throws {
+    /// "Stop & Save" on the timer and the Watch's Stop are the same call.
+    func testStopAndSaveKeepsTheMinutesSoFarWithAScoreAndStopsTheTimer() throws {
         _ = startSession()
         viewModel.cancelFocus(modelContext: context, now: Date().addingTimeInterval(12 * 60))
         let sessions = try context.fetch(FetchDescriptor<StudySession>())
         XCTAssertEqual(sessions.count, 1)
         XCTAssertNotNil(sessions.first?.endTime)
         XCTAssertEqual(sessions.first?.durationMinutes, 12)
+        XCTAssertNotNil(sessions.first?.focusScore)
+        XCTAssertNil(viewModel.currentStudySession)
     }
 
     func testDiscardingTheRunningPomodoroKeepsOneThatAlreadyFinished() throws {

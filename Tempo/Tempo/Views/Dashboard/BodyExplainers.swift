@@ -57,7 +57,7 @@ extension Explainer {
         how: """
         Tempo draws the straight line that best fits every reading in the range you picked and reads its slope as a weekly change, \
         so one heavy or light day does not move it. It needs at least 3 readings covering 7 days or more. \
-        A change under 0.05 a week reads as holding steady.
+        A change under 0.05 kg a week (about 0.1 lb), or under 0.05 points of body fat, reads as holding steady.
         """,
         action: "Switch to 90 days before you judge it: single weeks swing with water and salt.",
         systemImage: "chart.line.uptrend.xyaxis"

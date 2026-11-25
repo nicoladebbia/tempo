@@ -32,7 +32,8 @@ final class ArenaService {
     }
 
     private(set) var phase: Phase = .idle
-    private(set) var leaderboard: ArenaLeaderboardDTO?
+    /// The newest answer from the server. `leaderboard` is this without any friend whose removal is waiting.
+    private(set) var fetchedLeaderboard: ArenaLeaderboardDTO?
     /// A refresh failed but older data is on screen.
     private(set) var isStale = false
 
@@ -48,6 +49,8 @@ final class ArenaService {
     private var pendingRemoval = PendingRemoval<ArenaRemoval>()
     /// Removals whose Undo window is over and whose server call is still running.
     private var committing: Set<ArenaRemoval> = []
+    private var refreshCounter = 0
+    private var lastAppliedRefresh = 0
 
     private let apiClient: APIClient
 
@@ -65,6 +68,34 @@ final class ArenaService {
 
     var challenges: [ArenaChallengeDTO] {
         fetchedChallenges.filter { !isHidden(.init(kind: .challenge, id: $0.id)) }
+    }
+
+    /// The weekly board without a friend who is being removed. The ranks are worked out again
+    /// the way the server does (equal XP shares a rank) so the page never shows a gap or a
+    /// friend the Friends page has already dropped.
+    var leaderboard: ArenaLeaderboardDTO? {
+        guard let board = fetchedLeaderboard else {
+            return nil
+        }
+        let leaving = Set(
+            fetchedFriends.filter { isHidden(.init(kind: .friend, id: $0.id)) }.map(\.userId)
+        )
+        guard !leaving.isEmpty else {
+            return board
+        }
+        let kept = board.rankings.filter { !leaving.contains($0.user.id) }
+        let ranked = kept.map { row in
+            ArenaLeaderboardRankingDTO(
+                rank: 1 + kept.count { $0.xp > row.xp }, user: row.user, xp: row.xp, isMe: row.isMe
+            )
+        }
+        return ArenaLeaderboardDTO(
+            period: board.period,
+            weekStart: board.weekStart,
+            myRank: ranked.first(where: \.isMe)?.rank ?? board.myRank,
+            myXP: board.myXP,
+            rankings: ranked
+        )
     }
 
     var incomingRequests: [ArenaFriendRequestDTO] {
@@ -97,6 +128,10 @@ final class ArenaService {
             phase = .loading
         }
         let weekStart = ArenaCalendar.dayKey(ArenaCalendar.weekStart(containing: now))
+        // Answers can arrive out of order. One that was asked before a removal went through
+        // must not overwrite a newer one, or the removed item would come back.
+        refreshCounter += 1
+        let mine = refreshCounter
         do {
             async let friendsRequest = apiClient.request(APIEndpoint<[ArenaFriendDTO]>.listFriends())
             async let requestsRequest = apiClient.request(APIEndpoint<[ArenaFriendRequestDTO]>.listFriendRequests())
@@ -108,8 +143,16 @@ final class ArenaService {
             let (friends, requests, board, challenges) = try await (
                 friendsRequest, requestsRequest, boardRequest, challengesRequest
             )
+            guard mine > lastAppliedRefresh else {
+                return
+            }
+            lastAppliedRefresh = mine
             apply(friends: friends, requests: requests, leaderboard: board, challenges: challenges)
         } catch {
+            // A newer answer is already on screen: this old failure says nothing about it.
+            guard mine > lastAppliedRefresh else {
+                return
+            }
             if phase == .loading || isFailed {
                 phase = .failed(Self.message(for: error))
             } else {
@@ -125,7 +168,7 @@ final class ArenaService {
     ) {
         fetchedFriends = friends
         fetchedRequests = requests
-        self.leaderboard = leaderboard
+        fetchedLeaderboard = leaderboard
         fetchedChallenges = challenges
         isStale = false
         phase = .ready
@@ -259,6 +302,11 @@ final class ArenaService {
         if let replaced = pendingRemoval.begin(removal) {
             startCommit(replaced)
         }
+    }
+
+    /// Whether a removal is hiding an item and can still be undone.
+    var hasPendingRemoval: Bool {
+        pendingRemoval.item != nil
     }
 
     /// Puts the item back. Nothing was sent to the server.

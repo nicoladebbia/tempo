@@ -881,7 +881,8 @@ struct FocusTimerView: View {
 
         if elapsedMinutes >= 5 {
             Button("Stop & Save") {
-                viewModel.finishFocusReview(modelContext: modelContext)
+                // Stops the timer and keeps the minutes so far, the way the Watch's Stop does.
+                viewModel.cancelFocus(modelContext: modelContext)
                 dismiss()
             }
         }

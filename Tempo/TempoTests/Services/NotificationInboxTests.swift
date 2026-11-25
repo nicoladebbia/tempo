@@ -335,6 +335,21 @@ struct NotificationInboxModelTests {
         #expect(model.items.map(\.requestID) == ["late"])
     }
 
+    @Test
+    func aReadOfIOSThatWasUnderWayWhenTheClearEndedDoesNotBringTheNotificationsBack() async {
+        let cleared = ClearedBox()
+        let defaults = defaults()
+        // iOS still lists both: the read began before the clear went through.
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults)
+        await model.refresh()
+        model.beginClearToday()
+        model.finishClearToday()
+        await model.refresh()
+
+        #expect(model.items.isEmpty)
+        #expect(NotificationInboxStore(defaults: defaults).load().isEmpty)
+    }
+
     @MainActor
     final class DeliveredBox {
         var rows: [InboxNotification] = []

@@ -72,7 +72,11 @@ struct NotificationInboxView: View {
                 inbox.finishClearToday()
             }
         }
-        .onDisappear { inbox.finishClearToday() }
+        .onDisappear {
+            // Leaving the page makes the clear final, so no Undo is left to offer.
+            inbox.finishClearToday()
+            toast = nil
+        }
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

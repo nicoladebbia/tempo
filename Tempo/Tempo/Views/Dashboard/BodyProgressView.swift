@@ -111,7 +111,11 @@ struct BodyProgressView: View {
                 commitPendingPhoto()
             }
         }
-        .onDisappear { commitPendingPhoto() }
+        .onDisappear {
+            // Leaving the page makes the delete final, so no Undo is left to offer.
+            commitPendingPhoto()
+            toast = nil
+        }
         .tideCovered(viewing != nil || comparing || showCamera)
         .sheet(item: $viewing) { photo in
             ProgressPhotoViewer(photo: photo, store: store, onDelete: delete)

@@ -35,16 +35,27 @@ private struct ArenaUndoHost: ViewModifier {
                 // The window is over (or the toast was swiped away): the removal is final.
                 if newValue == nil {
                     arena.finishRemoval()
+                    showFailureIfIdle()
                 }
             }
-            .onChange(of: arena.removalFailure) { _, message in
-                // The server refused after the item left the screen. It is back; say why.
-                if let message {
-                    toast = ToastData(message: message, style: .error)
-                    arena.clearRemovalFailure()
-                }
+            .onChange(of: arena.removalFailure) { _, _ in
+                showFailureIfIdle()
             }
-            .onDisappear { arena.finishRemoval() }
+            .onDisappear {
+                // Leaving the page makes the removal final, so no Undo is left to offer.
+                arena.finishRemoval()
+                toast = nil
+            }
+    }
+
+    /// The server refused after the item left the screen. It is back; say why, but never
+    /// in place of an Undo that is still up: that one is shown first.
+    private func showFailureIfIdle() {
+        guard let message = arena.removalFailure, toast == nil, !arena.hasPendingRemoval else {
+            return
+        }
+        toast = ToastData(message: message, style: .error)
+        arena.clearRemovalFailure()
     }
 }
 
