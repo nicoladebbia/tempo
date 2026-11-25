@@ -163,23 +163,3 @@ struct LoggedMealRow: View {
         )
     }
 }
-
-// MARK: - MacroChip
-
-struct MacroChip: View {
-    let letter: String
-    let grams: Double
-    let color: Color
-
-    var body: some View {
-        Text("\(letter) \(Int(grams.rounded())) g")
-            .font(Tide.label)
-            .monospacedDigit()
-            .foregroundStyle(color)
-            .padding(.horizontal, Tide.s2)
-            .padding(.vertical, Tide.s1)
-            .background(color.opacity(0.14), in: .capsule)
-            .lineLimit(1)
-            .fixedSize()
-    }
-}

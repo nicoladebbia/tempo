@@ -47,10 +47,12 @@ enum MealOutcomeService {
 
     enum OutcomeError: LocalizedError {
         case mealGone
+        case mealNotEaten
 
         var errorDescription: String? {
             switch self {
             case .mealGone: "Couldn't restore. That meal no longer exists."
+            case .mealNotEaten: "Couldn't put that food back. The meal is no longer marked eaten."
             }
         }
     }
@@ -588,6 +590,31 @@ enum MealOutcomeService {
         try save(env.modelContext)
         NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
         return false
+    }
+
+    /// Puts back a food `removeFood` took out of a log, at its old place, with its line in the
+    /// linked meal log. This is what Undo does after removing one food of several.
+    static func restoreFood(_ food: PlannedFood, at index: Int, to meal: PlannedMeal, env: Env) throws {
+        guard meal.status == .eaten else {
+            throw OutcomeError.mealNotEaten
+        }
+        var foods = meal.foods
+        foods.insert(food, at: min(max(index, 0), foods.count))
+        meal.foods = foods
+        meal.recalculateTotals()
+        if let logID = meal.linkedMealLogID {
+            var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
+            descriptor.fetchLimit = 1
+            if let log = fetchLog(descriptor, in: env.modelContext) {
+                log.items.insert(MealFoodItem(from: EatenMealRecorder.input(from: food)), at: min(max(index, 0), log.items.count))
+                log.recalculateTotals()
+            }
+        }
+        if Calendar.current.isDateInToday(meal.dayDate) {
+            applyMacroRebalance(env: env)
+        }
+        try save(env.modelContext)
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
     }
 
     // MARK: - Presets

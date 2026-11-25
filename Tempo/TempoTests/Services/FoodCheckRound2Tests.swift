@@ -217,4 +217,61 @@ final class FoodProductActionsTests: XCTestCase {
         XCTAssertTrue(FoodProductActions.inventory(for: product, modelContext: ctx).onList)
         XCTAssertTrue(FoodProductActions.inventory(for: product, modelContext: ctx).line.hasSuffix("· on your list"))
     }
+
+    // MARK: Undo
+
+    func testUndoingAFoodCheckLogTakesBackExactlyThatLog() throws {
+        let product = FoodProduct.r2()
+        let result = try FoodProductActions.record(product, grams: 50, type: .snack, modelContext: ctx)
+        XCTAssertEqual(CanonicalMeals.totals(of: CanonicalMeals.eatenMeals(on: Date(), in: ctx)).calories, 200, accuracy: 0.5)
+
+        let env = MealOutcomeService.Env(modelContext: ctx, notifications: nil)
+        XCTAssertTrue(try EatenMealRecorder.undoLog(result, env: env))
+        XCTAssertEqual(CanonicalMeals.totals(of: CanonicalMeals.eatenMeals(on: Date(), in: ctx)).calories, 0, accuracy: 0.5)
+        XCTAssertFalse(try EatenMealRecorder.undoLog(result, env: env), "a second Undo finds nothing to take back")
+    }
+
+    func testUndoingAFoodCheckLogKeepsAnEarlierLogInTheSameMeal() throws {
+        let product = FoodProduct.r2()
+        _ = try FoodProductActions.record(product, grams: 50, type: .snack, modelContext: ctx)
+        let second = try FoodProductActions.record(product, grams: 25, type: .snack, modelContext: ctx)
+
+        XCTAssertTrue(try EatenMealRecorder.undoLog(second, env: MealOutcomeService.Env(modelContext: ctx, notifications: nil)))
+        XCTAssertEqual(CanonicalMeals.totals(of: CanonicalMeals.eatenMeals(on: Date(), in: ctx)).calories, 200, accuracy: 0.5)
+    }
+
+    func testUndoingAddToPantryRemovesANewRowAndRestoresAMergedOne() throws {
+        let product = FoodProduct.r2()
+        let first = try FoodProductActions.addToPantryWithUndo(product, modelContext: ctx)
+        XCTAssertNotNil(FoodProductActions.inventory(for: product, modelContext: ctx).atHome)
+        KitchenUndo.restorePantry(first.undo, in: ctx)
+        XCTAssertNil(FoodProductActions.inventory(for: product, modelContext: ctx).atHome, "the new row is gone")
+
+        let again = try FoodProductActions.addToPantryWithUndo(product, modelContext: ctx)
+        let quantity = again.item.quantity
+        let merged = try FoodProductActions.addToPantryWithUndo(product, modelContext: ctx)
+        XCTAssertGreaterThan(merged.item.quantity, quantity)
+        KitchenUndo.restorePantry(merged.undo, in: ctx)
+        XCTAssertEqual(merged.item.quantity, quantity, accuracy: 0.001)
+        XCTAssertFalse(merged.item.isArchived)
+    }
+
+    func testUndoingAddToListTakesTheRowOffAndOnlyThatRow() throws {
+        let product = FoodProduct.r2()
+        ctx.insert(GroceryList(weekStartDate: Date()))
+        try ctx.save()
+        let added = try FoodProductActions.addToListReturningItem(product, modelContext: ctx)
+        XCTAssertEqual(added.outcome, .added)
+        let id = try XCTUnwrap(added.itemID)
+        XCTAssertTrue(FoodProductActions.inventory(for: product, modelContext: ctx).onList)
+
+        XCTAssertTrue(FoodProductActions.removeFromList(itemID: id, modelContext: ctx))
+        XCTAssertFalse(FoodProductActions.inventory(for: product, modelContext: ctx).onList)
+
+        let already = try FoodProductActions.addToListReturningItem(product, modelContext: ctx)
+        XCTAssertEqual(already.outcome, .added)
+        let again = try FoodProductActions.addToListReturningItem(product, modelContext: ctx)
+        XCTAssertEqual(again.outcome, .alreadyOnList)
+        XCTAssertNil(again.itemID, "nothing was added, so Undo has nothing to remove")
+    }
 }

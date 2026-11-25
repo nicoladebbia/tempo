@@ -166,17 +166,20 @@ struct FoodProductActionBar: View {
 
     private func logIt() {
         do {
-            let logged = try FoodProductActions.log(
+            let result = try FoodProductActions.record(
                 product, grams: grams, type: mealType, origin: origin,
                 modelContext: modelContext, notifications: services.notifications
             )
+            let logged = result.logged
             HomeLocationStore().lastOrigin = origin
             showLogSheet = false
             HapticManager.notification(.success)
             onLogged?()
-            toast = ToastData(
-                message: "\(mealType.displayName) logged. \(Int(logged.calories.rounded())) kcal, \(Int(logged.protein.rounded())) g protein.",
-                style: .success
+            toast = FuelLogToast.logged(
+                "\(mealType.displayName) logged. \(Int(logged.calories.rounded())) kcal, \(Int(logged.protein.rounded())) g protein.",
+                result: result,
+                modelContext: modelContext,
+                notifications: services.notifications
             )
         } catch {
             HapticManager.notification(.error)
@@ -187,9 +190,15 @@ struct FoodProductActionBar: View {
 
     private func addToPantry() {
         do {
-            let item = try FoodProductActions.addToPantry(product, modelContext: modelContext)
+            let added = try FoodProductActions.addToPantryWithUndo(product, modelContext: modelContext)
+            let context = modelContext
             HapticManager.notification(.success)
-            toast = ToastData(message: "\(item.displayName) is in your pantry.", style: .success)
+            toast = ToastData(
+                message: "\(added.item.displayName) is in your pantry.", style: .success, actionTitle: "Undo"
+            ) {
+                KitchenUndo.restorePantry(added.undo, in: context)
+                refreshInventory()
+            }
             refreshInventory()
         } catch {
             HapticManager.notification(.error)
@@ -199,10 +208,17 @@ struct FoodProductActionBar: View {
 
     private func addToList() {
         do {
-            switch try FoodProductActions.addToList(product, modelContext: modelContext) {
+            let context = modelContext
+            let added = try FoodProductActions.addToListReturningItem(product, modelContext: context)
+            switch added.outcome {
             case .added:
                 HapticManager.notification(.success)
-                toast = ToastData(message: "\(product.name) is on your list.", style: .success)
+                toast = ToastData(message: "\(product.name) is on your list.", style: .success, actionTitle: "Undo") {
+                    if let id = added.itemID {
+                        FoodProductActions.removeFromList(itemID: id, modelContext: context)
+                    }
+                    refreshInventory()
+                }
             case .alreadyOnList:
                 HapticManager.lightImpact()
                 toast = ToastData(message: "Already on your list.", style: .info)

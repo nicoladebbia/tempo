@@ -263,6 +263,15 @@ struct NutritionTodayView: View {
         }
     }
 
+    /// A few seconds to take back a mark-eaten or a skip. Undo is the same path
+    /// as "Not eaten" (`undoMeal`), so the plan slot, pantry, reminders and the
+    /// other meals come back exactly, and that toast can put it back again.
+    private func offerTakeBack(_ message: String, meal: PlannedMeal) {
+        toast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+            undoMeal(meal)
+        }
+    }
+
     private func beginSavePreset(_ meal: PlannedMeal) {
         presetNameDraft = meal.foods.first.map { meal.foods.count > 1 ? "\($0.name) +\(meal.foods.count - 1)" : $0.name }
             ?? meal.mealName
@@ -287,11 +296,13 @@ struct NutritionTodayView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
+            .explains(.fuelCalorieTarget.showing("\(viewModel.todayCaloriesConsumed) / \(viewModel.todayCalorieTarget) kcal"))
             FuelMacroColumns(
                 protein: (viewModel.todayProteinConsumed, viewModel.todayProteinTarget),
                 carbs: (viewModel.todayCarbsConsumed, viewModel.todayCarbsTarget),
                 fat: (viewModel.todayFatConsumed, viewModel.todayFatTarget)
             )
+            .explains(.fuelMacroTargets)
             // Why today's target isn't the plain plan number — rest day,
             // recovery, or yesterday's refund. Same target the Dashboard shows.
             if let note = viewModel.todayTargetNote {
@@ -299,6 +310,7 @@ struct NutritionTodayView: View {
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
                     .accessibilityLabel("Target adjusted: \(note)")
+                    .explains(.fuelTargetAdjusted)
             }
             if activeGoals.hasActive(of: [.bodyWeight]) {
                 GoalProgressChip(kinds: [.bodyWeight])
@@ -379,6 +391,7 @@ struct NutritionTodayView: View {
                                 toast = ToastData(message: "Couldn't skip \(meal.mealName). Try again.", style: .error)
                                 return
                             }
+                            offerTakeBack("\(meal.mealName) skipped.", meal: meal)
                             // Fire-and-forget AI redistribution. UX
                             // stays snappy; banner appears when the call
                             // returns (sub-second on Haiku, ~2s on retry)
@@ -494,6 +507,7 @@ struct NutritionTodayView: View {
                 notifications: services.notifications, feel: feel, satiety: satiety
             ) {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
+                offerTakeBack("\(meal.mealName) marked eaten.", meal: meal)
             } else {
                 toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
             }
@@ -546,6 +560,7 @@ struct NutritionTodayView: View {
                 pantry: usedPantry ? .foods : .none
             ) {
                 viewModel.refreshFeedbackPresence(modelContext: modelContext)
+                offerTakeBack("\(meal.mealName) marked eaten.", meal: meal)
             } else {
                 toast = ToastData(message: "Couldn't save \(meal.mealName). Try again.", style: .error)
             }

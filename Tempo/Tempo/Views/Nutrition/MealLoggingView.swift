@@ -180,6 +180,7 @@ struct MealLoggingView: View {
             .tidePage()
             // A sheet is its own page, even when it comes up from inside one.
             .environment(\.tideInsidePage, false)
+            .firstTip("fuel.meal-log", "Say or type what you ate, check the numbers, then tap Log.")
             .navigationTitle("Log a meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

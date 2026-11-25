@@ -116,14 +116,17 @@ struct WeeklyHabitsSettingsView: View {
                             .font(Tide.body)
                     }
                     if let expenditure {
-                        LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
-                            .font(Tide.bodyStrong)
-                        Text(
-                            "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
-                        )
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text2)
-                        .fixedSize(horizontal: false, vertical: true)
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            LabeledContent("Your real maintenance", value: "\(Int(expenditure.kcal.rounded())) kcal")
+                                .font(Tide.bodyStrong)
+                            Text(
+                                "From \(expenditure.loggedDays) logged days and a \(String(format: "%+.1f", expenditure.trendKgPerWeek)) kg/week weight trend. Plans lean on it \(Int((expenditure.confidence * 100).rounded()))%."
+                            )
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .explains(.fuelRealMaintenance)
                     }
                 }
 

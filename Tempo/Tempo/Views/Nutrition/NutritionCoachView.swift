@@ -489,6 +489,7 @@ struct NutritionCoachView: View {
             // Whoop recovery stats row
             if let recovery = viewModel.todayRecovery {
                 statRow(recoveryStats(recovery))
+                    .explains(.fuelRecoveryStats.showing("\(Int(recovery.score))%"))
             }
 
             if insights.recovery.isLoading {

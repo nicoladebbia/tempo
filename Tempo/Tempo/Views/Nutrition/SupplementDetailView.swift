@@ -24,7 +24,9 @@ struct SupplementDetailView: View {
     @State private var refreshToken = 0
     @State private var showEdit = false
     @State private var showReorder = false
-    @State private var confirmDelete = false
+    /// "Took it" Undo. It takes its own room above the Took it bar: the Fuel host's toast floats
+    /// over that bar, and a tap on its Undo would reach the bar's button instead.
+    @State private var toast: ToastData?
     @Environment(\.tideMood)
     private var mood
 
@@ -58,7 +60,7 @@ struct SupplementDetailView: View {
             }
             Section {
                 Button(role: .destructive) {
-                    confirmDelete = true
+                    deleteFromShelf()
                 } label: {
                     Label("Delete from shelf", systemImage: "trash")
                         .frame(maxWidth: .infinity)
@@ -67,6 +69,8 @@ struct SupplementDetailView: View {
             }
         }
         .kitchenPage()
+        // Before the bottom bar, so the toast rests above "Took it", not on it.
+        .kitchenToast($toast)
         .kitchenBottomBar {
             tookItBar(takenToday: takenToday, dose: dose)
         }
@@ -93,24 +97,21 @@ struct SupplementDetailView: View {
         .sheet(isPresented: $showReorder, onDismiss: { refreshToken += 1 }) {
             SupplementReorderSheet(supplement: supplement)
         }
-        .confirmationDialog("Delete \(supplement.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                let id = supplement.id
-                let name = supplement.name
-                let context = modelContext
-                supplement.isArchived = true
-                supplement.updatedAt = Date()
-                try? modelContext.save()
-                notify()
-                HapticManager.warning()
-                dismiss()
-                KitchenUndo.offer("\(name) deleted.") {
-                    KitchenUndo.restoreSupplement(id: id, in: context)
-                }
-            }
-            Button("Keep it", role: .cancel) {}
-        } message: {
-            Text("It leaves your shelf and your reminders. Your past history stays.")
+    }
+
+    /// Takes it off the shelf and its reminders at once. Undo puts it back; its history was never touched.
+    private func deleteFromShelf() {
+        let id = supplement.id
+        let name = supplement.name
+        let context = modelContext
+        supplement.isArchived = true
+        supplement.updatedAt = Date()
+        try? modelContext.save()
+        notify()
+        HapticManager.warning()
+        dismiss()
+        KitchenUndo.offer("\(name) deleted.") {
+            KitchenUndo.restoreSupplement(id: id, in: context)
         }
     }
 
@@ -188,9 +189,10 @@ struct SupplementDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             Button {
-                SupplementIntakeStore.toggle(supplementID: supplement.id, name: supplement.name, in: modelContext)
-                notify()
-                if !takenToday { HapticManager.success() } else { HapticManager.lightImpact() }
+                KitchenUndo.toggleSupplementTaken(
+                    supplementID: supplement.id, name: supplement.name, in: modelContext
+                ) { toast = $0 }
+                if !takenToday { HapticManager.success() }
                 refreshToken += 1
             } label: {
                 Label(takenToday ? "Taken today. Tap to undo" : "Took it", systemImage: takenToday ? "checkmark.circle.fill" : "circle")

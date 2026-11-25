@@ -187,6 +187,9 @@ struct MealReviewHost: ViewModifier {
     private var duplicate: Pending?
     @State
     private var pendingDuplicate: Pending?
+    /// A save from the repeat question failed: the review comes back once that sheet has left.
+    @State
+    private var reopenReview: MealReviewRequest?
 
     private struct Pending: Identifiable {
         let id = UUID()
@@ -215,7 +218,7 @@ struct MealReviewHost: ViewModifier {
             }
             // Asked once the review sheet has finished leaving: the review closes
             // itself on Confirm, so a sheet nested inside it would go with it.
-            .sheet(item: $duplicate) { pending in
+            .sheet(item: $duplicate, onDismiss: showPendingReview) { pending in
                 FuelDecisionSheet(
                     icon: "square.on.square",
                     title: "Already logged",
@@ -251,20 +254,30 @@ struct MealReviewHost: ViewModifier {
         }
     }
 
-    private func confirm(_ items: [ParsedFoodItem], type: MealType, eatenAt: Date, origin: MealOrigin) {
-        let names = MealReviewCommitter.duplicateNames(items: items, type: type, eatenAt: eatenAt, modelContext: modelContext)
-        if names.isEmpty {
-            finish(items, type, eatenAt, origin, .add)
-        } else {
-            // Held until the review sheet (which closes itself next) has left.
-            pendingDuplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
+    /// The repeat question is gone after a failed save: the review comes back with the same foods.
+    private func showPendingReview() {
+        if let reopenReview {
+            request = reopenReview
+            self.reopenReview = nil
         }
     }
 
-    private func finish(
+    /// Returns why the meal could not be saved, so the review sheet can stay open and say so.
+    private func confirm(_ items: [ParsedFoodItem], type: MealType, eatenAt: Date, origin: MealOrigin) -> String? {
+        let names = MealReviewCommitter.duplicateNames(items: items, type: type, eatenAt: eatenAt, modelContext: modelContext)
+        if names.isEmpty {
+            return save(items, type, eatenAt, origin, .add)
+        }
+        // Held until the review sheet (which closes itself next) has left.
+        pendingDuplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
+        return nil
+    }
+
+    /// Saves and posts the "logged" toast. Returns the failure message, nil when saved.
+    private func save(
         _ items: [ParsedFoodItem], _ type: MealType, _ eatenAt: Date, _ origin: MealOrigin?,
         _ resolution: EatenMealRecorder.DuplicateResolution
-    ) {
+    ) -> String? {
         let outcome = MealReviewCommitter.commit(
             items, type: type, eatenAt: eatenAt, origin: origin, resolution: resolution,
             modelContext: modelContext, notifications: services.notifications
@@ -275,15 +288,31 @@ struct MealReviewHost: ViewModifier {
             request = nil
             duplicate = nil
             onLogged()
+            return nil
         case let .failed(toast):
-            if let onFailed {
-                onFailed(toast)
-            } else {
-                FuelLogToast.post(toast)
-            }
+            return toast.message
         case .needsDecision:
-            break
+            return nil
         }
+    }
+
+    /// The repeat question's answer. The review sheet has already left, so a failed save is
+    /// told by toast and the review opens again with the same foods.
+    private func finish(
+        _ items: [ParsedFoodItem], _ type: MealType, _ eatenAt: Date, _ origin: MealOrigin?,
+        _ resolution: EatenMealRecorder.DuplicateResolution
+    ) {
+        guard let failure = save(items, type, eatenAt, origin, resolution) else {
+            return
+        }
+        let toast = ToastData(message: failure, style: .error)
+        if let onFailed {
+            onFailed(toast)
+        } else {
+            FuelLogToast.post(toast)
+        }
+        reopenReview = MealReviewRequest(items: items, mealType: type, eatenAt: eatenAt)
+        duplicate = nil
     }
 }
 

@@ -27,6 +27,12 @@ struct GroceryListView: View {
     @State
     private var showAddItem = false
 
+    /// The Undo toast for a tick, an add or a remove. It takes its own room above the Store Mode
+    /// bar: the Fuel host's toast floats over the rows and that bar, and a tap on its Undo can
+    /// reach them instead.
+    @State
+    private var toast: ToastData?
+
     /// Inline result message after a pantry-sync run ("removed 3 items").
     @State
     private var pantrySyncMessage: String?
@@ -66,7 +72,7 @@ struct GroceryListView: View {
         .sensoryFeedback(.selection, trigger: ticks)
         .sheet(isPresented: $showAddItem) {
             AddGroceryItemSheet { name, qty, unit in
-                viewModel.addGroceryItem(name: name, quantity: qty, unit: unit)
+                viewModel.addGroceryItemWithUndo(name: name, quantity: qty, unit: unit) { toast = $0 }
             }
         }
         .sheet(isPresented: $showDoneShopping) {
@@ -129,6 +135,8 @@ struct GroceryListView: View {
         }
         .scrollIndicators(.hidden)
         .scrollEdgeEffectStyle(.soft, for: .all)
+        // Before the bottom bar, so the toast rests above "Store Mode", not on it.
+        .kitchenToast($toast)
         // The way into the shop sits where the thumb is, not up in the card.
         .kitchenBottomBar {
             Button {
@@ -248,21 +256,27 @@ struct GroceryListView: View {
         let spent = cap.map { $0 > 0 ? min(total / Double($0), 1) : 0 } ?? 0
         return VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber(
-                    list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
-                    size: Tide.numeralM, relativeTo: .title,
-                    color: isOver ? Tide.danger : Tide.text
-                )
-                if list.hasUnresolvedPrices {
-                    Text("pricing…")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
+                        size: Tide.numeralM, relativeTo: .title,
+                        color: isOver ? Tide.danger : Tide.text
+                    )
+                    if list.hasUnresolvedPrices {
+                        Text("pricing…")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
                 }
+                .explains(.fuelGroceryTotal.showing(formatUSD(total)))
                 Spacer(minLength: Tide.s2)
                 if let cap {
                     Text("of $\(cap) budget")
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                        .explains(.fuelGroceryBudget.showing("$\(cap)"))
                 }
             }
             if cap != nil {
@@ -335,11 +349,13 @@ struct GroceryListView: View {
         ) {
             ForEach(items, id: \.id) { item in
                 Button {
-                    viewModel.toggleGroceryItem(item)
+                    let undoToast = viewModel.toggleGroceryItemWithUndo(item)
                     ticks += 1
                     if item.isChecked {
                         viewModel.recordGroceryCategoryTick(item.category)
-                        viewModel.offerUndoCheck(of: item)
+                    }
+                    if let undoToast {
+                        toast = undoToast
                     }
                 } label: {
                     itemRow(item)
@@ -352,7 +368,7 @@ struct GroceryListView: View {
                 // target and matches iOS's expected long-press affordance.
                 .contextMenu {
                     Button(role: .destructive) {
-                        viewModel.deleteGroceryItemWithUndo(item)
+                        viewModel.deleteGroceryItemWithUndo(item) { toast = $0 }
                         HapticManager.notification(.warning)
                     } label: {
                         Label("Remove from List", systemImage: "trash")
