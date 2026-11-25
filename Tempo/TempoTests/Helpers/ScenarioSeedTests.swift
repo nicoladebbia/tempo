@@ -482,6 +482,44 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertTrue(fetchAll(PantryItem.self).contains { ($0.useBy ?? .distantFuture) < Date() })
     }
 
+    // MARK: - Today scenarios
+
+    func testSetupIncompleteIsOnboardedWithNothingSetUp() throws {
+        ScenarioSeed.seed("setup-incomplete", context: context)
+
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: onboardingKey))
+        XCTAssertEqual(count(UserSettings.self), 1)
+        XCTAssertEqual(count(DietaryProfile.self), 0)
+        XCTAssertEqual(count(NonNegotiable.self), 0)
+        XCTAssertEqual(count(Goal.self), 0)
+        let checklist = SetupChecklist(SetupChecklistLoader.signals(
+            healthAllowed: false, whoopConnected: false, resolved: true, in: context
+        ))
+        XCTAssertTrue(checklist.isVisible(dismissed: false))
+    }
+
+    func testGoalSetHasOneActiveBodyWeightGoalOnTopOfHistory() throws {
+        ScenarioSeed.seed("goal-set", context: context)
+
+        let goals = try context.fetch(FetchDescriptor<Goal>())
+        XCTAssertEqual(goals.count, 1)
+        let goal = try XCTUnwrap(goals.first)
+        XCTAssertEqual(goal.kind, .bodyWeight)
+        XCTAssertTrue(goal.isActive)
+        XCTAssertGreaterThan(goal.targetDate, Date())
+        // The weigh-ins the athlete already has give the goal a current reading.
+        XCTAssertNotNil(GoalReader.current(for: goal, in: context))
+    }
+
+    func testGoalLiftHasABenchGoalWithALoggedBestSet() throws {
+        ScenarioSeed.seed("goal-lift", context: context)
+
+        let goal = try XCTUnwrap(context.fetch(FetchDescriptor<Goal>()).first)
+        XCTAssertEqual(goal.kind, .liftE1RM)
+        XCTAssertEqual(goal.exerciseName, "Barbell Bench Press")
+        XCTAssertNotNil(GoalReader.current(for: goal, in: context))
+    }
+
     // MARK: - TestServer
 
     func testTestServerOnlyAcceptsLoopbackURLs() {

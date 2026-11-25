@@ -87,6 +87,14 @@ import SwiftData
                 seedPersona(.pickyVegan, context: context, now: now)
             case "exam-week": // student with exams this week: sleep dropping, recovery yellow/red, fewer workouts
                 seedPersona(.examWeek, context: context, now: now)
+            case "setup-incomplete": // onboarded but nothing set up: Today's "Get set up" card (add -hasCompletedSetup NO -healthKitAuthorized NO)
+                onboarded(context)
+            case "goal-set": // athlete history + a body-weight goal a little behind its line, so Today, Fuel and Body progress show it
+                seedPersona(.athlete, context: context, now: now)
+                goal(.bodyWeight, in: context, now: now)
+            case "goal-lift": // athlete history + a bench e1RM goal that is behind its line, so Today and Train progress show it
+                seedPersona(.athlete, context: context, now: now)
+                goal(.liftE1RM, in: context, now: now)
             case "injured": // 6 weeks of training, then a knee injury and a training pause 4 days ago
                 seedPersona(.injured, context: context, now: now)
             case "lapsed-pro": // 10 weeks of solid history that stopped 3 weeks ago, streak broken
@@ -180,6 +188,37 @@ import SwiftData
                 ("olive oil", "Olive Oil", 1, .bottles, .cupboard),
                 ("banana", "Bananas", 6, .pieces, .pantry),
             ])
+        }
+
+        /// One active goal on top of a persona's history: a weight to reach in five weeks, or a bench
+        /// one-rep max to reach in three, both started eight weeks ago.
+        @MainActor
+        static func goal(_ kind: GoalKind, in context: ModelContext, now: Date) {
+            let calendar = Calendar.current
+            let start = calendar.date(byAdding: .day, value: -56, to: now) ?? now
+            let made: Goal
+            switch kind {
+            case .bodyWeight:
+                let latest = GoalReader.latestWeightKg(in: context) ?? 82
+                made = Goal(
+                    kind: .bodyWeight, targetValue: latest + 2,
+                    targetDate: calendar.date(byAdding: .day, value: 35, to: now) ?? now,
+                    startValue: latest - 2, startDate: start
+                )
+            case .liftE1RM:
+                made = Goal(
+                    kind: .liftE1RM, targetValue: 125,
+                    targetDate: calendar.date(byAdding: .day, value: 21, to: now) ?? now,
+                    startValue: 100, startDate: start, exerciseName: "Barbell Bench Press"
+                )
+            case .runTime:
+                made = Goal(
+                    kind: .runTime, targetValue: 25 * 60,
+                    targetDate: calendar.date(byAdding: .day, value: 28, to: now) ?? now,
+                    startValue: 28 * 60, startDate: start, runDistanceKm: 5
+                )
+            }
+            context.insert(made)
         }
 
         /// Real eaten history for the one-tap rows: oats and banana for breakfast 4 days
