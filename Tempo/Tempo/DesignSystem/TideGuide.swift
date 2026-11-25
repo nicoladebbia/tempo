@@ -120,7 +120,7 @@ struct ExplainerSheet: View {
             .padding(.bottom, Tide.s4)
         }
         .tidePage()
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.fraction(0.72), .large])
         .presentationDragIndicator(.visible)
     }
 
