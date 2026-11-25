@@ -30,11 +30,11 @@ struct ActivityTile: View {
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: size * 0.44, weight: .semibold))
+            .font(.tideGlyph(size * WidgetMetrics.glyphShare))
             .symbolRenderingMode(.hierarchical)
             .foregroundStyle(tone)
             .frame(width: size, height: size)
-            .background(tone.opacity(0.16), in: .rect(cornerRadius: size * 0.32, style: .continuous))
+            .background(tone.opacity(0.16), in: .rect(cornerRadius: size * WidgetMetrics.tileCorner, style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -49,7 +49,7 @@ extension View {
         background {
             RadialGradient(
                 colors: [tone.opacity(0.26), .clear],
-                center: .topLeading, startRadius: 0, endRadius: 260
+                center: .topLeading, startRadius: 0, endRadius: WidgetMetrics.bannerGlow
             )
         }
         .activityBackgroundTint(Tide.ink.opacity(0.88))

@@ -51,7 +51,7 @@ struct GuidedRunLiveActivity: Widget {
                     .font(Tide.numeral(Tide.numeralS * 0.8))
                     .monospacedDigit()
                     .foregroundStyle(tone)
-                    .frame(maxWidth: 48, alignment: .trailing)
+                    .frame(maxWidth: WidgetMetrics.compactClock, alignment: .trailing)
             } minimal: {
                 Image(systemName: state.isRest ? "hourglass" : "figure.run")
                     .foregroundStyle(tone)
@@ -92,7 +92,7 @@ private struct GuidedRunReadout: View {
         ActivityReadout(label: label, tone: state.isPaused ? Tide.text2 : ActivityTone.run) {
             GuidedRunTimerText(state: state)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 110, alignment: .trailing)
+                .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)
         }
     }
 

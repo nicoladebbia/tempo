@@ -84,7 +84,7 @@ struct WorkoutLiveActivity: Widget {
                         .font(Tide.numeral(Tide.numeralS * 0.8))
                         .monospacedDigit()
                         .foregroundStyle(tone)
-                        .frame(maxWidth: 48, alignment: .trailing)
+                        .frame(maxWidth: WidgetMetrics.compactClock, alignment: .trailing)
                 } else {
                     Text("\(state.completedSets)/\(state.totalSets)")
                         .font(Tide.numeral(Tide.numeralS * 0.8))
@@ -121,7 +121,7 @@ private struct WorkoutReadout: View {
             ActivityReadout(label: "Rest", tone: ActivityTone.workout) {
                 Text.countdown(to: end)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 110, alignment: .trailing)
+                    .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)
             }
         } else {
             ActivityReadout(label: "Sets") {

@@ -94,8 +94,12 @@ struct WaterWidgetView: View {
     @ViewBuilder
     private var small: some View {
         if snapshot == nil {
-            WidgetEmptyState(symbol: "drop.fill", title: "No water yet", hint: "Add a glass to start today's total.")
-                .padding(Tide.s4)
+            // The button still works: logging creates today's numbers.
+            VStack(spacing: Tide.s2) {
+                WidgetEmptyState(symbol: "drop.fill", title: "No water yet", hint: "Add a glass.", compact: true)
+                addButton
+            }
+            .padding(Tide.s3)
         } else {
             VStack(spacing: Tide.s2) {
                 ring
@@ -132,7 +136,7 @@ struct WaterWidgetView: View {
     // MARK: Lock screen
 
     private var circular: some View {
-        Gauge(value: Double(total), in: 0 ... Double(max(target ?? 1, 1))) {
+        Gauge(value: snapshot?.waterFraction ?? 0, in: 0 ... 1) {
             Image(systemName: "drop.fill")
         } currentValueLabel: {
             Text(snapshot?.waterFraction.map { "\(Int(($0 * 100).rounded()))" } ?? "--")
@@ -152,7 +156,7 @@ struct WaterWidgetView: View {
             }
             .font(Tide.bodyStrong)
             .widgetAccentable()
-            Gauge(value: Double(total), in: 0 ... Double(max(target ?? 1, 1))) { EmptyView() }
+            Gauge(value: snapshot?.waterFraction ?? 0, in: 0 ... 1) { EmptyView() }
                 .gaugeStyle(.accessoryLinearCapacity)
             Button(intent: LogWaterIntent(amountMl: Self.glassMl)) {
                 Text("+\(Self.glassMl) ml")

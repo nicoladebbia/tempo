@@ -72,10 +72,10 @@ struct NextWidgetView: View {
 
     private func icon(_ next: WidgetSnapshot.Next, size: CGFloat) -> some View {
         Image(systemName: next.kind.symbol)
-            .font(.system(size: size * 0.44, weight: .semibold))
+            .font(.tideGlyph(size * WidgetMetrics.glyphShare))
             .foregroundStyle(entry.mood.accent)
             .frame(width: size, height: size)
-            .background(entry.mood.accent.opacity(0.16), in: .rect(cornerRadius: size * 0.32, style: .continuous))
+            .background(entry.mood.accent.opacity(0.16), in: .rect(cornerRadius: size * WidgetMetrics.tileCorner, style: .continuous))
             .widgetAccentable()
             .accessibilityHidden(true)
     }

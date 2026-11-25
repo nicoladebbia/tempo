@@ -78,7 +78,7 @@ struct FocusTimerLiveActivity: Widget {
                         .font(Tide.numeral(Tide.numeralS * 0.8))
                         .monospacedDigit()
                         .foregroundStyle(tone)
-                        .frame(maxWidth: 48, alignment: .trailing)
+                        .frame(maxWidth: WidgetMetrics.compactClock, alignment: .trailing)
                 }
             } minimal: {
                 if state.isPaused {
@@ -109,7 +109,7 @@ private struct FocusReadout: View {
             ActivityReadout(label: "Left", tone: ActivityTone.focus) {
                 Text.countdown(to: state.phaseEndsAt)
                     .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 110, alignment: .trailing)
+                    .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)
             }
         }
     }
@@ -149,9 +149,9 @@ private struct FocusTimerLockScreenView: View {
 
     private var ring: some View {
         ZStack {
-            WidgetRing(progress: state.progress, color: tone, lineWidth: 5)
+            WidgetRing(progress: state.progress, color: tone, lineWidth: WidgetMetrics.activityRingLine)
             Image(systemName: state.isPaused ? "pause.fill" : "book.fill")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.tideGlyph(WidgetMetrics.activityRingGlyph))
                 .foregroundStyle(tone)
         }
         .frame(width: Tide.s10 + Tide.s2, height: Tide.s10 + Tide.s2)

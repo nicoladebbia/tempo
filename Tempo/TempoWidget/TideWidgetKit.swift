@@ -13,6 +13,39 @@
 import SwiftUI
 import WidgetKit
 
+// MARK: - WidgetMetrics
+
+/// The few sizes the widgets and activities need that `Tide` has no token for,
+/// named once here instead of repeated as numbers in each view.
+enum WidgetMetrics {
+    /// Glow radius behind a widget (two corners) and behind a lock-screen banner.
+    static let glowNear: CGFloat = 210
+    static let glowFar: CGFloat = 230
+    static let bannerGlow: CGFloat = 260
+    /// A symbol inside a square tile is this share of the tile; the tile's corner is `tileCorner`.
+    static let glyphShare: CGFloat = 0.44
+    static let tileCorner: CGFloat = 0.32
+    /// The unit beside a figure ("ml") is this share of the figure, never under `unitFloor`.
+    static let unitShare: CGFloat = 0.42
+    static let unitFloor: CGFloat = 11
+    /// The big symbol of an empty state, full size and compact.
+    static let emptyGlyph: CGFloat = 24
+    static let emptyGlyphCompact: CGFloat = 18
+    /// Widest a clock may be: in the island's compact slot, and in a lock-screen readout.
+    static let compactClock: CGFloat = 48
+    static let readoutClock: CGFloat = 110
+    /// The focus ring on the lock screen: stroke and the symbol inside.
+    static let activityRingLine: CGFloat = 5
+    static let activityRingGlyph: CGFloat = 15
+}
+
+extension Font {
+    /// A symbol sized in points, semibold, like the app's own icons.
+    static func tideGlyph(_ size: CGFloat) -> Font {
+        .system(size: size, weight: .semibold)
+    }
+}
+
 // MARK: - TideWidgetBackground
 
 /// The field behind a widget: the ink, lit by the day's mood from two corners.
@@ -24,11 +57,11 @@ struct TideWidgetBackground: View {
             Tide.ink
             RadialGradient(
                 colors: [mood.glowA.opacity(0.9), .clear],
-                center: .topLeading, startRadius: 0, endRadius: 230
+                center: .topLeading, startRadius: 0, endRadius: WidgetMetrics.glowFar
             )
             RadialGradient(
                 colors: [mood.glowB.opacity(0.75), .clear],
-                center: .bottomTrailing, startRadius: 0, endRadius: 210
+                center: .bottomTrailing, startRadius: 0, endRadius: WidgetMetrics.glowNear
             )
         }
     }
@@ -54,10 +87,12 @@ struct WidgetLabel: View {
     }
 
     var body: some View {
-        Text(text)
+        // Upper-cased here, not with `.textCase`: a widget measures the text
+        // before the case change, so a tight region (the Dynamic Island's
+        // trailing column) cut the last letter off "SETS".
+        Text(text.uppercased())
             .font(Tide.label)
             .tracking(1.1)
-            .textCase(.uppercase)
             .foregroundStyle(color)
             .lineLimit(1)
             .minimumScaleFactor(Tide.labelShrink)
@@ -82,7 +117,7 @@ struct WidgetFigure: View {
                 .contentTransition(.numericText())
             if let unit {
                 Text(unit)
-                    .font(.system(size: max(11, size * 0.42), weight: .semibold))
+                    .font(.tideGlyph(max(WidgetMetrics.unitFloor, size * WidgetMetrics.unitShare)))
                     .foregroundStyle(Tide.text2)
             }
         }
@@ -218,7 +253,7 @@ struct WidgetEmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tide.s2) {
             Image(systemName: symbol)
-                .font(.system(size: compact ? 18 : 24, weight: .semibold))
+                .font(.tideGlyph(compact ? WidgetMetrics.emptyGlyphCompact : WidgetMetrics.emptyGlyph))
                 .foregroundStyle(TideMood.neutral.accent)
                 .widgetAccentable()
             Spacer(minLength: 0)
