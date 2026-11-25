@@ -357,7 +357,10 @@ struct MindQuadrantDetailView: View {
 
     private var startSessionButton: some View {
         Button {
-            focusModel = AccountabilityViewModel(engine: services.accountabilityEngine)
+            // The timer needs today's tasks loaded: without them its Start button does nothing.
+            let model = AccountabilityViewModel(engine: services.accountabilityEngine)
+            model.loadToday(modelContext: modelContext)
+            focusModel = model
         } label: {
             Label("Start study session", systemImage: "play.fill")
         }
