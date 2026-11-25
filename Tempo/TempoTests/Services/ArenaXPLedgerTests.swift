@@ -179,7 +179,7 @@ final class ArenaXPLedgerTests: XCTestCase {
         _ = finishedWorkout(on: day(0))
         try? context.save()
         let summary = sync()
-        XCTAssertGreaterThanOrEqual(summary.days.count, ArenaXPLedger.alwaysSentDays)
+        XCTAssertEqual(summary.days.count, ArenaXPLedger.maxDaysBack)
         XCTAssertEqual(summary.days.first?.day, ArenaCalendar.dayKey(now, calendar: calendar))
         XCTAssertEqual(summary.days.first?.workouts, 1)
         XCTAssertEqual(summary.days.map(\.xp).reduce(0, +), summary.totalXP)

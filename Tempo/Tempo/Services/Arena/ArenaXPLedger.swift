@@ -102,6 +102,9 @@ enum ArenaXPLedger {
         var newlyEarned: [String]
         /// XP by day key, every day with any.
         var xpByDay: [String: Int]
+        /// True when the user's records could not be read this time. Nothing was
+        /// changed and nothing should be sent to friends: the numbers are not real.
+        var isPartial = false
 
         func xp(in weekStart: Date, calendar: Calendar = ArenaCalendar.calendar()) -> Int {
             (0 ..< 7).reduce(0) { total, offset in
@@ -111,10 +114,9 @@ enum ArenaXPLedger {
         }
     }
 
-    /// How many recent days are always sent, even at zero, so a day that lost
-    /// its XP (an undone workout) is corrected on the server too.
-    static let alwaysSentDays = 14
-    /// The server only keeps this many days back.
+    /// The server only keeps this many days back. All of them are sent every time,
+    /// even at zero, so a day that lost its XP (an undone workout) is corrected on
+    /// the server too; the server makes no row for an empty day.
     static let maxDaysBack = 62
     /// The server's own per-day caps; sending more would be refused.
     static let maxXPPerDay = 5000
@@ -170,12 +172,12 @@ enum ArenaXPLedger {
     // MARK: - Reading the user's records
 
     @MainActor
-    static func records(in context: ModelContext, calendar: Calendar = ArenaCalendar.calendar()) -> Records {
+    static func records(in context: ModelContext, calendar: Calendar = ArenaCalendar.calendar()) throws -> Records {
         var records = Records()
 
-        let workouts = (try? context.fetch(FetchDescriptor<WorkoutPlan>(
+        let workouts = try context.fetch(FetchDescriptor<WorkoutPlan>(
             predicate: #Predicate { $0.statusRaw == "completed" }
-        ))) ?? []
+        ))
         records.workouts = workouts.map { plan in
             let day = calendar.startOfDay(for: plan.date)
             return Records.Workout(
@@ -187,10 +189,10 @@ enum ArenaXPLedger {
             )
         }
 
-        let meals = (try? context.fetch(FetchDescriptor<MealLog>())) ?? []
+        let meals = try context.fetch(FetchDescriptor<MealLog>())
         records.meals = meals.map { Records.Meal(day: calendar.startOfDay(for: $0.dayDate), slot: $0.mealTypeRaw) }
 
-        let sessions = (try? context.fetch(FetchDescriptor<StudySession>())) ?? []
+        let sessions = try context.fetch(FetchDescriptor<StudySession>())
         records.studySessions = sessions.filter { $0.durationMinutes > 0 }.map {
             Records.Study(
                 day: calendar.startOfDay(for: $0.startTime), start: $0.startTime,
@@ -198,7 +200,7 @@ enum ArenaXPLedger {
             )
         }
 
-        let days = (try? context.fetch(FetchDescriptor<DailyAccountability>())) ?? []
+        let days = try context.fetch(FetchDescriptor<DailyAccountability>())
         records.taskDays = days.map { Records.TaskDay(day: calendar.startOfDay(for: $0.date), allDone: $0.allComplete) }
         return records
     }
@@ -215,7 +217,23 @@ enum ArenaXPLedger {
         now: Date = Date(),
         calendar: Calendar = ArenaCalendar.calendar()
     ) -> Summary {
-        let records = records(in: context, calendar: calendar)
+        // A read that fails must not look like an empty history: that would wipe every
+        // XP row, zero the profile and tell friends. Leave everything as it is instead.
+        let records: Records
+        let existing: [XPEvent]
+        let achievements: [Achievement]
+        do {
+            records = try Self.records(in: context, calendar: calendar)
+            existing = try context.fetch(FetchDescriptor<XPEvent>())
+            achievements = try context.fetch(FetchDescriptor<Achievement>())
+        } catch {
+            let profile = (try? context.fetch(FetchDescriptor<UserProfile>()))?.first
+            return Summary(
+                totalXP: profile?.totalXP ?? 0, level: profile?.currentLevel ?? 1,
+                today: ArenaCalendar.dayKey(now, calendar: calendar), days: [], newlyEarned: [],
+                xpByDay: [:], isPartial: true
+            )
+        }
         let activity = activity(from: records, calendar: calendar)
 
         // XP the days are worth, by day and source.
@@ -247,12 +265,10 @@ enum ArenaXPLedger {
 
         // Rows the ledger does not own (none are written today) still count.
         let owned = Set([XPSource.workout, .meal, .study, .nonNegotiable, .achievement].map(\.rawValue))
-        let existing = (try? context.fetch(FetchDescriptor<XPEvent>())) ?? []
         let foreignXP = existing.filter { !owned.contains($0.sourceRaw) }.reduce(0) { $0 + $1.amount }
         let activityXP = desired.values.reduce(0) { $0 + $1.amount }
 
         // Achievements: earned ones stay earned; new ones come from the records.
-        let achievements = (try? context.fetch(FetchDescriptor<Achievement>())) ?? []
         let tracked = achievements.filter { ArenaAchievementTracker.isTracked($0.badgeID) }
         let streak = overallStreak(in: context)
         let longestStreak = max(streak?.longestCount ?? 0, streak?.currentCount ?? 0)
@@ -374,9 +390,6 @@ enum ArenaXPLedger {
             let xp = xpByDay[key] ?? 0
             let workouts = activityDay?.workouts ?? 0
             let minutes = activityDay?.studyMinutes ?? 0
-            guard offset < alwaysSentDays || xp > 0 || workouts > 0 || minutes > 0 else {
-                continue
-            }
             days.append(ArenaStatsDayDTO(
                 day: key, xp: min(xp, maxXPPerDay), workouts: min(workouts, maxWorkoutsPerDay),
                 studyMinutes: min(minutes, maxStudyMinutesPerDay)

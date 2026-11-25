@@ -32,12 +32,13 @@ enum ArenaSync {
     static func push(
         _ summary: ArenaXPLedger.Summary, context: ModelContext, services: ServiceContainer, force: Bool = false
     ) async {
-        guard case .authenticated = services.authService.authState else {
+        guard case let .authenticated(userID) = services.authService.authState else {
             return
         }
         let name = (try? context.fetch(FetchDescriptor<UserProfile>()))?.first?.displayName
         await ArenaService.push(
             summary,
+            userID: userID,
             displayName: name,
             streakDays: ArenaXPLedger.streakDays(in: context),
             apiClient: services.apiClient,

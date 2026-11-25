@@ -95,15 +95,14 @@ private struct ArenaConnectModifier: ViewModifier {
                     pendingToken = nil
                 }
             }
-            // Signed in, or back in front: write today's XP and tell the server.
+            // At launch, on signing in, and back in front: write the XP the records are worth
+            // (Settings, the Watch and the export read it, signed in or not), then tell the
+            // server, which only happens when signed in.
             .task(id: isSignedIn) {
-                guard isSignedIn else {
-                    return
-                }
-                await ArenaSync.runFromRoot(context: modelContext, services: services)
+                await ArenaSync.run(context: modelContext, services: services)
             }
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .active, isSignedIn else {
+                guard phase == .active else {
                     return
                 }
                 Task { await ArenaSync.runFromRoot(context: modelContext, services: services) }

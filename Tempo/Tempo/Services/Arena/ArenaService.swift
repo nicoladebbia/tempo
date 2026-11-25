@@ -110,29 +110,43 @@ final class ArenaService {
 
     // MARK: - Share totals
 
-    /// The last totals the server accepted, so an identical push is skipped.
-    private static var lastPushed: ArenaStatsRequestDTO?
+    /// The last totals the server accepted, and for whom, so an identical push is
+    /// skipped. Another account on the same phone starts from nothing.
+    private static var lastPushed: (userID: String, body: ArenaStatsRequestDTO)?
+    /// The push in progress. Pushes run one after another, in the order they were
+    /// asked for, so an older body can never land after a newer one.
+    private static var inFlight: Task<Void, Never>?
 
     /// Sends the user's own totals so friends' boards and challenges show real
     /// numbers. Static because it also runs from the app root, where no Arena
     /// screen (and so no instance) exists. Skips a push that would repeat the last one.
     static func push(
-        _ summary: ArenaXPLedger.Summary, displayName: String?, streakDays: Int,
+        _ summary: ArenaXPLedger.Summary, userID: String, displayName: String?, streakDays: Int,
         apiClient: APIClient, force: Bool = false
     ) async {
+        // Records that could not be read are not the user's real numbers.
+        guard !summary.isPartial else {
+            return
+        }
         let body = ArenaStatsRequestDTO(
             displayName: displayName, level: summary.level, xpTotal: summary.totalXP,
             streakDays: streakDays, days: summary.days
         )
-        guard force || body != lastPushed else {
-            return
+        let previous = inFlight
+        let task = Task {
+            await previous?.value
+            guard force || lastPushed?.userID != userID || lastPushed?.body != body else {
+                return
+            }
+            do {
+                _ = try await apiClient.request(APIEndpoint<ArenaStatsResponseDTO>.putArenaStats(), body: body)
+                lastPushed = (userID, body)
+            } catch {
+                // Not shown: the next sync sends it again.
+            }
         }
-        do {
-            _ = try await apiClient.request(APIEndpoint<ArenaStatsResponseDTO>.putArenaStats(), body: body)
-            lastPushed = body
-        } catch {
-            // Not shown: the next sync sends it again.
-        }
+        inFlight = task
+        await task.value
     }
 
     // MARK: - Invite link
