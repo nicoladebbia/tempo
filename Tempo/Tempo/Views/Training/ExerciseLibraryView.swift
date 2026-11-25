@@ -26,7 +26,7 @@ struct ExerciseLibraryView: View {
     @Environment(\.dynamicTypeSize)
     private var typeSize
     @State
-    private var searchText = ""
+    private var searchText: String
     @State
     private var selectedMuscleGroup: MuscleGroup?
     @State
@@ -34,6 +34,11 @@ struct ExerciseLibraryView: View {
     /// §10.6 — custom exercise creation sheet.
     @State
     private var showCreateExercise = false
+
+    /// `initialSearch` opens the library already searching (from app search).
+    init(initialSearch: String = "") {
+        _searchText = State(initialValue: initialSearch)
+    }
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg

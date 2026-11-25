@@ -27,6 +27,12 @@ struct TrainingTabView: View {
     private var showSettings = false
     @State
     private var opened = 0
+    /// The page open inside Train. Search sets it through `requestedTrain`.
+    @State
+    private var path: [TrainDestination] = []
+    /// The exercise search opened the library on.
+    @State
+    private var librarySearch = ""
 
     var body: some View {
         // The session (view model and its screens) is owned by the app, not
@@ -34,7 +40,7 @@ struct TrainingTabView: View {
         @Bindable
         var session = services.workoutSession
         let viewModel = session.viewModel
-        return NavigationStack {
+        return NavigationStack(path: $path) {
             TodayWorkoutView(
                 viewModel: viewModel,
                 showActiveWorkout: $session.showActiveWorkout,
@@ -56,6 +62,9 @@ struct TrainingTabView: View {
                     .accessibilityLabel("Settings")
                 }
             }
+            .navigationDestination(for: TrainDestination.self) { page in
+                destination(page, viewModel: viewModel)
+            }
             .tideCovered(showAwayMode || showSettings)
             .sheet(isPresented: $showAwayMode) {
                 AwayModeSheet(viewModel: viewModel)
@@ -68,6 +77,19 @@ struct TrainingTabView: View {
             }
         }
         .sensoryFeedback(.selection, trigger: opened)
+        // Search asked for a page here: open it, then clear the request.
+        .onChange(of: path) { _, path in
+            if path.isEmpty {
+                librarySearch = ""
+            }
+        }
+        .onChange(of: services.appState.requestedTrain, initial: true) { _, request in
+            guard let request else {
+                return
+            }
+            services.appState.requestedTrain = nil
+            open(request)
+        }
         .onReceive(
             // Tier 3.3 — re-personalize the training week when the schedule
             // inputs change (football days / split edited in TrainingSettingsDetailView).
@@ -85,26 +107,45 @@ struct TrainingTabView: View {
         .persistenceAlert()
     }
 
+    // MARK: - Pages
+
+    @ViewBuilder
+    private func destination(_ page: TrainDestination, viewModel: TrainingViewModel) -> some View {
+        switch page {
+        case .weekPlan: WeekPlanView(viewModel: viewModel)
+        case .routines: RoutinesView(viewModel: viewModel)
+        case .trainerProgram: TrainerProgramView()
+        case .exerciseLibrary: ExerciseLibraryView(initialSearch: librarySearch)
+        case .progress: ProgressChartsView()
+        // Away mode is a sheet, not a page; the menu opens it directly.
+        case .awayMode: EmptyView()
+        }
+    }
+
+    private func open(_ request: TrainRoute) {
+        if request.page == .awayMode {
+            path = []
+            showAwayMode = true
+            return
+        }
+        librarySearch = request.exercise ?? ""
+        path = [request.page]
+    }
+
     // MARK: - Toolbar
 
     /// Everything else in Train: plan, routines, library, progress, history.
     private func moreMenu(viewModel: TrainingViewModel) -> some View {
         Menu {
-            NavigationLink {
-                WeekPlanView(viewModel: viewModel)
-            } label: {
+            NavigationLink(value: TrainDestination.weekPlan) {
                 Label("Week Plan", systemImage: "calendar")
             }
 
-            NavigationLink {
-                RoutinesView(viewModel: viewModel)
-            } label: {
+            NavigationLink(value: TrainDestination.routines) {
                 Label("My Routines", systemImage: "list.bullet.rectangle")
             }
 
-            NavigationLink {
-                TrainerProgramView()
-            } label: {
+            NavigationLink(value: TrainDestination.trainerProgram) {
                 Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
             }
 
@@ -114,15 +155,11 @@ struct TrainingTabView: View {
                 Label("Away from the gym", systemImage: "airplane")
             }
 
-            NavigationLink {
-                ExerciseLibraryView()
-            } label: {
+            NavigationLink(value: TrainDestination.exerciseLibrary) {
                 Label("Exercise Library", systemImage: "books.vertical")
             }
 
-            NavigationLink {
-                ProgressChartsView()
-            } label: {
+            NavigationLink(value: TrainDestination.progress) {
                 Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
             }
         } label: {
