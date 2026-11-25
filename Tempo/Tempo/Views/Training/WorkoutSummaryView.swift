@@ -72,6 +72,9 @@ struct WorkoutSummaryView: View {
                 // Stats
                 statsCard
 
+                // A picture of the session to send to a friend.
+                shareWorkoutButton
+
                 // What to do next: saves the session, closes this page, then goes there.
                 NextStepBar(place: .workoutSummary) { step in
                     Task {
@@ -225,6 +228,7 @@ struct WorkoutSummaryView: View {
                     TrainSessionRule()
                 }
                 HStack(spacing: Tide.s3) {
+                    HStack(spacing: Tide.s3) {
                     VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(pr.exercise?.name ?? "Exercise")
                             .font(Tide.bodyStrong)
@@ -245,8 +249,21 @@ struct WorkoutSummaryView: View {
                     Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
                         .font(TideTrain.figure(.title3))
                         .foregroundStyle(TideTrain.record)
+                    }
+                    .accessibilityElement(children: .combine)
+
+                    Button {
+                        shareRecord(pr)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel("Share this record")
+                    .accessibilityIdentifier("summary.shareRecord")
                 }
-                .accessibilityElement(children: .combine)
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -300,6 +317,37 @@ struct WorkoutSummaryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5, radius: Tide.tileRadius)
+    }
+
+    // MARK: - Share
+
+    private var shareWorkoutButton: some View {
+        Button {
+            ShareCard.present(
+                TrainShare.workoutCard(
+                    title: viewModel.todayPlan.map { "\($0.type.displayName) day" } ?? "Workout",
+                    elapsedSeconds: viewModel.elapsedSeconds,
+                    exercises: viewModel.performedExercises,
+                    sets: viewModel.completedSets,
+                    volumeKg: viewModel.totalVolume
+                )
+            )
+        } label: {
+            Label("Share workout", systemImage: "square.and.arrow.up")
+        }
+        .buttonStyle(.tideGlass)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("summary.shareWorkout")
+    }
+
+    private func shareRecord(_ record: PersonalRecord) {
+        ShareCard.present(
+            TrainShare.recordCard(
+                record,
+                unit: viewModel.weightUnit,
+                before: TrainShare.previousBest(of: record)
+            )
+        )
     }
 
     // MARK: - Trainer Adjustments (§4)
