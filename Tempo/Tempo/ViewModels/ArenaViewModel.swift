@@ -38,8 +38,8 @@ final class ArenaViewModel {
     var todayXP = 0
     var totalXP = 0
     var level = 1
-    var levelTitle = "Recruit"
-    var nextLevelTitle = "Recruit II"
+    var levelTitle = String(localized: "Recruit")
+    var nextLevelTitle = String(localized: "Recruit II")
     var xpProgress = 0.0
     var xpForNextLevel = 100
     var streakDays = 0

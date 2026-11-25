@@ -1,0 +1,760 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ / %lld g" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "%@ g" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "%@ kcal" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ kcal"
+          }
+        }
+      }
+    },
+    "%@ kcal · P %@ g" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ kcal · P %@ g"
+          }
+        }
+      }
+    },
+    "%@ ml" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ml"
+          }
+        }
+      }
+    },
+    "%@ of %@ kcal" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ di %@ kcal"
+          }
+        }
+      }
+    },
+    "%@ of %@ ml" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ di %@ ml"
+          }
+        }
+      }
+    },
+    "%@ of %@ tasks done" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ di %@ attività completate"
+          }
+        }
+      }
+    },
+    "%@ of %lld kilocalories" : {
+      "extractionState" : "automatic"
+    },
+    "%@/%@" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "%lld" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "%lld millilitres" : {
+      "extractionState" : "automatic"
+    },
+    "%lld ml added. %@ ml today." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ml aggiunti. Oggi: %@ ml."
+          }
+        }
+      }
+    },
+    "%lld ml added. %@ of %@ ml today." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld ml aggiunti. Oggi: %@ su %@ ml."
+          }
+        }
+      }
+    },
+    "%lld of %lld" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld di %lld"
+          }
+        }
+      }
+    },
+    "%lld of %lld millilitres" : {
+      "extractionState" : "automatic"
+    },
+    "%lld of %lld sets" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld di %lld serie"
+          }
+        }
+      }
+    },
+    "%lld of %lld tasks done" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld di %lld attività completate"
+          }
+        }
+      }
+    },
+    "%lld out of 100" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld su 100"
+          }
+        }
+      }
+    },
+    "%lld/%lld" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "+%@ ml" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@ ml"
+          }
+        }
+      }
+    },
+    "+%lld ml" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld ml"
+          }
+        }
+      }
+    },
+    "--" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "Add %lld millilitres of water" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi %lld millilitri d'acqua"
+          }
+        }
+      }
+    },
+    "Add a glass." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi un bicchiere."
+          }
+        }
+      }
+    },
+    "Adds water to today's total and to Apple Health, without opening Tempo." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiunge acqua al totale di oggi e all'app Salute, senza aprire Tempo."
+          }
+        }
+      }
+    },
+    "Amount (ml)" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quantità (ml)"
+          }
+        }
+      }
+    },
+    "Behind" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In ritardo"
+          }
+        }
+      }
+    },
+    "Calories" : {
+      "extractionState" : "automatic"
+    },
+    "Calories, protein, carbs and fat against today's targets." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calorie, proteine, carboidrati e grassi rispetto agli obiettivi di oggi."
+          }
+        }
+      }
+    },
+    "Carbs" : {
+      "extractionState" : "automatic"
+    },
+    "Day" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giorno"
+          }
+        }
+      }
+    },
+    "Day %@ · %@" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Punteggio %@ · %@"
+          }
+        }
+      }
+    },
+    "Day %lld · %@" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Punteggio %lld · %@"
+          }
+        }
+      }
+    },
+    "Day score" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Punteggio del giorno"
+          }
+        }
+      }
+    },
+    "Day score: none yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Punteggio del giorno: ancora nessuno"
+          }
+        }
+      }
+    },
+    "Fat" : {
+      "extractionState" : "automatic"
+    },
+    "Focus" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Focus"
+          }
+        }
+      }
+    },
+    "Fuel" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cibo"
+          }
+        }
+      }
+    },
+    "Left" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimanente"
+          }
+        }
+      }
+    },
+    "Log ${amountMl} ml of water" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra ${amountMl} ml di acqua"
+          }
+        }
+      }
+    },
+    "Log a meal and your macros appear here." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra un pasto e qui compaiono i tuoi macro."
+          }
+        }
+      }
+    },
+    "Log water" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Registra acqua"
+          }
+        }
+      }
+    },
+    "Macros" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Macro"
+          }
+        }
+      }
+    },
+    "Next up" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prossimo"
+          }
+        }
+      }
+    },
+    "Next up: nothing yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prossimo: ancora niente"
+          }
+        }
+      }
+    },
+    "Next up: open Tempo to set up your day" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prossimo: apri Tempo per impostare la giornata"
+          }
+        }
+      }
+    },
+    "No meals yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessun pasto"
+          }
+        }
+      }
+    },
+    "No score yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessun punteggio"
+          }
+        }
+      }
+    },
+    "No target yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessun obiettivo"
+          }
+        }
+      }
+    },
+    "No water yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora niente acqua"
+          }
+        }
+      }
+    },
+    "Nothing queued yet" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora niente in coda"
+          }
+        }
+      }
+    },
+    "Off track" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuori rotta"
+          }
+        }
+      }
+    },
+    "On pace" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In linea"
+          }
+        }
+      }
+    },
+    "Open Tempo to set today's target." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri Tempo per impostare l'obiettivo di oggi."
+          }
+        }
+      }
+    },
+    "Open Tempo to set up your day." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri Tempo per impostare la giornata."
+          }
+        }
+      }
+    },
+    "P %@ · C %@ · F %@ g" : {
+      "extractionState" : "automatic",
+      "shouldTranslate" : false
+    },
+    "Paused" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In pausa"
+          }
+        }
+      }
+    },
+    "Protein" : {
+      "extractionState" : "automatic"
+    },
+    "Rest" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riposo"
+          }
+        }
+      }
+    },
+    "Rest · next: %@" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupero · poi: %@"
+          }
+        }
+      }
+    },
+    "Resting · %@" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recupero · %@"
+          }
+        }
+      }
+    },
+    "Run" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corsa"
+          }
+        }
+      }
+    },
+    "Session" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessione"
+          }
+        }
+      }
+    },
+    "Session %lld of %lld" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessione %lld di %lld"
+          }
+        }
+      }
+    },
+    "Sets" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie"
+          }
+        }
+      }
+    },
+    "Tasks" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attività"
+          }
+        }
+      }
+    },
+    "Tempo could not start. Open Tempo once and try again." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile avviare Tempo. Apri Tempo una volta e riprova."
+          }
+        }
+      }
+    },
+    "The one thing to do now: your session, your next meal or your next task." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'unica cosa da fare adesso: la tua sessione, il prossimo pasto o la prossima attività."
+          }
+        }
+      }
+    },
+    "The water could not be saved. Try again." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile salvare l'acqua. Riprova."
+          }
+        }
+      }
+    },
+    "Time" : {
+      "extractionState" : "automatic"
+    },
+    "Timer" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer"
+          }
+        }
+      }
+    },
+    "Today's water, and a button to add a glass." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'acqua di oggi e un pulsante per aggiungere un bicchiere."
+          }
+        }
+      }
+    },
+    "Water" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acqua"
+          }
+        }
+      }
+    },
+    "Water %@ ml" : {
+      "extractionState" : "automatic"
+    },
+    "Water %@ of %@ ml" : {
+      "extractionState" : "automatic"
+    },
+    "Water today" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acqua di oggi"
+          }
+        }
+      }
+    },
+    "Your score for today, and what is left to do." : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo punteggio di oggi e cosa resta da fare."
+          }
+        }
+      }
+    },
+    "ml" : {
+      "extractionState" : "automatic"
+    },
+    "of %@ kcal" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "su %@ kcal"
+          }
+        }
+      }
+    },
+    "of %@ ml" : {
+      "extractionState" : "automatic",
+      "localizations" : {
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "su %@ ml"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

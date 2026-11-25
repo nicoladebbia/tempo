@@ -1,0 +1,100 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Log water in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Log water in ${applicationName}",
+              "Add water in ${applicationName}",
+              "I drank water in ${applicationName}"
+            ]
+          }
+        },
+        "it" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Registra acqua in ${applicationName}",
+              "Aggiungi acqua in ${applicationName}",
+              "Ho bevuto acqua in ${applicationName}"
+            ]
+          }
+        }
+      }
+    },
+    "Start focus in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Start focus in ${applicationName}",
+              "Start a focus timer in ${applicationName}"
+            ]
+          }
+        },
+        "it" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Inizia Focus in ${applicationName}",
+              "Avvia un timer Focus in ${applicationName}"
+            ]
+          }
+        }
+      }
+    },
+    "Start my workout in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "Start my workout in ${applicationName}",
+              "Start workout in ${applicationName}"
+            ]
+          }
+        },
+        "it" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Inizia il mio allenamento in ${applicationName}",
+              "Avvia allenamento in ${applicationName}"
+            ]
+          }
+        }
+      }
+    },
+    "What's next in ${applicationName}" : {
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringSet" : {
+            "state" : "new",
+            "values" : [
+              "What's next in ${applicationName}",
+              "What is next in ${applicationName}"
+            ]
+          }
+        },
+        "it" : {
+          "stringSet" : {
+            "state" : "translated",
+            "values" : [
+              "Cosa c'è dopo in ${applicationName}",
+              "Qual è il prossimo passo in ${applicationName}"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

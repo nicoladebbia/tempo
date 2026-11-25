@@ -1,0 +1,199 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo Dev"
+          }
+        }
+      },
+      "shouldTranslate" : false
+    },
+    "NSCalendarsFullAccessUsageDescription" : {
+      "comment" : "Privacy - Calendars Full Access Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo reads your calendar to avoid scheduling workouts during classes and football practice, and to identify study blocks for your accountability targets."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo legge il tuo calendario per evitare di pianificare allenamenti durante le lezioni e gli allenamenti di calcio, e per individuare i blocchi di studio per i tuoi obiettivi di disciplina."
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription" : {
+      "comment" : "Privacy - Camera Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo uses the camera to scan food barcodes, photograph products and nutrition labels, scan grocery receipts for your pantry, photograph your trainer's workout program, and take progress photos that stay on your phone."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo usa la fotocamera per scansionare i codici a barre degli alimenti, fotografare prodotti ed etichette nutrizionali, scansionare gli scontrini della spesa per la tua dispensa, fotografare la scheda di allenamento del tuo trainer e scattare foto dei progressi che restano sul tuo telefono."
+          }
+        }
+      }
+    },
+    "NSHealthShareUsageDescription" : {
+      "comment" : "Privacy - Health Share Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo reads your health data (steps, heart rate, HRV, sleep, workouts, body weight, height, age and sex) to calculate your daily score, adapt your training plan to your recovery, track your progress automatically, and prefill your nutrition profile."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo legge i tuoi dati di salute (passi, frequenza cardiaca, HRV, sonno, allenamenti, peso corporeo, altezza, età e sesso) per calcolare il punteggio del giorno, adattare il piano di allenamento al tuo recupero, seguire i tuoi progressi in automatico e precompilare il tuo profilo nutrizionale."
+          }
+        }
+      }
+    },
+    "NSHealthUpdateUsageDescription" : {
+      "comment" : "Privacy - Health Update Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo writes your completed workouts (with calories and distance) and nutrition data to HealthKit so your health record stays complete across all your apps."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo scrive in HealthKit i tuoi allenamenti completati (con calorie e distanza) e i dati di nutrizione, così i tuoi dati di salute restano completi in tutte le tue app."
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Privacy - Location When In Use Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo uses your location to provide weather-aware hydration targets and workout recommendations, to track distance and pace during a guided run, and to tell meals eaten at home from eating out (your home spot stays on this phone)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo usa la tua posizione per darti obiettivi di idratazione e consigli di allenamento in base al meteo, per tracciare distanza e passo durante una corsa guidata e per distinguere i pasti mangiati a casa da quelli fuori (il luogo di casa tua resta su questo telefono)."
+          }
+        }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Privacy - Microphone Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo uses your microphone so you can talk instead of typing: describe your week for your meal plan, log meals, or dictate pantry items."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo usa il microfono così puoi parlare invece di scrivere: descrivi la tua settimana per il piano dei pasti, registra i pasti o detta gli articoli della dispensa."
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryUsageDescription" : {
+      "comment" : "Privacy - Photo Library Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo reads product and nutrition-label photos, receipts and your trainer's workout programs from your photo library to import them."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo legge dalla tua libreria foto le foto di prodotti ed etichette nutrizionali, gli scontrini e le schede del tuo trainer per importarli."
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription" : {
+      "comment" : "Privacy - Reminders Full Access Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo can save your weekly grocery list to Reminders so you can check items off while shopping."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo può salvare la tua lista della spesa settimanale in Promemoria, così puoi spuntare gli articoli mentre fai la spesa."
+          }
+        }
+      }
+    },
+    "NSRemindersUsageDescription" : {
+      "comment" : "Privacy - Reminders Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo can save your weekly grocery list to Reminders so you can check items off while shopping."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo può salvare la tua lista della spesa settimanale in Promemoria, così puoi spuntare gli articoli mentre fai la spesa."
+          }
+        }
+      }
+    },
+    "NSSpeechRecognitionUsageDescription" : {
+      "comment" : "Privacy - Speech Recognition Usage Description",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Tempo turns what you say into text on your device, so you can set up your meal plan, log meals and add pantry items without typing."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo trasforma in testo quello che dici direttamente sul tuo dispositivo, così puoi impostare il piano dei pasti, registrare i pasti e aggiungere articoli alla dispensa senza scrivere."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}
