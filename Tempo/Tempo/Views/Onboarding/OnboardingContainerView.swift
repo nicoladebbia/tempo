@@ -10,9 +10,9 @@ import SwiftUI
 
 // MARK: - OnboardingContainerView
 
-// Per BUILD_PLAN step 16.1 — PageView-style container for 11 onboarding steps.
+// Six steps: hook, goal, sign in, about you, permissions, ready.
 // Per WIREFRAMES.md Screen 44 — Progress bar, dark mode, full-bleed layout.
-// Per STATE_MACHINES.md Section 10 — "Show then ask" flow with back navigation and skip.
+// Per STATE_MACHINES.md Section 10 — "Show then ask" flow with back navigation.
 
 struct OnboardingContainerView: View {
     @Environment(ServiceContainer.self)
@@ -24,9 +24,9 @@ struct OnboardingContainerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Progress: hidden during splash, valueDemo and complete.
-            if showsProgress {
-                progressBar
+            // Progress: hidden on the hook and on the last screen.
+            if let position = viewModel.currentStep.progressPosition {
+                progressBar(position: position)
                     .padding(.top, Tide.s2)
                     .transition(.opacity)
             }
@@ -46,40 +46,16 @@ struct OnboardingContainerView: View {
             viewModel.onComplete = {
                 services.appState.isOnboardingComplete = true
             }
-            // Auto-advance splash after 1.8s
-            if viewModel.currentStep == .splash {
-                Task {
-                    try? await Task.sleep(for: .seconds(1.8))
-                    viewModel.advance()
-                }
-            }
         }
-    }
-
-    private var showsProgress: Bool {
-        viewModel.currentStep != .splash && viewModel.currentStep != .valueDemo && viewModel.currentStep != .complete
-    }
-
-    /// The steps the bar counts: everything between the hook and the finish.
-    private var visibleSteps: [OnboardingStep] {
-        OnboardingStep.allCases.filter { $0 != .splash && $0 != .valueDemo && $0 != .complete }
-    }
-
-    /// 1-based place of the current step among the counted ones.
-    private var visiblePosition: Int {
-        (visibleSteps.firstIndex(of: viewModel.currentStep) ?? 0) + 1
-    }
-
-    private var visibleProgress: Double {
-        Double(visiblePosition) / Double(max(visibleSteps.count, 1))
     }
 
     // MARK: - Progress Bar
 
     // A slim Tide level bar with the back button on its left.
 
-    private var progressBar: some View {
-        HStack(spacing: Tide.s3) {
+    private func progressBar(position: Int) -> some View {
+        let total = viewModel.progressSteps.count
+        return HStack(spacing: Tide.s3) {
             if viewModel.canGoBack {
                 Button {
                     viewModel.goBack()
@@ -94,24 +70,24 @@ struct OnboardingContainerView: View {
                 .accessibilityLabel("Back")
             }
 
-            TideLevelBar(progress: visibleProgress, height: Tide.barSlim)
+            TideLevelBar(progress: Double(position) / Double(max(total, 1)), height: Tide.barSlim)
                 .background(Tide.fill, in: .capsule)
-                .animation(Tide.settle, value: visibleProgress)
+                .animation(Tide.settle, value: position)
                 .accessibilityLabel("Setup progress")
 
             HStack(spacing: 0) {
-                Text("\(visiblePosition)")
+                Text("\(position)")
                     .font(Tide.numeral(counterSize, .bold))
                     .foregroundStyle(Tide.text)
                     .contentTransition(.numericText())
-                    .animation(Tide.snap, value: visiblePosition)
-                Text(" / \(visibleSteps.count)")
+                    .animation(Tide.snap, value: position)
+                Text(" / \(total)")
                     .font(Tide.numeral(counterSize, .medium))
                     .foregroundStyle(Tide.text3)
             }
             .fixedSize()
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Step \(visiblePosition) of \(visibleSteps.count)")
+            .accessibilityLabel("Step \(position) of \(total)")
         }
         .frame(minHeight: Tide.hit)
         .padding(.horizontal, Tide.edge)
@@ -122,44 +98,16 @@ struct OnboardingContainerView: View {
     @ViewBuilder
     private var stepContent: some View {
         switch viewModel.currentStep {
-        case .splash:
-            OnboardingSplashView(viewModel: viewModel)
         case .valueDemo:
             ValueDemoView(onContinue: { viewModel.advance() })
         case .goals:
             GoalSetupView(viewModel: viewModel)
-        case .healthkit:
-            HealthKitPermissionView(viewModel: viewModel)
         case .auth:
             OnboardingAuthView(viewModel: viewModel)
-        case .profile:
+        case .aboutYou:
             ProfileSetupView(viewModel: viewModel)
-        case .identity:
-            IdentitySetupView(viewModel: viewModel)
-        case .trainingSetup:
-            TrainingSetupView(viewModel: viewModel)
-        case .academicSetup:
-            AcademicSetupView(viewModel: viewModel)
-        case .dailyRhythm:
-            DailyRhythmView(viewModel: viewModel)
-        case .classSchedule:
-            ClassScheduleView(viewModel: viewModel)
-        case .eatingWindow:
-            EatingWindowView(viewModel: viewModel)
-        case .studyPreferences:
-            StudyPreferencesView(viewModel: viewModel)
-        case .trainingPreferences:
-            TrainingPreferencesView(viewModel: viewModel)
-        case .weekendMode:
-            WeekendModeView(viewModel: viewModel)
-        case .whoopConnect:
-            WhoopConnectView(viewModel: viewModel)
-        case .notifications:
-            NotificationSetupView(viewModel: viewModel)
-        case .tosAccept:
-            TermsAcceptanceView(viewModel: viewModel)
-        case .aiConsent:
-            AIConsentView(viewModel: viewModel)
+        case .permissions:
+            PermissionsSetupView(viewModel: viewModel)
         case .complete:
             OnboardingCompleteView(viewModel: viewModel)
         }

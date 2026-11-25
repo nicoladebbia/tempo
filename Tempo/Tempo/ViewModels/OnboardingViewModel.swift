@@ -12,8 +12,9 @@ import SwiftUI
 // MARK: - OnboardingViewModel
 
 // Per STATE_MACHINES.md Section 10 — "show then ask" flow with persistence.
-// Per BUILD_PLAN step 16.1 — State machine with UserDefaults persistence.
-// Reordered: splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→notifications→complete
+// Six steps: hook, goal, sign in (with the terms), about you, permissions, ready.
+// Everything else is asked later, in the place it is needed; the answers that used to be
+// collected here start from the defaults below.
 
 @Observable
 @MainActor
@@ -29,14 +30,24 @@ final class OnboardingViewModel {
     var isAnimatingTransition = false
 
     // Profile data
-    var displayName: String = ""
+    var displayName: String = "" {
+        didSet {
+            // The handle follows the name until the person types in the handle field.
+            if !usernameEdited {
+                username = Self.suggestedUsername(from: displayName)
+            }
+        }
+    }
+
     var username: String = ""
+    /// The person typed their own handle: stop suggesting one from the name.
+    var usernameEdited = false
 
     // Identity ("What best describes you?")
     var identityLabel: String = OnboardingViewModel.identityLabels[0]
 
     /// Canonical, ordered identity options. Single source of truth shared by
-    /// the onboarding picker and any future surface that needs the list.
+    /// the onboarding picker and Settings > Profile.
     static let identityLabels: [String] = [
         "Athlete", "Student", "Student-Athlete", "Coach", "Personal Trainer",
         "Bodybuilder", "Runner", "Cyclist", "Swimmer", "Combat Sports",
@@ -45,21 +56,20 @@ final class OnboardingViewModel {
         "Parent", "Retiree", "General Fitness",
     ]
 
-    // Training data
-    var doesTrain: Bool?
-    var trainingTypes: Set<String> = []
+    // Training defaults. Onboarding no longer asks: these are what a person who tapped through
+    // the old training step got (4 days a week, so Upper/Lower; no experience level, so the
+    // strength model treats them as a beginner). Both are set in Settings > Training.
     var daysPerWeek: Int = 4
     var preferredSplit: String?
     var experienceLevel: String?
 
-    // Academic data
-    var university: String = ""
-    var yearOfStudy: String?
-
     // MARK: - Daily plan profile (per INTELLIGENCE_REMEDIATION_PLAN.md §8)
 
-    /// Wake time as minutes-from-midnight. Default 07:00. Captured in the
-    /// `.dailyRhythm` step.
+    // Not asked any more: each field keeps the default below and the Ready step saves it, so
+    // the daily-plan engine, the meal planner and the reminders read the same row as before.
+    // Wake time and bedtime live in Settings > Schedule, the eating window in Settings > Diet
+    // Profile, the training time in Settings > Training, the study length in Settings > Focus Timer.
+
     var wakeTimeMinutes: Int = 7 * 60
 
     /// Target nightly sleep duration in hours. Default 8.0.
@@ -89,85 +99,64 @@ final class OnboardingViewModel {
 
     var weekendDifferential: WeekendDifferential = .lateWake
 
-    // Goals data
-    var primaryGoal: String?
-    var studyTarget: Int = 120
-    var mealTarget: Int = 4
-    var timeWasters: Set<String> = []
-    var eveningStartTime: Date = {
-        var components = DateComponents()
-        components.hour = 19
-        components.minute = 30
-        return Calendar.current.date(from: components) ?? Date()
-    }()
+    // Goal
+    var primaryGoal: PrimaryGoal?
 
-    // Integration states
-    var whoopConnected: Bool = false
+    // Permissions
     var healthkitGranted: Bool = false
     var notificationsGranted: Bool = false
-    /// User has ticked the "I agree to the Terms of Service and Privacy
-    /// Policy" checkbox in the `.tosAccept` onboarding step. The Continue
-    /// button stays disabled until this is true. Per
-    /// LAUNCH_PUNCH_LIST.md §3.5.
-    var tosAccepted: Bool = false
-    var tosAcceptError: String?
 
-    /// User chose to enable AI features in the onboarding aiConsent step.
-    /// Per AI_INTELLIGENCE_ENGINE.md §11.3.
-    var aiConsentGranted: Bool = false
-    var aiConsentError: String?
+    /// The "I agree to the Terms of Service and Privacy Policy" checkbox on the sign-in step.
+    /// Sign in with Apple stays disabled until it is ticked. Per LAUNCH_PUNCH_LIST.md §3.5.
+    var tosAccepted: Bool = false
+    /// The server has the acceptance (it answers 451 until it does). Saved, so going back to
+    /// the sign-in step never asks twice.
+    var tosRecorded: Bool = false
+    var tosAcceptError: String?
 
     var onComplete: (() -> Void)?
 
     // MARK: - Computed
 
-    var totalSteps: Int {
-        OnboardingStep.allCases.count
-    }
-
-    var stepNumber: Int {
-        currentStep.stepNumber
-    }
-
-    var progress: Double {
-        Double(currentStep.stepNumber) / Double(totalSteps)
+    /// Steps the progress bar counts: everything between the hook and the finish.
+    var progressSteps: [OnboardingStep] {
+        OnboardingStep.countedSteps
     }
 
     var canGoBack: Bool {
-        currentStep != .splash && currentStep != .auth && currentStep != .complete
+        currentStep != .valueDemo && currentStep != .complete
     }
 
     var canContinue: Bool {
         switch currentStep {
-        case .splash,
-             .valueDemo,
-             .auth,
-             .identity:
+        case .valueDemo,
+             .permissions,
+             .complete:
             true
-        case .profile:
-            !displayName.trimmingCharacters(in: .whitespaces).isEmpty &&
-                !username.trimmingCharacters(in: .whitespaces).isEmpty
-        case .trainingSetup,
-             .academicSetup,
-             .dailyRhythm,
-             .classSchedule,
-             .eatingWindow,
-             .studyPreferences,
-             .trainingPreferences,
-             .weekendMode:
-            true // Optional steps
         case .goals:
             primaryGoal != nil
-        case .whoopConnect,
-             .healthkit,
-             .notifications,
-             .aiConsent:
-            true // Optional steps
-        case .tosAccept:
+        case .auth:
             tosAccepted
-        case .complete:
-            true
+        case .aboutYou:
+            !displayName.trimmingCharacters(in: .whitespaces).isEmpty && Self.isValidUsername(username)
         }
+    }
+
+    /// 3 to 30 letters, numbers or underscores.
+    static func isValidUsername(_ raw: String) -> Bool {
+        let username = raw.trimmingCharacters(in: .whitespaces)
+        guard (3 ... 30).contains(username.count) else {
+            return false
+        }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
+        return username.unicodeScalars.allSatisfy { allowed.contains($0) }
+    }
+
+    /// A handle to start from, made from a name: "Nicola De Bbia" becomes "nicoladebbia".
+    static func suggestedUsername(from name: String) -> String {
+        let allowed = CharacterSet.alphanumerics
+        let letters = name.lowercased().unicodeScalars.filter { allowed.contains($0) }
+        return String(String.UnicodeScalarView(letters).prefix(30))
     }
 
     // MARK: - Init
@@ -175,17 +164,12 @@ final class OnboardingViewModel {
     // Per STATE_MACHINES.md — Resume from last completed step on kill.
 
     init() {
-        if let savedStep = UserDefaults.standard.string(forKey: "tempo.onboarding.step"),
-           let step = OnboardingStep(rawValue: savedStep)
-        {
-            currentStep = step
-        } else if UserDefaults.standard.string(forKey: "tempo.onboarding.step") != nil {
-            // Migration: saved step doesn't match any valid case (e.g. removed "arena").
-            // Reset to splash so user re-starts onboarding cleanly.
-            currentStep = .splash
-            UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
+        let key = Self.stepKey
+        if let saved = UserDefaults.standard.string(forKey: key) {
+            // A step saved by the older 20-step flow moves to the nearest step of this one.
+            currentStep = OnboardingStep.resumed(fromSaved: saved)
         } else {
-            currentStep = .splash
+            currentStep = .valueDemo
         }
         loadPersistedData()
     }
@@ -217,7 +201,7 @@ final class OnboardingViewModel {
 
     func complete() {
         UserDefaults.standard.set(true, forKey: "tempo.onboarding.complete")
-        UserDefaults.standard.removeObject(forKey: "tempo.onboarding.step")
+        UserDefaults.standard.removeObject(forKey: Self.stepKey)
         // "tempo.onboarding.data" stays until ContentView has built the
         // profile from it (name, split, experience); it clears it then.
         onComplete?()
@@ -273,24 +257,33 @@ final class OnboardingViewModel {
     }
 
     /// Save the captured daily-plan profile to SwiftData as the ONE local
-    /// row. Upsert: re-entering the complete step (app killed on it, state
-    /// restoration) or re-running onboarding updates the newest existing row
-    /// in place and removes stray duplicates, so readers that take
-    /// `UserDailyPlanProfile.current(in:)` never see a stale eating window.
-    func persistDailyPlanProfile(in context: ModelContext) throws {
+    /// row. Re-entering the complete step (app killed on it, state restoration)
+    /// or re-running onboarding never leaves a duplicate: stray rows are removed,
+    /// so readers that take `UserDailyPlanProfile.current(in:)` see one row.
+    ///
+    /// `replacingExisting` decides what happens to a row that is already there.
+    /// The six-step onboarding no longer asks for the wake time, eating window or
+    /// schedule, so the finish screen passes `false` and keeps what the person
+    /// already set; the answers here are only defaults. Returns `true` when a new
+    /// row was made (the caller pushes it to the backend then).
+    @discardableResult
+    func persistDailyPlanProfile(in context: ModelContext, replacingExisting: Bool = true) throws -> Bool {
         let existing = (try? context.fetch(FetchDescriptor<UserDailyPlanProfile>(
             sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
         ))) ?? []
         guard let keep = existing.first else {
             context.insert(buildDailyPlanProfile())
             try context.save()
-            return
+            return true
         }
         for duplicate in existing.dropFirst() {
             context.delete(duplicate)
         }
-        apply(to: keep, in: context)
+        if replacingExisting {
+            apply(to: keep, in: context)
+        }
         try context.save()
+        return false
     }
 
     /// Overwrite `profile` with the in-memory onboarding state. Class / work
@@ -390,13 +383,13 @@ final class OnboardingViewModel {
 
     // MARK: - ToS Acceptance (LAUNCH_PUNCH_LIST.md §3.5)
 
-    /// Record the user's ToS+Privacy acceptance on the backend. Called from
-    /// the `.tosAccept` onboarding step. On success, advances the step.
-    /// On failure, sets `tosAcceptError` so the View can surface a retry.
+    /// Record the user's ToS+Privacy acceptance on the backend, right after Sign in with Apple
+    /// (the server answers 451 to everything else until it has it). On success, advances the
+    /// step. On failure, sets `tosAcceptError` so the View can surface a retry.
     @MainActor
     func submitToSAcceptance(apiClient: APIClient, isSignedIn: Bool = true) async {
         tosAcceptError = nil
-        if Self.skipsBackendForDebugBypass(isSignedIn: isSignedIn) {
+        if tosRecorded || Self.skipsBackendForDebugBypass(isSignedIn: isSignedIn) {
             advance()
             return
         }
@@ -406,35 +399,11 @@ final class OnboardingViewModel {
                 APIEndpoint<AcceptToSResponseDTO>.acceptToS(),
                 body: body
             )
+            tosRecorded = true
+            persistData()
             advance()
         } catch {
             tosAcceptError = Self.readableMessage(for: error)
-        }
-    }
-
-    // MARK: - AI Consent (AI_INTELLIGENCE_ENGINE.md §11.3)
-
-    /// Record the user's AI-data-sharing decision on the backend. Called from
-    /// the `.aiConsent` onboarding step. On success, advances the step.
-    /// On failure, sets `aiConsentError` so the View can surface a retry.
-    @MainActor
-    func setAIConsent(_ granted: Bool, apiClient: APIClient, isSignedIn: Bool = true) async {
-        aiConsentError = nil
-        if Self.skipsBackendForDebugBypass(isSignedIn: isSignedIn) {
-            aiConsentGranted = granted
-            advance()
-            return
-        }
-        do {
-            let body = AIConsentRequestDTO(consented: granted)
-            let _: AIConsentResponseDTO = try await apiClient.request(
-                APIEndpoint<AIConsentResponseDTO>.setAIConsent(),
-                body: body
-            )
-            aiConsentGranted = granted
-            advance()
-        } catch {
-            aiConsentError = Self.readableMessage(for: error)
         }
     }
 
@@ -460,8 +429,11 @@ final class OnboardingViewModel {
 
     // Per STATE_MACHINES.md — UserDefaults for step + data.
 
+    static let stepKey = "tempo.onboarding.step"
+    static let dataKey = "tempo.onboarding.data"
+
     private func persistStep() {
-        UserDefaults.standard.set(currentStep.rawValue, forKey: "tempo.onboarding.step")
+        UserDefaults.standard.set(currentStep.rawValue, forKey: Self.stepKey)
         persistData()
     }
 
@@ -478,16 +450,11 @@ final class OnboardingViewModel {
             "displayName": displayName,
             "username": username,
             "identityLabel": identityLabel,
-            "doesTrain": doesTrain ?? false,
-            "trainingTypes": Array(trainingTypes),
             "daysPerWeek": daysPerWeek,
             "preferredSplit": preferredSplit ?? "",
             "experienceLevel": experienceLevel ?? "",
-            "university": university,
-            "primaryGoal": primaryGoal ?? "",
-            "studyTarget": studyTarget,
-            "mealTarget": mealTarget,
-            "timeWasters": Array(timeWasters),
+            "primaryGoal": primaryGoal?.rawValue ?? "",
+            "tosRecorded": tosRecorded,
             // Daily plan profile fields.
             "wakeTimeMinutes": wakeTimeMinutes,
             "sleepTargetHours": sleepTargetHours,
@@ -509,26 +476,24 @@ final class OnboardingViewModel {
         if let termEndDate {
             data["termEndDate"] = termEndDate
         }
-        UserDefaults.standard.set(data, forKey: "tempo.onboarding.data")
+        UserDefaults.standard.set(data, forKey: Self.dataKey)
     }
 
     private func loadPersistedData() {
-        guard let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data") else {
+        guard let data = UserDefaults.standard.dictionary(forKey: Self.dataKey) else {
             return
         }
         displayName = data["displayName"] as? String ?? ""
         username = data["username"] as? String ?? ""
+        // A saved handle that is not the one the name would give was typed by the person.
+        usernameEdited = !username.isEmpty && username != Self.suggestedUsername(from: displayName)
         identityLabel = data["identityLabel"] as? String ?? OnboardingViewModel.identityLabels[0]
-        doesTrain = data["doesTrain"] as? Bool
-        trainingTypes = Set(data["trainingTypes"] as? [String] ?? [])
         daysPerWeek = data["daysPerWeek"] as? Int ?? 4
         preferredSplit = data["preferredSplit"] as? String
         experienceLevel = data["experienceLevel"] as? String
-        university = data["university"] as? String ?? ""
-        primaryGoal = data["primaryGoal"] as? String
-        studyTarget = data["studyTarget"] as? Int ?? 120
-        mealTarget = data["mealTarget"] as? Int ?? 4
-        timeWasters = Set(data["timeWasters"] as? [String] ?? [])
+        primaryGoal = PrimaryGoal(saved: data["primaryGoal"] as? String)
+        tosRecorded = data["tosRecorded"] as? Bool ?? false
+        tosAccepted = tosRecorded
         // Daily plan profile.
         wakeTimeMinutes = data["wakeTimeMinutes"] as? Int ?? wakeTimeMinutes
         sleepTargetHours = data["sleepTargetHours"] as? Double ?? sleepTargetHours
@@ -564,6 +529,7 @@ final class OnboardingViewModel {
     }
 }
 
+
 // MARK: - OnboardingClassBlock
 
 /// View-model representation of `ClassBlock`. Stays a value type so onboarding
@@ -589,85 +555,32 @@ struct OnboardingWorkBlock: Codable, Identifiable, Hashable {
     var label: String
 }
 
+
 // MARK: - OnboardingStep
 
 // "Show then ask" flow — demonstrate value before collecting data.
-// splash→valueDemo→goals→healthKit→auth→profile→training→academic→whoop→notifications→complete
+// valueDemo → goals → auth → aboutYou → permissions → complete
 
 enum OnboardingStep: String, Codable, CaseIterable {
-    case splash
     case valueDemo
     case goals
-    case healthkit
+    /// Sign in with Apple, with the Terms of Service and Privacy Policy checkbox. Required by
+    /// Apple Guideline 5.1.1 and GDPR Article 7. The backend gates all non-auth / non-tos routes
+    /// behind ToSGateMiddleware (451) until the acceptance is posted, which happens right
+    /// after sign-in. Per LAUNCH_PUNCH_LIST.md §3.5.
     case auth
-    case profile
-    /// "What best describes you?" — single identity label persisted to
-    /// UserProfile.identityLabel and surfaced in Settings.
-    case identity
-    case trainingSetup
-    case academicSetup
-    // ── Daily plan profile (INTELLIGENCE_REMEDIATION_PLAN.md §8) ──
-    /// Wake time + sleep target + chronotype.
-    case dailyRhythm
-    /// Term-bounded weekly class schedule + optional work shifts.
-    case classSchedule
-    /// Intermittent-fasting / eating-window preferences.
-    case eatingWindow
-    /// Pomodoro length + study session preferences.
-    case studyPreferences
-    /// Preferred training time of day.
-    case trainingPreferences
-    /// Weekend differential.
-    case weekendMode
-    // ──────────────────────────────────────────────
-    case whoopConnect
-    case notifications
-    /// Terms of Service + Privacy Policy acceptance. Required by Apple
-    /// Guideline 5.1.1 and GDPR Article 7. Backend gates all non-auth /
-    /// non-tos routes behind ToSGateMiddleware which returns 451 until
-    /// the user accepts. Per LAUNCH_PUNCH_LIST.md §3.5.
-    case tosAccept
-    /// AI data-sharing consent. Required by AI_INTELLIGENCE_ENGINE.md §11.3 and
-    /// gated by SubscriptionMiddleware on the backend — without consent every
-    /// AI route returns 402 ai_consent_required.
-    /// Per INTELLIGENCE_REMEDIATION_PLAN.md §4.6.
-    case aiConsent
+    /// Name, username and "what best describes you".
+    case aboutYou
+    /// Health, notifications and location, each optional.
+    case permissions
     case complete
 
-    var stepNumber: Int {
-        // Derived from declaration order so adding/reordering steps doesn't
-        // require touching this switch.
-        Self.allCases.firstIndex(of: self) ?? 0
-    }
+    /// The steps the progress bar counts: everything between the hook and the finish.
+    static let countedSteps: [OnboardingStep] = [.goals, .auth, .aboutYou, .permissions]
 
-    var isRequired: Bool {
-        switch self {
-        case .auth,
-             .profile,
-             .identity,
-             .goals: true
-        default: false
-        }
-    }
-
-    var isSkippable: Bool {
-        switch self {
-        case .healthkit,
-             .trainingSetup,
-             .academicSetup,
-             .dailyRhythm,
-             .classSchedule,
-             .eatingWindow,
-             .studyPreferences,
-             .trainingPreferences,
-             .weekendMode,
-             .whoopConnect,
-             .notifications,
-             .aiConsent:
-            true
-        default:
-            false
-        }
+    /// 1-based place among the counted steps; nil on the hook and the finish.
+    var progressPosition: Int? {
+        Self.countedSteps.firstIndex(of: self).map { $0 + 1 }
     }
 
     var next: OnboardingStep? {
@@ -684,5 +597,41 @@ enum OnboardingStep: String, Codable, CaseIterable {
             return nil
         }
         return all[idx - 1]
+    }
+
+    /// Where to resume from a saved step name. The older flow had 20 steps; whatever was saved
+    /// maps to the nearest step of this one. Every step after the goal and before the end goes
+    /// back to sign-in, because the terms are now accepted there and an older run may have
+    /// reached those steps without them (the sign-in step shows "already signed in" and only
+    /// asks for the checkbox).
+    static func resumed(fromSaved raw: String) -> OnboardingStep {
+        switch raw {
+        case "splash",
+             "valueDemo":
+            .valueDemo
+        case "goals":
+            .goals
+        case "aiConsent",
+             "complete":
+            .complete
+        case "healthkit",
+             "auth",
+             "profile",
+             "identity",
+             "trainingSetup",
+             "academicSetup",
+             "dailyRhythm",
+             "classSchedule",
+             "eatingWindow",
+             "studyPreferences",
+             "trainingPreferences",
+             "weekendMode",
+             "whoopConnect",
+             "notifications",
+             "tosAccept":
+            .auth
+        default:
+            OnboardingStep(rawValue: raw) ?? .valueDemo
+        }
     }
 }

@@ -31,6 +31,8 @@ extension Tide {
     static let settingsAvatarLarge: CGFloat = 88
     /// "Connected", "Authorized": a green that keeps its meaning whatever the mood is.
     static let settingsOK = success
+    /// "Needs attention": a warm amber, softer than the danger red.
+    static let settingsAttention = streak
     /// The danger zone's glass: the card ink with a push of red.
     static let settingsDangerGlass = danger.opacity(0.2)
     /// The ring in a settings hero (the day dial, the focus cycle), at the default text size.
@@ -474,5 +476,73 @@ extension SettingsModeCard where Extra == EmptyView {
             icon: icon, title: title, detail: detail, tint: tint,
             identifier: identifier, isDisabled: isDisabled, isOn: isOn
         ) { EmptyView() }
+    }
+}
+
+// MARK: - SettingsConnectionCard
+
+/// One outside service on the Connections page: its mark, its name, a status
+/// pill, a line about it and exactly one button. At accessibility sizes the
+/// parts stack so nothing truncates.
+struct SettingsConnectionCard: View {
+    let icon: String
+    let title: String
+    let statusText: String
+    let statusColor: Color
+    let detail: String
+    let buttonTitle: String
+    /// The request is in flight: the button shows a spinner and waits.
+    var isBusy = false
+    /// What went wrong the last time the button was pressed.
+    var errorText: String?
+    /// Identifier for the button, where a test drives it.
+    var identifier: String?
+    let action: () -> Void
+
+    @Environment(\.tideMood)
+    private var mood
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSettingsRowLine {
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: icon, tint: statusColor == Tide.settingsOK ? mood.accent : Tide.text3, size: Tide.settingsBigTile)
+                    Text(title)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } trailing: {
+                SettingsStatusPill(text: statusText, color: statusColor)
+            }
+
+            Text(detail)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let errorText {
+                Label(errorText, systemImage: "exclamationmark.triangle.fill")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+
+            Button(action: action) {
+                HStack(spacing: Tide.s2) {
+                    if isBusy {
+                        ProgressView()
+                    }
+                    Text(buttonTitle)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tideGlass)
+            .disabled(isBusy)
+            .accessibilityIdentifier(identifier ?? "connectionButton")
+        }
+        .tideCard(padding: Tide.s5, radius: Tide.cardRadius)
+        .accessibilityElement(children: .contain)
     }
 }

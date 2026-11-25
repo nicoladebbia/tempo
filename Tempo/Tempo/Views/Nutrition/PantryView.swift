@@ -259,7 +259,7 @@ struct PantryView: View {
                     }
                 }
             }
-            if state.items.count > 0 {
+            if !state.items.isEmpty {
                 KitchenShelfBar(parts: [
                     .init(id: "stocked", value: Double(max(state.items.count - soon, 0)), color: mood.accent),
                     .init(id: "soon", value: Double(soon), color: Tide.Kitchen.warn),

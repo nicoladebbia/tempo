@@ -94,6 +94,16 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
     }
 
     func refreshState() async {
+        #if DEBUG
+            // Simulator QA: `-debugPlan trial|active|cancelled|grace|expired|free`.
+            if let name = UserDefaults.standard.string(forKey: "debugPlan"),
+               let sample = SubscriptionState.debugSample(named: name)
+            {
+                state = sample
+                return
+            }
+        #endif
+
         var latestTransaction: StoreKit.Transaction?
         var latestDate: Date = .distantPast
 
@@ -111,12 +121,31 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
             }
         }
 
+        // The renewal status also covers a subscription that is no longer an
+        // entitlement (payment retrying, ended), which `currentEntitlements` omits.
+        let status = await newestRenewalStatus()
+        var renewal = StoreEntitlement.Renewal.unknown
+        if let status, latestTransaction == nil || status.transaction.purchaseDate >= latestDate {
+            latestTransaction = status.transaction
+            renewal = status.renewal
+        } else if let status, let latest = latestTransaction, status.transaction.id == latest.id {
+            renewal = status.renewal
+        }
+
         guard let transaction = latestTransaction else {
             state = .free
             return
         }
 
-        updateState(from: transaction)
+        state = SubscriptionState.resolve(
+            StoreEntitlement(
+                productId: transaction.productID,
+                purchaseDate: transaction.purchaseDate,
+                expirationDate: transaction.expirationDate,
+                isIntroOffer: transaction.offer?.type == .introductory,
+                renewal: renewal
+            )
+        )
     }
 
     // MARK: - Helpers
@@ -153,44 +182,47 @@ final class SubscriptionService: SubscriptionServiceProtocol, @unchecked Sendabl
         }
     }
 
-    private func updateState(from transaction: StoreKit.Transaction) {
-        let productId = transaction.productID
-        let now = Date()
-
-        // Check if in trial
-        if let offer = transaction.offer, offer.type == .introductory,
-           let expirationDate = transaction.expirationDate,
-           expirationDate > now
-        {
-            state = .trial(startDate: transaction.purchaseDate, endDate: expirationDate)
-            return
+    /// The newest of our subscriptions in the App Store's renewal list, with
+    /// where it stands: renewing, renewal off, payment problem, ended.
+    private func newestRenewalStatus() async -> (transaction: StoreKit.Transaction, renewal: StoreEntitlement.Renewal)? {
+        guard let groupID = products.first?.subscription?.subscriptionGroupID,
+              let statuses = try? await Product.SubscriptionInfo.status(for: groupID)
+        else {
+            return nil
         }
-
-        // Check if active
-        if let expirationDate = transaction.expirationDate, expirationDate > now {
-            // Check for grace period (revocation date present means billing issue)
-            if transaction.revocationDate != nil {
-                state = .gracePeriod(productId: productId, graceEndDate: expirationDate)
-            } else {
-                let isAutoRenewing = transaction.expirationDate != nil
-                    && transaction.revocationDate == nil
-                state = .active(
-                    productId: productId,
-                    expirationDate: expirationDate,
-                    isAutoRenewing: isAutoRenewing
-                )
+        var newest: (transaction: StoreKit.Transaction, renewal: StoreEntitlement.Renewal)?
+        for status in statuses {
+            guard let transaction = try? checkVerified(status.transaction),
+                  productIds.contains(transaction.productID)
+            else {
+                continue
             }
-            return
+            if let current = newest, current.transaction.purchaseDate >= transaction.purchaseDate {
+                continue
+            }
+            newest = (transaction, renewal(for: status))
         }
+        return newest
+    }
 
-        // Expired
-        let expiredAt = transaction.expirationDate ?? now
-        let daysSinceExpiry = Calendar.current.dateComponents([.day], from: expiredAt, to: now).day ?? 0
-
-        if daysSinceExpiry > 30 {
-            state = .churned(lastProductId: productId, expiredAt: expiredAt)
-        } else {
-            state = .expired(lastProductId: productId, expiredAt: expiredAt)
+    private func renewal(for status: Product.SubscriptionInfo.Status) -> StoreEntitlement.Renewal {
+        let info = try? checkVerified(status.renewalInfo)
+        switch status.state {
+        case .subscribed:
+            guard let info else {
+                return .unknown
+            }
+            return info.willAutoRenew ? .willRenew : .willNotRenew
+        case .inGracePeriod:
+            return .gracePeriod(until: info?.gracePeriodExpirationDate)
+        case .inBillingRetryPeriod:
+            return .billingRetry
+        case .revoked:
+            return .revoked
+        case .expired:
+            return .expired
+        default:
+            return .unknown
         }
     }
 

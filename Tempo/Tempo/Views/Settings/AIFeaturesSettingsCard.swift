@@ -29,8 +29,8 @@ struct AIFeaturesSettingsCard: View {
             isDisabled: isSaving,
             isOn: binding
         ) {
-            Text(errorMessage ?? "They send what you type or snap to Tempo's AI. Turn off to keep everything "
-                + "on the device. Needs Tempo Pro.")
+            Text(errorMessage ?? "They send what you type or snap, and the data they need, to Anthropic's AI. It is "
+                + "never used to train their models. Turn off to keep everything on the device. Needs Tempo Pro.")
                 .font(Tide.caption)
                 .foregroundStyle(errorMessage == nil ? Tide.text2 : Tide.danger)
                 .fixedSize(horizontal: false, vertical: true)

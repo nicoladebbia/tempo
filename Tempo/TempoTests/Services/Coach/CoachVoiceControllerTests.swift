@@ -40,10 +40,4 @@ final class CoachVoiceControllerTests: XCTestCase {
         await stub.start()
         XCTAssertEqual(stub.transcribedText, "")
     }
-
-    func testInlinePillSource_tabLabels() {
-        XCTAssertEqual(CoachInlinePillSource.training.tabLabel, "Training")
-        XCTAssertEqual(CoachInlinePillSource.nutritionToday.tabLabel, "Nutrition Today")
-        XCTAssertEqual(CoachInlinePillSource.recovery.tabLabel, "Recovery")
-    }
 }

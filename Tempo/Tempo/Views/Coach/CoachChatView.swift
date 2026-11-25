@@ -6,8 +6,8 @@
 //
 // Owns the transcript, the input bar, and the budget banner. Binds to
 // CoachViewModel for state. Calls into the VM for sendMessage / undo /
-// endConversation. Caller (Phase 7c CoachTabView) wires in the system
-// prompt by assembling fresh on every tap via CoachContextAssembler.
+// endConversation. `CoachChat` wires in the system prompt by assembling
+// fresh on every send via CoachContextAssembler.
 //
 // Drawn in Tide: Coach talks in glass bubbles, you talk in accent-filled
 // ones, and the input bar floats in glass over the transcript.
@@ -23,7 +23,7 @@ import SwiftUI
 struct CoachChatView: View {
     @Bindable var viewModel: CoachViewModel
     /// System prompt builder invoked at send-time. The owning view
-    /// (Phase 7c CoachTabView) injects a closure that calls
+    /// (`CoachChat`) injects a closure that calls
     /// CoachContextAssembler with the live context.
     let systemPromptBuilder: () -> String
     /// Three empty-state seed prompts (mix: simple / deeper / preference-teach
@@ -292,6 +292,18 @@ struct CoachChatView: View {
                 .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: Tide.s2)
+            if viewModel.canRetry {
+                Button("Retry") {
+                    Task {
+                        await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                    }
+                }
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
+                .accessibilityIdentifier("coachRetryButton")
+            }
             Button {
                 viewModel.pendingError = nil
             } label: {

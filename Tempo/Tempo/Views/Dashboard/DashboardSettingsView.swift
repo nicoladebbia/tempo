@@ -6,7 +6,6 @@
 //
 //
 
-import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -59,11 +58,8 @@ struct DashboardSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
-    @State private var showPaywall = false
-    @State private var isRestoring = false
-    @State private var restoreError: String?
-    /// Refreshed on appear — location auth can change in iOS Settings while away.
-    @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
+    /// The server's answer about the plan, shared with the Subscription page.
+    @State private var plan = PlanModel()
 
     var body: some View {
         TideSettingsPage {
@@ -97,18 +93,6 @@ struct DashboardSettingsView: View {
                     SettingsNavRow(icon: "bolt.fill", title: "Modes", subtitle: modesSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
-            }
-
-            SettingsGroupCard(title: "Connections") {
-                NavigationLink {
-                    WhoopConnectionView()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "waveform.path.ecg", title: "Whoop",
-                        status: whoopStatusText, statusColor: whoopStatusColor
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
 
                 NavigationLink {
                     FuelSetupView(embedded: true)
@@ -130,50 +114,50 @@ struct DashboardSettingsView: View {
                 }
                 .buttonStyle(.tideSettingsRow)
                 .accessibilityIdentifier("settingsWeeklyHabits")
-
-                Button {
-                    openSystemSettings()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "heart.text.square", title: "HealthKit",
-                        status: healthKitStatusText, statusColor: healthKitStatusColor,
-                        showsChevron: false
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
-
-                Button {
-                    openSystemSettings()
-                } label: {
-                    SettingsStatusRow(
-                        icon: "cloud.sun.fill", title: "Weather (Location)",
-                        status: locationStatusText, statusColor: locationStatusColor,
-                        showsChevron: false
-                    )
-                }
-                .buttonStyle(.tideSettingsRow)
             }
-            .onAppear { locationStatus = CLLocationManager().authorizationStatus }
 
-            SettingsGroupCard(title: "Notifications & plan") {
+            SettingsGroupCard(title: "Connections & alerts") {
+                NavigationLink {
+                    ConnectionsView()
+                } label: {
+                    SettingsStatusRow(
+                        icon: "link", title: "Connections",
+                        status: connectionsSummary, statusColor: connectionsSummaryColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsConnections")
+
+                NavigationLink {
+                    NotificationInboxView(onOpen: { dismiss() })
+                } label: {
+                    SettingsStatusRow(
+                        icon: "tray.fill", title: "Today's notifications",
+                        status: inboxStatus, statusColor: inboxStatusColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotificationInbox")
+
                 NavigationLink {
                     NotificationSettingsView()
                 } label: {
                     SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
                 }
                 .buttonStyle(.tideSettingsRow)
-
-                NavigationLink {
-                    SubscriptionDetailView()
-                } label: {
-                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
-                }
-                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotifications")
             }
 
             AIFeaturesSettingsCard()
 
             SettingsGroupCard(title: "Account & data") {
+                NavigationLink {
+                    SubscriptionDetailView(plan: plan)
+                } label: {
+                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
+                }
+                .buttonStyle(.tideSettingsRow)
+
                 NavigationLink {
                     AccountDetailView()
                 } label: {
@@ -265,10 +249,8 @@ struct DashboardSettingsView: View {
         } message: {
             Text(deleteAccountError ?? "")
         }
-        .tideCovered(showPaywall)
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-        }
+        .task { await plan.refresh(apiClient: services.apiClient) }
+        .task { await NotificationInbox.shared.refresh() }
     }
 
     // MARK: - Profile Header Card
@@ -323,37 +305,6 @@ struct DashboardSettingsView: View {
         .buttonStyle(TideSettingsCardPressStyle())
     }
 
-    // MARK: - Subscription Card
-
-    private var subscriptionCard: some View {
-        SettingsGroupCard(title: "Subscription") {
-            SettingsInfoRow(
-                label: "Plan",
-                value: subscriptionStatusText,
-                icon: "crown.fill",
-                iconTint: services.subscriptions.isPro ? mood.accent : Tide.text2,
-                valueColor: services.subscriptions.isPro ? mood.accent : Tide.text2
-            )
-
-            if !services.subscriptions.isPro {
-                Button {
-                    showPaywall = true
-                } label: {
-                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: mood.accent)
-                }
-                .buttonStyle(.tideSettingsRow)
-            }
-
-            Button {
-                Task { await restorePurchases() }
-            } label: {
-                SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: Tide.text)
-            }
-            .buttonStyle(.tideSettingsRow)
-            .disabled(isRestoring)
-        }
-    }
-
     // MARK: - Live Summary Subtitles
 
     private func timeString(fromMinutes minutes: Int) -> String {
@@ -401,15 +352,33 @@ struct DashboardSettingsView: View {
         return active.isEmpty ? "None active" : active.joined(separator: " · ")
     }
 
+    /// The level the reminder switches add up to, and quiet hours when they are on.
     private var notificationsSubtitle: String {
-        // Mirrors IntensityOption titles in NotificationSettingsView (1…4).
-        switch settings?.notificationIntensity {
-        case 1: "Gentle Coach"
-        case 2: "Firm Coach"
-        case 3: "Drill Sergeant"
-        case 4: "Savage Mode"
-        default: "Default"
+        guard let settings else {
+            return "Default"
         }
+        let policy = NotificationPolicy(settings: settings)
+        let level = policy.level?.title ?? "Custom"
+        guard let quiet = policy.quietHours else {
+            return level
+        }
+        return "\(level) · quiet \(Self.clock(quiet.startMinutes))–\(Self.clock(quiet.endMinutes))"
+    }
+
+    private static func clock(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
+    private var inboxStatus: String {
+        let inbox = NotificationInbox.shared
+        if inbox.items.isEmpty {
+            return "None today"
+        }
+        return inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "All read"
+    }
+
+    private var inboxStatusColor: Color {
+        NotificationInbox.shared.unreadCount > 0 ? mood.accent : Tide.text2
     }
 
     /// 0...1 toward the next level, worked out the way the Arena does it.
@@ -424,44 +393,10 @@ struct DashboardSettingsView: View {
         return "Lvl \(level) · \(xpStr)"
     }
 
-    private func openSystemSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-    }
-
     // MARK: - Subscription
 
     private var subscriptionStatusText: String {
-        switch services.subscriptions.state {
-        case .free:
-            "Free"
-        case .trial:
-            "Pro · Trial"
-        case .active:
-            "Pro"
-        case .gracePeriod:
-            "Pro · Billing issue"
-        case .expired,
-             .churned:
-            "Expired"
-        }
-    }
-
-    @MainActor
-    private func restorePurchases() async {
-        guard !isRestoring else {
-            return
-        }
-        isRestoring = true
-        restoreError = nil
-        defer { isRestoring = false }
-
-        do {
-            try await services.subscriptions.restorePurchases()
-        } catch {
-            restoreError = error.localizedDescription
-        }
+        plan.status(device: services.subscriptions.state).title
     }
 
     #if DEBUG
@@ -529,25 +464,6 @@ struct DashboardSettingsView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    private var whoopStatusText: String {
-        switch services.whoop.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .error: "Error"
-        case .disconnected: "Not Connected"
-        }
-    }
-
-    private var whoopStatusColor: Color {
-        if case .connected = services.whoop.connectionState {
-            return Tide.settingsOK
-        }
-        if case .error = services.whoop.connectionState {
-            return Tide.danger
-        }
-        return Tide.text3
-    }
-
     private var dietProfileStatusText: String {
         let descriptor = FetchDescriptor<DietaryProfile>(
             predicate: #Predicate { $0.isActive == true }
@@ -564,33 +480,21 @@ struct DashboardSettingsView: View {
         return count > 0 ? Tide.settingsOK : Tide.text3
     }
 
-    private var healthKitStatusText: String {
-        healthKitAuthorized ? "Authorized" : "Not Authorized"
+    /// What the Connections row says: how many are on, or what needs the user.
+    private var connectionsSummary: String {
+        ConnectionStatus.summary(connectionStatuses)
     }
 
-    private var healthKitStatusColor: Color {
-        healthKitAuthorized ? Tide.settingsOK : Tide.text3
-    }
-
-    private var locationStatusText: String {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: "Authorized"
-        case .denied,
-             .restricted: "Denied"
-        case .notDetermined: "Not Set Up"
-        @unknown default: "Not Set Up"
+    private var connectionsSummaryColor: Color {
+        switch ConnectionStatus.summaryTone(connectionStatuses) {
+        case .ok: Tide.settingsOK
+        case .off: Tide.text3
+        case .attention: Tide.settingsAttention
         }
     }
 
-    private var locationStatusColor: Color {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: Tide.settingsOK
-        case .denied,
-             .restricted: Tide.danger
-        default: Tide.text3
-        }
+    private var connectionStatuses: [ConnectionStatus] {
+        ConnectionsSnapshot.statuses(whoop: services.whoop, healthAsked: healthKitAuthorized)
     }
 }
 
@@ -811,6 +715,34 @@ struct ProfileSettingsDetailView: View {
             }
             SettingsRowDivider(underTitle: false)
             identityLabelRow
+            SettingsRowDivider(underTitle: false)
+            goalRow
+        }
+    }
+
+    /// The goal picked in onboarding, changeable here.
+    private var goalRow: some View {
+        SettingsControlRow(label: "Goal") {
+            Picker(
+                "Goal",
+                selection: Binding(
+                    get: { settings?.primaryGoal },
+                    set: { newValue in
+                        settings?.primaryGoal = newValue
+                        touch()
+                    }
+                )
+            ) {
+                Text("Not set").tag(PrimaryGoal?.none)
+                ForEach(PrimaryGoal.allCases, id: \.self) { goal in
+                    Text(goal.title).tag(PrimaryGoal?.some(goal))
+                }
+            }
+            .labelsHidden()
+            .font(Tide.bodyStrong)
+            .tint(Tide.text2)
+            .padding(typeSize.isAccessibilitySize ? .leading : .trailing, -Tide.s3)
+            .accessibilityIdentifier("settingsGoalPicker")
         }
     }
 

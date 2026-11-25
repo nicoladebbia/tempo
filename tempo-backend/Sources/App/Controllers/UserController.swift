@@ -41,6 +41,11 @@ struct UserController: RouteCollection {
             .sort(\.$expirationDate, .descending)
             .first()
 
+        // `isPro` must answer the way the Pro gates do (SubscriptionMiddleware):
+        // an active subscription OR the operator allowlist. Otherwise the app
+        // shows "Free" for an account every gate treats as Pro.
+        let allowlisted = try await ProEntitlement.isAllowlisted(userID: userID, on: req)
+
         let response = UserMeResponse(
             id: user.id ?? userID,
             displayName: user.displayName,
@@ -49,7 +54,7 @@ struct UserController: RouteCollection {
             xpTotal: user.xpTotal,
             level: user.level,
             streakDays: user.streakDays,
-            isPro: activeSub != nil,
+            isPro: activeSub != nil || allowlisted,
             productId: activeSub?.productId,
             subscriptionExpiresAt: activeSub?.expirationDate,
             aiConsentAt: user.aiConsentAt,
