@@ -132,6 +132,8 @@ struct FoodProductView: View {
                 .accessibilityLabel(isFavorite ? "Remove from favourites" : "Add to favourites")
             }
         }
+        // Before the bar, so the toast rests on it and the Add button stays where it is.
+        .tempoToast($toast)
         .safeAreaBar(edge: .bottom) {
             switch mode {
             case let .log(onAdd):
@@ -142,7 +144,6 @@ struct FoodProductView: View {
                 }
             }
         }
-        .tempoToast($toast)
         .task(id: product.id) {
             if recordsView {
                 catalog.recordView(product, in: modelContext)

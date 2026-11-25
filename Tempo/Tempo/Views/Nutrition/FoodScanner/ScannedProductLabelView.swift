@@ -13,6 +13,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - ScannedProductLabelView
+
 struct ScannedProductLabelView: View {
     let product: FoodProduct
     let catalog: FoodCatalog
@@ -89,12 +91,13 @@ struct ScannedProductLabelView: View {
         .kitchenPage()
         .scrollEdgeEffectStyle(.soft, for: .all)
         .accessibilityIdentifier("scannedProductLabel")
+        // Before the bar, so the toast rests on it and the action bar stays where it is.
+        .tempoToast($toast)
         .safeAreaBar(edge: .bottom) {
             FoodProductActionBar(product: product, grams: grams, toast: $toast) {
                 catalog.rememberPortion(grams, for: product, in: modelContext)
             }
         }
-        .tempoToast($toast)
         .task(id: product.id) {
             basis = .per100
             fitContext = FoodFitContext.loadToday(in: modelContext, whoopAvgTDEE: services.whoop.weeklyTDEEAverage)
@@ -261,7 +264,8 @@ struct ScannedProductLabelView: View {
         .frame(height: Tide.Kitchen.ringStroke)
         .clipShape(Capsule())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(split.slices.map { "\($0.label) \(Int(($0.percent * 100).rounded())) percent of calories" }.joined(separator: ", "))
+        .accessibilityLabel(split.slices.map { "\($0.label) \(Int(($0.percent * 100).rounded())) percent of calories" }
+            .joined(separator: ", "))
     }
 
     private func macroTile(_ name: String, _ icon: String, _ value: Double?, _ color: Color) -> some View {
@@ -573,6 +577,8 @@ private struct FlowChips: View {
         }
     }
 }
+
+// MARK: - WrapLayout
 
 private struct WrapLayout: Layout {
     var spacing: CGFloat

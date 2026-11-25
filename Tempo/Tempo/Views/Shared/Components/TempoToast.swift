@@ -176,6 +176,11 @@ struct ToastModifier: ViewModifier {
     /// The last toast shown: drawn (invisible, not tappable) while its room is held after `toast` clears.
     @State
     private var last: ToastData?
+    /// When the toast on screen first showed. The timer is a task, and a page that is covered (a pushed
+    /// screen, another tab) cancels it: when the page comes back the toast has only what is left of its
+    /// time, or goes at once if that has run out, without a second haptic or announcement.
+    @State
+    private var shownAt: (id: UUID, at: Date)?
 
     private var displayed: ToastData? {
         toast ?? last
@@ -191,6 +196,12 @@ struct ToastModifier: ViewModifier {
                 await follow()
             }
             .modifier(ToastPresenceMark(isUp: displayed != nil))
+            // A covered page keeps no empty gap for a toast that is already gone.
+            .onDisappear {
+                if toast == nil {
+                    last = nil
+                }
+            }
     }
 
     @ViewBuilder
@@ -224,6 +235,7 @@ struct ToastModifier: ViewModifier {
                     Color.clear
                         .contentShape(.rect)
                         .onTapGesture {}
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.vertical, Tide.s2)
@@ -262,12 +274,21 @@ struct ToastModifier: ViewModifier {
             return
         }
         last = current
-        HapticManager.notification(current.style.haptic)
-        // A toast is not focused, so VoiceOver would never read it.
-        AccessibilityNotification.Announcement(current.spokenText).post()
+        var remaining = current.duration
+        if let started = shownAt, started.id == current.id {
+            // Back on a page that was covered: only what is left of its time.
+            remaining -= Date().timeIntervalSince(started.at)
+        } else {
+            shownAt = (current.id, Date())
+            HapticManager.notification(current.style.haptic)
+            // A toast is not focused, so VoiceOver would never read it.
+            AccessibilityNotification.Announcement(current.spokenText).post()
+        }
         // A toast with an action stays long enough to use it. A newer toast is never
         // dismissed by an older timer: this task is cancelled when the id changes.
-        try? await Task.sleep(for: .seconds(current.duration))
+        if remaining > 0 {
+            try? await Task.sleep(for: .seconds(remaining))
+        }
         guard !Task.isCancelled, toast?.id == current.id else {
             return
         }
