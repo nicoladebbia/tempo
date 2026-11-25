@@ -37,6 +37,8 @@ struct ScheduledNotification {
     var mealID: UUID?
 }
 
+// MARK: - MealReminderRequest
+
 /// One pre-meal reminder: fires at `fireDate` (15 min before the meal).
 struct MealReminderRequest: Equatable, Sendable {
     let mealID: UUID
@@ -161,6 +163,10 @@ protocol NotificationServiceProtocol: Sendable {
 
     func cancelAll()
     func cancelCategory(_ category: String)
+
+    /// Removes reminders that are already queued but the user's switches or quiet
+    /// hours no longer allow. Run after either changes.
+    func removePendingNotAllowedByPolicy() async
 }
 
 extension NotificationServiceProtocol {
@@ -168,4 +174,5 @@ extension NotificationServiceProtocol {
     func scheduleMealReminder(mealID _: UUID, mealName _: String, fireDate _: Date) {}
     func cancelMealReminder(mealID _: UUID) {}
     func replaceMealReminders(_: [MealReminderRequest]) {}
+    func removePendingNotAllowedByPolicy() async {}
 }

@@ -221,7 +221,7 @@ Backend: `AchievementController` implements `earned`, `available`, `check`, `pin
 
 Only the basic XP-earn float exists. `ArenaViewModel.load` sets `lastXPGainAmount` and `showXPGain = true` when `newTodayXP > previousTodayXP` and it is not the initial load. `ArenaMainView` renders a floating "+X XP" toast gated on `showXPGain`.
 
-> **Status: NOT IMPLEMENTED — the rest of §11.** No level-up animation, no streak-milestone animation, no achievement-unlock animation, no leaderboard rank-change animation, no challenge-win animation, and no sound system. No confetti / Lottie usage in `ArenaMainView` (Lottie is a listed dependency but not used here).
+> **Status: NOT IMPLEMENTED — the rest of §11.** No level-up animation, no streak-milestone animation, no achievement-unlock animation, no leaderboard rank-change animation, no challenge-win animation, and no sound system. No confetti / Lottie usage in `ArenaMainView` (Lottie was removed from the project on 2026-11-22, see `docs/DEPENDENCIES.md` §2.8; build these with SwiftUI animations or a Tide shader).
 
 ---
 

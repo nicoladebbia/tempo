@@ -70,11 +70,13 @@ struct TempoApp: App {
     private var coldLaunch = ColdLaunchActivation()
 
     init() {
+        TempoSignpost.launchBegan()
         do {
             // UI tests that need a first-run store (the app-group store
             // survives uninstalling the app) start from an empty in-memory one.
             let freshStore = ProcessInfo.processInfo.arguments.contains("--uitesting-empty-store")
             container = try TempoModelContainer.create(inMemory: freshStore)
+            TempoSignpost.mark("StoreOpened")
             if !ProcessInfo.processInfo.environment.keys.contains("XCTestBundlePath") {
                 try ExerciseLibraryLoader.loadIfNeeded(context: container.mainContext)
                 try AchievementLibrary.loadIfNeeded(context: container.mainContext)
@@ -124,7 +126,13 @@ struct TempoApp: App {
         #endif
         // ServiceContainer.live builds the APIClient itself so it can wire
         // the AuthInterceptor (Bearer-token attachment) at APIClient init.
+        TempoSignpost.mark("SeedsDone")
         let serviceContainer = ServiceContainer.live()
+        // Read the saved Today snapshot off the main thread now, so it is in
+        // memory by the time Today draws its first frame. After the container:
+        // a UI-test reset (AppState.init) clears the file first.
+        TodayLaunchSnapshot.begin()
+        TempoSignpost.mark("ServicesBuilt")
         // §22 — the watch action router needs a real ModelContext to act on
         // (mark a non-negotiable done, log a meal eaten, ...); wire it here,
         // immediately, using the SAME context `.modelContainer(container)`
@@ -179,11 +187,17 @@ struct TempoApp: App {
         UINavigationBar.appearance().standardAppearance = transparent
         UINavigationBar.appearance().scrollEdgeAppearance = transparent
         UINavigationBar.appearance().compactAppearance = transparent
+        TempoSignpost.mark("AppInitDone")
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Siri / Shortcuts / widget start requests and `tempo://` links.
+                .tempoSystemRequests()
+                // Invite links open in a sheet; friends' boards stay current.
+                // Before `.environment(services)`: the modifier reads it.
+                .arenaConnected()
                 .environment(services)
                 .task {
                     // Entitlement at launch + Transaction.updates listener.

@@ -21,6 +21,9 @@ default http://127.0.0.1:58080, the main checkout's).
   persona <name> <persona>        server half of a person with history
         personas: athlete picky-vegan exam-week injured lapsed-pro
   shared <name>                   the user's live grocery share links (open as the shopper)
+  arena <name> [--friends N] [--requests N]
+        made-up friends with a week of XP, plus waiting friend requests (replaces earlier ones)
+  invite <name>                   the user's live friend invite link (open it on the other simulator)
 """
 
 import datetime as dt
@@ -158,14 +161,26 @@ def cmd_sign_out(args):
 
 
 def cmd_users(args):
-    rows = call("GET", "/v1/test/users", query={"name": args[0]} if args else None) or []
+    rows = (
+        call("GET", "/v1/test/users", query={"name": args[0]} if args else None) or []
+    )
     for u in rows:
-        print(f"{u['name']:<28} {u['id']}  {'Pro ' if u['pro'] else 'free'}  {u.get('simulator_udid') or ''}")
+        print(
+            f"{u['name']:<28} {u['id']}  {'Pro ' if u['pro'] else 'free'}  {u.get('simulator_udid') or ''}"
+        )
     if not rows:
         print("no test users yet")
 
 
-WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+WEEKDAYS = [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+]
 
 
 def parse_when(text, now=None):
@@ -191,7 +206,9 @@ def parse_when(text, now=None):
     elif len(words) == 1 and re.fullmatch(r"\d{4}-\d{2}-\d{2}", words[0]):
         day = dt.date.fromisoformat(words[0])
     else:
-        die(f"can't read '{text}' — try 'sunday 19:55', 'tomorrow 08:20' or '2026-10-04 08:20'")
+        die(
+            f"can't read '{text}' — try 'sunday 19:55', 'tomorrow 08:20' or '2026-10-04 08:20'"
+        )
     return dt.datetime.combine(day, clock).astimezone()
 
 
@@ -200,7 +217,11 @@ def parse_shift(text):
     m = re.fullmatch(r"([+-])(\d+(?:\.\d+)?)([mhd])", text)
     if not m:
         return None
-    return (1 if m[1] == "+" else -1) * float(m[2]) * {"m": 60, "h": 3600, "d": 86400}[m[3]]
+    return (
+        (1 if m[1] == "+" else -1)
+        * float(m[2])
+        * {"m": 60, "h": 3600, "d": 86400}[m[3]]
+    )
 
 
 def show_clock(res):
@@ -223,10 +244,22 @@ def cmd_time(args):
     elif args[0] == "reset":
         show_clock(call("POST", "/v1/test/clock", {"reset": True}))
     elif len(args) == 1 and parse_shift(args[0]) is not None:
-        show_clock(call("POST", "/v1/test/clock", {"advance_seconds": parse_shift(args[0])}))
+        show_clock(
+            call("POST", "/v1/test/clock", {"advance_seconds": parse_shift(args[0])})
+        )
     elif args[0] == "set" and len(args) > 1:
         when = parse_when(" ".join(args[1:]))
-        show_clock(call("POST", "/v1/test/clock", {"set": when.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}))
+        show_clock(
+            call(
+                "POST",
+                "/v1/test/clock",
+                {
+                    "set": when.astimezone(dt.timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
+                },
+            )
+        )
     else:
         die("usage: time | time set <when> | time +2d | time -3h | time reset")
 
@@ -247,20 +280,26 @@ def cmd_job(args):
     done = f"{res['affected']} user(s)" if res.get("affected") is not None else "done"
     print(f"ran {res['job']}{who} at server time {when:%a %d %b %H:%M} → {done}")
     if res["job"] == "morning-briefing" and res.get("affected") == 0 and not force:
-        print("  nobody was in their 08:15–08:45 window or everyone had today's — add --force")
+        print(
+            "  nobody was in their 08:15–08:45 window or everyone had today's — add --force"
+        )
 
 
 def cmd_sub(args):
     days = take_flag(args, "--days")
     if len(args) != 2:
-        die("usage: sub <name> <free|trial|active|cancelled|grace|billing-retry|expired|refunded> [--days N]")
+        die(
+            "usage: sub <name> <free|trial|active|cancelled|grace|billing-retry|expired|refunded> [--days N]"
+        )
     body = {"name": args[0], "state": args[1]}
     if days:
         body["days"] = float(days)
     res = call("POST", "/v1/test/subscription", body)
     line = f"{res['name']}: {res['state']} → {'Pro' if res['pro'] else 'not Pro'}"
     if res.get("expires_at"):
-        when = dt.datetime.fromisoformat(res["expires_at"].replace("Z", "+00:00")).astimezone()
+        when = dt.datetime.fromisoformat(
+            res["expires_at"].replace("Z", "+00:00")
+        ).astimezone()
         line += f", ends {when:%a %d %b %H:%M} (server time)"
     print(line)
 
@@ -285,7 +324,33 @@ def cmd_shared(args):
         print(f"{args[0]} isn't sharing a grocery list (Groceries → Share in the app)")
 
 
+def cmd_arena(args):
+    friends = take_flag(args, "--friends")
+    requests = take_flag(args, "--requests")
+    if len(args) != 1:
+        die("usage: arena <name> [--friends N] [--requests N]")
+    body = {"name": args[0]}
+    if friends:
+        body["friends"] = int(friends)
+    if requests:
+        body["requests"] = int(requests)
+    r = call("POST", "/v1/test/arena", body)
+    print(
+        f"{args[0]}: friends {', '.join(r['friends']) or 'none'}; waiting requests from {', '.join(r['requests']) or 'none'}"
+    )
+
+
+def cmd_invite(args):
+    if len(args) != 1:
+        die("usage: invite <name>")
+    r = call("GET", "/v1/test/invite", query={"name": args[0]})
+    print(r["url"])
+    print(r["deep_link"])
+
+
 COMMANDS = {
+    "arena": cmd_arena,
+    "invite": cmd_invite,
     "persona": cmd_persona,
     "shared": cmd_shared,
     "sub": cmd_sub,

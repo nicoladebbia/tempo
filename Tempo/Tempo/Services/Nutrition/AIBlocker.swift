@@ -64,7 +64,7 @@ enum AIBlocker: Equatable {
     var message: String {
         switch self {
         case .proRequired: "AI features are part of Tempo Pro."
-        case .aiConsentRequired: "AI features are turned off. Turn them on to use this."
+        case .aiConsentRequired: "AI features are off. Turning them on sends what you ask about, such as your training, sleep and food data, to Anthropic, only when you use an AI feature. It is never used to train their models. You can turn it off again in Settings."
         }
     }
 

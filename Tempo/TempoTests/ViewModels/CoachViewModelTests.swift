@@ -4,7 +4,7 @@
 //
 // Coach v2.1 Phase 7a — covers the view-model lifecycle: loading a
 // fresh vs existing conversation, mirroring messages, error mapping,
-// undo refresh, conversation end, and the interview gate.
+// undo refresh, conversation end, and retrying a failed turn.
 //
 
 import SwiftData
@@ -24,11 +24,13 @@ final class CoachViewModelTests: XCTestCase {
         return try ModelContainer(for: schema, configurations: [config])
     }
 
-    // Reuse the scripted stubs from CoachServiceTests-style fixtures.
+    /// Reuse the scripted stubs from CoachServiceTests-style fixtures.
     final class ScriptedAIClient: CoachChatAIClient, @unchecked Sendable {
         var scripted: [CoachChatResponse] = []
         func sendChat(request _: CoachChatRequest) async throws -> CoachChatResponse {
-            guard !scripted.isEmpty else { throw NSError(domain: "test", code: 503) }
+            guard !scripted.isEmpty else {
+                throw NSError(domain: "test", code: 503)
+            }
             return scripted.removeFirst()
         }
     }
@@ -128,12 +130,32 @@ final class CoachViewModelTests: XCTestCase {
         XCTAssertNil(vm.pendingError)
     }
 
+    func testSendMessage_emptyReplyIsDroppedAndOffersRetry() async throws {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let ai = ScriptedAIClient()
+        ai.scripted = [CoachChatResponse(content: [], stopReason: .endTurn)]
+        let service = CoachService(
+            aiClient: ai,
+            summarizerClient: NoopSummarizer(),
+            toolDispatcher: NoopDispatcher()
+        )
+        let vm = CoachViewModel(service: service)
+        vm.loadOrStartConversation(context: context)
+
+        await vm.sendMessage("soccer at 7pm", systemPrompt: "sys", context: context)
+
+        XCTAssertEqual(vm.messages.map(\.role), ["user"])
+        XCTAssertNotNil(vm.pendingError)
+        XCTAssertTrue(vm.canRetry)
+    }
+
     func testSendMessage_capReachedSetsPendingError() async throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let ai = ScriptedAIClient()
         // 8 tool_use responses → cap fires.
-        for i in 0..<8 {
+        for i in 0 ..< 8 {
             ai.scripted.append(CoachChatResponse(
                 content: [.toolUse(id: "t-\(i)", name: "moveMeal", input: Data())],
                 stopReason: .toolUse
@@ -187,7 +209,7 @@ final class CoachViewModelTests: XCTestCase {
 
     // MARK: - endConversation
 
-    func testEndConversation_marksInactiveAndClearsState() async throws {
+    func testEndConversation_marksInactiveAndClearsState() throws {
         let container = try makeContainer()
         let context = ModelContext(container)
         let vm = CoachViewModel(service: makeService())
@@ -204,17 +226,87 @@ final class CoachViewModelTests: XCTestCase {
         XCTAssertFalse(stored.isActive)
     }
 
-    // MARK: - InterviewGate
+    // MARK: - Retry
 
-    func testShouldPresentInterview_byGate() {
-        let needs = CoachViewModel(service: makeService(), interviewGateProvider: { .needsInterview })
-        XCTAssertTrue(needs.shouldPresentInterview())
+    /// Fails the first `failures` calls, then answers.
+    final class FlakyAI: CoachChatAIClient, @unchecked Sendable {
+        var failures: Int
+        private(set) var requests: [CoachChatRequest] = []
+        init(failures: Int) {
+            self.failures = failures
+        }
 
-        let completed = CoachViewModel(service: makeService(), interviewGateProvider: { .completed })
-        XCTAssertFalse(completed.shouldPresentInterview())
+        func sendChat(request: CoachChatRequest) async throws -> CoachChatResponse {
+            requests.append(request)
+            if failures > 0 {
+                failures -= 1
+                throw NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "offline"])
+            }
+            return CoachChatResponse(content: [.text("Back online.")], stopReason: .endTurn)
+        }
+    }
 
-        let skipped = CoachViewModel(service: makeService(), interviewGateProvider: { .skipped })
-        XCTAssertFalse(skipped.shouldPresentInterview())
+    private func makeFlakyViewModel(failures: Int) throws -> (CoachViewModel, FlakyAI, ModelContext) {
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let ai = FlakyAI(failures: failures)
+        let service = CoachService(
+            aiClient: ai,
+            summarizerClient: NoopSummarizer(),
+            toolDispatcher: NoopDispatcher()
+        )
+        let vm = CoachViewModel(service: service)
+        vm.loadOrStartConversation(context: context)
+        return (vm, ai, context)
+    }
+
+    func testFailedSend_keepsTheUserMessageAndOffersRetry() async throws {
+        let (vm, _, context) = try makeFlakyViewModel(failures: 1)
+        await vm.sendMessage("soccer at 7pm", systemPrompt: "sys", context: context)
+
+        XCTAssertNotNil(vm.pendingError)
+        XCTAssertEqual(vm.messages.map(\.role), ["user"])
+        XCTAssertTrue(vm.canRetry)
+    }
+
+    func testRetry_answersTheSameMessageWithoutAddingItTwice() async throws {
+        let (vm, ai, context) = try makeFlakyViewModel(failures: 1)
+        await vm.sendMessage("soccer at 7pm", systemPrompt: "sys", context: context)
+        await vm.retryLast(systemPrompt: "sys", context: context)
+
+        XCTAssertNil(vm.pendingError)
+        XCTAssertFalse(vm.canRetry)
+        XCTAssertEqual(vm.messages.map(\.role), ["user", "assistant"])
+        XCTAssertEqual(vm.messages.first?.text, "soccer at 7pm")
+        XCTAssertEqual(vm.messages.last?.text, "Back online.")
+        // The second request carried the one user message, not two.
+        XCTAssertEqual(ai.requests.count, 2)
+        XCTAssertEqual(ai.requests.last?.history.filter { $0.role == "user" }.count, 1)
+    }
+
+    func testRetry_failingAgainKeepsOneMessageAndStillOffersRetry() async throws {
+        let (vm, _, context) = try makeFlakyViewModel(failures: 2)
+        await vm.sendMessage("soccer at 7pm", systemPrompt: "sys", context: context)
+        await vm.retryLast(systemPrompt: "sys", context: context)
+
+        XCTAssertNotNil(vm.pendingError)
+        XCTAssertEqual(vm.messages.map(\.role), ["user"])
+        XCTAssertTrue(vm.canRetry)
+    }
+
+    func testRetry_withNothingToRetryDoesNothing() async throws {
+        let (vm, ai, context) = try makeFlakyViewModel(failures: 0)
+        XCTAssertFalse(vm.canRetry)
+        await vm.retryLast(systemPrompt: "sys", context: context)
+        XCTAssertTrue(ai.requests.isEmpty)
+        XCTAssertTrue(vm.messages.isEmpty)
+    }
+
+    func testLastUnansweredUserText_isNilWhenCoachHasAnswered() {
+        let answered = [CoachMessage(role: "user", text: "hi"), CoachMessage(role: "assistant", text: "hello")]
+        XCTAssertNil(CoachViewModel.lastUnansweredUserText(in: answered))
+        let unanswered = [CoachMessage(role: "assistant", text: "hello"), CoachMessage(role: "user", text: "hi")]
+        XCTAssertEqual(CoachViewModel.lastUnansweredUserText(in: unanswered), "hi")
     }
 
     // MARK: - Budget state

@@ -9,10 +9,11 @@
 import SwiftData
 import SwiftUI
 
-// MARK: - Recovery Tab View
+// MARK: - RecoveryTabView
 
-// Per MODULE_RECOVERY.md Section 2 — Tab container with segmented control.
-// Per BUILD_PLAN.md Step 8.6 — Today / Sleep / Strain / Trends tabs + gear icon.
+// Per MODULE_RECOVERY.md Section 2. One page, one question (how recovered am I
+// and why), with a Day / Week / Month switch: Day is today's score, vitals,
+// sleep and strain; Week and Month are the trends. They used to be four tabs.
 
 struct RecoveryTabView: View {
     @Environment(ServiceContainer.self)
@@ -22,15 +23,18 @@ struct RecoveryTabView: View {
     @State
     private var viewModel: RecoveryViewModel?
 
+    /// True when pushed on another stack (Today): no stack of its own, or the
+    /// nested stack would pop back to the root on every push.
+    var embedded = false
+
     var body: some View {
-        NavigationStack {
+        EmbeddableNavigationStack(embedded: embedded) {
             Group {
                 if let viewModel {
                     recoveryContent(viewModel: viewModel)
                 } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.tempoBgPrimary)
+                    RecoverySkeleton()
+                        .tidePage(energy: 1)
                 }
             }
             .navigationTitle("Recovery")
@@ -53,32 +57,63 @@ struct RecoveryTabView: View {
     private func recoveryContent(viewModel: RecoveryViewModel) -> some View {
         @Bindable
         var vm = viewModel
-        return VStack(spacing: 0) {
-            // Segmented control
-            // Per MODULE_RECOVERY.md Section 2 — Today / Sleep / Strain / Trends
-            Picker("Recovery Section", selection: $vm.selectedTab) {
-                ForEach(RecoveryTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+        return VStack(spacing: Tide.s2) {
+            VStack(spacing: Tide.s2) {
+                TidePillPicker(
+                    options: RecoveryRange.allCases,
+                    selection: $vm.selectedRange,
+                    title: \.rawValue,
+                    label: "Recovery period"
+                )
+
+                // A month can reach back 30 or 90 days.
+                if viewModel.selectedRange == .month {
+                    TidePillPicker(
+                        options: MonthSpan.allCases,
+                        selection: Binding(
+                            get: { vm.monthShowsQuarter ? .ninety : .thirty },
+                            set: { vm.monthShowsQuarter = $0 == .ninety }
+                        ),
+                        title: \.rawValue,
+                        label: "Month length"
+                    )
+                    .transition(.opacity)
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.sm)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
 
-            // Tab content
             Group {
-                switch viewModel.selectedTab {
-                case .today:
-                    RecoveryTodayView(viewModel: viewModel)
-                case .sleep:
-                    SleepDetailView(viewModel: viewModel)
-                case .strain:
-                    StrainDetailView(viewModel: viewModel)
-                case .trends:
-                    RecoveryTrendsView(viewModel: viewModel)
+                switch viewModel.selectedRange {
+                case .day:
+                    RecoveryDayView(viewModel: viewModel)
+                case .week,
+                     .month:
+                    RecoveryPeriodView(viewModel: viewModel)
                 }
+            }
+            .transition(.opacity)
+        }
+        .animation(Tide.snap, value: viewModel.selectedRange)
+        .tidePage(energy: 1)
+        .firstTip(
+            "recovery.home",
+            "Tap the dial or any card to see what its number means.",
+            systemImage: "heart.text.square"
+        )
+        // One load for the whole page, whichever view is showing.
+        .task {
+            if viewModel.loadState != .loaded {
+                await viewModel.refresh(modelContext: modelContext)
             }
         }
-        .background(Color.tempoBgPrimary)
     }
+}
+
+// MARK: - MonthSpan
+
+/// How far back the Month view reaches.
+private enum MonthSpan: String, CaseIterable {
+    case thirty = "30 days"
+    case ninety = "90 days"
 }

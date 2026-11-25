@@ -35,7 +35,7 @@ final class PauseTravelPainFlowTests: XCTestCase {
     func testPausedTodayCardAndAwayModeResume() {
         app.launchForTesting(extraArguments: [PauseTravelPainUITestSeedArguments.pauseActive])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         XCTAssertTrue(app.staticTexts["PAUSED"].waitForExistence(timeout: 10))
@@ -55,7 +55,7 @@ final class PauseTravelPainFlowTests: XCTestCase {
     func testTravelSwapPainCautionAndTrainerReport() {
         app.launchForTesting(extraArguments: [PauseTravelPainUITestSeedArguments.travelPain])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         // Hotel-swap label + caution chip render inline in Today's exercise list.

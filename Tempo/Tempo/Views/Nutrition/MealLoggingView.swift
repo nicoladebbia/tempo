@@ -11,11 +11,12 @@ import SwiftUI
 
 // MARK: - MealLoggingView
 
-// Full-screen modal for logging a meal. Saves by itself through
-// EatenMealRecorder (the same write path as Quick Log), so every presenter —
-// Nutrition, Dashboard, Daily Summary, Lockdown — gets a real log without
-// wiring anything.
-// Per DESIGN_SYSTEM.md — all tokens, drill-sergeant voice, haptic feedback.
+// THE capture screen: the one place a meal is logged from. Favourites, the
+// usual and "same as yesterday" log in one tap; a typed line, search, scan,
+// photo and voice build a meal here (or hand it to Confirm Meal) and come
+// back with the result. Saves by itself through EatenMealRecorder (the one
+// write path), so every presenter (Fuel, the "+" sheet, Today, Daily Summary,
+// Lockdown) gets a real log, with an Undo toast, without wiring anything.
 
 struct MealLoggingView: View {
     @Environment(\.dismiss)
@@ -24,6 +25,14 @@ struct MealLoggingView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
+    /// True when a screen under this one already shows Fuel log toasts, so
+    /// this screen can close the moment a meal is saved.
+    @Environment(\.fuelLogToastHosted)
+    private var toastHosted
 
     @State
     private var selectedMealType: MealType = .init(EatenMealRecorder.defaultMealType())
@@ -31,6 +40,9 @@ struct MealLoggingView: View {
     /// tap can't log the same meal twice.
     @State
     private var didLog = false
+    /// The delayed close of an unhosted screen; an Undo cancels it.
+    @State
+    private var closeTask: Task<Void, Never>?
     @State
     private var originPickedByHand = false
     @State
@@ -56,8 +68,33 @@ struct MealLoggingView: View {
     /// The item whose portion editor sheet is open.
     @State
     private var editingItem: FoodItem?
+    /// The typed line ("2 eggs and toast at 8am") and its parse.
+    @State
+    private var typedText = ""
+    @State
+    private var isParsing = false
+    @State
+    private var typedMessage: String?
+    @State
+    private var aiBlocker: AIBlocker?
+    /// What the typed line was read as: Confirm Meal opens on top of this screen.
+    @State
+    private var reviewRequest: MealReviewRequest?
+    @FocusState
+    private var typeFocused: Bool
+    /// True once the user tapped a meal chip: typed text then logs as that meal
+    /// unless the text names another one.
+    @State
+    private var mealTypePickedByHand = false
+    /// A one-tap meal whose foods are already in the meal being eaten.
+    @State
+    private var quickDuplicate: QuickDuplicate?
 
-    var onMealLogged: (([FoodItem], MealType) -> Void)?
+    private struct QuickDuplicate: Identifiable {
+        let id = UUID()
+        let choice: QuickLogRows.Choice
+        let names: [String]
+    }
 
     /// The eat time the user SAID in a voice log ("had lunch at 1pm"). nil →
     /// now. Only used when it falls earlier today (see `resolvedEatenAt`).
@@ -130,49 +167,33 @@ struct MealLoggingView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    // Meal type picker
+            VStack(spacing: 0) {
+                // At accessibility sizes the four meals take a quarter of the screen,
+                // so they scroll with the page instead of staying pinned above it.
+                if !typeSize.isAccessibilitySize {
                     mealTypePicker
-
-                    if !foodItems.isEmpty {
-                        MealOriginPicker(
-                            origin: $origin,
-                            foods: foodItems.map { EatenMealRecorder.plannedFood(from: $0.mealFoodInput) },
-                            pickedByHand: $originPickedByHand
-                        )
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.bottom, TempoSpacing.sm)
-                    }
-
-                    // Food items list or empty state
-                    if foodItems.isEmpty {
-                        emptyState
-                    } else {
-                        foodItemsList
-                    }
-
-                    Spacer(minLength: 0)
                 }
-                .padding(.bottom, 140) // Room for sticky bottom bar
-
-                // Sticky bottom bar
-                stickyBottomBar
+                mealScroll
             }
-            .navigationTitle("Log Meal")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .fuelBottomBar(isShown: !foodItems.isEmpty) { stickyBottomBar }
+            .tidePage()
+            // A sheet is its own page, even when it comes up from inside one.
+            .environment(\.tideInsidePage, false)
+            .firstTip("fuel.meal-log", "Say or type what you ate, check the numbers, then tap Log.")
+            .navigationTitle("Log a meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
                 }
             }
+            .tideCovered(
+                showFoodSearch || showVoiceLog || showPhotoAnalysis || showBarcodeScanner || editingItem != nil
+                    || reviewRequest != nil || quickDuplicate != nil
+            )
             .sheet(isPresented: $showFoodSearch) {
                 FoodSearchView(
                     onFoodSelected: { item in
@@ -231,6 +252,42 @@ struct MealLoggingView: View {
                 .presentationDetents([.medium])
             }
             .tempoToast($toast)
+            // Typed text opens Confirm Meal (time, meal, portions, where from);
+            // a saved meal closes this screen, the toast carries the Undo.
+            .mealReview($reviewRequest, onLogged: { closeAfterLog() }, onFailed: { toast = $0 })
+            .aiBlockerAlert($aiBlocker) {
+                submitTypedText()
+            }
+            // Below this, Fuel log toasts show here when nothing under the
+            // screen shows them.
+            .fuelLogToastHost()
+            // Undo took the meal back: stay open so it can be logged again.
+            .onReceive(NotificationCenter.default.publisher(for: .tempoFuelLogUndone)) { _ in
+                closeTask?.cancel()
+                closeTask = nil
+                didLog = false
+            }
+            // A repeat is a question with two answers, so it gets a page of its
+            // own with the answer under the thumb.
+            .sheet(item: $quickDuplicate) { pending in
+                FuelDecisionSheet(
+                    icon: "square.on.square",
+                    title: "Already logged",
+                    message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Log another portion?",
+                    chips: pending.names,
+                    primaryTitle: "Add another",
+                    primary: {
+                        // A second tap while the sheet is leaving must not log twice.
+                        guard quickDuplicate != nil else {
+                            return
+                        }
+                        quickDuplicate = nil
+                        quickLog(pending.choice, confirmedDuplicate: true)
+                    },
+                    cancel: { quickDuplicate = nil }
+                )
+                .environment(\.tideInsidePage, false)
+            }
             .task {
                 if catalog == nil {
                     catalog = FoodCatalog(services: services)
@@ -241,117 +298,330 @@ struct MealLoggingView: View {
 
     // MARK: - Meal Type Picker
 
+    /// Four answers with their symbols: the one picked lights up in the accent.
     private var mealTypePicker: some View {
-        Picker("Meal Type", selection: $selectedMealType) {
+        // Four across; two by two at accessibility sizes so no name is cut.
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s2),
+            count: typeSize.isAccessibilitySize ? 2 : MealType.allCases.count
+        )
+        return LazyVGrid(columns: columns, spacing: Tide.s2) {
             ForEach(MealType.allCases) { type in
-                Text(type.rawValue).tag(type)
+                let selected = selectedMealType == type
+                Button {
+                    selectedMealType = type
+                    mealTypePickedByHand = true
+                } label: {
+                    VStack(spacing: Tide.s1) {
+                        Image(systemName: FuelMealStyle.icon(forName: type.rawValue))
+                            .font(Tide.bodyStrong)
+                            .accessibilityHidden(true)
+                        Text(type.rawValue)
+                            .font(Tide.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s2)
+                    .fuelChoice(selected: selected, minHeight: Tide.hit + Tide.s2)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .onChange(of: selectedMealType) { _, _ in
-            HapticManager.selection()
-        }
+        .padding(.horizontal, Tide.edge)
+        .padding(.vertical, Tide.s2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Meal type")
+        .sensoryFeedback(.selection, trigger: selectedMealType)
     }
 
-    // MARK: - Empty State
+    // MARK: - Page
 
-    private var emptyState: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Image(systemName: "fork.knife")
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-
-            Text("Nothing here yet. That's on you.")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.lg)
-
-            Text("Search, scan, or snap a photo to add food.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            // Input method buttons
-            inputMethodButtons
-                .padding(.top, TempoSpacing.xxl)
-
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
-    }
-
-    // MARK: - Food Items List
-
-    private var foodItemsList: some View {
+    /// The meal so far, then the ways to add to it. The numbers lead: they
+    /// move as food comes in, so the page reads as a live total.
+    private var mealScroll: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                // Input method buttons at top
-                inputMethodButtons
-                    .padding(.top, TempoSpacing.md)
-                    .padding(.bottom, TempoSpacing.lg)
-
-                // Items
-                ForEach(foodItems) { item in
-                    foodItemRow(item)
-
-                    if item.id != foodItems.last?.id {
-                        Divider()
-                            .background(Color.tempoDivider)
-                            .padding(.horizontal, TempoSpacing.cardPadding)
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                if typeSize.isAccessibilitySize {
+                    // The picker pads itself; the page's own edge padding would double it.
+                    mealTypePicker
+                        .padding(.horizontal, -Tide.edge)
+                }
+                if foodItems.isEmpty {
+                    // Open, add, done: what you eat most is already at the top.
+                    QuickLogRows(
+                        type: selectedMealType.appMealType,
+                        onFailure: { toast = $0 },
+                        onLog: { choice in quickLog(choice) }
+                    )
+                    typeField
+                    emptyMethods
+                } else {
+                    mealHero
+                    TideSectionLabel(
+                        title: "In this meal",
+                        trailing: FuelWords.count(foodItems.count, "item")
+                    )
+                    VStack(spacing: 0) {
+                        ForEach(foodItems) { item in
+                            foodItemRow(item)
+                            if item.id != foodItems.last?.id {
+                                Divider().overlay(Tide.hairline)
+                            }
+                        }
                     }
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    inputMethodButtons
+                    originPicker
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 }
             }
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.sm)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
+            .animation(Tide.snap, value: foodItems.isEmpty)
         }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+    }
+
+    // MARK: - Hero
+
+    private var mealHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    "\(totalCalories)", unit: "kcal", size: Tide.numeralL
+                )
+                Spacer(minLength: Tide.s2)
+                Text(selectedMealType.rawValue)
+                    .tideLabel()
+            }
+            FuelMacroSplitBar(protein: Int(totalProtein.rounded()), carbs: Int(totalCarbs.rounded()), fat: Int(totalFat.rounded()))
+            FuelMacroInline(protein: Int(totalProtein.rounded()), carbs: Int(totalCarbs.rounded()), fat: Int(totalFat.rounded()))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mealLog.hero")
+    }
+
+    /// Where the meal was eaten: only once there is something to place.
+    private var originPicker: some View {
+        MealOriginPicker(
+            origin: $origin,
+            foods: foodItems.map { EatenMealRecorder.plannedFood(from: $0.mealFoodInput) },
+            pickedByHand: $originPickedByHand
+        )
+    }
+
+    // MARK: - Type it
+
+    /// One line, read by the AI into foods, a time and a meal; Confirm Meal
+    /// opens on top so the user checks it before anything is saved.
+    private var typeField: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Type it")
+            HStack(spacing: Tide.s2) {
+                TextField("What did you eat?", text: $typedText)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fuelField()
+                    .submitLabel(.send)
+                    .focused($typeFocused)
+                    .onSubmit { submitTypedText() }
+                    .disabled(isParsing)
+                    .accessibilityIdentifier("mealLog.typeField")
+                Button {
+                    submitTypedText()
+                } label: {
+                    Group {
+                        if isParsing {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(Tide.title)
+                                .foregroundStyle(canSubmitText ? mood.accent : Tide.text3)
+                        }
+                    }
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(FuelPressStyle())
+                .disabled(!canSubmitText)
+                .accessibilityLabel("Read it")
+                .accessibilityIdentifier("mealLog.typeSend")
+            }
+            if isParsing {
+                FuelAIState(kind: .working("Reading what you ate…"))
+                    .transition(.opacity)
+            } else if let typedMessage {
+                FuelBanner(icon: "exclamationmark.circle.fill", tint: Tide.warn, title: typedMessage)
+                    .transition(.opacity)
+            } else {
+                Text("Add a time or meal if you like: \"pasta at 1pm\", \"yesterday dinner\".")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .animation(Tide.settle, value: isParsing)
+        .animation(Tide.settle, value: typedMessage)
+    }
+
+    /// What the typed line says when the AI could not turn the text into foods.
+    nonisolated static let typedFailureMessage = "Couldn't read that. Name the food and an amount, or use Search."
+
+    /// A reply that did not make sense gets the plain line; a network or server problem
+    /// says what it was (the readable text of the error).
+    nonisolated static func typedMessage(for error: Error) -> String {
+        switch error as? NaturalLanguageLoggingError {
+        case let .parseFailed(detail) where detail != NaturalLanguageLoggingError.unreadableReply:
+            "Couldn't read that: \(detail)"
+        case .parseFailed, .noFoodsDetected, .emptyInput:
+            typedFailureMessage
+        case nil:
+            "Couldn't read that: \(AIBlocker.message(for: error))"
+        }
+    }
+
+    private var canSubmitText: Bool {
+        !typedText.trimmingCharacters(in: .whitespaces).isEmpty && !isParsing
+    }
+
+    private func submitTypedText() {
+        let trimmed = typedText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !isParsing else {
+            return
+        }
+        HapticManager.lightImpact()
+        typeFocused = false
+        typedMessage = nil
+        isParsing = true
+        Task {
+            defer { isParsing = false }
+            do {
+                guard var request = try await MealReviewRequest.parsing(trimmed, apiClient: services.apiClient) else {
+                    typedMessage = Self.typedFailureMessage
+                    return
+                }
+                // The meal chip the user tapped counts unless the text names one.
+                if request.mealType == nil, mealTypePickedByHand {
+                    request.mealType = selectedMealType.appMealType
+                }
+                reviewRequest = request
+            } catch {
+                if let blocker = AIBlocker(error) {
+                    aiBlocker = blocker
+                } else {
+                    typedMessage = Self.typedMessage(for: error)
+                }
+            }
+        }
+    }
+
+    // MARK: - Ways to add (empty page)
+
+    /// Four big doors into the meal, each with a line on what it does.
+    private var emptyMethods: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Or add food")
+            LazyVGrid(
+                columns: [GridItem(.flexible(), spacing: Tide.s3), GridItem(.flexible(), spacing: Tide.s3)],
+                spacing: Tide.s3
+            ) {
+                methodTile(icon: "magnifyingglass", label: "Search", hint: "Type a food or brand") {
+                    showFoodSearch = true
+                }
+                methodTile(icon: "camera.fill", label: "Photo", hint: "Snap your plate") {
+                    showPhotoAnalysis = true
+                }
+                methodTile(icon: "barcode.viewfinder", label: "Scan", hint: "Read a barcode") {
+                    showBarcodeScanner = true
+                }
+                methodTile(icon: "mic.fill", label: "Voice", hint: "Say what you ate") {
+                    showVoiceLog = true
+                }
+            }
+        }
+    }
+
+    private func methodTile(icon: String, label: String, hint: String, action: @escaping () -> Void) -> some View {
+        Button {
+            HapticManager.lightImpact()
+            action()
+        } label: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideIconTile(systemName: icon)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(label)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                    Text(hint)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.hit + Tide.s10, alignment: .topLeading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(FuelPressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier("mealLog.input.\(label.lowercased())")
     }
 
     // MARK: - Food Item Row
 
+    private var itemRowLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+    }
+
     private func foodItemRow(_ item: FoodItem) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s2) {
             // Tapping the row opens the portion editor — logged items used
             // to be locked to whatever grams they arrived with (picky-QA
             // item 4).
             Button {
                 editingItem = item
             } label: {
-                HStack(spacing: TempoSpacing.md) {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                // Name and kcal side by side; the kcal drops under the name at
+                // accessibility sizes so the name keeps the full width.
+                itemRowLayout {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(item.name)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
 
                         Text(item.portionDescription)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+
+                        FuelMacroInline(
+                            protein: Int(item.protein.rounded()),
+                            carbs: Int(item.carbs.rounded()),
+                            fat: Int(item.fat.rounded())
+                        )
+                        .padding(.top, Tide.s1)
                     }
 
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: TempoSpacing.xxs) {
-                        Text("\(item.calories) kcal")
-                            .font(.tempoCallout)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        Text("P: \(Int(item.protein))g")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                    if !typeSize.isAccessibilitySize {
+                        Spacer(minLength: Tide.s2)
                     }
+
+                    TideNumber("\(item.calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
                 }
-                .contentShape(Rectangle())
+                .frame(minHeight: Tide.hit + Tide.s3)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("mealItemRow")
@@ -361,114 +631,83 @@ struct MealLoggingView: View {
                 removeFoodItem(item)
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.tempoTextDisabled)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text3)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(item.name)")
         }
-        .padding(.horizontal, TempoSpacing.cardPadding)
-        .padding(.vertical, TempoSpacing.listItemVertical)
     }
 
     // MARK: - Input Method Buttons
 
     private var inputMethodButtons: some View {
-        HStack(spacing: TempoSpacing.lg) {
-            inputMethodButton(icon: "magnifyingglass", label: "Search") {
-                showFoodSearch = true
-            }
+        GlassEffectContainer(spacing: Tide.s2) {
+            // Four across; two by two at accessibility sizes.
+            LazyVGrid(
+                columns: Array(
+                    repeating: GridItem(.flexible(), spacing: Tide.s2),
+                    count: typeSize.isAccessibilitySize ? 2 : 4
+                ),
+                spacing: Tide.s2
+            ) {
+                inputMethodButton(icon: "magnifyingglass", label: "Search") {
+                    showFoodSearch = true
+                }
 
-            inputMethodButton(icon: "camera.fill", label: "Photo") {
-                showPhotoAnalysis = true
-            }
+                inputMethodButton(icon: "camera.fill", label: "Photo") {
+                    showPhotoAnalysis = true
+                }
 
-            inputMethodButton(icon: "barcode.viewfinder", label: "Scan") {
-                showBarcodeScanner = true
-            }
+                inputMethodButton(icon: "barcode.viewfinder", label: "Scan") {
+                    showBarcodeScanner = true
+                }
 
-            inputMethodButton(icon: "mic.fill", label: "Voice") {
-                showVoiceLog = true
+                inputMethodButton(icon: "mic.fill", label: "Voice") {
+                    showVoiceLog = true
+                }
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     private func inputMethodButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: {
+        FuelActionTile(icon: icon, label: label, identifier: "mealLog.input.\(label.lowercased())") {
             HapticManager.lightImpact()
             action()
-        }) {
-            VStack(spacing: TempoSpacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 56, height: 56)
-                    .background(Color.tempoSignal.opacity(0.1))
-                    .clipShape(Circle())
-
-                Text(label)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Sticky Bottom Bar
 
     private var stickyBottomBar: some View {
-        VStack(spacing: TempoSpacing.md) {
-            // Running totals
-            if !foodItems.isEmpty {
-                HStack(spacing: 0) {
-                    macroChip("\(totalCalories) kcal", color: Color.tempoViolet)
-                    Spacer()
-                    macroChip("P: \(Int(totalProtein))g", color: Color.tempoMacroProtein)
-                    Spacer()
-                    macroChip("C: \(Int(totalCarbs))g", color: Color.tempoMacroCarbs)
-                    Spacer()
-                    macroChip("F: \(Int(totalFat))g", color: Color.tempoMacroFat)
-                }
-                .padding(.horizontal, TempoSpacing.xs)
-            }
-
-            // Log Meal button
-            Button {
-                logMeal()
-            } label: {
-                Text("Log Meal")
-            }
-            .buttonStyle(.tempoPrimary)
-            .disabled(foodItems.isEmpty || didLog)
+        Button {
+            logMeal()
+        } label: {
+            // The total is already the hero; at accessibility sizes the bar
+            // keeps just the verb so it stays one line and out of the way.
+            Text(foodItems.isEmpty || typeSize.isAccessibilitySize ? "Log meal" : "Log meal · \(totalCalories) kcal")
+                .contentTransition(.numericText())
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .padding(.bottom, TempoSpacing.bottomSafe)
-        .background(
-            Color.tempoSurfaceCard
-                .shadow(color: Color.tempoInk.opacity(0.08), radius: 8, x: 0, y: -4)
-                .ignoresSafeArea(edges: .bottom)
-        )
-    }
-
-    private func macroChip(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.tempoCaption1)
-            .fontWeight(.medium)
-            .foregroundStyle(color)
+        .buttonStyle(.tidePrimary)
+        .disabled(foodItems.isEmpty || didLog)
+        .accessibilityLabel("Log meal")
+        .accessibilityValue(foodItems.isEmpty ? "" : "\(totalCalories) kilocalories")
+        .animation(Tide.snap, value: totalCalories)
     }
 
     // MARK: - Actions
 
     private func addFoodItem(_ item: FoodItem) {
-        withAnimation(TempoAnimation.springMedium) {
+        withAnimation(Tide.snap) {
             foodItems.append(item)
         }
         HapticManager.lightImpact()
     }
 
     private func removeFoodItem(_ item: FoodItem) {
-        withAnimation(TempoAnimation.springMedium) {
+        withAnimation(Tide.snap) {
             foodItems.removeAll { $0.id == item.id }
         }
         HapticManager.lightImpact()
@@ -477,7 +716,7 @@ struct MealLoggingView: View {
     /// Replaces a logged item with its re-portioned version and remembers
     /// the chosen grams for next time this product gets added.
     private func updateFoodItem(_ updated: FoodItem) {
-        withAnimation(TempoAnimation.springMedium) {
+        withAnimation(Tide.snap) {
             if let index = foodItems.firstIndex(where: { $0.id == updated.id }) {
                 foodItems[index] = updated
             }
@@ -493,9 +732,9 @@ struct MealLoggingView: View {
         guard !foodItems.isEmpty, !didLog else {
             return
         }
-        let loggedCalories = totalCalories
+        let result: EatenMealRecorder.Result
         do {
-            try EatenMealRecorder.record(
+            result = try EatenMealRecorder.record(
                 foodItems.map(\.mealFoodInput),
                 type: selectedMealType.appMealType,
                 eatenAt: resolvedEatenAt,
@@ -513,16 +752,72 @@ struct MealLoggingView: View {
             )
             return
         }
-        didLog = true
         HomeLocationStore().lastOrigin = origin
+        finishLog(type: selectedMealType.appMealType, result: result)
+    }
+
+    /// One tap on a favourite, a usual meal, "same as yesterday" or a saved
+    /// meal: logged now, as the meal chosen on screen, with an Undo.
+    private func quickLog(_ choice: QuickLogRows.Choice, confirmedDuplicate: Bool = false) {
+        guard !didLog else {
+            return
+        }
+        if !confirmedDuplicate {
+            let names = EatenMealRecorder.duplicateNames(
+                of: choice.foods,
+                type: choice.type,
+                eatenAt: Date(),
+                in: CanonicalMeals.meals(on: Date(), in: modelContext)
+            )
+            if !names.isEmpty {
+                quickDuplicate = QuickDuplicate(choice: choice, names: names)
+                return
+            }
+        }
+        do {
+            let result = try EatenMealRecorder.record(
+                choice.foods,
+                type: choice.type,
+                eatenAt: Date(),
+                source: choice.source,
+                modelContext: modelContext,
+                notifications: services.notifications
+            )
+            choice.preset?.recordUse()
+            try? modelContext.save()
+            finishLog(type: choice.type, result: result)
+        } catch {
+            HapticManager.notification(.error)
+            toast = ToastData(message: "Couldn't log \(choice.title). Try again.", style: .error)
+        }
+    }
+
+    /// The meal is saved: say so with an Undo, then get out of the way.
+    private func finishLog(type: Tempo.MealType, result: EatenMealRecorder.Result) {
+        let kcal = Int(result.logged.calories.rounded())
         HapticManager.notification(.success)
-        onMealLogged?(foodItems, selectedMealType)
-        toast = ToastData(
-            message: "\(selectedMealType.rawValue) logged. \(loggedCalories) kcal.",
-            style: .success
-        )
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        FuelLogToast.post(FuelLogToast.logged(
+            "\(type.displayName) logged. \(kcal) kcal.",
+            result: result,
+            modelContext: modelContext,
+            notifications: services.notifications
+        ))
+        closeAfterLog()
+    }
+
+    private func closeAfterLog() {
+        didLog = true
+        if toastHosted {
             dismiss()
+        } else {
+            // Nothing under this screen shows toasts: stay up for the Undo.
+            closeTask?.cancel()
+            closeTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(FuelLogToast.undoWindow))
+                if !Task.isCancelled {
+                    dismiss()
+                }
+            }
         }
     }
 }
@@ -591,6 +886,8 @@ struct PortionEditorView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var grams: Double
@@ -647,19 +944,19 @@ struct PortionEditorView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
-                VStack(spacing: TempoSpacing.xxs) {
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.hair) {
                     Text(item.name)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.center)
                     if let brand = item.brand {
                         Text(brand)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
                 }
-                .padding(.top, TempoSpacing.lg)
+                .padding(.top, Tide.s4)
 
                 if unitGrams > 0 {
                     gramsField
@@ -668,19 +965,13 @@ struct PortionEditorView: View {
                     servingsStepper
                 }
 
-                VStack(spacing: TempoSpacing.xxs) {
-                    Text("\(previewCalories) kcal")
-                        .font(.tempoTitle2)
-                        .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text(
-                        "P \(Int((densityProtein * grams).rounded()))g · " +
-                            "C \(Int((densityCarbs * grams).rounded()))g · " +
-                            "F \(Int((densityFat * grams).rounded()))g"
+                VStack(spacing: Tide.s2) {
+                    TideNumber("\(previewCalories)", unit: "kcal", size: Tide.numeralL)
+                    FuelMacroInline(
+                        protein: Int((densityProtein * grams).rounded()),
+                        carbs: Int((densityCarbs * grams).rounded()),
+                        fat: Int((densityFat * grams).rounded())
                     )
-                    .font(.tempoCaption1)
-                    .monospacedDigit()
-                    .foregroundStyle(Color.tempoTextSecondary)
                 }
 
                 Spacer(minLength: 0)
@@ -690,31 +981,30 @@ struct PortionEditorView: View {
                 } label: {
                     Text("Save").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(grams <= 0)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s4)
+            .tidePage()
             .navigationTitle("Edit portion")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(Color.tempoTextSecondary)
                 }
             }
         }
     }
 
     private var gramsField: some View {
-        HStack(spacing: TempoSpacing.xxs) {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
             TextField(unitLabel, text: $gramsText)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .font(.tempoTitle2)
-                .monospacedDigit()
-                .frame(width: 90)
+                .font(Tide.numeral(Tide.numeralM))
+                .foregroundStyle(Tide.text)
+                .frame(width: Tide.s10 * 3)
                 .accessibilityIdentifier("portionEditorGrams")
                 .onChange(of: gramsText) { _, text in
                     if let value = Double(text.replacingOccurrences(of: ",", with: ".")), value > 0, value <= 5000 {
@@ -722,17 +1012,22 @@ struct PortionEditorView: View {
                     }
                 }
             Text(unitLabel)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text2)
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgTertiary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .fuelField(radius: Tide.tileRadius)
     }
 
     private var quickChips: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        ViewThatFits(in: .horizontal) {
+            chipRow
+            // Four labels do not fit one line at large text sizes.
+            VStack(spacing: Tide.s2) { chipRow }
+        }
+    }
+
+    private var chipRow: some View {
+        HStack(spacing: Tide.s2) {
             // A 100 g "serving" is just the default, not a real one — offer
             // plain amounts instead of three chips that mean 50/100/200 anyway.
             if abs(unitGrams - 100) < 0.5 {
@@ -755,15 +1050,13 @@ struct PortionEditorView: View {
             gramsText = Self.format(value)
         } label: {
             Text(label)
-                .font(.tempoCaption1)
-                .foregroundStyle(selected ? Color.tempoTextInverse : Color.tempoTextPrimary)
+                .font(Tide.caption)
                 .lineLimit(1)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-                .clipShape(Capsule())
+                .minimumScaleFactor(Tide.labelShrink)
+                .fuelChip(selected: selected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FuelPressStyle())
+        .sensoryFeedback(.selection, trigger: selected)
     }
 
     /// Serving size with no parseable gram/ml amount (e.g. "1 slice") —
@@ -772,9 +1065,10 @@ struct PortionEditorView: View {
     private var servingsStepper: some View {
         Stepper(value: $grams, in: 0.5 ... 10, step: 0.5) {
             Text("\(Self.format(grams)) × \(item.servingSize)")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func save() {
@@ -811,9 +1105,9 @@ enum ConfidenceLevel {
 
     var color: Color {
         switch self {
-        case .high: .tempoSuccess
-        case .medium: .tempoWarning
-        case .low: .tempoError
+        case .high: Tide.good
+        case .medium: Tide.warn
+        case .low: Tide.danger
         }
     }
 

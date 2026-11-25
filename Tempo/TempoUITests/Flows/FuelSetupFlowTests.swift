@@ -29,7 +29,7 @@ final class FuelSetupFlowTests: XCTestCase {
     func testManualFuelSetupWithAMealOut() {
         app.launchForTesting(extraArguments: [TestLaunchArguments.emptyStore])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
-        app.tabBars.buttons["Nutrition"].tap()
+        app.tabBars.buttons["Fuel"].tap()
         let planSegment = app.segmentedControls.buttons["Plan"]
         XCTAssertTrue(planSegment.waitForExistence(timeout: 10))
         planSegment.tap()

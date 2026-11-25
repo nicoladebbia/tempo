@@ -32,10 +32,11 @@ struct PantryBarcodeFlow: View {
     }
 
     @State private var scanState: ScanState = .scanning
+    @Environment(\.tideMood) private var mood
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
+            TidePageBackground()
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
@@ -72,34 +73,22 @@ struct PantryBarcodeFlow: View {
     }
 
     private func loadingContent(_ code: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().controlSize(.large)
-            Text("Looking up \(code)…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+        KitchenStatePage {
+            KitchenStateHero(
+                systemImage: "barcode.viewfinder",
+                title: "Looking up \(code)…",
+                working: true
+            )
         }
     }
 
     private func messageContent(icon: String, title: String, message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoAsh)
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xxxxl)
-            Button("Scan again") {
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .primary) {
                 scanState = .scanning
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
+            },
+        ]) {
+            KitchenStateHero(systemImage: icon, tint: Tide.Kitchen.warn, title: title, message: message)
         }
     }
 

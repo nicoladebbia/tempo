@@ -30,37 +30,38 @@ struct RoutinesView: View {
     private var pendingApply: WorkoutRoutine?
     @State
     private var message: String?
+    /// The Undo toast after a routine is deleted.
+    @State
+    private var toast: ToastData?
 
     var body: some View {
         List {
             if let blocker = viewModel.routineBlocker(for: viewModel.todayPlan) {
-                Text(blocker)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .listRowBackground(Color.clear)
+                // Why "Use today" is off, said once at the top as its own card.
+                TrainBanner(
+                    systemImage: "exclamationmark.circle.fill",
+                    label: "Not available today",
+                    tint: TideTrain.caution,
+                    message: blocker
+                ) {}
+                    .trainPlanListRow()
             }
 
             if routines.isEmpty {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("No routines yet.")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text(
-                        "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
-                    )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
+                TrainEmptyCard(
+                    systemImage: "list.bullet.rectangle",
+                    title: "No routines yet.",
+                    message: "Build one here, or save today's workout from the Training tab. Tempo still sets the loads from your history and recovery."
+                )
+                .trainPlanListRow()
             }
 
             ForEach(routines) { routine in
                 routineRow(routine)
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .trainPlanListRow()
                     .swipeActions {
                         Button(role: .destructive) {
-                            modelContext.delete(routine)
-                            modelContext.saveOrAlert("routine change")
+                            delete(routine)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -69,14 +70,41 @@ struct RoutinesView: View {
                         } label: {
                             Label("Edit", systemImage: "pencil")
                         }
-                        .tint(Color.tempoSignal)
+                        .tint(Color.accentColor)
                     }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .contentMargins(.bottom, TideTrain.pageBottom, for: .scrollContent)
+        .tidePage()
+        .safeAreaBar(edge: .bottom) {
+            // The way to make one, under the thumb: the lead action while the
+            // list is empty, a quieter add row once there are routines.
+            Group {
+                if routines.isEmpty {
+                    Button {
+                        creatingNew = true
+                    } label: {
+                        Label("Build a routine", systemImage: "plus")
+                    }
+                    .buttonStyle(.tidePrimary)
+                } else {
+                    TrainPlanAddButton(title: "New routine") {
+                        creatingNew = true
+                    }
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        }
         .navigationTitle("My Routines")
+        .firstTip(
+            "train.routines",
+            "A routine is a saved workout: build one here or save today's from the Training tab, and Tempo still sets the weights.",
+            systemImage: "list.bullet.rectangle"
+        )
+        .tempoToast($toast, placement: .bottom)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -125,30 +153,78 @@ struct RoutinesView: View {
     }
 
     private func routineRow(_ routine: WorkoutRoutine) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(routine.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text(routine.items.map(\.exerciseName).joined(separator: " · "))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(2)
-                Text("\(routine.items.count) exercises · \(routine.items.reduce(0) { $0 + $1.workingSets }) sets")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            Spacer()
-            Button("Use today") {
-                pendingApply = routine
-            }
-            .font(.tempoCaption1.weight(.semibold))
-            .buttonStyle(.borderedProminent)
-            .tint(Color.tempoSignal)
-            .disabled(viewModel.routineBlocker(for: viewModel.todayPlan) != nil)
+        let blocked = viewModel.routineBlocker(for: viewModel.todayPlan) != nil
+        let useButton = Button {
+            pendingApply = routine
+        } label: {
+            Text("Use today")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.ink)
+                .lineLimit(1)
+                .padding(.horizontal, Tide.s4)
+                .frame(minHeight: Tide.hit)
+                .background(Color.accentColor, in: .capsule)
+                .contentShape(.capsule)
         }
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
+        .disabled(blocked)
+        .opacity(blocked ? 0.4 : 1)
+        let setCount = routine.items.reduce(0) { $0 + $1.workingSets }
+        let info = VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(routine.name)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            // The size of it as two figures, like the day hero on Train.
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s4) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber("\(routine.items.count)", size: Tide.numeralS, relativeTo: .title3)
+                    Text(TrainCount.noun(routine.items.count, "exercise"))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                    TideNumber("\(setCount)", size: Tide.numeralS, relativeTo: .title3)
+                    Text(TrainCount.noun(setCount, "set"))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(TrainCount.text(routine.items.count, "exercise")) · \(TrainCount.text(setCount, "set"))")
+            Text(routine.items.map(\.exerciseName).joined(separator: " · "))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .lineLimit(2)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                info
+                Spacer(minLength: Tide.s2)
+                useButton
+            }
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                info
+                useButton
+            }
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .contentShape(.rect)
         .onTapGesture { editing = routine }
+    }
+
+    /// Deletes the routine and offers Undo for a few seconds. The routine is
+    /// copied first and put back with the same id and date.
+    private func delete(_ routine: WorkoutRoutine) {
+        let snapshot = RoutineSnapshot(routine)
+        modelContext.delete(routine)
+        guard modelContext.saveOrAlert("routine change") else {
+            return
+        }
+        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+            snapshot.restore(in: modelContext)
+            modelContext.saveOrAlert("routine change")
+        }
     }
 }
 
@@ -170,6 +246,9 @@ struct RoutineEditorView: View {
     private var showPicker = false
     @State
     private var loaded = false
+    /// The Undo toast after an exercise is taken out of the routine.
+    @State
+    private var toast: ToastData?
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty && !items.isEmpty
@@ -177,7 +256,24 @@ struct RoutineEditorView: View {
 
     var body: some View {
         editorBody
+            .tempoToast($toast, placement: .bottom)
             .persistenceAlert()
+    }
+
+    /// Takes the exercises out and offers Undo for a few seconds; Undo puts
+    /// each back where it was. Nothing is saved until Save, so this only
+    /// touches the editor's own list.
+    private func removeItems(at offsets: IndexSet) {
+        let removal = RoutineItemRemoval(offsets: offsets, in: items)
+        guard !removal.isEmpty else {
+            return
+        }
+        items.remove(atOffsets: offsets)
+        toast = ToastData(message: removal.message, style: .info, actionTitle: "Undo") {
+            withAnimation(Tide.snap) {
+                removal.restore(into: &items)
+            }
+        }
     }
 
     private var editorBody: some View {
@@ -185,29 +281,59 @@ struct RoutineEditorView: View {
             List {
                 Section {
                     TextField("Routine name (e.g. Upper A)", text: $name)
-                        .font(.tempoBody)
+                        .font(Tide.body)
+                        .tideFieldSurface()
+                        // The grouped list already insets its rows, so the
+                        // field lines up with the exercise group below it.
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
 
-                Section("EXERCISES") {
+                Section {
                     ForEach($items) { $item in
                         itemRow($item)
+                            .listRowBackground(Tide.fill)
                     }
                     .onMove { items.move(fromOffsets: $0, toOffset: $1) }
-                    .onDelete { items.remove(atOffsets: $0) }
+                    .onDelete { removeItems(at: $0) }
 
                     Button {
                         showPicker = true
                     } label: {
                         Label("Add Exercise", systemImage: "plus")
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .listRowBackground(Tide.fill)
+                } header: {
+                    TideSectionLabel(title: "Exercises")
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .trainSheetRoot()
+            .safeAreaBar(edge: .bottom) {
+                // Save under the thumb, and say what is still missing while it is off.
+                VStack(spacing: Tide.s2) {
+                    if !canSave {
+                        Text("Name it and add an exercise.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    Button {
+                        save()
+                    } label: {
+                        Text("Save routine")
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(!canSave)
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
             .environment(\.editMode, .constant(.active))
             .navigationTitle(routine == nil ? "New Routine" : "Edit Routine")
             .navigationBarTitleDisplayMode(.inline)
@@ -245,19 +371,28 @@ struct RoutineEditorView: View {
         let groupedWithNext = index + 1 < items.count
             && item.wrappedValue.group != nil
             && items[index + 1].group == item.wrappedValue.group
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(item.wrappedValue.exerciseName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Stepper(
-                    "\(item.wrappedValue.workingSets) sets",
-                    value: item.workingSets,
-                    in: 1 ... 10
-                )
-                .font(.tempoCaption1)
-                .fixedSize()
+        let title = Text(item.wrappedValue.exerciseName)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+        let stepper = Stepper(
+            TrainCount.text(item.wrappedValue.workingSets, "set"),
+            value: item.workingSets,
+            in: 1 ... 10
+        )
+        .font(Tide.caption)
+        .fixedSize()
+        return VStack(alignment: .leading, spacing: Tide.s1) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    title
+                        .lineLimit(2)
+                    Spacer(minLength: Tide.s2)
+                    stepper
+                }
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    title
+                    stepper
+                }
             }
             if index + 1 < items.count {
                 Toggle(isOn: Binding(
@@ -265,10 +400,11 @@ struct RoutineEditorView: View {
                     set: { setGrouped($0, at: index) }
                 )) {
                     Label("Superset with next", systemImage: "link")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                .tint(Color.tempoSignal)
+                .tint(Color.accentColor)
+                .frame(minHeight: Tide.hit)
             }
         }
     }
@@ -347,7 +483,7 @@ private struct RoutineExercisePicker: View {
         NavigationStack {
             List {
                 ForEach(sections, id: \.group) { section in
-                    Section(section.group.displayName.uppercased()) {
+                    Section(section.group.displayName) {
                         ForEach(section.exercises, id: \.id) { exercise in
                             Button {
                                 onPick(exercise)
@@ -355,14 +491,14 @@ private struct RoutineExercisePicker: View {
                             } label: {
                                 ExercisePickRow(exercise: exercise)
                             }
-                            .listRowBackground(Color.tempoSurfaceCard)
+                            .listRowBackground(Tide.fill)
                         }
                     }
                 }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .trainSheetRoot()
             .searchable(text: $searchText, prompt: "Search exercises")
             .navigationTitle("Add Exercise")
             .navigationBarTitleDisplayMode(.inline)

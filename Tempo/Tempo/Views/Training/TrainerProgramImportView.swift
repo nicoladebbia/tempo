@@ -32,6 +32,8 @@ struct TrainerProgramImportView: View {
     private var services
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     @State
     private var importService: TrainerProgramImportService?
@@ -87,7 +89,6 @@ struct TrainerProgramImportView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
                 if isProcessing {
                     processingOverlay
                 } else {
@@ -110,7 +111,7 @@ struct TrainerProgramImportView: View {
         }
         // Matches the convention every standalone onboarding screen already
         // follows for a modally-presented dark-only screen.
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear {
             if importService == nil {
                 importService = TrainerProgramImportService(apiClient: services.apiClient)
@@ -167,53 +168,60 @@ struct TrainerProgramImportView: View {
 
     private var sourcePicker: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xxl) {
-                VStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.tempoViolet)
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.s3) {
+                    TideIconTile(
+                        systemName: "figure.strengthtraining.traditional",
+                        tint: TideTrain.violet,
+                        size: Tide.tileLarge
+                    )
                     Text("Get your coach's program into Tempo")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
                         .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(
                         "Add every sheet your coach sent — photos, PDFs, Word/Excel files, or pasted text. Tempo reads them all as one program and you review before it goes live."
                     )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, TempoSpacing.xl)
-                .padding(.horizontal, TempoSpacing.xl)
+                .padding(.top, Tide.s4)
+                .padding(.horizontal, Tide.edge)
 
                 if let quotaBanner {
-                    Text(quotaBanner)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Label(quotaBanner, systemImage: "ticket")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.xl)
+                        .padding(.horizontal, Tide.edge)
                 }
 
                 if let quotaExceededMessage {
-                    VStack(spacing: TempoSpacing.sm) {
-                        Text(quotaExceededMessage)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoError)
-                            .multilineTextAlignment(.center)
+                    TrainBanner(
+                        systemImage: "ticket.fill",
+                        label: "Free imports used",
+                        tint: TideTrain.caution,
+                        message: quotaExceededMessage
+                    ) {
                         Button("Upgrade to Tempo Pro") {
                             showPaywall = true
                         }
-                        .buttonStyle(.tempoSecondary)
+                        .buttonStyle(.trainPlanSecondary)
                     }
-                    .padding(.horizontal, TempoSpacing.xl)
+                    .padding(.horizontal, Tide.edge)
                 }
 
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.xl)
+                    TrainBanner(
+                        systemImage: "exclamationmark.triangle.fill",
+                        label: "Couldn't read it",
+                        tint: Tide.danger,
+                        message: errorMessage
+                    ) {}
+                        .padding(.horizontal, Tide.edge)
                 }
 
                 if !sources.isEmpty {
@@ -222,30 +230,14 @@ struct TrainerProgramImportView: View {
 
                 addSourceButtons
 
-                if !sources.isEmpty {
-                    Button {
-                        guard !isQuotaExhausted else {
-                            quotaExceededMessage = quotaExhaustedMessage
-                            return
-                        }
-                        quotaExceededMessage = nil
-                        importTask?.cancel()
-                        importTask = Task { await readProgram() }
-                    } label: {
-                        Text("Read Program")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoPrimary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                }
-
                 #if DEBUG
                     Button("Load Sample Program (DEBUG)") {
                         loadSample()
                     }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.md)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(minHeight: Tide.hit)
+                    .padding(.top, Tide.s2)
 
                     // trainer-feedback-tests — a separate sample (today's
                     // weekday, one exercise flagged as a test) so the
@@ -255,58 +247,76 @@ struct TrainerProgramImportView: View {
                     Button("Load Test Day Sample (DEBUG)") {
                         loadTestDaySample()
                     }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xs)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(minHeight: Tide.hit)
                 #endif
             }
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.bottom, Tide.s5)
+        }
+        .safeAreaBar(edge: .bottom) {
+            // Reading the program is the one thing to do once something is added,
+            // so it sits under the thumb instead of at the end of the scroll.
+            if !sources.isEmpty {
+                Button {
+                    guard !isQuotaExhausted else {
+                        quotaExceededMessage = quotaExhaustedMessage
+                        return
+                    }
+                    quotaExceededMessage = nil
+                    importTask?.cancel()
+                    importTask = Task { await readProgram() }
+                } label: {
+                    Text("Read Program")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
         }
     }
 
     // MARK: - Added sources list
 
     private var sourceListSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("SOURCES")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(sources.count == 1 ? "1 source added" : "\(sources.count) sources added").tideLabel(Tide.text3)
 
             ForEach(sources) { source in
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: source.systemImage)
-                        .foregroundStyle(Color.tempoViolet)
-                        .frame(width: 24)
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(systemName: source.systemImage, tint: TideTrain.violet)
                     Text(source.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .lineLimit(1)
-                    Spacer()
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .lineLimit(3)
+                    Spacer(minLength: Tide.s2)
                     Button {
                         removeSource(source.id)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text3)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(source.displayName)")
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
 
     private var addSourceButtons: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Button {
-                showCameraPicker = true
-            } label: {
-                Label("Take Photo", systemImage: "camera.fill")
-                    .frame(maxWidth: .infinity)
+        VStack(spacing: Tide.s3) {
+            // The lead way in while nothing is added; one more way in after that.
+            if sources.isEmpty {
+                takePhotoButton.buttonStyle(.tidePrimary)
+            } else {
+                takePhotoButton.buttonStyle(.trainPlanSecondary)
             }
-            .buttonStyle(.tempoPrimary)
 
             PhotosPicker(
                 selection: $photosSelection,
@@ -316,7 +326,7 @@ struct TrainerProgramImportView: View {
                 Label("Choose Photos", systemImage: "photo.on.rectangle")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             Button {
                 showFileImporter = true
@@ -324,7 +334,7 @@ struct TrainerProgramImportView: View {
                 Label("Choose Files", systemImage: "doc.badge.plus")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
 
             Button {
                 showPasteSheet = true
@@ -332,18 +342,41 @@ struct TrainerProgramImportView: View {
                 Label("Paste Text", systemImage: "text.alignleft")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.trainPlanSecondary)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
+    }
+
+    private var takePhotoButton: some View {
+        Button {
+            showCameraPicker = true
+        } label: {
+            Label("Take Photo", systemImage: "camera.fill")
+                .frame(maxWidth: .infinity)
+        }
     }
 
     private var processingOverlay: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().scaleEffect(1.4)
+        VStack(spacing: Tide.s3) {
+            TideIconTile(systemName: "doc.text.magnifyingglass", tint: TideTrain.violet, size: TideTrain.thumb)
+                .symbolEffect(.pulse, isActive: !reduceMotion)
             Text(processingLabel)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(sources.count == 1 ? "1 source, read as one program" : "\(sources.count) sources, read as one program")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            ProgressView()
+                .padding(.top, Tide.s1)
         }
+        .frame(maxWidth: .infinity)
+        .tideCard(padding: Tide.s6, radius: Tide.cardRadius)
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Source list mutation
@@ -738,23 +771,22 @@ private struct PasteTextSheet: View {
     private var dismiss
     @State
     private var text = ""
+    @FocusState
+    private var textFocused: Bool
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s4) {
                 TextEditor(text: $text)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .scrollContentBackground(.hidden)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xl)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
-                    )
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.top, TempoSpacing.lg)
+                    .focused($textFocused)
+                    .padding(.vertical, Tide.s2)
+                    .tideFieldSurface(focused: textFocused)
+                    .frame(maxHeight: .infinity)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s4)
 
                 Button {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -767,13 +799,12 @@ private struct PasteTextSheet: View {
                     Text("Add")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
-                Spacer()
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s4)
             }
-            .background(Color.tempoBgPrimary)
+            .trainSheetRoot()
             .navigationTitle("Paste Text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -782,6 +813,5 @@ private struct PasteTextSheet: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
     }
 }

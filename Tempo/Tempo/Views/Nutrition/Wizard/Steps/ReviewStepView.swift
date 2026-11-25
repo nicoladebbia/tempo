@@ -16,6 +16,7 @@ struct ReviewStepView: View {
         WizardStepScaffold(
             title: "Lock it in.",
             subtitle: "Final read. Tap Generate when ready.",
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             primaryButtonLabel: "Generate Plan",
@@ -23,39 +24,54 @@ struct ReviewStepView: View {
             onPrimary: coordinator.submit,
             onCancel: coordinator.cancel
         ) {
-            VStack(spacing: TempoSpacing.sm) {
-                summaryRow(
-                    label: "Cookable days",
-                    value: "\(coordinator.intake.cookableDaysThisWeek)/7"
-                )
-                if coordinator.snapshot.hasWhoop {
-                    summaryRow(
-                        label: "Recovery skew",
-                        value: coordinator.intake.recoveryAdjusted ? "On" : "Off"
-                    )
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                // What the plan will be built on: the cook count leads.
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("Cookable days").tideLabel()
+                    TideNumber("\(coordinator.intake.cookableDaysThisWeek)", unit: "of 7 days", size: Tide.numeralL)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                if !coordinator.intake.temporaryExclusions.isEmpty {
+                .accessibilityElement(children: .combine)
+                FuelRowGroup(title: "Also this week") {
                     summaryRow(
                         label: "Excluding",
-                        value: coordinator.intake.temporaryExclusions.joined(separator: ", ")
+                        value: coordinator.intake.temporaryExclusions.isEmpty
+                            ? "Nothing"
+                            : coordinator.intake.temporaryExclusions.joined(separator: ", ")
                     )
+                    if coordinator.snapshot.hasWhoop {
+                        summaryRow(
+                            label: "Recovery skew",
+                            value: coordinator.intake.recoveryAdjusted ? "On" : "Off"
+                        )
+                    }
                 }
             }
         }
     }
 
+    /// Label left, value right; on huge text sizes the value drops under the label.
     private func summaryRow(label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label.uppercased())
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Spacer(minLength: TempoSpacing.md)
-            Text(value)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.trailing)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                Text(label)
+                    .tideLabel()
+                Spacer(minLength: Tide.s3)
+                Text(value)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.trailing)
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(label)
+                    .tideLabel()
+                Text(value)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .tempoCard()
+        .accessibilityElement(children: .combine)
     }
 }

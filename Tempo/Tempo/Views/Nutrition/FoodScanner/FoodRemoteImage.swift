@@ -45,29 +45,29 @@ struct FoodRemoteImage: View {
                                 .scaledToFill()
                                 .blur(radius: 24)
                         }
-                        .overlay(Color.black.opacity(TempoOpacity.o40))
+                        .overlay(Tide.ink.opacity(0.5))
                         .clipped()
                         .transition(.opacity)
                 }
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-                    .padding(showsBlurredBackdrop ? TempoSpacing.lg : 0)
+                    .padding(showsBlurredBackdrop ? Tide.s4 : 0)
                     .transition(.opacity)
             } else if let product {
                 FoodGroupArt(group: product.foodGroup, name: product.name)
-                    .padding(showsBlurredBackdrop ? TempoSpacing.lg : 0)
+                    .padding(showsBlurredBackdrop ? Tide.s4 : 0)
                     .overlay {
                         if isLoading {
                             ProgressView()
-                                .tint(Color.tempoTextTertiary)
+                                .tint(Tide.text3)
                         }
                     }
             } else {
-                Color.tempoBgTertiary
+                Tide.fill
             }
         }
-        .animation(.easeOut(duration: TempoAnimation.smallDuration), value: image == nil)
+        .animation(Tide.snap, value: image == nil)
         .task(id: taskKey) {
             await load()
         }

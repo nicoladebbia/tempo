@@ -151,7 +151,7 @@ struct MealReviewDraft {
     }
 
     var totalCalories: Int {
-        items.reduce(0) { $0 + Int($1.calories) }
+        Int(items.reduce(0.0) { $0 + $1.calories }.rounded())
     }
 
     var totalProtein: Double {

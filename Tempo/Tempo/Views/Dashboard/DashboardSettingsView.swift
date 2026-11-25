@@ -6,7 +6,6 @@
 //
 //
 
-import CoreLocation
 import SwiftData
 import SwiftUI
 import UIKit
@@ -24,6 +23,11 @@ struct DashboardSettingsView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
+
+    @Environment(\.dynamicTypeSize)
+    private var headerTypeSize
     @Query
     private var allSettings: [UserSettings]
     @Query
@@ -54,235 +58,188 @@ struct DashboardSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
-    @State private var showPaywall = false
-    @State private var isRestoring = false
-    @State private var restoreError: String?
-    /// Refreshed on appear — location auth can change in iOS Settings while away.
-    @State private var locationStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
+    /// The server's answer about the plan, shared with the Subscription page.
+    @State private var plan = PlanModel()
+    /// Confirms "Show tips again".
+    @State private var tipsToast: ToastData?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                profileHeaderCard
+        TideSettingsPage {
+            profileHeaderCard
 
-                SettingsGroupCard(title: "You & your day") {
-                    NavigationLink {
-                        ScheduleSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "clock.fill", iconTint: .tempoAmber,
-                            title: "Schedule", subtitle: scheduleSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        TrainingSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "dumbbell.fill", iconTint: .tempoSignal,
-                            title: "Training", subtitle: trainingSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        FocusTimerSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "timer", iconTint: .tempoElectric,
-                            title: "Focus Timer", subtitle: focusSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        ModesSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "bolt.fill", iconTint: .tempoViolet,
-                            title: "Modes", subtitle: modesSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
+            SettingsGroupCard(title: "You & your day") {
+                NavigationLink {
+                    ScheduleSettingsDetailView()
+                } label: {
+                    SettingsNavRow(icon: "clock.fill", title: "Schedule", subtitle: scheduleSubtitle)
                 }
+                .buttonStyle(.tideSettingsRow)
 
-                SettingsGroupCard(title: "Connections") {
-                    NavigationLink {
-                        WhoopConnectionView()
-                    } label: {
-                        SettingsStatusRow(
-                            icon: "waveform.path.ecg", title: "Whoop",
-                            status: whoopStatusText, statusColor: whoopStatusColor
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        FuelSetupView(embedded: true)
-                    } label: {
-                        SettingsStatusRow(
-                            icon: "fork.knife", title: "Diet Profile",
-                            status: dietProfileStatusText, statusColor: dietProfileStatusColor
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    NavigationLink {
-                        WeeklyHabitsSettingsView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "calendar.badge.clock", iconTint: .tempoSuccess,
-                            title: "Weekly habits", subtitle: "Sunday planning, routine, what we've learned"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("settingsWeeklyHabits")
-
-                    Button {
-                        openSystemSettings()
-                    } label: {
-                        SettingsStatusRow(
-                            icon: "heart.text.square", title: "HealthKit",
-                            status: healthKitStatusText, statusColor: healthKitStatusColor,
-                            showsChevron: false
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        openSystemSettings()
-                    } label: {
-                        SettingsStatusRow(
-                            icon: "cloud.sun.fill", title: "Weather (Location)",
-                            status: locationStatusText, statusColor: locationStatusColor,
-                            showsChevron: false
-                        )
-                    }
-                    .buttonStyle(.plain)
+                NavigationLink {
+                    TrainingSettingsDetailView()
+                } label: {
+                    SettingsNavRow(icon: "dumbbell.fill", title: "Training", subtitle: trainingSubtitle)
                 }
-                .onAppear { locationStatus = CLLocationManager().authorizationStatus }
+                .buttonStyle(.tideSettingsRow)
 
-                SettingsGroupCard(title: "Notifications") {
-                    NavigationLink {
-                        NotificationSettingsView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "bell.fill", iconTint: .tempoSignal,
-                            title: "Notifications", subtitle: notificationsSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
+                NavigationLink {
+                    FocusTimerSettingsDetailView()
+                } label: {
+                    SettingsNavRow(icon: "timer", title: "Focus Timer", subtitle: focusSubtitle)
                 }
+                .buttonStyle(.tideSettingsRow)
 
-                AIFeaturesSettingsCard()
-
-                SettingsGroupCard(title: "Appearance") {
-                    NavigationLink {
-                        AppearanceSettingsDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "paintbrush.fill", iconTint: .tempoAmber,
-                            title: "Accent Color", subtitle: accentSubtitle
-                        )
-                    }
-                    .buttonStyle(.plain)
+                NavigationLink {
+                    ModesSettingsDetailView()
+                } label: {
+                    SettingsNavRow(icon: "bolt.fill", title: "Modes", subtitle: modesSubtitle)
                 }
+                .buttonStyle(.tideSettingsRow)
 
-                SettingsGroupCard(title: "Your data") {
-                    NavigationLink {
-                        DataExportView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "square.and.arrow.up", iconTint: .tempoElectric,
-                            title: "Export My Data"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                SettingsGroupCard(title: "Subscription") {
-                    NavigationLink {
-                        SubscriptionDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "crown.fill", iconTint: .tempoAmber,
-                            title: "Subscription", subtitle: subscriptionStatusText
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                SettingsGroupCard(title: "Account & about") {
-                    NavigationLink {
-                        AccountDetailView()
-                    } label: {
-                        SettingsNavRow(
-                            icon: "person.crop.circle", iconTint: .tempoElectric,
-                            title: "Account",
-                            subtitle: services.authService.authState == .unauthenticated
-                                || services.authService.authState == .expired
-                                ? "Not signed in — tap to sign in"
-                                : "Sign-in, member since, delete"
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    SettingsActionRow(
-                        icon: "number", title: "Version", tint: .tempoTextPrimary,
-                        trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                NavigationLink {
+                    FuelSetupView(embedded: true)
+                } label: {
+                    SettingsStatusRow(
+                        icon: "fork.knife", title: "Diet Profile",
+                        status: dietProfileStatusText, statusColor: dietProfileStatusColor
                     )
+                }
+                .buttonStyle(.tideSettingsRow)
 
-                    if let supportURL = URL(string: "https://tempo.app/support") {
-                        Link(destination: supportURL) {
-                            SettingsActionRow(
-                                icon: "questionmark.circle", title: "Support",
-                                tint: .tempoTextPrimary
-                            )
-                        }
-                        .buttonStyle(.plain)
+                NavigationLink {
+                    WeeklyHabitsSettingsView()
+                } label: {
+                    SettingsNavRow(
+                        icon: "calendar.badge.clock",
+                        title: "Weekly habits", subtitle: "Sunday planning, routine, what we've learned"
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsWeeklyHabits")
+
+                NavigationLink {
+                    SetupChecklistPage()
+                } label: {
+                    SettingsStatusRow(
+                        icon: "checklist", title: "Get set up",
+                        status: setupStatusText, statusColor: setupStatusColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsGetSetUp")
+            }
+
+            SettingsGroupCard(title: "Connections & alerts") {
+                NavigationLink {
+                    ConnectionsView()
+                } label: {
+                    SettingsStatusRow(
+                        icon: "link", title: "Connections",
+                        status: connectionsSummary, statusColor: connectionsSummaryColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsConnections")
+
+                NavigationLink {
+                    NotificationInboxView(onOpen: { dismiss() })
+                } label: {
+                    SettingsStatusRow(
+                        icon: "tray.fill", title: "Today's notifications",
+                        status: inboxStatus, statusColor: inboxStatusColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotificationInbox")
+
+                NavigationLink {
+                    NotificationSettingsView()
+                } label: {
+                    SettingsNavRow(icon: "bell.fill", title: "Notifications", subtitle: notificationsSubtitle)
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsNotifications")
+            }
+
+            AIFeaturesSettingsCard()
+
+            SettingsGroupCard(title: "Account & data") {
+                NavigationLink {
+                    SubscriptionDetailView(plan: plan)
+                } label: {
+                    SettingsNavRow(icon: "crown.fill", title: "Subscription", subtitle: subscriptionStatusText)
+                }
+                .buttonStyle(.tideSettingsRow)
+
+                NavigationLink {
+                    AccountDetailView()
+                } label: {
+                    SettingsNavRow(
+                        icon: "person.crop.circle",
+                        title: "Account",
+                        subtitle: services.authService.authState == .unauthenticated
+                            || services.authService.authState == .expired
+                            ? "Not signed in — tap to sign in"
+                            : "Sign-in, member since, delete"
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+
+                NavigationLink {
+                    DataExportView()
+                } label: {
+                    SettingsNavRow(icon: "square.and.arrow.up", title: "Export My Data")
+                }
+                .buttonStyle(.tideSettingsRow)
+
+                ShowTipsAgainRow(toast: $tipsToast)
+
+                if let supportURL = URL(string: "https://tempo.app/support") {
+                    Link(destination: supportURL) {
+                        SettingsActionRow(icon: "questionmark.circle", title: "Support", tint: Tide.text)
                     }
+                    .buttonStyle(.tideSettingsRow)
                 }
 
-                #if DEBUG
-                    SettingsGroupCard(title: "Developer") {
-                        NavigationLink {
-                            DailyReadinessHarnessView()
-                        } label: {
-                            SettingsNavRow(
-                                icon: "flask.fill", iconTint: .tempoWarning,
-                                title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
-                            )
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            Task { await generateMissingExerciseImages() }
-                        } label: {
-                            SettingsNavRow(
-                                icon: "photo.badge.plus", iconTint: .tempoElectric,
-                                title: "Generate missing exercise pictures",
-                                subtitle: missingImagesStatus ?? "Walk the local library, request any missing ones"
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(isGeneratingMissingImages)
-                    }
-                #endif
+                SettingsActionRow(
+                    icon: "number", title: "Version", tint: Tide.text,
+                    trailingText: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                )
             }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
+
+            #if DEBUG
+                SettingsGroupCard(title: "Developer") {
+                    NavigationLink {
+                        DailyReadinessHarnessView()
+                    } label: {
+                        SettingsNavRow(
+                            icon: "flask.fill", iconTint: Tide.streak,
+                            title: "D0 Prompt Harness", subtitle: "Run ~20 synthetic days through Haiku"
+                        )
+                    }
+                    .buttonStyle(.tideSettingsRow)
+
+                    Button {
+                        Task { await generateMissingExerciseImages() }
+                    } label: {
+                        SettingsNavRow(
+                            icon: "photo.badge.plus", iconTint: Tide.streak,
+                            title: "Generate missing exercise pictures",
+                            subtitle: missingImagesStatus ?? "Walk the local library, request any missing ones"
+                        )
+                    }
+                    .buttonStyle(.tideSettingsRow)
+                    .disabled(isGeneratingMissingImages)
+                }
+            #endif
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .tempoToast($tipsToast)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
-                    .font(.tempoSubheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.bodyStrong)
             }
         }
         .alert("Delete your account?", isPresented: $showDeleteConfirm) {
@@ -308,9 +265,8 @@ struct DashboardSettingsView: View {
         } message: {
             Text(deleteAccountError ?? "")
         }
-        .sheet(isPresented: $showPaywall) {
-            PaywallView()
-        }
+        .task { await plan.refresh(apiClient: services.apiClient) }
+        .task { await NotificationInbox.shared.refresh() }
     }
 
     // MARK: - Profile Header Card
@@ -319,82 +275,50 @@ struct DashboardSettingsView: View {
         NavigationLink {
             ProfileSettingsDetailView()
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Circle()
-                    .fill(Color.tempoSurfaceElevated)
-                    .frame(width: 56, height: 56)
+            // At accessibility sizes the picture sits above the text so the name keeps its width.
+            let layout = headerTypeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(spacing: Tide.s4))
+            layout {
+                // The ring is the way to the next level.
+                TideSettingsAvatar(initial: profileInitial)
+                    .padding(Tide.s1)
                     .overlay {
-                        Text(profileInitial)
-                            .font(.tempoTitle2)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                        TideRing(progress: levelProgress, color: mood.accent, lineWidth: Tide.barSlim, glow: false)
                     }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(profile?.displayName ?? "Athlete")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text("@\(profile?.username ?? "—") · \(profile?.identityLabel ?? "Athlete")")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .lineLimit(1)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text(profileStatsLine)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tideLabel(mood.accent)
+                        .padding(.top, Tide.s1)
+                        .contentTransition(.numericText())
                 }
 
-                Spacer(minLength: TempoSpacing.sm)
+                if !headerTypeSize.isAccessibilitySize {
+                    Spacer(minLength: Tide.s2)
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Subscription Card
-
-    private var subscriptionCard: some View {
-        SettingsGroupCard(title: "Subscription") {
-            HStack(spacing: TempoSpacing.md) {
-                SettingsIconTile(systemName: "crown.fill", tint: .tempoAmber)
-                Text("Plan")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer(minLength: TempoSpacing.sm)
-                Text(subscriptionStatusText)
-                    .font(.tempoDataSmall)
-                    .foregroundStyle(
-                        services.subscriptions.isPro ? Color.tempoSuccess : Color.tempoTextTertiary
-                    )
-            }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.vertical, TempoSpacing.md)
-            .frame(minHeight: 44)
-
-            if !services.subscriptions.isPro {
-                Button {
-                    showPaywall = true
-                } label: {
-                    SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: .tempoSignal)
+                    Image(systemName: "chevron.right")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
             }
-
-            Button {
-                Task { await restorePurchases() }
-            } label: {
-                SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: .tempoTextPrimary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isRestoring)
+            .tideCard(padding: Tide.s4)
+            .contentShape(.rect(cornerRadius: Tide.cardRadius))
         }
+        .buttonStyle(TideSettingsCardPressStyle())
     }
 
     // MARK: - Live Summary Subtitles
@@ -444,19 +368,38 @@ struct DashboardSettingsView: View {
         return active.isEmpty ? "None active" : active.joined(separator: " · ")
     }
 
+    /// The level the reminder switches add up to, and quiet hours when they are on.
     private var notificationsSubtitle: String {
-        // Mirrors IntensityOption titles in NotificationSettingsView (1…4).
-        switch settings?.notificationIntensity {
-        case 1: "Gentle Coach"
-        case 2: "Firm Coach"
-        case 3: "Drill Sergeant"
-        case 4: "Savage Mode"
-        default: "Default"
+        guard let settings else {
+            return "Default"
         }
+        let policy = NotificationPolicy(settings: settings)
+        let level = policy.level?.title ?? "Custom"
+        guard let quiet = policy.quietHours else {
+            return level
+        }
+        return "\(level) · quiet \(Self.clock(quiet.startMinutes))–\(Self.clock(quiet.endMinutes))"
     }
 
-    private var accentSubtitle: String {
-        AccentColorOption(rawValue: accentColorChoice)?.displayName ?? "Signal Red"
+    private static func clock(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
+    private var inboxStatus: String {
+        let inbox = NotificationInbox.shared
+        if inbox.items.isEmpty {
+            return "None today"
+        }
+        return inbox.unreadCount > 0 ? "\(inbox.unreadCount) new" : "All read"
+    }
+
+    private var inboxStatusColor: Color {
+        NotificationInbox.shared.unreadCount > 0 ? mood.accent : Tide.text2
+    }
+
+    /// 0...1 toward the next level, worked out the way the Arena does it.
+    private var levelProgress: Double {
+        settingsLevelProgress(totalXP: profile?.totalXP ?? 0, engine: services.xpEngine)
     }
 
     private var profileStatsLine: String {
@@ -466,47 +409,10 @@ struct DashboardSettingsView: View {
         return "Lvl \(level) · \(xpStr)"
     }
 
-    @AppStorage("accentColorChoice")
-    private var accentColorChoice: String = AccentColorOption.signalRed.rawValue
-
-    private func openSystemSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
-        }
-    }
-
     // MARK: - Subscription
 
     private var subscriptionStatusText: String {
-        switch services.subscriptions.state {
-        case .free:
-            "Free"
-        case .trial:
-            "Pro · Trial"
-        case .active:
-            "Pro"
-        case .gracePeriod:
-            "Pro · Billing issue"
-        case .expired,
-             .churned:
-            "Expired"
-        }
-    }
-
-    @MainActor
-    private func restorePurchases() async {
-        guard !isRestoring else {
-            return
-        }
-        isRestoring = true
-        restoreError = nil
-        defer { isRestoring = false }
-
-        do {
-            try await services.subscriptions.restorePurchases()
-        } catch {
-            restoreError = error.localizedDescription
-        }
+        plan.status(device: services.subscriptions.state).title
     }
 
     #if DEBUG
@@ -574,25 +480,6 @@ struct DashboardSettingsView: View {
     @AppStorage("healthKitAuthorized")
     private var healthKitAuthorized = false
 
-    private var whoopStatusText: String {
-        switch services.whoop.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .error: "Error"
-        case .disconnected: "Not Connected"
-        }
-    }
-
-    private var whoopStatusColor: Color {
-        if case .connected = services.whoop.connectionState {
-            return .tempoSuccess
-        }
-        if case .error = services.whoop.connectionState {
-            return .tempoError
-        }
-        return .tempoTextTertiary
-    }
-
     private var dietProfileStatusText: String {
         let descriptor = FetchDescriptor<DietaryProfile>(
             predicate: #Predicate { $0.isActive == true }
@@ -601,41 +488,49 @@ struct DashboardSettingsView: View {
         return count > 0 ? "Configured" : "Not Set Up"
     }
 
+    /// The "Get set up" lines, from the same real state the Today card reads.
+    private var setupChecklist: SetupChecklist {
+        SetupChecklist(SetupChecklistLoader.signals(
+            healthAllowed: healthKitAuthorized,
+            whoopConnected: services.whoop.providesRealData,
+            resolved: true,
+            in: modelContext
+        ))
+    }
+
+    private var setupStatusText: String {
+        let checklist = setupChecklist
+        return checklist.doneCount == checklist.total ? "All done" : "\(checklist.doneCount) of \(checklist.total)"
+    }
+
+    private var setupStatusColor: Color {
+        let checklist = setupChecklist
+        return checklist.doneCount == checklist.total ? Tide.settingsOK : Tide.text3
+    }
+
     private var dietProfileStatusColor: Color {
         let descriptor = FetchDescriptor<DietaryProfile>(
             predicate: #Predicate { $0.isActive == true }
         )
         let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        return count > 0 ? .tempoSuccess : .tempoTextTertiary
+        return count > 0 ? Tide.settingsOK : Tide.text3
     }
 
-    private var healthKitStatusText: String {
-        healthKitAuthorized ? "Authorized" : "Not Authorized"
+    /// What the Connections row says: how many are on, or what needs the user.
+    private var connectionsSummary: String {
+        ConnectionStatus.summary(connectionStatuses)
     }
 
-    private var healthKitStatusColor: Color {
-        healthKitAuthorized ? .tempoSuccess : .tempoTextTertiary
-    }
-
-    private var locationStatusText: String {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: "Authorized"
-        case .denied,
-             .restricted: "Denied"
-        case .notDetermined: "Not Set Up"
-        @unknown default: "Not Set Up"
+    private var connectionsSummaryColor: Color {
+        switch ConnectionStatus.summaryTone(connectionStatuses) {
+        case .ok: Tide.settingsOK
+        case .off: Tide.text3
+        case .attention: Tide.settingsAttention
         }
     }
 
-    private var locationStatusColor: Color {
-        switch locationStatus {
-        case .authorizedWhenInUse,
-             .authorizedAlways: .tempoSuccess
-        case .denied,
-             .restricted: .tempoError
-        default: .tempoTextTertiary
-        }
+    private var connectionStatuses: [ConnectionStatus] {
+        ConnectionsSnapshot.statuses(whoop: services.whoop, healthAsked: healthKitAuthorized)
     }
 }
 
@@ -644,6 +539,14 @@ struct DashboardSettingsView: View {
 struct ProfileSettingsDetailView: View {
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.displayScale)
+    private var displayScale
     @Query
     private var allProfiles: [UserProfile]
     @Query
@@ -656,6 +559,9 @@ struct ProfileSettingsDetailView: View {
     /// the "Refresh from Health" flow). Profile shows these read-only.
     @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
     private var activeDietProfiles: [DietaryProfile]
+    /// The one target (a weight, a lift or a run time) with its date.
+    @Query(filter: #Predicate<Goal> { $0.isActive == true }, sort: \Goal.createdAt, order: .reverse)
+    private var activeGoals: [Goal]
 
     private var profile: UserProfile? {
         allProfiles.first
@@ -683,19 +589,14 @@ struct ProfileSettingsDetailView: View {
     private let identityOptions = OnboardingViewModel.identityLabels
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                heroCard
-                statsCard
-                trainingSummaryCard
-                identityCard
-                biometricsCard
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
+        TideSettingsPage {
+            heroCard
+            statsCard
+            trainingSummaryCard
+            identityCard
+            goalTargetCard
+            biometricsCard
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadProfile() }
@@ -704,40 +605,38 @@ struct ProfileSettingsDetailView: View {
     // MARK: - Hero
 
     private var heroCard: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Circle()
-                .fill(Color.tempoSurfaceElevated)
-                .frame(width: 88, height: 88)
+        VStack(spacing: Tide.s3) {
+            // The ring is the way to the next level.
+            TideSettingsAvatar(initial: profileInitial, diameter: Tide.settingsAvatarLarge)
+                .padding(Tide.s2)
                 .overlay {
-                    Text(profileInitial)
-                        .font(.tempoLargeTitle)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                    TideRing(
+                        progress: settingsLevelProgress(totalXP: profile?.totalXP ?? 0, engine: services.xpEngine),
+                        color: mood.accent, lineWidth: Tide.bar
+                    )
                 }
 
-            VStack(spacing: TempoSpacing.xxs) {
+            VStack(spacing: Tide.hair) {
                 Text(displayName.isEmpty ? "Athlete" : displayName)
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("@\(username.isEmpty ? "—" : username)")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
 
-                // Identity as a subtle secondary tag — toned down so it reads
-                // below the username, not louder than it.
-                Text(identityLabel.uppercased())
-                    .font(.tempoCaption2)
-                    .fontWeight(.semibold)
-                    .tracking(0.5)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xxs)
+                // Identity as a small tag under the username, so it reads
+                // below it and never louder.
+                Text(identityLabel)
+                    .tideLabel(Tide.text3)
+                    .padding(.top, Tide.s1)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xl)
-        .padding(.horizontal, TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .tideCard(padding: Tide.s6)
     }
 
     private var profileInitial: String {
@@ -748,7 +647,10 @@ struct ProfileSettingsDetailView: View {
     // MARK: - Stats
 
     private var statsCard: some View {
-        HStack(spacing: 0) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s4))
+            : AnyLayout(HStackLayout(spacing: 0))
+        return layout {
             statCell(value: "\(profile?.currentLevel ?? 1)", label: "Level")
             statDivider
             statCell(value: streakDisplay, label: "Streak")
@@ -757,9 +659,7 @@ struct ProfileSettingsDetailView: View {
             statDivider
             statCell(value: memberSince, label: "Member")
         }
-        .padding(.vertical, TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private var streakDisplay: String {
@@ -768,25 +668,26 @@ struct ProfileSettingsDetailView: View {
     }
 
     private func statCell(value: String, label: String) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
+        VStack(spacing: Tide.s1) {
+            TideNumber(value, size: Tide.numeralS, relativeTo: .headline)
             Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .tideLabel(Tide.text3)
                 .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.xxs)
+        .padding(.horizontal, Tide.hair)
+        .accessibilityElement(children: .combine)
     }
 
+    @ViewBuilder
     private var statDivider: some View {
-        Rectangle()
-            .fill(Color.tempoDivider)
-            .frame(width: 1, height: 28)
+        if !typeSize.isAccessibilitySize {
+            Rectangle()
+                .fill(Tide.hairline)
+                .frame(width: 1 / displayScale, height: Tide.s6)
+                .accessibilityHidden(true)
+        }
     }
 
     private var xpDisplay: String {
@@ -809,23 +710,23 @@ struct ProfileSettingsDetailView: View {
         SettingsFormCard(title: "Training") {
             SettingsInfoRow(
                 label: "Split", value: settings?.trainingSplit.displayName ?? "—",
-                icon: "dumbbell.fill", iconTint: .tempoSignal
+                icon: "dumbbell.fill"
             )
             SettingsRowDivider()
             SettingsInfoRow(
                 label: "Football days", value: footballSummary,
-                icon: "sportscourt.fill", iconTint: .tempoAmber
+                icon: "sportscourt.fill"
             )
             SettingsRowDivider()
             SettingsInfoRow(
                 label: "Weight unit", value: (settings?.weightUnitRaw ?? "kg").uppercased(),
-                icon: "scalemass.fill", iconTint: .tempoElectric
+                icon: "scalemass.fill"
             )
             if let longest = overallStreak?.longestCount, longest > 0 {
                 SettingsRowDivider()
                 SettingsInfoRow(
                     label: "Longest streak", value: "\(longest) days",
-                    icon: "flame.fill", iconTint: .tempoSignal
+                    icon: "flame.fill", iconTint: Tide.streak
                 )
             }
         }
@@ -839,55 +740,90 @@ struct ProfileSettingsDetailView: View {
     // MARK: - Identity (editable)
 
     private var identityCard: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("IDENTITY")
-                .font(.tempoCaption1)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.leading, TempoSpacing.sm)
-
-            VStack(spacing: 0) {
-                labeledField(label: "Display Name", text: $displayName, placeholder: "Your name") { newValue in
-                    profile?.displayName = newValue
-                    touch()
-                }
-                rowDivider
-                labeledField(
-                    label: "Username", text: $username, placeholder: "username",
-                    prefix: "@", autocapitalize: false
-                ) { newValue in
-                    profile?.username = newValue
-                    touch()
-                }
-                rowDivider
-                identityLabelRow
+        SettingsFormCard(title: "Identity") {
+            labeledField(label: "Display Name", text: $displayName, placeholder: "Your name") { newValue in
+                profile?.displayName = newValue
+                touch()
             }
-            .padding(.vertical, TempoSpacing.xs)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            SettingsRowDivider(underTitle: false)
+            labeledField(
+                label: "Username", text: $username, placeholder: "username",
+                prefix: "@", autocapitalize: false
+            ) { newValue in
+                profile?.username = newValue
+                touch()
+            }
+            SettingsRowDivider(underTitle: false)
+            identityLabelRow
+            SettingsRowDivider(underTitle: false)
+            goalRow
+        }
+    }
+
+    /// A measurable target with a date. Today and the progress screens show how it is going.
+    private var goalTargetCard: some View {
+        SettingsGroupCard {
+            NavigationLink {
+                GoalEditorView()
+            } label: {
+                SettingsNavRow(icon: "target", title: "Target and date", subtitle: goalTargetSubtitle)
+            }
+            .buttonStyle(.tideSettingsRow)
+            .accessibilityIdentifier("settingsGoalTarget")
+        }
+    }
+
+    private var goalTargetSubtitle: String {
+        guard let goal = activeGoals.first else {
+            return "A weight, a lift or a run time, and when"
+        }
+        let by = goal.targetDate.formatted(.dateTime.day().month(.abbreviated))
+        return "\(GoalFormat.headline(for: goal, unit: settings?.weightUnit ?? .kg)) by \(by)"
+    }
+
+    /// The goal picked in onboarding, changeable here.
+    private var goalRow: some View {
+        SettingsControlRow(label: "Goal") {
+            Picker(
+                "Goal",
+                selection: Binding(
+                    get: { settings?.primaryGoal },
+                    set: { newValue in
+                        settings?.primaryGoal = newValue
+                        touch()
+                    }
+                )
+            ) {
+                Text("Not set").tag(PrimaryGoal?.none)
+                ForEach(PrimaryGoal.allCases, id: \.self) { goal in
+                    Text(goal.title).tag(PrimaryGoal?.some(goal))
+                }
+            }
+            .labelsHidden()
+            .font(Tide.bodyStrong)
+            .tint(Tide.text2)
+            .padding(typeSize.isAccessibilitySize ? .leading : .trailing, -Tide.s3)
+            .accessibilityIdentifier("settingsGoalPicker")
         }
     }
 
     private var identityLabelRow: some View {
-        HStack {
-            Text("Identity")
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
+        SettingsControlRow(label: "Identity") {
             Picker("Identity", selection: $identityLabel) {
                 ForEach(identityOptions, id: \.self) { option in
                     Text(option).tag(option)
                 }
             }
             .labelsHidden()
-            .tint(Color.tempoTextSecondary)
+            .font(Tide.bodyStrong)
+            .tint(Tide.text2)
+            // A menu picker pads its own end; pull it back to the row's edge.
+            .padding(typeSize.isAccessibilitySize ? .leading : .trailing, -Tide.s3)
             .onChange(of: identityLabel) { _, newValue in
                 profile?.identityLabel = newValue
                 touch()
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
     }
 
     // MARK: - Biometrics (editable)
@@ -904,35 +840,32 @@ struct ProfileSettingsDetailView: View {
                 SettingsInfoRow(
                     label: "Weight",
                     value: String(format: "%.1f kg", d.currentWeightKg),
-                    icon: "scalemass",
-                    iconTint: .tempoElectric
+                    icon: "scalemass"
                 )
                 SettingsRowDivider()
                 SettingsInfoRow(
                     label: "Height",
                     value: String(format: "%.0f cm", d.heightCm),
-                    icon: "ruler",
-                    iconTint: .tempoAmber
+                    icon: "ruler"
                 )
                 SettingsRowDivider()
-                SettingsInfoRow(label: "Age", value: "\(d.age)", icon: "calendar", iconTint: .tempoViolet)
+                SettingsInfoRow(label: "Age", value: "\(d.age)", icon: "calendar")
                 SettingsRowDivider()
                 SettingsInfoRow(
                     label: "Est. BMR",
                     value: "\(Int(bmr(from: d))) kcal",
-                    icon: "flame",
-                    iconTint: .tempoSignal
+                    icon: "flame"
                 )
             } else {
                 NavigationLink {
                     FuelSetupView(embedded: true)
                 } label: {
                     SettingsNavRow(
-                        icon: "heart.text.square", iconTint: .tempoSignal,
+                        icon: "heart.text.square",
                         title: "Set up biometrics", subtitle: "In Diet Profile → Refresh from Health"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tideSettingsRow)
             }
         }
     }
@@ -946,12 +879,6 @@ struct ProfileSettingsDetailView: View {
 
     // MARK: - Reusable row builders
 
-    private var rowDivider: some View {
-        Divider()
-            .overlay(Color.tempoDivider)
-            .padding(.leading, TempoSpacing.lg)
-    }
-
     private func labeledField(
         label: String,
         text: Binding<String>,
@@ -960,27 +887,36 @@ struct ProfileSettingsDetailView: View {
         autocapitalize: Bool = true,
         onCommit: @escaping (String) -> Void
     ) -> some View {
-        HStack {
-            Text(label)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            HStack(spacing: 0) {
-                if let prefix {
+        let field = TextField(placeholder, text: text)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
+            .multilineTextAlignment(typeSize.isAccessibilitySize || prefix != nil ? .leading : .trailing)
+            .textInputAutocapitalization(autocapitalize ? .words : .never)
+            .autocorrectionDisabled(!autocapitalize)
+            .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+        return SettingsControlRow(label: label) {
+            if let prefix {
+                // The "@" hugs the name: a hidden copy of the text sets the width,
+                // and the real field sits on top of it.
+                HStack(spacing: 0) {
                     Text(prefix)
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text3)
+                    Text(text.wrappedValue.isEmpty ? placeholder : text.wrappedValue)
+                        .font(Tide.body)
+                        .lineLimit(1)
+                        .hidden()
+                        .padding(.trailing, Tide.s1)
+                        .overlay { field }
                 }
-                TextField(placeholder, text: text)
-                    .font(.tempoSubheadline)
-                    .multilineTextAlignment(.trailing)
-                    .textInputAutocapitalization(autocapitalize ? .words : .never)
-                    .autocorrectionDisabled(!autocapitalize)
-                    .onChange(of: text.wrappedValue) { _, newValue in onCommit(newValue) }
+                .frame(minHeight: Tide.hit)
+                // Cancel the caret room so the name lines up with the other values.
+                .padding(.trailing, -Tide.s1)
+            } else {
+                field
+                    .frame(minHeight: Tide.hit)
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
     }
 
     // MARK: - Load / Save
@@ -1000,604 +936,13 @@ struct ProfileSettingsDetailView: View {
     }
 }
 
-// MARK: - ScheduleSettingsDetailView
+// MARK: - Level progress
 
-struct ScheduleSettingsDetailView: View {
-    @Environment(\.modelContext)
-    private var modelContext
-    @Query
-    private var allSettings: [UserSettings]
-
-    private var settings: UserSettings? {
-        allSettings.first
-    }
-
-    @State
-    private var wakeTime = Date()
-    @State
-    private var bedtime = Date()
-    @State
-    private var leisureTime = Date()
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                // Sleep-window summary (computed from bedtime → wake).
-                sleepWindowCard
-
-                SettingsFormCard(
-                    title: "Daily rhythm",
-                    footnote: "Leisure is when your evening wind-down starts. Tempo uses these to time meals, study, and recovery prompts."
-                ) {
-                    SettingsControlRow(label: "Wake Time", icon: "sunrise.fill", iconTint: .tempoAmber) {
-                        DatePicker("", selection: $wakeTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                    }
-                    .onChange(of: wakeTime) { _, newValue in
-                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                        settings?.wakeTimeMinutes = (comps.hour ?? 6) * 60 + (comps.minute ?? 0)
-                        save()
-                    }
-
-                    SettingsRowDivider()
-
-                    SettingsControlRow(label: "Bedtime Target", icon: "moon.fill", iconTint: .tempoViolet) {
-                        DatePicker("", selection: $bedtime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                    }
-                    .onChange(of: bedtime) { _, newValue in
-                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                        settings?.bedtimeTargetMinutes = (comps.hour ?? 22) * 60 + (comps.minute ?? 30)
-                        save()
-                    }
-
-                    SettingsRowDivider()
-
-                    // Leisure is a TIME-OF-DAY (when wind-down starts), validated
-                    // 0..<1440 alongside wake/bedtime — not a duration.
-                    SettingsControlRow(label: "Leisure Time", icon: "hourglass", iconTint: .tempoElectric) {
-                        DatePicker("", selection: $leisureTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                    }
-                    .onChange(of: leisureTime) { _, newValue in
-                        let comps = Calendar.current.dateComponents([.hour, .minute], from: newValue)
-                        settings?.leisureTimeMinutes = (comps.hour ?? 19) * 60 + (comps.minute ?? 30)
-                        save()
-                    }
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Schedule")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear { loadSettings() }
-    }
-
-    /// Big computed sleep-window length (bedtime → wake), surfaced as data
-    /// the screen didn't show before.
-    private var sleepWindowCard: some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Text(sleepWindowText)
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("planned sleep window")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xl)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    private var sleepWindowText: String {
-        guard let s = settings else {
-            return "—"
-        }
-        // Minutes from bedtime to wake, wrapping past midnight.
-        var span = s.wakeTimeMinutes - s.bedtimeTargetMinutes
-        if span <= 0 {
-            span += 24 * 60
-        }
-        let h = span / 60
-        let m = span % 60
-        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
-    }
-
-    private func loadSettings() {
-        guard let s = settings else {
-            return
-        }
-        wakeTime = dateFromMinutes(s.wakeTimeMinutes)
-        bedtime = dateFromMinutes(s.bedtimeTargetMinutes)
-        leisureTime = dateFromMinutes(s.leisureTimeMinutes)
-    }
-
-    private func save() {
-        try? modelContext.save()
-    }
-
-    private func dateFromMinutes(_ totalMinutes: Int) -> Date {
-        var comps = DateComponents()
-        comps.hour = totalMinutes / 60
-        comps.minute = totalMinutes % 60
-        return Calendar.current.date(from: comps) ?? Date()
-    }
-}
-
-// MARK: - FocusTimerSettingsDetailView
-
-struct FocusTimerSettingsDetailView: View {
-    @Environment(\.modelContext)
-    private var modelContext
-    @Query
-    private var allSettings: [UserSettings]
-
-    private var settings: UserSettings? {
-        allSettings.first
-    }
-
-    @State
-    private var pomodoroDuration = 25
-    @State
-    private var breakDuration = 5
-    @State
-    private var longBreakDuration = 15
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                cyclePreviewCard
-
-                SettingsFormCard(
-                    title: "Durations",
-                    footnote: "A focus block runs, then a short break; after a few blocks you earn a long break."
-                ) {
-                    SettingsControlRow(label: "Focus block", icon: "timer", iconTint: .tempoSignal) {
-                        Stepper("\(pomodoroDuration) min", value: $pomodoroDuration, in: 10 ... 60, step: 5)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize()
-                    }
-                    .onChange(of: pomodoroDuration) { _, newValue in
-                        settings?.pomodoroDuration = newValue
-                        save()
-                    }
-
-                    SettingsRowDivider()
-
-                    SettingsControlRow(label: "Short break", icon: "cup.and.saucer.fill", iconTint: .tempoElectric) {
-                        Stepper("\(breakDuration) min", value: $breakDuration, in: 3 ... 15)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize()
-                    }
-                    .onChange(of: breakDuration) { _, newValue in
-                        settings?.breakDuration = newValue
-                        save()
-                    }
-
-                    SettingsRowDivider()
-
-                    SettingsControlRow(label: "Long break", icon: "cup.and.saucer", iconTint: .tempoAmber) {
-                        Stepper("\(longBreakDuration) min", value: $longBreakDuration, in: 10 ... 30, step: 5)
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .fixedSize()
-                    }
-                    .onChange(of: longBreakDuration) { _, newValue in
-                        settings?.longBreakDuration = newValue
-                        save()
-                    }
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Focus Timer")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            pomodoroDuration = settings?.pomodoroDuration ?? 25
-            breakDuration = settings?.breakDuration ?? 5
-            longBreakDuration = settings?.longBreakDuration ?? 15
-        }
-    }
-
-    /// Visual cycle preview — surfaces what the durations actually produce.
-    private var cyclePreviewCard: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Text("\(pomodoroDuration) / \(breakDuration) / \(longBreakDuration)")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("focus / break / long break (min)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            HStack(spacing: TempoSpacing.xs) {
-                ForEach(0 ..< 4) { i in
-                    RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                        .fill(Color.tempoSignal)
-                        .frame(height: 8)
-                    if i < 3 {
-                        RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                            .fill(Color.tempoElectric.opacity(TempoOpacity.o50))
-                            .frame(width: 10, height: 8)
-                    }
-                }
-                RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                    .fill(Color.tempoAmber)
-                    .frame(width: 24, height: 8)
-            }
-            .padding(.top, TempoSpacing.xs)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xl)
-        .padding(.horizontal, TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    private func save() {
-        try? modelContext.save()
-    }
-}
-
-// MARK: - ModesSettingsDetailView
-
-struct ModesSettingsDetailView: View {
-    @Environment(\.modelContext)
-    private var modelContext
-    @Query
-    private var allSettings: [UserSettings]
-
-    private var settings: UserSettings? {
-        allSettings.first
-    }
-
-    @State
-    private var weekendMode = false
-    @State
-    private var examMode = false
-    @State
-    private var examEndDate = Date()
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                SettingsFormCard(
-                    title: "Weekend",
-                    footnote: "Relaxes your schedule and eases accountability on Saturdays and Sundays."
-                ) {
-                    SettingsControlRow(label: "Weekend Mode", icon: "party.popper.fill", iconTint: .tempoAmber) {
-                        Toggle("", isOn: $weekendMode)
-                            .labelsHidden()
-                            .tint(Color.tempoAccent)
-                    }
-                    .onChange(of: weekendMode) { _, newValue in
-                        settings?.weekendMode = newValue
-                        save()
-                    }
-                }
-
-                SettingsFormCard(
-                    title: "Exam",
-                    footnote: examMode
-                        ? "Study is prioritised and training load reduced until your exam end date."
-                        : "Prioritise study and reduce training load during exam periods."
-                ) {
-                    SettingsControlRow(label: "Exam Mode", icon: "pencil.and.list.clipboard", iconTint: .tempoViolet) {
-                        Toggle("", isOn: $examMode)
-                            .labelsHidden()
-                            .tint(Color.tempoAccent)
-                    }
-                    .onChange(of: examMode) { _, newValue in
-                        settings?.examMode = newValue
-                        if newValue, settings?.examModeEndDate == nil {
-                            settings?.examModeEndDate = examEndDate
-                        }
-                        save()
-                    }
-
-                    if examMode {
-                        SettingsRowDivider()
-                        SettingsControlRow(label: "Ends", icon: "calendar.badge.clock", iconTint: .tempoElectric) {
-                            DatePicker("", selection: $examEndDate, in: Date()..., displayedComponents: .date)
-                                .labelsHidden()
-                        }
-                        .onChange(of: examEndDate) { _, newValue in
-                            settings?.examModeEndDate = newValue
-                            save()
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Modes")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            weekendMode = settings?.weekendMode ?? false
-            examMode = settings?.examMode ?? false
-            examEndDate = settings?.examModeEndDate ?? Calendar.current.date(byAdding: .weekOfYear, value: 2, to: Date()) ?? Date()
-        }
-    }
-
-    private func save() {
-        try? modelContext.save()
-    }
-}
-
-// MARK: - SubscriptionDetailView
-
-/// Surfaces the real subscription state (plan, renewal/expiry, trial
-/// countdown) that the root only showed as a single word.
-struct SubscriptionDetailView: View {
-    @Environment(ServiceContainer.self)
-    private var services
-    @State
-    private var showPaywall = false
-    @State
-    private var isRestoring = false
-    @State
-    private var restoreError: String?
-
-    private var state: SubscriptionState {
-        services.subscriptions.state
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                VStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: state.isPro ? "crown.fill" : "crown")
-                        .font(.system(size: 32))
-                        .foregroundStyle(state.isPro ? Color.tempoAmber : Color.tempoTextTertiary)
-                    Text(planTitle)
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text(planSubtitle)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, TempoSpacing.xl)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-
-                SettingsFormCard(title: "Details") {
-                    SettingsInfoRow(
-                        label: "Status",
-                        value: planTitle,
-                        icon: "checkmark.seal.fill",
-                        iconTint: state.isPro ? .tempoSuccess : .tempoTextTertiary,
-                        valueColor: state.isPro ? .tempoSuccess : .tempoTextTertiary
-                    )
-                    if let renewal = renewalLine {
-                        SettingsRowDivider()
-                        SettingsInfoRow(
-                            label: renewal.label,
-                            value: renewal.value,
-                            icon: "calendar",
-                            iconTint: .tempoElectric
-                        )
-                    }
-                    if let plan = productLine {
-                        SettingsRowDivider()
-                        SettingsInfoRow(label: "Plan", value: plan, icon: "tag.fill", iconTint: .tempoViolet)
-                    }
-                }
-
-                SettingsFormCard {
-                    if !state.isPro {
-                        Button { showPaywall = true } label: {
-                            SettingsActionRow(icon: "sparkles", title: "Subscribe to Pro", tint: .tempoSignal)
-                        }
-                        .buttonStyle(.plain)
-                        SettingsRowDivider()
-                    }
-                    Button { Task { await restore() } } label: {
-                        SettingsActionRow(icon: "arrow.clockwise", title: "Restore Purchases", tint: .tempoTextPrimary)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isRestoring)
-                }
-
-                if let restoreError {
-                    Text(restoreError)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                        .padding(.horizontal, TempoSpacing.sm)
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Subscription")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showPaywall) { PaywallView() }
-    }
-
-    private var planTitle: String {
-        switch state {
-        case .free: "Free"
-        case .trial: "Pro · Trial"
-        case .active: "Pro"
-        case .gracePeriod: "Pro · Billing issue"
-        case .expired,
-             .churned: "Expired"
-        }
-    }
-
-    private var planSubtitle: String {
-        state.isPro ? "You have full access to Tempo Pro." : "Upgrade to unlock everything Tempo offers."
-    }
-
-    private var renewalLine: (label: String, value: String)? {
-        switch state {
-        case let .trial(_, endDate): ("Trial ends", Self.dateString(endDate))
-        case let .active(_, expirationDate, isAutoRenewing):
-            (isAutoRenewing ? "Renews" : "Expires", Self.dateString(expirationDate))
-        case let .gracePeriod(_, graceEndDate): ("Grace ends", Self.dateString(graceEndDate))
-        case let .expired(_, expiredAt): ("Expired", Self.dateString(expiredAt))
-        case let .churned(_, expiredAt): ("Expired", Self.dateString(expiredAt))
-        case .free: nil
-        }
-    }
-
-    private var productLine: String? {
-        switch state {
-        case let .active(productId, _, _): SubscriptionProduct(rawValue: productId)?.displayName
-        case let .gracePeriod(productId, _): SubscriptionProduct(rawValue: productId)?.displayName
-        default: nil
-        }
-    }
-
-    private static func dateString(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        return f.string(from: date)
-    }
-
-    @MainActor
-    private func restore() async {
-        guard !isRestoring else {
-            return
-        }
-        isRestoring = true
-        restoreError = nil
-        defer { isRestoring = false }
-        do { try await services.subscriptions.restorePurchases() }
-        catch { restoreError = error.localizedDescription }
-    }
-}
-
-// MARK: - AccountDetailView
-
-/// Surfaces account identity (sign-in method, user ID, member-since) and
-/// houses the Apple-required in-app account deletion.
-struct AccountDetailView: View {
-    @Environment(ServiceContainer.self)
-    private var services
-    @Environment(\.dismiss)
-    private var dismiss
-    @Query
-    private var allProfiles: [UserProfile]
-
-    @State
-    private var showDeleteConfirm = false
-    @State
-    private var isDeleting = false
-    @State
-    private var deleteError: String?
-
-    private var profile: UserProfile? {
-        allProfiles.first
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                if !isSignedIn {
-                    SettingsSignInCard()
-                }
-
-                SettingsFormCard(title: "Identity") {
-                    SettingsInfoRow(
-                        label: "Sign-in",
-                        value: isSignedIn ? "Apple" : "Not signed in",
-                        icon: "applelogo",
-                        iconTint: .tempoTextPrimary
-                    )
-                    SettingsRowDivider()
-                    SettingsInfoRow(label: "Member since", value: memberSince, icon: "calendar", iconTint: .tempoElectric)
-                    if let id = userIDShort {
-                        SettingsRowDivider()
-                        SettingsInfoRow(label: "User ID", value: id, icon: "number", iconTint: .tempoViolet)
-                    }
-                }
-
-                SettingsFormCard(
-                    title: "Danger zone",
-                    footnote: "Deleting your account permanently removes all data — XP, achievements, streaks, and workout history. You'll be removed from all leaderboards and active challenges. This cannot be undone."
-                ) {
-                    Button { showDeleteConfirm = true } label: {
-                        SettingsActionRow(icon: "trash", title: "Delete Account", tint: .tempoError)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isDeleting)
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Account")
-        .navigationBarTitleDisplayMode(.inline)
-        .alert("Delete your account?", isPresented: $showDeleteConfirm) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete Account", role: .destructive) { Task { await performDeletion() } }
-        } message: {
-            Text("This permanently deletes all your data. This cannot be undone.")
-        }
-        .alert("Could not delete account", isPresented: Binding(
-            get: { deleteError != nil }, set: {
-                if !$0 {
-                    deleteError = nil
-                }
-            }
-        )) {
-            Button("OK", role: .cancel) { deleteError = nil }
-        } message: {
-            Text(deleteError ?? "")
-        }
-    }
-
-    private var memberSince: String {
-        guard let created = profile?.createdAt else {
-            return "—"
-        }
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        return f.string(from: created)
-    }
-
-    private var isSignedIn: Bool {
-        if case .authenticated = services.authService.authState {
-            return true
-        }
-        return false
-    }
-
-    private var userIDShort: String? {
-        if case let .authenticated(userID) = services.authService.authState {
-            return String(userID.prefix(8)) + "…"
-        }
-        return nil
-    }
-
-    @MainActor
-    private func performDeletion() async {
-        guard !isDeleting else {
-            return
-        }
-        isDeleting = true
-        defer { isDeleting = false }
-        do {
-            try await services.authService.deleteAccount()
-            dismiss()
-        } catch {
-            deleteError = error.localizedDescription
-        }
-    }
+/// 0...1 toward the next level, worked out the way the Arena does it, so the
+/// ring on the profile picture and the bar in the Arena always agree.
+private func settingsLevelProgress(totalXP: Int, engine: any XPEngineProtocol) -> Double {
+    let level = engine.currentLevel(totalXP: totalXP)
+    let floor = engine.xpForLevel(level)
+    let ceiling = level + 1 <= LevelSystem.definitions.count ? engine.xpForLevel(level + 1) : floor + 10000
+    return min(max(Double(totalXP - floor) / Double(max(1, ceiling - floor)), 0), 1)
 }

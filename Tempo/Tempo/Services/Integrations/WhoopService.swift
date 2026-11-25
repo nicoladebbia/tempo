@@ -564,9 +564,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
         // Log what we got
         print("\(DebugTrace.prefix)[Whoop] Recovery: \(response.records.count) records")
-        for (i, r) in response.records.enumerated() {
-            print("\(DebugTrace.prefix)[Whoop]   [\(i)] state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil) recovery=\(r.score?.recoveryScore ?? -1)")
-        }
 
         // Prefer SCORED, fall back to any record with a score
         let record = response.records.first(where: { $0.scoreState == "SCORED" && $0.score != nil })
@@ -709,9 +706,6 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
         }
 
         print("\(DebugTrace.prefix)[Whoop] Sleep: \(response.records.count) records")
-        for (i, r) in response.records.enumerated() {
-            print("\(DebugTrace.prefix)[Whoop]   [\(i)] nap=\(r.nap ?? false) state=\(r.scoreState ?? "nil") hasScore=\(r.score != nil)")
-        }
 
         // Get main sleep (not nap), prefer scored
         let record = response.records.first(where: { $0.nap != true && $0.scoreState == "SCORED" })
@@ -1235,7 +1229,15 @@ final class WhoopService: NSObject, WhoopServiceProtocol, @unchecked Sendable {
 
 extension WhoopService: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        ASPresentationAnchor()
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        if let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow) {
+            return window
+        }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            // Sign-in only starts from a visible screen, so a scene always exists here.
+            preconditionFailure("WHOOP sign-in started with no window scene")
+        }
+        return ASPresentationAnchor(windowScene: scene)
     }
 }
 

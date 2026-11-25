@@ -101,7 +101,11 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         true
     }
 
-    func suggestWorkoutWindow(for date: Date, preferring _: TrainingTimePreference = .anyFree) async -> DateInterval? {
+    func suggestWorkoutWindow(
+        for date: Date,
+        preferring _: TrainingTimePreference = .anyFree,
+        notBefore: Date? = nil
+    ) async -> DateInterval? {
         // Mock returns a fixed afternoon block so previews/tests are stable.
         let cal = Calendar.current
         let day = cal.startOfDay(for: date)
@@ -111,7 +115,11 @@ final class MockCalendarService: CalendarServiceProtocol, @unchecked Sendable {
         else {
             return nil
         }
-        return DateInterval(start: start, end: end)
+        let window = DateInterval(start: start, end: end)
+        guard let notBefore else {
+            return window
+        }
+        return CalendarService.gaps([window], notBefore: notBefore).first
     }
 
     func todaysWorkoutEvent(for _: Date, matchingID _: String?) async -> DateInterval? {

@@ -18,6 +18,10 @@ struct PantryView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showHomeSetting = false
@@ -41,12 +45,30 @@ struct PantryView: View {
     private var barcodeStaged: [StagedPantryItem] = []
     @State
     private var editingItem: PantryItem?
+    @State
+    private var cycles = 0
+
+    /// Something is presented over the page: its shaders stop.
+    private var isCovered: Bool {
+        showHomeSetting || showCaptureSheet || showManualAddSheet || showVoiceSheet || showVoiceEditSheet
+            || showBarcodeSheet || showStaples || editingItem != nil
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                headerCard
-                if !showsStaplesPeek {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                pageControls
+                hero
+                // In the flow of the page, never pinned over the rows it would hide.
+                if showsStaplesPeek {
+                    if !showStaples {
+                        StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
+                            staplesDetent = .large
+                            showStaples = true
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                } else {
                     staplesChip
                 }
                 if !viewModel.pantryState.expiringSoon.isEmpty {
@@ -56,62 +78,24 @@ struct PantryView: View {
                 ForEach(PantryStorageLocation.allCases, id: \.rawValue) { location in
                     section(for: location)
                 }
-                if viewModel.pantryState.items.isEmpty, !viewModel.pantryState.isLoading {
-                    emptyState
+                if viewModel.pantryState.items.isEmpty {
+                    if viewModel.pantryState.isLoading {
+                        LoadingStateView(style: .list)
+                    } else {
+                        emptyState
+                    }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
-        .background(Color.tempoBgPrimary)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if showsStaplesPeek, !showStaples {
-                StaplesPeekCard(remaining: viewModel.unansweredStapleCount) {
-                    staplesDetent = .large
-                    showStaples = true
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.sm)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.easeOut(duration: TempoAnimation.mediumDuration), value: showsStaplesPeek)
-        .toolbar {
-            // Visible home control (it used to hide in the ⋯ menu only).
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    showHomeSetting = true
-                } label: {
-                    Image(systemName: HomeLocationStore().home == nil ? "house" : "house.fill")
-                }
-                .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
-                .accessibilityIdentifier("pantryHomeButton")
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("Add item", systemImage: "plus") {
-                        showManualAddSheet = true
-                    }
-                    .accessibilityIdentifier("pantryAddItem")
-                    Button("Staples", systemImage: "leaf") {
-                        viewModel.applyStapleEvent(.reopen)
-                        staplesDetent = .large
-                        showStaples = true
-                    }
-                    Button("Set home", systemImage: "house") {
-                        showHomeSetting = true
-                    }
-                    .accessibilityIdentifier("pantrySetHome")
-                    Button("Empty pantry", systemImage: "trash", role: .destructive) {
-                        confirmEmpty = true
-                    }
-                    .disabled(viewModel.pantryState.items.isEmpty)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityIdentifier("pantryMoreMenu")
-            }
-        }
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
+        .tidePage()
+        .tideCovered(isCovered)
+        .animation(Tide.snap, value: showsStaplesPeek)
+        .sensoryFeedback(.selection, trigger: cycles)
         .sheet(isPresented: $showHomeSetting) {
             HomeLocationSettingView()
         }
@@ -121,7 +105,7 @@ struct PantryView: View {
             titleVisibility: .visible
         ) {
             Button("Remove all \(viewModel.pantryState.items.count) items", role: .destructive) {
-                viewModel.emptyPantry()
+                viewModel.emptyPantryWithUndo()
                 HapticManager.success()
             }
         } message: {
@@ -138,21 +122,15 @@ struct PantryView: View {
                 ))
             } else {
                 Text("Scan unavailable — open the Pantry tab first.")
-                    .padding()
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .padding(Tide.s4)
+                    .kitchenSheet()
             }
         }
         .sheet(isPresented: $showManualAddSheet) {
             PantryManualAddSheet(initialStaged: barcodeStaged) { stagedItems in
-                for item in stagedItems {
-                    viewModel.addPantryItem(
-                        rawName: item.name,
-                        quantity: item.quantity,
-                        unit: item.unit,
-                        storageLocation: item.location,
-                        totalPaidUSD: item.totalPaidUSD,
-                        brand: item.brand
-                    )
-                }
+                viewModel.addPantryItemsWithUndo(stagedItems)
                 barcodeStaged = []
             }
         }
@@ -195,67 +173,133 @@ struct PantryView: View {
 
     /// Always-findable entry once the peek card is gone (skipped / done).
     private var staplesChip: some View {
-        Button {
+        TideChip(title: "Staples · \(viewModel.stapleState.staples.count)", systemImage: "leaf") {
             viewModel.applyStapleEvent(.reopen)
             staplesDetent = .large
             showStaples = true
-        } label: {
-            Label("Staples · \(viewModel.stapleState.staples.count)", systemImage: "leaf")
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(Color.tempoSignal)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, 6)
-                .background(Color.tempoSignal.opacity(0.12), in: Capsule())
         }
-        .buttonStyle(.plain)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("staplesChip")
     }
 
-    // MARK: - Header
+    // MARK: - Hero
 
-    private var headerCard: some View {
-        HStack(alignment: .center, spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("YOUR PANTRY")
-                    .font(.tempoModuleTag)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Text("\(viewModel.pantryState.items.count) items tracked")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-            }
-            Spacer()
-            Menu {
-                Button {
-                    showVoiceSheet = true
-                } label: {
-                    Label("Add by voice", systemImage: "mic.fill")
-                }
-                Button {
-                    showVoiceEditSheet = true
-                } label: {
-                    Label("Edit by voice", systemImage: "waveform")
-                }
-                Button {
-                    showBarcodeSheet = true
-                } label: {
-                    Label("Scan barcode", systemImage: "barcode.viewfinder")
-                }
-            } label: {
-                Image(systemName: "mic.fill")
-            }
-            .buttonStyle(.tempoSecondary)
-            .accessibilityLabel("Pantry voice tools")
+    /// What you have, what needs using, and the two ways to add more.
+    /// Home and More live in the page: the Fuel tab hides the navigation bar,
+    /// so toolbar items here could never be reached.
+    private var pageControls: some View {
+        HStack(spacing: Tide.s2) {
+            Spacer(minLength: 0)
             Button {
-                showCaptureSheet = true
+                showHomeSetting = true
             } label: {
-                Label("Scan", systemImage: "doc.text.viewfinder")
+                KitchenGlassIcon(systemImage: HomeLocationStore().home == nil ? "house" : "house.fill")
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.plain)
+            .accessibilityLabel(HomeLocationStore().home == nil ? "Set home" : "Home location")
+            .accessibilityIdentifier("pantryHomeButton")
+            Menu {
+                Button("Add item", systemImage: "plus") {
+                    showManualAddSheet = true
+                }
+                .accessibilityIdentifier("pantryAddItem")
+                Button("Staples", systemImage: "leaf") {
+                    viewModel.applyStapleEvent(.reopen)
+                    staplesDetent = .large
+                    showStaples = true
+                }
+                Button("Set home", systemImage: "house") {
+                    showHomeSetting = true
+                }
+                .accessibilityIdentifier("pantrySetHome")
+                Button("Empty pantry", systemImage: "trash", role: .destructive) {
+                    confirmEmpty = true
+                }
+                .disabled(viewModel.pantryState.items.isEmpty)
+            } label: {
+                KitchenGlassIcon(systemImage: "ellipsis")
+            }
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("pantryMoreMenu")
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private var hero: some View {
+        let state = viewModel.pantryState
+        let soon = state.expiringSoon.count
+        let staples = viewModel.stapleState.staples.count
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+            layout {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("In your pantry").tideLabel()
+                    TideNumber("\(state.items.count)", size: Tide.numeralL, relativeTo: .largeTitle)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                if soon > 0 || staples > 0 {
+                    VStack(alignment: typeSize.isAccessibilitySize ? .leading : .trailing, spacing: Tide.s2) {
+                        if soon > 0 {
+                            heroFigure("Use soon", value: soon, color: Tide.Kitchen.warn)
+                                .frame(minHeight: Tide.hit)
+                                .explains(.fuelPantryUseSoon.showing("\(soon)"))
+                        }
+                        if staples > 0 {
+                            heroFigure("Staples", value: staples, color: Tide.text)
+                        }
+                    }
+                }
+            }
+            if !state.items.isEmpty {
+                KitchenShelfBar(parts: [
+                    .init(id: "stocked", value: Double(max(state.items.count - soon, 0)), color: mood.accent),
+                    .init(id: "soon", value: Double(soon), color: Tide.Kitchen.warn),
+                ])
+            }
+            HStack(spacing: Tide.s3) {
+                Button {
+                    showCaptureSheet = true
+                } label: {
+                    Label("Scan", systemImage: "doc.text.viewfinder")
+                }
+                .buttonStyle(.tidePrimary)
+                Menu {
+                    Button {
+                        showVoiceSheet = true
+                    } label: {
+                        Label("Add by voice", systemImage: "mic.fill")
+                    }
+                    Button {
+                        showVoiceEditSheet = true
+                    } label: {
+                        Label("Edit by voice", systemImage: "waveform")
+                    }
+                    Button {
+                        showBarcodeSheet = true
+                    } label: {
+                        Label("Scan barcode", systemImage: "barcode.viewfinder")
+                    }
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .frame(minHeight: Tide.hit + Tide.s2)
+                }
+                .buttonStyle(.tideGlass)
+                .fixedSize()
+                .accessibilityLabel("Pantry voice tools")
+            }
+        }
+        .tideCard()
+    }
+
+    /// A small figure beside the big one: a label and a count.
+    private func heroFigure(_ label: String, value: Int, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+            Text(label).tideLabel()
+            TideNumber("\(value)", size: Tide.numeralS, relativeTo: .headline, color: color)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Staples
@@ -263,53 +307,40 @@ struct PantryView: View {
     @ViewBuilder
     private var staplesSection: some View {
         if !viewModel.stapleState.staples.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                HStack(spacing: 6) {
-                    Image(systemName: "leaf")
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text("STAPLES")
-                        .font(.tempoModuleTag)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text("\(viewModel.stapleState.staples.count)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Spacer()
-                }
+            KitchenGroup(
+                title: "Staples",
+                systemImage: "leaf",
+                trailing: "\(viewModel.stapleState.staples.count)"
+            ) {
                 ForEach(viewModel.stapleState.staples, id: \.id) { staple in
                     stapleRow(staple)
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         }
     }
 
     private func stapleRow(_ staple: PantryStaple) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s3) {
             Text(staple.displayName)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+            Spacer(minLength: Tide.s2)
             Button {
                 viewModel.cycleStapleStatus(staple)
-                HapticManager.lightImpact()
+                cycles += 1
             } label: {
-                Text(staple.status.label.uppercased())
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(stapleStatusColor(staple.status))
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 4)
-                    .background(stapleStatusColor(staple.status).opacity(0.12))
-                    .clipShape(Capsule())
+                KitchenTag(text: staple.status.label, tint: stapleStatusColor(staple.status))
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(staple.displayName): \(staple.status.label). Tap to cycle.")
         }
-        .padding(.vertical, 4)
-        .swipeActions(edge: .trailing) {
+        // Long press: the "Remove" action that used to sit on a swipe (a swipe
+        // only works inside a List, so it never showed).
+        .contextMenu {
             Button(role: .destructive) {
-                viewModel.deleteStaple(staple)
+                viewModel.deleteStapleWithUndo(staple)
             } label: {
                 Label("Remove", systemImage: "trash")
             }
@@ -318,163 +349,183 @@ struct PantryView: View {
 
     private func stapleStatusColor(_ status: StapleStatus) -> Color {
         switch status {
-        case .have: Color.tempoSuccess
-        case .runningLow: Color.tempoWarning
-        case .out: Color.tempoError
+        case .have: Tide.Kitchen.good
+        case .runningLow: Tide.Kitchen.warn
+        case .out: Tide.danger
         }
     }
 
     // MARK: - Expiring soon
 
     private var expiringSoonSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Color.tempoWarning)
-                Text("EXPIRING SOON")
-                    .font(.tempoModuleTag)
-                    .foregroundStyle(Color.tempoWarning)
-            }
+        KitchenGroup(
+            title: "Expiring soon",
+            systemImage: "exclamationmark.triangle.fill",
+            tint: Tide.Kitchen.warn
+        ) {
             ForEach(viewModel.pantryState.expiringSoon, id: \.id) { item in
-                pantryRow(item)
+                pantryRow(item, showsLocation: true)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoWarning.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     // MARK: - Section per location
 
     @ViewBuilder
     private func section(for location: PantryStorageLocation) -> some View {
-        let items = viewModel.pantryState.items.filter { $0.storageLocation == location }
+        // An item that is about to expire lives in "Expiring soon" only; it never shows twice.
+        let soon = Set(viewModel.pantryState.expiringSoon.map(\.id))
+        let items = viewModel.pantryState.items.filter { $0.storageLocation == location && !soon.contains($0.id) }
         if !items.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                HStack(spacing: 6) {
-                    Image(systemName: location.icon)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text(location.displayName.uppercased())
-                        .font(.tempoModuleTag)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text("\(items.count)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Spacer()
-                }
+            KitchenGroup(
+                title: location.displayName,
+                systemImage: location.icon,
+                trailing: "\(items.count)"
+            ) {
                 ForEach(items, id: \.id) { item in
                     pantryRow(item)
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         }
     }
 
-    private func pantryRow(_ item: PantryItem) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(item.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    // Brand distinguishes two rows of the same food (e.g. two
-                    // butters of different brands kept as separate stock).
-                    if !item.brand.isEmpty {
-                        Text(item.brand)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(Capsule())
-                    }
-                    if item.isDepleted {
-                        Text("USED UP")
-                            .font(.tempoCaption2.weight(.semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.tempoTextTertiary.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-                HStack(spacing: 6) {
-                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit, canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    if let useBy = item.useBy {
-                        Text("•")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("by \(useBy.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(item.isExpiringSoon ? Color.tempoWarning : Color.tempoTextTertiary)
-                    }
-                    if item.purchaseSource == .receiptScan {
-                        Image(systemName: "doc.text")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                    if let paid = viewModel.pantryState.latestPriceByFood[item.canonicalName], paid > 0 {
-                        Text("•")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(String(format: "$%.2f", paid))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-            }
-            Spacer()
-            Button(role: .destructive) {
-                viewModel.archivePantryItem(item)
+    /// `showsLocation`: the row is not under its own shelf (Expiring soon), so it says where the item is.
+    private func pantryRow(_ item: PantryItem, showsLocation: Bool = false) -> some View {
+        HStack(spacing: Tide.s2) {
+            Button {
+                editingItem = item
             } label: {
-                Image(systemName: "trash")
+                HStack(alignment: .center, spacing: Tide.s3) {
+                    // The photo is decoration: at the accessibility sizes it gives its width to the words.
+                    if !typeSize.isAccessibilitySize {
+                        ProductImageView(
+                            url: nil,
+                            fallbackIcon: ReceiptProductPhoto.categoryIcon(forCanonicalName: item.canonicalName, isNonFood: false),
+                            size: Tide.Kitchen.tile
+                        )
+                        .opacity(item.isDepleted ? 0.5 : 1)
+                    }
+                    let layout = typeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                        : AnyLayout(HStackLayout(alignment: .center, spacing: Tide.s2))
+                    layout {
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Text(item.displayName)
+                                .font(Tide.headline)
+                                .foregroundStyle(item.isDepleted ? Tide.text3 : Tide.text)
+                                .lineLimit(2)
+                            // Brand distinguishes two rows of the same food (e.g. two
+                            // butters of different brands kept as separate stock).
+                            if !item.brand.isEmpty || item.isDepleted {
+                                HStack(spacing: Tide.s1) {
+                                    if !item.brand.isEmpty {
+                                        KitchenTag(text: item.brand)
+                                    }
+                                    if item.isDepleted {
+                                        KitchenTag(text: "Used up", tint: Tide.text3)
+                                    }
+                                }
+                            }
+                            detailLine(item, showsLocation: showsLocation)
+                        }
+                        if !typeSize.isAccessibilitySize {
+                            Spacer(minLength: Tide.s2)
+                        }
+                        TideNumber(
+                            PantryQuantityFormatter.text(
+                                quantity: item.quantity, unit: item.unit,
+                                canonicalName: item.canonicalName, purchased: item.weighsPurchaseUnit
+                            ),
+                            size: Tide.numeralS, relativeTo: .headline, weight: .semibold,
+                            color: item.isDepleted ? Tide.text3 : Tide.text
+                        )
+                    }
+                }
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .accessibilityHint("Edit")
+            Button(role: .destructive) {
+                viewModel.archivePantryItemWithUndo(item)
+            } label: {
+                Image(systemName: "trash")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text3)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
             .accessibilityLabel("Archive \(item.canonicalName)")
         }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            editingItem = item
+        // Long press: the "Used up" and "Freezer" actions that used to sit on a
+        // swipe (a swipe only works inside a List, so it never showed).
+        .overlay(alignment: .leading) {
+            freshnessStripe(item)
         }
-        .swipeActions(edge: .trailing) {
+        .contextMenu {
             Button {
-                viewModel.updatePantryItem(item, quantity: 0)
+                viewModel.markPantryItemUsedUp(item)
             } label: {
                 Label("Used up", systemImage: "checkmark.circle")
             }
-            .tint(Color.tempoTextTertiary)
             if item.storageLocation != .freezer {
                 Button {
                     viewModel.updatePantryItem(item, storageLocation: .freezer)
                 } label: {
                     Label("Freezer", systemImage: "snowflake")
                 }
-                .tint(Color.tempoSignal)
             }
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "tray")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No pantry items yet")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Scan a grocery receipt or add items manually to start.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+    /// A thin light on the card's edge: red once the use-by date has passed,
+    /// amber when it is close, green while it is fine. Nothing without a date.
+    @ViewBuilder
+    private func freshnessStripe(_ item: PantryItem) -> some View {
+        if item.useBy != nil, !item.isDepleted {
+            let color = item.isExpired ? Tide.danger : (item.isExpiringSoon ? Tide.Kitchen.warn : Tide.Kitchen.good)
+            Capsule()
+                .fill(color)
+                .frame(width: Tide.Kitchen.stripe)
+                .padding(.vertical, Tide.s1)
+                .offset(x: -Tide.s3)
+                .accessibilityHidden(true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+    }
+
+    /// Use-by date, receipt mark and last price under the name.
+    @ViewBuilder
+    private func detailLine(_ item: PantryItem, showsLocation: Bool) -> some View {
+        let paid = viewModel.pantryState.latestPriceByFood[item.canonicalName] ?? 0
+        if item.useBy != nil || item.purchaseSource == .receiptScan || paid > 0 {
+            HStack(spacing: Tide.s2) {
+                if let useBy = item.useBy {
+                    let by = "by \(useBy.formatted(date: .abbreviated, time: .omitted))"
+                    Text(showsLocation ? "\(item.storageLocation.displayName) · \(by)" : by)
+                        .foregroundStyle(item.isExpiringSoon ? Tide.Kitchen.warn : Tide.text2)
+                }
+                if item.purchaseSource == .receiptScan {
+                    Image(systemName: "doc.text")
+                        .accessibilityLabel("From a receipt")
+                }
+                if paid > 0 {
+                    Text(String(format: "$%.2f", paid))
+                }
+            }
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+        }
+    }
+
+    private var emptyState: some View {
+        KitchenEmpty(
+            systemImage: "tray",
+            title: "No pantry items yet",
+            message: "Scan a grocery receipt or add items manually to start.",
+            actionTitle: "Add an item"
+        ) {
+            showManualAddSheet = true
+        }
     }
 }
 
@@ -509,6 +560,8 @@ struct PantryManualAddSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     // Current form row.
     @State private var name = ""
@@ -536,11 +589,29 @@ struct PantryManualAddSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                currentRowSection
-                if !staged.isEmpty {
-                    stagedSection
+            ScrollView {
+                VStack(spacing: Tide.s4) {
+                    currentRowSection
+                    if !staged.isEmpty {
+                        stagedSection
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
+                .animation(Tide.snap, value: staged.count)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            // Saving is the one thing left to do, so it sits under the thumb.
+            .kitchenBottomBar {
+                Button(saveButtonTitle) {
+                    commitAndClose()
+                }
+                .buttonStyle(.kitchenBar)
+                .disabled(staged.isEmpty && !canAddCurrent)
+                .accessibilityIdentifier("pantryAddSave")
             }
             .navigationTitle(stagedTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -550,13 +621,6 @@ struct PantryManualAddSheet: View {
                         transcriber.stop()
                         dismiss()
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(saveButtonTitle) {
-                        commitAndClose()
-                    }
-                    .disabled(staged.isEmpty && !canAddCurrent)
-                    .fontWeight(.semibold)
                 }
             }
             .onChange(of: transcriber.transcribedText) { _, newText in
@@ -568,89 +632,121 @@ struct PantryManualAddSheet: View {
                 transcriber.stop()
             }
         }
+        .kitchenSheet()
+        .sensoryFeedback(.impact(weight: .light), trigger: staged.count)
     }
 
     // MARK: - Sections
 
     private var currentRowSection: some View {
-        Section("New item") {
-            HStack(spacing: 8) {
-                TextField("Name (e.g. Chicken Breast)", text: $name)
-                    .submitLabel(.next)
-                micButton
-            }
-            if transcriber.isListening {
-                Text("Listening… speak the item name.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            } else if let error = transcriber.error {
-                Text(error)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoError)
-            }
-            TextField("Brand (optional)", text: $brand)
-                .textInputAutocapitalization(.words)
-            TextField("Quantity", text: $quantityText)
-                .keyboardType(.decimalPad)
-            Picker("Unit", selection: $unit) {
-                ForEach(PantryUnit.allCases, id: \.rawValue) { u in
-                    Text(u.displayName).tag(u)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            Text("New item").tideLabel()
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
+                    TextField("Name (e.g. Chicken Breast)", text: $name)
+                        .submitLabel(.next)
+                        .kitchenField()
+                    micButton
                 }
-            }
-            Picker("Storage", selection: $location) {
-                ForEach(PantryStorageLocation.allCases, id: \.rawValue) { loc in
-                    Text(loc.displayName).tag(loc)
+                if transcriber.isListening {
+                    Text("Listening… speak the item name.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                } else if let error = transcriber.error {
+                    Text(error)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                 }
+                TextField("Brand (optional)", text: $brand)
+                    .textInputAutocapitalization(.words)
+                    .kitchenField()
             }
-            TextField("Price paid (optional, USD)", text: $priceText)
-                .keyboardType(.decimalPad)
+            KitchenPair {
+                KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+            } second: {
+                KitchenNumberField(label: "Price paid", unit: "USD", placeholder: "Optional", text: $priceText)
+            }
+            HStack {
+                Text("Unit")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                Spacer(minLength: Tide.s2)
+                Picker("Unit", selection: $unit) {
+                    ForEach(PantryUnit.allCases, id: \.rawValue) { u in
+                        Text(u.displayName).tag(u)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(mood.accent)
+            }
+            .frame(minHeight: Tide.hit)
+            KitchenSegmented(options: Array(PantryStorageLocation.allCases), selection: $location) { $0.displayName }
+                .accessibilityLabel("Storage")
             Button {
                 stageCurrentRow()
             } label: {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Add to list")
-                        .fontWeight(.semibold)
-                }
-                .foregroundStyle(canAddCurrent ? Color.tempoAmber : Color.tempoTextTertiary)
+                Label("Add to list", systemImage: "plus.circle.fill")
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.tideGlass)
             .disabled(!canAddCurrent)
         }
+        .tideCard()
     }
 
     private var stagedSection: some View {
-        Section("Staged (\(staged.count))") {
-            ForEach(staged) { item in
-                stagedRow(item)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Staged (\(staged.count))").tideLabel()
+            VStack(spacing: 0) {
+                ForEach(Array(staged.enumerated()), id: \.element.id) { index, item in
+                    if index > 0 {
+                        Rectangle().fill(Tide.hairline).frame(height: 1)
+                            .accessibilityHidden(true)
+                    }
+                    HStack(spacing: Tide.s2) {
+                        stagedRow(item)
+                        Button {
+                            withAnimation(Tide.snap) {
+                                staged.removeAll { $0.id == item.id }
+                            }
+                            HapticManager.lightImpact()
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(Tide.text3)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Remove \(item.name)")
+                    }
+                    .padding(.vertical, Tide.s1)
+                }
             }
-            .onDelete { offsets in
-                staged.remove(atOffsets: offsets)
-                HapticManager.lightImpact()
-            }
+            .tideCard(padding: Tide.s4)
         }
     }
 
     private func stagedRow(_ item: StagedPantryItem) -> some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(spacing: Tide.s2) {
                     Text(item.name)
-                        .font(.tempoBody)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                     if !item.brand.isEmpty {
-                        Text(item.brand)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        KitchenTag(text: item.brand)
                     }
                 }
-                Text("\(Self.formatQuantity(item.quantity)) \(item.unit.displayName) · \(item.location.displayName)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                Text("\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit)) · \(item.location.displayName)")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
             Spacer()
             if let paid = item.totalPaidUSD, paid > 0 {
-                Text(String(format: "$%.2f", paid))
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.tempoTextSecondary)
+                TideNumber(
+                    String(format: "$%.2f", paid), size: Tide.numeralS, relativeTo: .body,
+                    weight: .semibold
+                )
             }
         }
     }
@@ -680,7 +776,6 @@ struct PantryManualAddSheet: View {
             totalPaidUSD: Double(priceText.trimmingCharacters(in: .whitespaces)),
             brand: brand.trimmingCharacters(in: .whitespaces)
         ))
-        HapticManager.lightImpact()
         // Clear the form for the next row. Keep unit + location sticky so
         // adding a batch of "grams / pantry" items doesn't re-pick every
         // time. Stop the transcriber so the next row starts clean.
@@ -705,10 +800,6 @@ struct PantryManualAddSheet: View {
         dismiss()
     }
 
-    private static func formatQuantity(_ value: Double) -> String {
-        PantryQuantityFormatter.number(value)
-    }
-
     private var micButton: some View {
         Button {
             if transcriber.isListening {
@@ -719,13 +810,10 @@ struct PantryManualAddSheet: View {
             HapticManager.lightImpact()
         } label: {
             Image(systemName: transcriber.isListening ? "mic.fill" : "mic")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(transcriber.isListening ? Color.tempoSignal : Color.tempoTextSecondary)
-                .frame(width: 32, height: 32)
-                .background(
-                    Circle()
-                        .fill(transcriber.isListening ? Color.tempoSignal.opacity(0.15) : Color.clear)
-                )
+                .font(Tide.bodyStrong)
+                .foregroundStyle(transcriber.isListening ? Tide.ink : Tide.text2)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .background(transcriber.isListening ? mood.accent : Color.clear, in: .circle)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start voice input")

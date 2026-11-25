@@ -330,7 +330,7 @@ final class NaturalLanguageLoggingService: @unchecked Sendable {
         }
 
         logger.error("[nl_parse] Failed to parse JSON: \(response.prefix(200))")
-        throw NaturalLanguageLoggingError.parseFailed("Could not parse food items from response")
+        throw NaturalLanguageLoggingError.parseFailed(NaturalLanguageLoggingError.unreadableReply)
     }
 
     /// Coerce Claude's meal_type to one of the four canonical values.
@@ -422,6 +422,10 @@ private struct RawParsedFood: Codable {
 // MARK: - NaturalLanguageLoggingError
 
 enum NaturalLanguageLoggingError: Error, LocalizedError {
+    /// The detail of a `parseFailed` whose reply had no foods in a shape we can use.
+    /// Screens show their own plain sentence for it instead of this text.
+    static let unreadableReply = "Could not parse food items from response"
+
     case emptyInput
     case parseFailed(String)
     case noFoodsDetected

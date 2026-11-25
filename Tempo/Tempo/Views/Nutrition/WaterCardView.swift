@@ -12,10 +12,9 @@
 import SwiftData
 import SwiftUI
 
-struct WaterCardView: View {
-    /// Today's target in ml. nil = work it out from the canonical daily target.
-    var targetMl: Int?
+// MARK: - WaterCardView
 
+struct WaterCardView: View {
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -25,73 +24,90 @@ struct WaterCardView: View {
     private var totalMl = 0
     @State
     private var lastEntryMl: Int?
+    /// nil until the first read, so a placeholder 2,500 never flashes up.
     @State
-    private var resolvedTargetMl = 2500
+    private var resolvedTargetMl: Int?
     @State
     private var showCustom = false
 
-    private var target: Int {
-        max(targetMl ?? resolvedTargetMl, 1)
+    /// Today's target, always the canonical one (`todayWaterTargetMl`), so this
+    /// card, the Today tile and the coach show the same number.
+    private var target: Int? {
+        resolvedTargetMl.map { max($0, 1) }
     }
 
     private var progress: Double {
-        min(Double(totalMl) / Double(target), 1.0)
+        guard let target else {
+            return 0
+        }
+        return min(Double(totalMl) / Double(target), 1.0)
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.md) {
-            HStack {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "drop.fill")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoElectric)
-                    Text("WATER")
-                        .font(.tempoModuleTag)
-                        .tracking(TempoTracking.drillLabel)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-                Spacer()
-                Text("\(totalMl) / \(target) ml")
-                    .font(.tempoDataSmall)
-                    .foregroundStyle(totalMl >= target ? Color.tempoSuccess : Color.tempoTextPrimary)
-                    .contentTransition(.numericText())
-                    .accessibilityIdentifier("water.total")
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            let title = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                Image(systemName: "drop.fill")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.water)
+                    .accessibilityHidden(true)
+                Text("Water").tideLabel()
             }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.tempoElectric.opacity(0.15))
-                    Capsule()
-                        .fill(Color.tempoElectric)
-                        .frame(width: geo.size.width * progress)
-                        .animation(TempoAnimation.springData, value: progress)
-                }
+            let total = HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                TideNumber(
+                    totalMl.formatted(),
+                    size: Tide.numeralS,
+                    relativeTo: .headline,
+                    color: target.map { totalMl >= $0 } == true ? Tide.good : Tide.text
+                )
+                Text(target.map { "/ \($0.formatted()) ml" } ?? "ml")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
             }
-            .frame(height: 10)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(target.map { "Water \(totalMl) of \($0) millilitres" } ?? "Water \(totalMl) millilitres")
+            .accessibilityIdentifier("water.total")
 
-            HStack(spacing: TempoSpacing.sm) {
-                chip("+250", id: "water.add250") { add(250) }
-                chip("+500", id: "water.add500") { add(500) }
-                chip("Custom", id: "water.addCustom") { showCustom = true }
-                Spacer(minLength: 0)
-                if let lastEntryMl {
-                    Button {
-                        undo()
-                    } label: {
-                        Label("Undo \(lastEntryMl)", systemImage: "arrow.uturn.backward")
-                            .font(.tempoCaption1.weight(.semibold))
-                            .foregroundStyle(Color.tempoTextSecondary)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        title
+                        Spacer(minLength: Tide.s2)
+                        total
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("water.undo")
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        title
+                        total
+                    }
+                }
+
+                TideLevelBar(progress: progress, color: Tide.water, height: Tide.bar)
+                    .animation(Tide.settle, value: progress)
+            }
+            .explains(.fuelWaterTarget.showing(target.map { "\(totalMl.formatted()) / \($0.formatted()) ml" }))
+
+            GlassEffectContainer(spacing: Tide.s2) {
+                // One row when it fits; otherwise Undo drops under the chips
+                // so no label ever wraps mid-word.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        chips
+                        Spacer(minLength: 0)
+                        undoButton
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        HStack(spacing: Tide.s2) { chips }
+                        undoButton
+                    }
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        chips
+                        undoButton
+                    }
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard()
+        .sensoryFeedback(.success, trigger: totalMl) { old, new in new > old }
         .accessibilityIdentifier("water.card")
         .task { reload() }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWaterLogged)) { _ in
@@ -101,22 +117,47 @@ struct WaterCardView: View {
             CustomWaterSheet { ml in
                 add(ml)
             }
-            .presentationDetents([.height(260)])
+            .presentationDetents([.height(300)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    @ViewBuilder
+    private var chips: some View {
+        chip("+250", id: "water.add250") { add(250) }
+        chip("+500", id: "water.add500") { add(500) }
+        chip("Custom", id: "water.addCustom") { showCustom = true }
+    }
+
+    @ViewBuilder
+    private var undoButton: some View {
+        if let lastEntryMl {
+            Button {
+                undo()
+            } label: {
+                Label("Undo \(lastEntryMl)", systemImage: "arrow.uturn.backward")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("water.undo")
         }
     }
 
     private func chip(_ title: String, id: String, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-            HapticManager.lightImpact()
-        } label: {
+        Button(action: action) {
             Text(title)
-                .font(.tempoCaption1.weight(.semibold))
-                .foregroundStyle(Color.tempoElectric)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(Color.tempoElectric.opacity(0.12))
-                .clipShape(Capsule())
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.water)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, Tide.s4)
+                .frame(minHeight: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
@@ -126,8 +167,23 @@ struct WaterCardView: View {
         WaterStore(context: modelContext, healthKit: services.healthKit)
     }
 
+    /// Saves the water and offers a few seconds to take back exactly that entry.
     private func add(_ ml: Int) {
-        store().add(ml: ml)
+        guard let log = store().add(ml: ml) else {
+            FuelLogToast.post(ToastData(message: "Couldn't save that water. Try again.", style: .error))
+            return
+        }
+        let id = log.id
+        let context = modelContext
+        let healthKit = services.healthKit
+        FuelLogToast.post(ToastData(message: "\(ml) ml of water added.", style: .success, actionTitle: "Undo") {
+            let undone = WaterStore(context: context, healthKit: healthKit).remove(id: id)
+            FuelLogToast.post(
+                undone
+                    ? ToastData(message: "Water taken back.", style: .info)
+                    : ToastData(message: "That water was already taken back.", style: .info)
+            )
+        })
     }
 
     private func undo() {
@@ -138,13 +194,7 @@ struct WaterCardView: View {
     private func reload() {
         totalMl = WaterStore.total(in: modelContext)
         lastEntryMl = WaterStore.entries(on: Date(), in: modelContext).last?.ml
-        if targetMl == nil {
-            resolvedTargetMl = DailyNutritionTargets.today(
-                in: modelContext,
-                whoopAvgTDEE: nil,
-                recoveryScore: DailyNutritionTargets.storedRecoveryScore(in: modelContext)
-            ).hydrationMl
-        }
+        resolvedTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: modelContext)
     }
 }
 
@@ -170,36 +220,35 @@ private struct CustomWaterSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Text("HOW MUCH?")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            HStack {
+        VStack(spacing: Tide.s4) {
+            Text("How much?").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 TextField("330", text: $text)
                     .keyboardType(.numberPad)
                     .focused($focused)
-                    .font(.tempoTimerDisplaySmall)
+                    .font(Tide.numeral(Tide.numeralL))
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
                     .accessibilityIdentifier("water.customField")
                 Text("ml")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text2)
             }
-            .padding(.horizontal, TempoSpacing.xl)
+            .padding(.horizontal, Tide.edge)
             Button("Add water") {
                 if let amount {
                     onAdd(amount)
                     dismiss()
                 }
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .disabled(amount == nil)
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .padding(.horizontal, Tide.edge)
             .accessibilityIdentifier("water.customAdd")
         }
-        .padding(.top, TempoSpacing.xl)
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .padding(.top, Tide.s6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .tidePage()
         .onAppear { focused = true }
     }
 }

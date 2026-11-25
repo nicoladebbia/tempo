@@ -6,12 +6,11 @@
 //
 // Owns the transcript, the input bar, and the budget banner. Binds to
 // CoachViewModel for state. Calls into the VM for sendMessage / undo /
-// endConversation. Caller (Phase 7c CoachTabView) wires in the system
-// prompt by assembling fresh on every tap via CoachContextAssembler.
+// endConversation. `CoachChat` wires in the system prompt by assembling
+// fresh on every send via CoachContextAssembler.
 //
-// Voice input (mic button + recording state) lands in Phase 7c —
-// CoachInputBar exposes a placeholder onMicTap handler so 7c can drop
-// in the VoiceTranscriber adapter without re-touching this file.
+// Drawn in Tide: Coach talks in glass bubbles, you talk in accent-filled
+// ones, and the input bar floats in glass over the transcript.
 //
 // Per .plans/coach-v2.1/05-ui-surfaces.md §2.
 //
@@ -24,7 +23,7 @@ import SwiftUI
 struct CoachChatView: View {
     @Bindable var viewModel: CoachViewModel
     /// System prompt builder invoked at send-time. The owning view
-    /// (Phase 7c CoachTabView) injects a closure that calls
+    /// (`CoachChat`) injects a closure that calls
     /// CoachContextAssembler with the live context.
     let systemPromptBuilder: () -> String
     /// Three empty-state seed prompts (mix: simple / deeper / preference-teach
@@ -36,28 +35,50 @@ struct CoachChatView: View {
     /// Mic interaction mode. Sourced from UserSettings.coachVoiceMode
     /// at the call site; default tapToggle per the locked Q2 decision.
     var voiceMode: CoachVoiceMode = .tapToggle
+    /// The name in the top bar and the empty state ("Ask Tempo" from the "+" sheet).
+    var title: String = "Coach"
 
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.dismiss) private var dismiss
-    @State private var inputText: String = ""
-    @State private var endChatConfirm = false
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.modelContext)
+    private var modelContext
+    @Environment(\.dismiss)
+    private var dismiss
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.scenePhase)
+    private var scenePhase
+    @State
+    private var inputText: String = ""
+    /// "Chat cleared" with Undo, shown over the transcript, never over the input.
+    @State
+    private var toast: ToastData?
     /// Snapshot of the last partial transcript pushed into the field so
     /// the user can still type alongside the live mic stream without
     /// having the field overwritten on every partial tick.
-    @State private var lastVoicePartial: String = ""
+    @State
+    private var lastVoicePartial: String = ""
+    /// What you just sent, shown until the transcript catches up (it only
+    /// updates when Coach has answered), or kept if the answer never came.
+    @State
+    private var pendingText: String?
+    @State
+    private var pendingBaseCount = 0
 
     init(
         viewModel: CoachViewModel,
         systemPromptBuilder: @escaping () -> String,
         emptyStateSeeds: [String] = CoachChatView.defaultSeeds,
         voice: any CoachVoiceControlling = CoachVoiceController(),
-        voiceMode: CoachVoiceMode = .tapToggle
+        voiceMode: CoachVoiceMode = .tapToggle,
+        title: String = "Coach"
     ) {
         self.viewModel = viewModel
         self.systemPromptBuilder = systemPromptBuilder
         self.emptyStateSeeds = emptyStateSeeds
         self.voice = voice
         self.voiceMode = voiceMode
+        self.title = title
     }
 
     /// Default empty-state seeds — one simple action, one deeper ask,
@@ -77,7 +98,222 @@ struct CoachChatView: View {
                 budgetBanner(state)
             }
             transcript
-            aiDisclaimer
+                // Top of the transcript: under the title bar, clear of the input bar.
+                .tempoToast($toast, placement: .top)
+                // On the transcript, so it rests above the input bar instead of under it.
+                .firstTip(
+                    "coach.chat",
+                    "Ask a question, or tell me something to remember, like \"I never eat before 11am\".",
+                    systemImage: "sparkles"
+                )
+                .safeAreaBar(edge: .bottom, spacing: 0) {
+                    bottomBar
+                }
+        }
+        .animation(reduceMotion ? nil : Tide.snap, value: viewModel.pendingError)
+        .animation(reduceMotion ? nil : Tide.snap, value: viewModel.blocker)
+        .onChange(of: viewModel.pendingError) { _, message in
+            if let message {
+                AccessibilityNotification.Announcement(message).post()
+            }
+        }
+        .tidePage()
+        .onAppear {
+            viewModel.loadOrStartConversation(context: modelContext)
+        }
+        // A toast that ran out (or was swiped away) without Undo makes the clear final.
+        .onChange(of: toast) { _, newValue in
+            if newValue == nil {
+                viewModel.commitPendingEnd()
+            }
+        }
+        // The clear became final some other way (you wrote in the new chat): the toast's
+        // Undo would do nothing, so it goes too.
+        .onChange(of: viewModel.pendingEnd == nil) { _, isFinal in
+            if isFinal {
+                toast = nil
+            }
+        }
+        // So does leaving the chat, or the app: there is no toast left to undo from.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                viewModel.commitPendingEnd()
+            }
+        }
+        .onDisappear { viewModel.commitPendingEnd() }
+    }
+
+    /// Clears the chat at once; the toast brings it back. An empty chat has
+    /// nothing to bring back, so the button just closes it.
+    private func endChat() {
+        if viewModel.endConversationWithUndo(context: modelContext) {
+            // The message you were waiting on is in the transcript; what you were typing stays.
+            pendingText = nil
+            toast = ToastData(message: "Chat cleared.", style: .info, actionTitle: "Undo") {
+                viewModel.undoEnd()
+            }
+        } else {
+            dismiss()
+        }
+    }
+
+    // MARK: - Top bar
+
+    private var topBar: some View {
+        HStack(spacing: Tide.s3) {
+            TideCoachAvatar()
+            Text(title)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Tide.s2)
+            GlassEffectContainer(spacing: Tide.s2) {
+                HStack(spacing: Tide.s2) {
+                    if let undoLabel = viewModel.undoLabel {
+                        Button {
+                            Task { await viewModel.undoLast() }
+                        } label: {
+                            Label(undoLabel, systemImage: "arrow.uturn.backward")
+                                .labelStyle(.iconOnly)
+                                .accessibilityLabel(Text(undoLabel))
+                        }
+                        .buttonStyle(.tideCoachCircle)
+                    }
+                    Button(role: .destructive) {
+                        endChat()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .accessibilityLabel(Text("End chat"))
+                    }
+                    .buttonStyle(.tideCoachCircle)
+                    // An answer still on its way would land in the chat that was just cleared.
+                    .disabled(viewModel.isThinking)
+                }
+            }
+        }
+        // Title bar chrome: bigger text would push the End button off the top of the sheet.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .padding(.horizontal, Tide.edge)
+        .padding(.vertical, Tide.s2)
+    }
+
+    // MARK: - Budget banner
+
+    private func budgetBanner(_ state: CoachViewModel.BudgetState) -> some View {
+        let copy: String
+        let tint: Color
+        switch state {
+        case .caution:
+            copy = "Coach is at 80% of this month's budget."
+            tint = Tide.streak
+        case .critical:
+            copy = "Coach hit this month's limit. Back in a few days."
+            tint = Tide.danger
+        }
+        return HStack(spacing: Tide.s3) {
+            Image(systemName: state == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(copy)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(tint.opacity(0.22)), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s2)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Transcript
+
+    /// "Ask Coach anything", and "Ask Tempo anything" for a screen already titled "Ask Tempo".
+    private var emptyHeading: String {
+        title.hasPrefix("Ask ") ? "\(title) anything" : "Ask \(title) anything"
+    }
+
+    @ViewBuilder
+    private var transcript: some View {
+        if viewModel.messages.isEmpty, !viewModel.isThinking, pendingBubbleText == nil {
+            CoachEmptyState(seeds: emptyStateSeeds, heading: emptyHeading) { seed in
+                inputText = seed
+                send()
+            }
+        } else {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: Tide.s3) {
+                        ForEach(visibleMessages, id: \.id) { wrapper in
+                            transcriptEntry(wrapper)
+                                .id(wrapper.id)
+                                .transition(rowTransition)
+                        }
+                        if let pendingBubbleText {
+                            CoachUserBubble(text: pendingBubbleText)
+                                .id("pending")
+                                .transition(rowTransition)
+                        }
+                        if viewModel.isThinking {
+                            CoachThinkingBubble()
+                                .id("thinking")
+                                .transition(rowTransition)
+                        }
+                    }
+                    .animation(reduceMotion ? nil : Tide.snap, value: viewModel.messages.count)
+                    .animation(reduceMotion ? nil : Tide.snap, value: viewModel.isThinking)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.vertical, Tide.s3)
+                }
+                .defaultScrollAnchor(.bottom, for: .initialOffset)
+                .scrollDismissesKeyboard(.interactively)
+                .scrollEdgeEffectStyle(.soft, for: .all)
+                .onChange(of: viewModel.messages.count) { _, _ in
+                    withAnimation(Tide.snap) { scrollToBottom(proxy: proxy) }
+                }
+                .onChange(of: viewModel.isThinking) { _, newValue in
+                    if newValue {
+                        withAnimation(Tide.snap) { proxy.scrollTo("thinking", anchor: .bottom) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The message to show right now, if the transcript hasn't picked it up yet.
+    private var pendingBubbleText: String? {
+        guard let pendingText, viewModel.messages.count <= pendingBaseCount else {
+            return nil
+        }
+        return pendingText
+    }
+
+    private var rowTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .offset(y: Tide.s2))
+    }
+
+    // MARK: - Bottom bar
+
+    /// The input bar and the disclaimer under it. Messages scroll beneath.
+    private var bottomBar: some View {
+        VStack(spacing: Tide.s2) {
+            if let blocker = viewModel.blocker {
+                // AI is off or needs Pro: say so here, with the one button
+                // that fixes it. After consent the unanswered message is sent again.
+                AIBlockerCard(blocker: blocker) {
+                    Task {
+                        await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                    }
+                }
+                .padding(.horizontal, Tide.edge)
+                .transition(rowTransition)
+            } else if let message = viewModel.pendingError {
+                errorBanner(message)
+                    .transition(rowTransition)
+            }
             CoachInputBar(
                 text: $inputText,
                 isThinking: viewModel.isThinking,
@@ -91,150 +327,137 @@ struct CoachChatView: View {
                 pushVoicePartialIntoField(newValue)
             }
             .onChange(of: voice.isListening) { _, listening in
-                if !listening { lastVoicePartial = "" }
+                if !listening {
+                    lastVoicePartial = ""
+                }
             }
+            aiDisclaimer
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
-        .alert("End this chat?", isPresented: $endChatConfirm) {
-            Button("Cancel", role: .cancel) { }
-            Button("End", role: .destructive) {
-                viewModel.endConversation(context: modelContext)
-                dismiss()
-            }
-        } message: {
-            Text("I'll save what we discussed and start fresh next time.")
-        }
-        .onAppear {
-            viewModel.loadOrStartConversation(context: modelContext)
-        }
-        .alert(
-            "Couldn't reach Coach",
-            isPresented: .init(
-                get: { viewModel.pendingError != nil },
-                set: { if !$0 { viewModel.pendingError = nil } }
-            )
-        ) {
-            Button("OK") { viewModel.pendingError = nil }
-        } message: {
-            Text(viewModel.pendingError ?? "")
-        }
+        .padding(.top, Tide.s2)
+        .padding(.bottom, Tide.s1)
     }
 
-    // MARK: - Top bar
+    // MARK: - Error banner
 
-    private var topBar: some View {
-        HStack(spacing: TempoSpacing.md) {
-            Text("Coach")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            if let undoLabel = viewModel.undoLabel {
+    /// Why the last message didn't get an answer, in place of a pop-up. Your
+    /// message stays in the transcript; the banner just says what happened.
+    private func errorBanner(_ message: String) -> some View {
+        // At accessibility sizes the message gets the whole width and the buttons sit under it,
+        // instead of squeezing the words into a column of two letters.
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: "exclamationmark.bubble.fill")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.danger)
+                    .accessibilityHidden(true)
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !stacked {
+                Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s3) {
+                if viewModel.canRetry {
+                    Button("Retry") {
+                        Task {
+                            await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                        }
+                    }
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
+                    .accessibilityIdentifier("coachRetryButton")
+                }
                 Button {
-                    Task { await viewModel.undoLast() }
+                    viewModel.pendingError = nil
                 } label: {
-                    Label(undoLabel, systemImage: "arrow.uturn.backward")
-                        .labelStyle(.iconOnly)
-                        .accessibilityLabel(Text(undoLabel))
+                    Image(systemName: "xmark")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
-                .buttonStyle(.tempoGhost)
-            }
-            Button(role: .destructive) {
-                endChatConfirm = true
-            } label: {
-                Image(systemName: "xmark")
-                    .accessibilityLabel(Text("End chat"))
-            }
-            .buttonStyle(.tempoGhost)
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
-    }
-
-    // MARK: - Budget banner
-
-    private func budgetBanner(_ state: CoachViewModel.BudgetState) -> some View {
-        let copy: String
-        let bg: Color
-        let fg: Color
-        switch state {
-        case .caution:
-            copy = "Coach is at 80% of this month's budget."
-            bg = Color.tempoAmber.opacity(0.18)
-            fg = Color.tempoAmber
-        case .critical:
-            copy = "Coach is at this month's limit — back in a few days."
-            bg = Color.tempoError.opacity(0.18)
-            fg = Color.tempoError
-        }
-        return HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: state == .critical ? "exclamationmark.octagon.fill" : "exclamationmark.triangle.fill")
-                .foregroundStyle(fg)
-            Text(copy)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(bg)
-    }
-
-    // MARK: - Transcript
-
-    @ViewBuilder
-    private var transcript: some View {
-        if viewModel.messages.isEmpty && !viewModel.isThinking {
-            CoachEmptyState(seeds: emptyStateSeeds) { seed in
-                inputText = seed
-                send()
-            }
-        } else {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: TempoSpacing.md) {
-                        ForEach(visibleMessages, id: \.id) { wrapper in
-                            messageRow(wrapper.message)
-                                .id(wrapper.id)
-                        }
-                        if viewModel.isThinking {
-                            CoachThinkingBubble()
-                                .id("thinking")
-                        }
-                    }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.vertical, TempoSpacing.md)
-                }
-                .onChange(of: viewModel.messages.count) { _, _ in
-                    withAnimation { scrollToBottom(proxy: proxy) }
-                }
-                .onChange(of: viewModel.isThinking) { _, newValue in
-                    if newValue {
-                        withAnimation { proxy.scrollTo("thinking", anchor: .bottom) }
-                    }
-                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
         }
+        .padding(.leading, Tide.s4)
+        .padding(.vertical, Tide.s1)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(Tide.danger.opacity(0.22)), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: - Visible messages (filters system_summary)
 
+    /// What the transcript shows, with where each message sits in the page: a
+    /// day heading above the first message of a day, Coach's mark on the first
+    /// bubble of a run, the time under the last.
     private var visibleMessages: [IdentifiedMessage] {
-        viewModel.messages
+        // Only what draws something: runs and times are worked out over these,
+        // so a hidden tool_result message never splits a run.
+        let kept = viewModel.messages
             .enumerated()
-            .filter { _, msg in msg.role != "system_summary" }
-            .map { idx, msg in IdentifiedMessage(id: idx, message: msg) }
+            .filter { _, msg in
+                (msg.role == "user" || msg.role == "assistant") && msg.text?.isEmpty == false
+            }
+        let calendar = Calendar.current
+        return kept.enumerated().map { position, entry in
+            let message = entry.element
+            let previous = position > 0 ? kept[position - 1].element : nil
+            let next = position + 1 < kept.count ? kept[position + 1].element : nil
+            let startsDay = previous.map { !calendar.isDate($0.timestamp, inSameDayAs: message.timestamp) } ?? true
+            return IdentifiedMessage(
+                id: entry.offset,
+                message: message,
+                dayHeading: startsDay ? message.timestamp : nil,
+                startsRun: previous?.role != message.role || startsDay,
+                endsRun: next?.role != message.role
+                    || next.map { !calendar.isDate($0.timestamp, inSameDayAs: message.timestamp) } ?? false
+            )
+        }
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy) {
-        guard let last = visibleMessages.last else { return }
+        guard let last = visibleMessages.last else {
+            return
+        }
         proxy.scrollTo(last.id, anchor: .bottom)
     }
 
     // MARK: - One message row (dispatches by role)
 
+    /// A message with the day heading and the time that belong to it.
     @ViewBuilder
-    private func messageRow(_ message: CoachMessage) -> some View {
+    private func transcriptEntry(_ entry: IdentifiedMessage) -> some View {
+        let isVisible = entry.message.text?.isEmpty == false
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            if let day = entry.dayHeading {
+                TideCoachDaySeparator(date: day)
+                    .padding(.vertical, Tide.s2)
+            }
+            messageRow(entry.message, showsAvatar: entry.startsRun)
+            if entry.endsRun, isVisible, entry.message.role == "user" || entry.message.role == "assistant" {
+                Text(entry.message.timestamp.formatted(date: .omitted, time: .shortened))
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: entry.message.role == "user" ? .trailing : .leading)
+                    .padding(.leading, entry.message.role == "user" ? 0 : TideCoachAvatar.inset(for: typeSize))
+                    .padding(.bottom, Tide.s1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func messageRow(_ message: CoachMessage, showsAvatar: Bool) -> some View {
         switch message.role {
         case "user":
             // User-role messages with toolResults are protocol housekeeping
@@ -251,7 +474,7 @@ struct CoachChatView: View {
                 // text usually mirrors the question already, so we just
                 // render the assistant bubble + question chips if any
                 // tool calls are askUser.
-                CoachAssistantBubble(text: text)
+                CoachAssistantBubble(text: text, showsAvatar: showsAvatar)
                 if let pending = extractAskUser(from: message.toolCalls) {
                     CoachPendingQuestionBubble(
                         question: pending.question,
@@ -273,7 +496,9 @@ struct CoachChatView: View {
     }
 
     private func extractAskUser(from toolCalls: [PendingToolCall]?) -> CoachAskUserPayload? {
-        guard let calls = toolCalls else { return nil }
+        guard let calls = toolCalls else {
+            return nil
+        }
         for call in calls where call.name == "askUser" {
             if let parsed = try? JSONDecoder().decode(AskUserPayload.self, from: call.inputJSON) {
                 return CoachAskUserPayload(
@@ -289,12 +514,14 @@ struct CoachChatView: View {
 
     private var aiDisclaimer: some View {
         Text("AI-generated guidance. Not medical advice. Consult a professional.")
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.xs)
+            .font(Tide.label)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            // A footnote: at the biggest sizes it would eat a quarter of the screen.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .padding(.horizontal, Tide.edge)
             .frame(maxWidth: .infinity, alignment: .center)
-            .background(Color.tempoBgPrimary)
     }
 
     // MARK: - Voice
@@ -319,7 +546,9 @@ struct CoachChatView: View {
     /// finger. Tap-toggle ignores this (start/stop both come through
     /// `onMicPressBegan`).
     private func handleMicPressEnded() {
-        guard voiceMode == .holdToRecord else { return }
+        guard voiceMode == .holdToRecord else {
+            return
+        }
         voice.stop()
     }
 
@@ -327,7 +556,9 @@ struct CoachChatView: View {
     /// what the user has already typed. We track the last partial we
     /// pushed in so subsequent partials replace just that suffix.
     private func pushVoicePartialIntoField(_ partial: String) {
-        guard voice.isListening else { return }
+        guard voice.isListening else {
+            return
+        }
         // Strip the previous partial off the tail (if present), then
         // append the new partial. This lets the user keep manual edits
         // on the prefix while voice continues to extend the tail.
@@ -343,33 +574,51 @@ struct CoachChatView: View {
 
     private func send() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
-        if voice.isListening { voice.stop() }
+        guard !text.isEmpty else {
+            return
+        }
+        if voice.isListening {
+            voice.stop()
+        }
         inputText = ""
         lastVoicePartial = ""
+        pendingText = text
+        pendingBaseCount = viewModel.messages.count
         Task {
             await viewModel.sendMessage(
                 text,
                 systemPrompt: systemPromptBuilder(),
                 context: modelContext
             )
+            // Sent and answered: the real message is in the transcript now.
+            if viewModel.pendingError == nil {
+                pendingText = nil
+            }
         }
     }
 }
 
-// MARK: - IdentifiedMessage (stable id for ForEach)
+// MARK: - IdentifiedMessage
 
 private struct IdentifiedMessage: Identifiable, Equatable {
     let id: Int
     let message: CoachMessage
+    /// Set on the first message of a day: the day to show above it.
+    var dayHeading: Date?
+    /// First message of a run from the same speaker (Coach's mark goes here).
+    var startsRun = true
+    /// Last message of a run (the time goes under it).
+    var endsRun = true
 }
 
-// MARK: - AskUserPayload (decode shape)
+// MARK: - AskUserPayload
 
 private struct AskUserPayload: Decodable {
     let question: String
     let choices: [String]?
 }
+
+// MARK: - CoachAskUserPayload
 
 private struct CoachAskUserPayload {
     let question: String
@@ -383,16 +632,9 @@ struct CoachUserBubble: View {
 
     var body: some View {
         HStack {
-            Spacer(minLength: TempoSpacing.xxl)
+            Spacer(minLength: TideCoach.bubbleGutter)
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextInverse)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSignal)
-                )
+                .tideCoachBubble(.user)
         }
     }
 }
@@ -401,6 +643,12 @@ struct CoachUserBubble: View {
 
 struct CoachAssistantBubble: View {
     let text: String
+    /// Coach's mark beside the bubble: on the first bubble of a run. Later
+    /// bubbles keep the space free so the column stays straight.
+    var showsAvatar = false
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Strip [pref_xxxx] citation markers from the visible body so the
     /// text reads cleanly. Phase 7c (when citation chips are wired to
@@ -411,17 +659,18 @@ struct CoachAssistantBubble: View {
     }
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top, spacing: Tide.s2) {
+            // No room for a column of marks at accessibility sizes.
+            if !typeSize.isAccessibilitySize {
+                if showsAvatar {
+                    TideCoachAvatar()
+                } else {
+                    Color.clear.frame(width: TideCoachAvatar.width, height: Tide.hair)
+                }
+            }
             Text(displayText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.horizontal, TempoSpacing.md)
-                .padding(.vertical, TempoSpacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSurfaceCard)
-                )
-            Spacer(minLength: TempoSpacing.xxl)
+                .tideCoachBubble(.assistant)
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
     }
 }
@@ -433,47 +682,61 @@ struct CoachToolResultCard: View {
     let isError: Bool
     var detail: String?
 
-    @State private var expanded = false
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @State
+    private var expanded = false
+
+    private var tint: Color {
+        isError ? Tide.danger : mood.accent
+    }
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: isError ? "xmark.octagon.fill" : "checkmark.seal.fill")
-                        .foregroundStyle(isError ? Color.tempoError : Color.tempoSuccess)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack(spacing: Tide.s3) {
+                    TideIconTile(
+                        systemName: isError ? "xmark.octagon.fill" : "checkmark.seal.fill",
+                        tint: tint,
+                        size: Tide.tile - Tide.s2
+                    ).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                     Text(summary)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
                     if detail != nil {
                         Button {
-                            withAnimation { expanded.toggle() }
+                            withAnimation(Tide.snap) { expanded.toggle() }
                         } label: {
-                            Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                                .foregroundStyle(Color.tempoTextSecondary)
+                            Image(systemName: "chevron.down")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .rotationEffect(.degrees(expanded ? 180 : 0))
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(expanded ? "Hide details" : "Show details")
                     }
                 }
                 if expanded, let detail {
                     Text(detail)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, Tide.tile - Tide.s2 + Tide.s3)
                 }
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                    .strokeBorder(
-                        isError ? Color.tempoError.opacity(0.4) : Color.tempoSuccess.opacity(0.4),
-                        lineWidth: 1
-                    )
-                    .background(Color.tempoSurfaceCard.opacity(0.6))
-            )
-            Spacer(minLength: TempoSpacing.xxl)
+            .padding(.horizontal, Tide.s4)
+            .padding(.vertical, Tide.s3)
+            .glassEffect(.regular.tint(tint.opacity(0.2)), in: .rect(cornerRadius: Tide.tileRadius))
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
+        .padding(.leading, TideCoachAvatar.inset(for: typeSize))
     }
 }
 
@@ -484,54 +747,56 @@ struct CoachPendingQuestionBubble: View {
     let choices: [String]
     let onChoiceTap: (String) -> Void
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                if !typeSize.isAccessibilitySize {
+                    Color.clear.frame(width: TideCoachAvatar.width, height: Tide.hair)
+                }
                 Text(question)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
+                    .tideCoachBubble(.assistant)
+                Spacer(minLength: TideCoach.bubbleGutter)
             }
             if !choices.isEmpty {
-                FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
-                    ForEach(choices, id: \.self) { choice in
-                        Button(choice) { onChoiceTap(choice) }
-                            .buttonStyle(.tempoSecondary)
+                // Suggested answers, aligned under the question's bubble.
+                GlassEffectContainer(spacing: Tide.s2) {
+                    FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
+                        ForEach(choices, id: \.self) { choice in
+                            Button(choice) { onChoiceTap(choice) }
+                                .buttonStyle(.tideCoachReply)
+                        }
                     }
                 }
+                .padding(.leading, TideCoachAvatar.inset(for: typeSize))
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                .strokeBorder(Color.tempoSignal.opacity(0.4), lineWidth: 1)
-                .background(Color.tempoSurfaceCard)
-        )
     }
 }
 
 // MARK: - CoachThinkingBubble
 
 struct CoachThinkingBubble: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
-        HStack {
-            HStack(spacing: TempoSpacing.sm) {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(Color.tempoSignal)
-                Text("Thinking…")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+        HStack(alignment: .top, spacing: Tide.s2) {
+            if !typeSize.isAccessibilitySize {
+                TideCoachAvatar()
             }
-            .padding(.horizontal, TempoSpacing.md)
-            .padding(.vertical, TempoSpacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                    .fill(Color.tempoSurfaceCard)
-            )
-            Spacer(minLength: TempoSpacing.xxl)
+            HStack(spacing: Tide.s3) {
+                TideCoachTypingDots()
+                Text("Thinking…")
+                    .foregroundStyle(Tide.text2)
+                    .tideCoachShimmer()
+            }
+            .tideCoachBubble(.assistant)
+            Spacer(minLength: TideCoach.bubbleGutter)
         }
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("Coach is thinking"))
     }
 }
@@ -540,46 +805,69 @@ struct CoachThinkingBubble: View {
 
 struct CoachEmptyState: View {
     let seeds: [String]
+    var heading = "Ask Coach anything"
     let onSeedTap: (String) -> Void
 
+    /// One symbol per seed, in order: a plan, a feeling, something to remember.
+    private static let seedIcons = ["calendar.badge.clock", "bed.double.fill", "brain.head.profile"]
+
+    @State
+    private var taps = 0
+
     var body: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Text("👋")
-                .font(.system(size: 56))
-                .accessibilityHidden(true)
-            Text("I know enough to start. Try one of these,\nor say something else.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-            VStack(spacing: TempoSpacing.sm) {
-                ForEach(seeds, id: \.self) { seed in
-                    Button { onSeedTap(seed) } label: {
-                        HStack {
-                            Text(seed)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .multilineTextAlignment(.leading)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .foregroundStyle(Color.tempoTextTertiary)
+        ScrollView {
+            VStack(spacing: Tide.s6) {
+                VStack(spacing: Tide.s3) {
+                    TideStateMark(systemName: "bubble.left.and.text.bubble.right.fill")
+                    Text(heading)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                    Text("I know enough to start. Try one of these, or say something else.")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityElement(children: .combine)
+
+                GlassEffectContainer(spacing: Tide.s3) {
+                    VStack(spacing: Tide.s3) {
+                        ForEach(Array(seeds.enumerated()), id: \.element) { index, seed in
+                            Button {
+                                taps += 1
+                                onSeedTap(seed)
+                            } label: {
+                                HStack(spacing: Tide.s3) {
+                                    TideIconTile(
+                                        systemName: Self.seedIcons[index % Self.seedIcons.count],
+                                        size: Tide.tile - Tide.s2
+                                    ).dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                                    Text(seed)
+                                        .font(Tide.bodyStrong)
+                                        .foregroundStyle(Tide.text)
+                                        .multilineTextAlignment(.leading)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: Tide.s2)
+                                    Image(systemName: "arrow.up.right")
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text2)
+                                        .accessibilityHidden(true)
+                                }
+                                .frame(minHeight: Tide.hit - Tide.s5)
+                                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                                .contentShape(.rect(cornerRadius: Tide.tileRadius))
+                            }
+                            .buttonStyle(TideCoachPressStyle())
                         }
-                        .padding(.horizontal, TempoSpacing.md)
-                        .padding(.vertical, TempoSpacing.sm)
-                        .background(
-                            RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                                .strokeBorder(Color.tempoSteel.opacity(0.4), lineWidth: 1)
-                                .background(Color.tempoSurfaceCard)
-                        )
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            Spacer()
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s6)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .defaultScrollAnchor(.center)
+        .scrollBounceBehavior(.basedOnSize)
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
     }
 }
 
@@ -598,42 +886,70 @@ struct CoachInputBar: View {
     /// tap-toggle ignores it.
     let onMicPressEnded: () -> Void
 
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @State
+    private var pressInFlight: Bool = false
+    @State
+    private var sends = 0
+
     var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            micButton
-
-            TextField("Type a message…", text: $text, axis: .vertical)
-                .lineLimit(1...4)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, TempoSpacing.sm)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(
-                    RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous)
-                        .fill(Color.tempoSurfaceCard)
-                )
-                .submitLabel(.send)
-                .onSubmit { onSend() }
-                .disabled(isDisabled || isThinking)
-
-            Button { onSend() } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .imageScale(.large)
-                    .foregroundStyle(
-                        canSend ? Color.tempoSignal : Color.tempoTextDisabled
-                    )
-                    .accessibilityLabel(Text("Send message"))
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(alignment: .bottom, spacing: Tide.s2) {
+                micButton
+                field
+                sendButton
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend || isDisabled || isThinking)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoBgPrimary)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.tempoSteel.opacity(0.2))
-                .frame(height: 0.5)
+        .padding(.horizontal, Tide.edge)
+        .sensoryFeedback(.impact(weight: .medium), trigger: sends)
+    }
+
+    private var field: some View {
+        TextField(
+            text: $text,
+            prompt: Text(isRecording ? "Listening…" : "Type a message…").foregroundStyle(Tide.text3),
+            axis: .vertical
+        ) {
+            Text("Message Coach")
         }
+        .lineLimit(1 ... 4)
+        .textFieldStyle(.plain)
+        .font(Tide.body)
+        .foregroundStyle(Tide.text)
+        .tint(mood.accent)
+        .submitLabel(.send)
+        .onSubmit { fire() }
+        .disabled(isDisabled || isThinking)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(minHeight: Tide.hit)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.hit / 2))
+        .opacity(isDisabled ? 0.5 : 1)
+    }
+
+    private var sendButton: some View {
+        Button {
+            fire()
+        } label: {
+            Image(systemName: "arrow.up")
+                .font(Tide.headline)
+                .foregroundStyle(canSend ? Tide.ink : Tide.text3)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .background {
+                    if canSend {
+                        Circle().fill(mood.accent)
+                    }
+                }
+                .glassEffect(canSend ? .identity : .regular.tint(Tide.glassControl), in: .circle)
+                .contentShape(.circle)
+                .animation(reduceMotion ? nil : Tide.snap, value: canSend)
+                .accessibilityLabel(Text("Send message"))
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSend || isDisabled || isThinking)
     }
 
     private var micButton: some View {
@@ -642,32 +958,57 @@ struct CoachInputBar: View {
         // DragGesture(minimumDistance: 0) to differentiate press vs
         // release so the caller can map .ended → stop.
         Image(systemName: isRecording ? "mic.fill" : "mic")
-            .foregroundStyle(isRecording ? Color.tempoError : Color.tempoTextSecondary)
-            .imageScale(.large)
-            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
-            .padding(.horizontal, TempoSpacing.xs)
-            .contentShape(Rectangle())
+            .font(Tide.headline)
+            .foregroundStyle(isRecording ? Tide.danger : Tide.text)
+            .symbolEffect(.pulse, isActive: isRecording && !reduceMotion)
+            .frame(width: Tide.hit, height: Tide.hit)
+            .glassEffect(
+                .regular.tint(isRecording ? Tide.danger.opacity(0.28) : Tide.glassControl),
+                in: .circle
+            )
+            .scaleEffect(pressInFlight ? Tide.pressButton : 1)
+            .animation(reduceMotion ? nil : Tide.snap, value: pressInFlight)
+            .opacity(isDisabled ? 0.5 : 1)
+            .contentShape(.circle)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in
-                        guard !pressInFlight else { return }
+                        guard !pressInFlight else {
+                            return
+                        }
                         pressInFlight = true
-                        if !isDisabled { onMicPressBegan() }
+                        if !isDisabled {
+                            onMicPressBegan()
+                        }
                     }
                     .onEnded { _ in
                         pressInFlight = false
-                        if !isDisabled { onMicPressEnded() }
+                        if !isDisabled {
+                            onMicPressEnded()
+                        }
                     }
             )
+            .accessibilityLabel(Text(isRecording ? "Stop recording" : "Start recording"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                if !isDisabled {
+                    onMicPressBegan()
+                }
+            }
     }
-
-    @State private var pressInFlight: Bool = false
 
     private var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    private func fire() {
+        if canSend {
+            sends += 1
+        }
+        onSend()
+    }
 }
 
-// Note: `FlowLayout` is defined in Tempo/Tempo/Views/Dashboard/DashboardView.swift
+// Note: `FlowLayout` is defined in Tempo/Tempo/Views/Shared/FlowLayout.swift
 // and reused here for the askUser choice-chip row via `FlowLayout(spacing:
 // lineSpacing:)`.

@@ -6,11 +6,13 @@
 > **Last Updated**: 2026-05-19
 > **Audience**: iOS developers. This document is an **AS-BUILT description reconciled to the codebase on 2026-05-19**. It describes what the code actually does, not the original aspirational spec. Original spec intent is preserved inline in `> **Divergence from original spec:**` and `> **Status: NOT IMPLEMENTED.**` callouts so nothing is lost. The code is ground truth; if this doc and the code disagree, the code wins and this doc is the bug.
 
+> **UI rework, Nov 2026:** `FocusHistoryView` was deleted. The Study page (`MindQuadrantDetailView`, opened from Today's Mind tile) now holds the focus timer entry, focus history and exams in one place; `StudyHistory` and `StudySessionRemoval` hold its rules. Completing, skipping or deleting a non-negotiable, and deleting a focus session, show an Undo toast (`NonNegotiableUndo`).
+
 Primary source files referenced throughout (cited by file + symbol, never line number — lines drift):
 - `Tempo/Tempo/Views/Accountability/LockdownTabView.swift` (tab container + `OverrideSelectionView`)
 - `Tempo/Tempo/Views/Accountability/LockdownMainView.swift` (Today view, cards, leisure bar, unlock celebration)
 - `Tempo/Tempo/Views/Accountability/FocusTimerView.swift`, `FocusHistoryView.swift`
-- `Tempo/Tempo/Views/Accountability/NonNegotiableSetupView.swift`, `StreakCalendarView.swift`, `WeeklyAccountabilityView.swift`
+- `Tempo/Tempo/Views/Accountability/NonNegotiableSetupView.swift`, `StreakCalendarView.swift`
 - `Tempo/Tempo/ViewModels/AccountabilityViewModel.swift` (timer state machine, `computeFocusScore`, `processEndOfDay`, `scheduleSmartNotifications`)
 - `Tempo/Tempo/Services/Engines/AccountabilityEngine.swift` (`evaluateState`, `ps5Time`, `isWeekend`, `adjustedTarget`, `applyRestDayOverride`, `updateStreak`, `streakMilestone`, `StreakMilestone`, `AccountabilityOverrideType`)
 - `Tempo/Tempo/Services/Notifications/AccountabilityEscalationEngine.swift`, `AccountabilityCopyPool.swift` (built, **unwired**)
@@ -248,7 +250,7 @@ Implemented (`isWeekend`).
 
 ### 12.6 Implementation Intention Reinforcement
 
-> **Status: NOT IMPLEMENTED.** No `ImplementationIntention` model and no post-review "when/where will you study" prompt in `WeeklyAccountabilityView`.
+> **Status: NOT IMPLEMENTED.** No `ImplementationIntention` model and no post-review "when/where will you study" prompt in the week in review.
 
 ---
 
@@ -270,9 +272,9 @@ Per-type target modification and streak preservation match spec §13.1–§13.4 
 
 ## 14. Weekly & Monthly Review System
 
-**Status: PARTIAL.** `Views/Accountability/WeeklyAccountabilityView.swift` — live-computed report card: overall grade, category grades, daily breakdown, study chart, streak section, best/worst, `LetterGrade`.
+**Status: PARTIAL.** The old Lockdown "Weekly Report Card" (`WeeklyAccountabilityView`, letter grades) was replaced by one "Week in review" page (`Views/Today/TodayExtras.swift` `WeekReviewView`, numbers in `Services/Today/WeekReview.swift`): training, food, recovery, and daily tasks with study, each against the week before. It opens from Today (prominent Sunday evening and Monday morning) and from the weekly notification. No letter grades.
 
-> **Status: NOT IMPLEMENTED — persistence, scheduling, monthly.** No `WeeklyReview`/`MonthlyReview` persisted entities. No Sunday-8PM trigger (§14.1) — manual navigation only via ellipsis menu. No Monthly Review view (§14.2), no month-over-month comparison, no personal-records tracking, no AI verdict. It is an on-demand snapshot, not the spec'd reviewed/persisted/notified system.
+> **Status: NOT IMPLEMENTED — persistence, scheduling, monthly.** No `WeeklyReview`/`MonthlyReview` persisted entities. No Sunday-8PM trigger (§14.1) — the review opens from Today and from the weekly notification. No Monthly Review view (§14.2), no month-over-month comparison, no personal-records tracking, no AI verdict. It is an on-demand snapshot, not the spec'd reviewed/persisted/notified system.
 
 > **Cross-cutting:** `AccountabilityViewModel.processEndOfDay` (score finalization + overall/per-habit streak update + milestone check) is **never called** from any view or scene hook. End-of-day finalization does not happen automatically; streaks/scores update only incrementally on in-app completion.
 

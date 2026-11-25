@@ -18,10 +18,15 @@ struct RecoveryAIInsightView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
 
-    // Shared, long-lived instance from the container — NOT per-view. Its
-    // per-day single-flight dedup must survive this view's remounts.
-    private var service: RecoveryAIInsightService { services.recoveryInsight }
+    /// Shared, long-lived instance from the container — NOT per-view. Its
+    /// per-day single-flight dedup must survive this view's remounts.
+    private var service: RecoveryAIInsightService {
+        services.recoveryInsight
+    }
+
     @State private var paragraph: String?
     @State private var isLoading = false
     @State private var errorText: String?
@@ -30,19 +35,28 @@ struct RecoveryAIInsightView: View {
     @State private var weeklyRecap: String?
     @State private var isLoadingWeekly = false
 
+    /// A reply of only blanks is no reply: it must not draw an empty card.
+    private static func text(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             // Weekly recap first (reflection on last week), Mondays only.
-            if isLoadingWeekly || weeklyRecap != nil {
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                    TempoSectionHeader("Last Week", accentColor: Color.tempoSignal)
+            if isLoadingWeekly || Self.text(weeklyRecap) != nil {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    TideSectionLabel(title: "Last week")
                     insightCard {
                         if isLoadingWeekly {
                             loadingSkeleton
-                        } else if let weeklyRecap {
+                        } else if let weeklyRecap = Self.text(weeklyRecap) {
                             Text(weeklyRecap)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
+                                .lineSpacing(Tide.hair)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -50,51 +64,78 @@ struct RecoveryAIInsightView: View {
             }
 
             // Daily read (action for today).
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
+            VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack {
-                    TempoSectionHeader("Today's Read", accentColor: Color.tempoSignal)
+                    TideSectionLabel(title: "Today's read")
                     #if DEBUG
-                    // DEBUG-only: each tap is a paid Haiku call. Never ship
-                    // to users — they'd spam it and drive API cost up. The
-                    // per-day cache is the cost control in release builds.
-                    Spacer()
-                    if let state = service.lastFinalState {
-                        Text(state.rawValue)
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundStyle(badgeColor(for: state))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(badgeColor(for: state).opacity(0.15))
-                            .clipShape(Capsule())
-                            .accessibilityLabel("Insight state: \(state.rawValue)")
-                    }
-                    Button {
-                        Task { await regenerate() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.tempoFootnote)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .disabled(isLoading)
-                    .accessibilityLabel("Regenerate today's read")
+                        // DEBUG-only: each tap is a paid Haiku call. Never ship
+                        // to users — they'd spam it and drive API cost up. The
+                        // per-day cache is the cost control in release builds.
+                        if let state = service.lastFinalState {
+                            Text(state.rawValue)
+                                .font(Tide.label.monospaced())
+                                .foregroundStyle(badgeColor(for: state))
+                                .padding(.horizontal, Tide.s2)
+                                .padding(.vertical, Tide.hair)
+                                .background(badgeColor(for: state).opacity(0.15))
+                                .clipShape(Capsule())
+                                .accessibilityLabel("Insight state: \(state.rawValue)")
+                        }
+                        Button {
+                            Task { await regenerate() }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text2)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
+                        }
+                        .disabled(isLoading)
+                        .accessibilityLabel("Regenerate today's read")
                     #endif
                 }
                 insightCard {
                     if isLoading {
                         loadingSkeleton
-                    } else if let paragraph {
+                    } else if let paragraph = Self.text(paragraph) {
                         Text(paragraph)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .lineSpacing(Tide.hair)
                             .fixedSize(horizontal: false, vertical: true)
+                    } else if self.paragraph != nil {
+                        // The reply came back empty.
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Text("No read for today")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                            Text("Your coach had nothing to add this time.")
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
                     } else if let errorText {
-                        Text(errorText)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        // A short headline first, the reason underneath it quieter.
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Label {
+                                Text("Today's read didn't load")
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.text)
+                            } icon: {
+                                Image(systemName: "exclamationmark.circle")
+                                    .foregroundStyle(TideTone.amber)
+                            }
+                            Text(errorText)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .combine)
                     } else {
                         Text("Connect WHOOP to get today's personalised read.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
                     }
                 }
             }
@@ -108,44 +149,50 @@ struct RecoveryAIInsightView: View {
     }
 
     #if DEBUG
-    // Pure UI helper for the DEBUG-only final-state badge. Keeping it inside
-    // an #if guard so it doesn't ship to release builds.
-    private func badgeColor(for state: RecoveryAIInsightService.FinalState) -> Color {
-        switch state {
-        case .cacheHit: return Color.tempoTextSecondary
-        case .apiSuccess: return Color.tempoSignal
-        case .cancelled: return Color.tempoWarning
-        case .failed: return Color.tempoError
+        /// Pure UI helper for the DEBUG-only final-state badge. Keeping it inside
+        /// an #if guard so it doesn't ship to release builds.
+        private func badgeColor(for state: RecoveryAIInsightService.FinalState) -> Color {
+            switch state {
+            case .cacheHit: Tide.text2
+            case .apiSuccess: mood.accent
+            case .cancelled: TideTone.amber
+            case .failed: Tide.danger
+            }
         }
-    }
     #endif
 
-    @ViewBuilder
     private func insightCard(@ViewBuilder _ content: () -> some View) -> some View {
-        content()
-            .padding(TempoSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+        HStack(alignment: .top, spacing: Tide.s3) {
+            Image(systemName: "sparkles")
+                .font(Tide.headline)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.icon)
+                .accessibilityHidden(true)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .tideCard()
     }
 
     private var loadingSkeleton: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             ForEach(0 ..< 4, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.tempoTextTertiary.opacity(0.18))
-                    .frame(height: 12)
-                    .frame(maxWidth: i == 3 ? 180 : .infinity)
+                RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.s3)
+                    .frame(maxWidth: i == 3 ? Tide.s10 * 4 : .infinity, alignment: .leading)
             }
         }
         .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Generating today's recovery insight")
     }
 
     @MainActor
     private func load() async {
-        guard let recovery else { return }
+        guard let recovery else {
+            return
+        }
 
         let svc = service
 
@@ -172,7 +219,9 @@ struct RecoveryAIInsightView: View {
 
     @MainActor
     private func regenerate() async {
-        guard let recovery, !isLoading else { return }
+        guard let recovery, !isLoading else {
+            return
+        }
 
         let svc = service
 

@@ -37,10 +37,25 @@ struct LockdownTabView: View {
         settings?.focusTimerEnabled ?? false
     }
 
+    /// True when pushed on another stack (Today): no stack of its own, or the
+    /// nested stack would pop back to the root on every push.
+    var embedded = false
+
+    /// What the Study page opens with from here. Its exams load themselves.
+    private var studyData: MindQuadrantData {
+        let target = viewModel.progressItems.first { $0.nonNegotiable?.type == .study }?.targetValue ?? 120
+        return MindQuadrantData(
+            studyMinutesToday: viewModel.totalFocusMinutesToday,
+            studyTargetMinutes: Int(target),
+            currentStreakDays: viewModel.streakCount,
+            exams: []
+        )
+    }
+
     var body: some View {
-        NavigationStack {
+        EmbeddableNavigationStack(embedded: embedded) {
             LockdownMainView(viewModel: viewModel, showFocusTimer: $showFocusTimer)
-                .navigationTitle("LOCKDOWN")
+                .navigationTitle("Lockdown")
                 .navigationBarTitleDisplayMode(.inline)
                 .tempoSettingsToolbar()
                 .toolbar {
@@ -52,12 +67,6 @@ struct LockdownTabView: View {
                                 Label("Streak Calendar", systemImage: "flame.fill")
                             }
 
-                            NavigationLink {
-                                WeeklyAccountabilityView()
-                            } label: {
-                                Label("Weekly Report Card", systemImage: "doc.text.fill")
-                            }
-
                             Button {
                                 showSetup = true
                             } label: {
@@ -66,9 +75,9 @@ struct LockdownTabView: View {
 
                             if focusTimerEnabled {
                                 NavigationLink {
-                                    FocusHistoryView()
+                                    MindQuadrantDetailView(data: studyData)
                                 } label: {
-                                    Label("Focus History", systemImage: "chart.bar.fill")
+                                    Label("Study", systemImage: "book.fill")
                                 }
                             }
 
@@ -90,12 +99,16 @@ struct LockdownTabView: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis.circle")
-                                .font(.system(size: 18))
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text2)
+                                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                                .contentShape(.rect)
                         }
                         .accessibilityLabel("More options")
                     }
                 }
+                // The home's shaders rest while the timer or the setup sheet covers it.
+                .tideCovered(showFocusTimer || showSetup)
                 .fullScreenCover(isPresented: $showFocusTimer) {
                     if focusTimerEnabled {
                         FocusTimerView(viewModel: viewModel)
@@ -143,6 +156,10 @@ private struct OverrideSelectionView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var showOverrideConfirmation = false
@@ -150,73 +167,36 @@ private struct OverrideSelectionView: View {
     private var pendingOverride: AccountabilityOverrideType?
 
     var body: some View {
-        List {
-            Section {
-                ForEach(overrideOptions, id: \.type) { option in
-                    let isActive = viewModel.activeOverride == option.type
+        TideScrollPage {
+            TideSectionLabel(title: "Override type")
 
-                    Button {
-                        pendingOverride = option.type
-                        showOverrideConfirmation = true
-                    } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            Image(systemName: option.icon)
-                                .font(.system(size: 20))
-                                .foregroundStyle(isActive ? Color.tempoSuccess : Color.tempoElectric)
-                                .frame(width: 32)
-                                .accessibilityHidden(true)
-
-                            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                                Text(option.title)
-                                    .font(.tempoHeadline)
-                                    .foregroundStyle(isActive ? Color.tempoSuccess : Color.tempoTextPrimary)
-
-                                Text(option.description)
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
-
-                            Spacer()
-
-                            if isActive {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundStyle(Color.tempoSuccess)
-                                    .transition(.scale.combined(with: .opacity))
-                                    .accessibilityHidden(true)
-                            }
-                        }
+            // Six choices read as one list, not six cards.
+            VStack(spacing: 0) {
+                ForEach(Array(overrideOptions.enumerated()), id: \.element.type) { index, option in
+                    if index > 0 {
+                        TideDivider()
                     }
-                    .disabled(isActive)
-                    .accessibilityLabel("\(option.title)\(isActive ? ", active" : "")")
-                    .accessibilityHint(option.description)
+                    optionRow(option)
                 }
-            } header: {
-                Text("OVERRIDE TYPE")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            } footer: {
-                Text("Overrides modify today's non-negotiable targets. Use sparingly — rest days don't count toward your streak.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+            Text("Overrides modify today's non-negotiable targets. Use sparingly — rest days don't count toward your streak.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             if viewModel.activeOverride != nil {
-                Section {
-                    Button(role: .destructive) {
-                        viewModel.deactivateOverride()
-                    } label: {
-                        Text("Cancel Override")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoSignal)
-                    }
+                Button {
+                    viewModel.deactivateOverride()
+                } label: {
+                    Text("Cancel override")
+                        .foregroundStyle(Tide.danger)
+                        .frame(maxWidth: .infinity)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .buttonStyle(.tideGlass)
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
         .navigationTitle("Override")
         .navigationBarTitleDisplayMode(.inline)
         .alert("Activate Override", isPresented: $showOverrideConfirmation) {
@@ -225,7 +205,7 @@ private struct OverrideSelectionView: View {
             }
             Button("Activate") {
                 if let type = pendingOverride {
-                    withAnimation(.easeInOut(duration: 0.25)) {
+                    withAnimation(Tide.snap) {
                         viewModel.activateOverride(
                             type: type,
                             modelContext: modelContext
@@ -242,6 +222,50 @@ private struct OverrideSelectionView: View {
                 Text("\(option.title): \(option.description). This cannot be undone for today.")
             }
         }
+    }
+
+    private func optionRow(_ option: OverrideOption) -> some View {
+        let isActive = viewModel.activeOverride == option.type
+        return Button {
+            pendingOverride = option.type
+            showOverrideConfirmation = true
+        } label: {
+            HStack(spacing: Tide.s3) {
+                // At the largest text sizes the words need the width the icon tile would take.
+                if !typeSize.isAccessibilitySize {
+                    TideAreaIconTile(systemName: option.icon, tint: isActive ? TideTone.mint : mood.accent)
+                }
+
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(option.title)
+                        .font(Tide.headline)
+                        .foregroundStyle(isActive ? TideTone.mint : Tide.text)
+
+                    Text(option.description)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Tide.s2)
+
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(Tide.title2)
+                        .foregroundStyle(TideTone.mint)
+                        .transition(.scale.combined(with: .opacity))
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, Tide.s3)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(isActive)
+        .accessibilityLabel("\(option.title)\(isActive ? ", active" : "")")
+        .accessibilityHint(option.description)
     }
 
     private struct OverrideOption {

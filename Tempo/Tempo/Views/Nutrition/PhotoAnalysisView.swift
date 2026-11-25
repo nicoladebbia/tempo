@@ -25,6 +25,8 @@ struct PhotoAnalysisView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
 
@@ -64,9 +66,7 @@ struct PhotoAnalysisView: View {
     /// plain `Group`, so the title/toolbar attach to the scanner's stack.
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             if showCamera, capturedImage == nil {
                 // Camera capture
                 CameraPickerView(image: $capturedImage) {
@@ -93,8 +93,8 @@ struct PhotoAnalysisView: View {
                         identifiedItems = []
                         analysisState = .idle
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.body)
+                    .foregroundStyle(mood.accent)
                 }
             }
         }
@@ -130,7 +130,11 @@ struct PhotoAnalysisView: View {
                 onCancel: { alternativesItemID = nil }
             )
         }
-        .alert("What is it?", isPresented: Binding(get: { renameItemID != nil }, set: { if !$0 { renameItemID = nil } })) {
+        .alert("What is it?", isPresented: Binding(get: { renameItemID != nil }, set: {
+            if !$0 {
+                renameItemID = nil
+            }
+        })) {
             TextField("e.g. grilled chicken", text: $renameText)
             Button("Cancel", role: .cancel) { renameItemID = nil }
             Button("Save") { commitRename() }
@@ -142,7 +146,7 @@ struct PhotoAnalysisView: View {
                 withAnimation(.easeOut(duration: 0.2)) { identifiedItems.append(item) }
                 HapticManager.notification(.success)
             }
-            .presentationDetents([.medium])
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -183,165 +187,145 @@ struct PhotoAnalysisView: View {
 
     private func analysisContent(image: UIImage) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.lg) {
-                // Captured photo
+            VStack(spacing: Tide.s4) {
+                // Captured photo: the hero. Once analysed, the meal's total
+                // sits on it as the figure.
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .frame(height: Tide.fuelPhoto)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
+                    .overlay(alignment: .bottomLeading) {
+                        if case .complete = analysisState, !identifiedItems.isEmpty {
+                            photoTotals
+                                .padding(Tide.s3)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        }
+                    }
+                    .animation(Tide.snap, value: identifiedItems.isEmpty)
+                    .padding(.horizontal, Tide.edge)
+                    .accessibilityLabel("Your meal photo")
 
                 // Analysis results
-                switch analysisState {
-                case .idle:
-                    EmptyView()
+                Group {
+                    switch analysisState {
+                    case .idle:
+                        EmptyView()
 
-                case .analyzing:
-                    analyzingState
+                    case .analyzing:
+                        FuelAIState(kind: .working("Identifying food items…"))
 
-                case .complete:
-                    identifiedItemsList
+                    case .complete:
+                        identifiedItemsList
 
-                case let .error(message):
-                    analysisErrorState(message: message)
+                    case let .error(message):
+                        FuelAIState(
+                            kind: .failed(title: "Analysis failed", message: message),
+                            actionTitle: "Retry",
+                            action: { analyzePhoto() }
+                        )
 
-                case let .blocked(blocker):
-                    AIBlockerCard(blocker: blocker) {
-                        analyzePhoto()
+                    case let .blocked(blocker):
+                        AIBlockerCard(blocker: blocker) {
+                            analyzePhoto()
+                        }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
                 }
+                .padding(.horizontal, Tide.edge)
             }
-            .padding(.top, TempoSpacing.md)
-            .padding(.bottom, 120) // Room for bottom button
+            .padding(.top, Tide.s3)
+            .padding(.bottom, Tide.s6)
         }
-
-        // Bottom action bar
-        .overlay(alignment: .bottom) {
-            if case .complete = analysisState, !identifiedItems.isEmpty {
-                addAllButton
-            }
-        }
+        // The one action sits under the thumb once there is something to add.
+        .fuelBottomBar(isShown: isReadyToAdd) { addAllButton }
+        .animation(Tide.snap, value: isReadyToAdd)
     }
 
-    // MARK: - Analyzing State (Shimmer)
-
-    private var analyzingState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Text("ANALYZING")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.moduleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text("Identifying food items...")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            // Shimmer skeleton items
-            VStack(spacing: TempoSpacing.cardGap) {
-                ForEach(0 ..< 3, id: \.self) { _ in
-                    HStack(spacing: TempoSpacing.md) {
-                        RoundedRectangle(cornerRadius: TempoRadius.sm)
-                            .fill(Color.tempoTextDisabled.opacity(0.3))
-                            .frame(width: 160, height: 16)
-                        Spacer()
-                        RoundedRectangle(cornerRadius: TempoRadius.sm)
-                            .fill(Color.tempoTextDisabled.opacity(0.3))
-                            .frame(width: 60, height: 16)
-                    }
-                    .padding(.horizontal, TempoSpacing.cardPadding)
-                    .padding(.vertical, TempoSpacing.listItemVertical)
-                }
-            }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-            .shimmer()
-            .padding(.horizontal, TempoSpacing.screenEdge)
+    private var isReadyToAdd: Bool {
+        if case .complete = analysisState {
+            return !identifiedItems.isEmpty
         }
-        .padding(.top, TempoSpacing.lg)
+        return false
+    }
+
+    /// Calories and macros of everything found, portions included.
+    private var photoTotals: some View {
+        let kcal = identifiedItems.reduce(0) { $0 + $1.scaledCalories }
+        let protein = Int(identifiedItems.reduce(0.0) { $0 + $1.protein * $1.servingMultiplier })
+        let carbs = Int(identifiedItems.reduce(0.0) { $0 + $1.carbs * $1.servingMultiplier })
+        let fat = Int(identifiedItems.reduce(0.0) { $0 + $1.fat * $1.servingMultiplier })
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralM, relativeTo: .title)
+            FuelMacroInline(protein: protein, carbs: carbs, fat: fat)
+        }
+        .padding(Tide.s3)
+        .glassEffect(.regular, in: .rect(cornerRadius: Tide.tileRadius))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Identified Items List
 
     private var identifiedItemsList: some View {
-        VStack(spacing: TempoSpacing.md) {
-            HStack {
-                Text("IDENTIFIED ITEMS")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.moduleTag)
-                    .foregroundStyle(Color.tempoTextSecondary)
+        VStack(spacing: Tide.s3) {
+            if identifiedItems.isEmpty {
+                // The model found nothing, or every guess was removed.
+                FuelAIState(
+                    kind: .empty(
+                        title: "No food found",
+                        message: "Nothing here looked like food. Add what is on the plate, or retake the photo closer and in better light."
+                    )
+                )
+            } else {
+                FuelSection(title: "Identified items", trailing: "\(identifiedItems.count) found") {
+                    VStack(spacing: Tide.s3) {
+                        ForEach($identifiedItems) { $item in
+                            analyzedFoodRow(item: $item)
 
-                Spacer()
-
-                Text("\(identifiedItems.count) found")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-
-            VStack(spacing: 0) {
-                ForEach($identifiedItems) { $item in
-                    analyzedFoodRow(item: $item)
-
-                    if item.id != identifiedItems.last?.id {
-                        Divider()
-                            .background(Color.tempoDivider)
-                            .padding(.horizontal, TempoSpacing.cardPadding)
+                            if item.id != identifiedItems.last?.id {
+                                Divider().overlay(Tide.hairline)
+                            }
+                        }
                     }
                 }
             }
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-            .padding(.horizontal, TempoSpacing.screenEdge)
 
             Button {
                 showAddItem = true
             } label: {
                 Label("Add a missing item", systemImage: "plus.circle")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoSignal)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tideGlass)
             .accessibilityIdentifier("photoAddItem")
-
-            if identifiedItems.isEmpty {
-                Text("Nothing left. Add an item or retake the photo.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
         }
     }
 
     private func analyzedFoodRow(item: Binding<AnalyzedFoodItem>) -> some View {
         let value = item.wrappedValue
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .top, spacing: TempoSpacing.md) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .top, spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Button {
                         renameText = value.name
                         renameItemID = value.id
                     } label: {
-                        HStack(spacing: TempoSpacing.xs) {
+                        HStack(spacing: Tide.s1) {
                             Text(value.name)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                                 .multilineTextAlignment(.leading)
                             Image(systemName: "pencil")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Rename \(value.name)")
 
                     Text(value.estimatedPortion)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
 
                     // Other guesses from the model, when it was unsure.
                     if !value.alternatives.isEmpty, !value.needsQuestion {
@@ -349,13 +333,14 @@ struct PhotoAnalysisView: View {
                             alternativesItemID = value.id
                             HapticManager.lightImpact()
                         } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "questionmark.circle")
-                                    .font(.tempoCaption2)
-                                Text("Not right? See \(value.alternatives.count) other \(value.alternatives.count == 1 ? "guess" : "guesses")")
-                                    .font(.tempoCaption2)
-                            }
-                            .foregroundStyle(Color.tempoSignal)
+                            Label(
+                                "Not right? See \(value.alternatives.count) other \(value.alternatives.count == 1 ? "guess" : "guesses")",
+                                systemImage: "questionmark.circle"
+                            )
+                            .font(Tide.caption)
+                            .foregroundStyle(mood.accent)
+                            .frame(minHeight: Tide.hit, alignment: .leading)
+                            .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("photoOtherGuesses")
@@ -364,13 +349,15 @@ struct PhotoAnalysisView: View {
 
                 Spacer(minLength: 0)
 
-                VStack(alignment: .trailing, spacing: TempoSpacing.xs) {
+                VStack(alignment: .trailing, spacing: Tide.s1) {
                     confidenceBadge(value)
                     Button {
                         removeItem(value.id)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .foregroundStyle(Tide.text3)
+                            .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .trailing)
+                            .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Remove \(value.name)")
@@ -381,19 +368,21 @@ struct PhotoAnalysisView: View {
                 clarifyingCard(value)
             }
 
-            // Macros row
-            HStack(spacing: TempoSpacing.lg) {
-                macroLabel("\(value.scaledCalories) kcal", color: Color.tempoViolet)
-                macroLabel("P: \(Int(value.protein * value.servingMultiplier))g", color: Color.tempoMacroProtein)
-                macroLabel("C: \(Int(value.carbs * value.servingMultiplier))g", color: Color.tempoMacroCarbs)
-                macroLabel("F: \(Int(value.fat * value.servingMultiplier))g", color: Color.tempoMacroFat)
+            // Calories as the figure, the macros under it.
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                TideNumber("\(value.scaledCalories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                FuelMacroInline(
+                    protein: Int(value.protein * value.servingMultiplier),
+                    carbs: Int(value.carbs * value.servingMultiplier),
+                    fat: Int(value.fat * value.servingMultiplier)
+                )
             }
 
             // Portion chips
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 Text("Portion")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 ForEach(MealReviewDraft.factorChoices, id: \.self) { choice in
                     let selected = abs(value.servingMultiplier - choice) < 0.001
                     Button {
@@ -401,30 +390,26 @@ struct PhotoAnalysisView: View {
                         item.servingMultiplier.wrappedValue = choice
                     } label: {
                         Text(ParsedFoodReviewSheet.chipLabel(choice))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(selected ? Color.tempoInk : Color.tempoTextPrimary)
-                            .frame(minWidth: 28)
-                            .padding(.horizontal, TempoSpacing.sm)
-                            .padding(.vertical, TempoSpacing.xs)
-                            .background(selected ? Color.tempoSignal : Color.tempoBgTertiary)
-                            .clipShape(Capsule())
+                            .font(Tide.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(Tide.labelShrink)
+                            .frame(maxWidth: .infinity)
+                            .fuelChip(selected: selected)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.cardPadding)
-        .padding(.vertical, TempoSpacing.listItemVertical)
     }
 
     /// Low confidence: ask instead of guessing. One tap answers.
     private func clarifyingCard(_ value: AnalyzedFoodItem) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text(value.clarifyingQuestion)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            HStack(spacing: TempoSpacing.sm) {
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+            HStack(spacing: Tide.s2) {
                 answerChip(value.name) { confirmGuess(value.id) }
                 ForEach(value.alternatives.prefix(2)) { alt in
                     answerChip(alt.name) { applyAlternative(alt, to: value.id) }
@@ -435,96 +420,48 @@ struct PhotoAnalysisView: View {
                 }
             }
         }
-        .padding(TempoSpacing.md)
+        .padding(Tide.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoWarning.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .background(Tide.warn.opacity(0.10), in: .rect(cornerRadius: Tide.controlRadius))
         .accessibilityIdentifier("photoQuestion")
     }
 
     private func answerChip(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.tempoCaption1)
+                .font(Tide.caption)
                 .lineLimit(1)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.horizontal, TempoSpacing.sm)
-                .padding(.vertical, TempoSpacing.xs)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(Capsule())
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity)
+                .fuelChip(selected: false)
         }
         .buttonStyle(.plain)
     }
 
     private func confidenceBadge(_ item: AnalyzedFoodItem) -> some View {
         let confidence = item.confidence
-        return HStack(spacing: TempoSpacing.xs) {
-            Image(systemName: item.isVerified ? "checkmark.seal.fill" : confidence.icon)
-                .font(.system(size: 12))
-            Text("\(item.confidencePercent)%")
-                .font(.tempoCaption2.monospacedDigit())
-        }
+        return Label(
+            "\(item.confidencePercent)%",
+            systemImage: item.isVerified ? "checkmark.seal.fill" : confidence.icon
+        )
+        .font(Tide.caption.monospacedDigit())
         .foregroundStyle(confidence.color)
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, TempoSpacing.xs)
-        .background(confidence.color.opacity(0.12))
-        .clipShape(Capsule())
+        .padding(.horizontal, Tide.s2)
+        .padding(.vertical, Tide.s1)
+        .background(confidence.color.opacity(0.12), in: Capsule())
         .accessibilityLabel("\(item.confidencePercent) percent sure\(item.isVerified ? ", macros checked against the food database" : "")")
-    }
-
-    private func macroLabel(_ text: String, color: Color) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .foregroundStyle(color)
-    }
-
-    // MARK: - Error State
-
-    private func analysisErrorState(message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-
-            Text("Analysis failed")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-
-            Button("Retry") {
-                analyzePhoto()
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-        }
-        .padding(.top, TempoSpacing.xxl)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .explains(.fuelPhotoConfidence.showing("\(item.confidencePercent)%"))
     }
 
     // MARK: - Add All Button
 
     private var addAllButton: some View {
-        VStack(spacing: 0) {
-            Button {
-                confirmItems()
-            } label: {
-                Text("Add All to Meal")
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.md)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+        Button {
+            confirmItems()
+        } label: {
+            Text("Add All to Meal")
         }
-        .background(
-            Color.tempoSurfaceCard
-                .shadow(color: Color.tempoInk.opacity(0.08), radius: 8, x: 0, y: -4)
-                .ignoresSafeArea(edges: .bottom)
-        )
+        .buttonStyle(.tidePrimary)
     }
 
     // MARK: - Actions
@@ -542,11 +479,11 @@ struct PhotoAnalysisView: View {
         Task {
             do {
                 #if DEBUG
-                // Simulator QA has no signed-in AI backend: `--uitesting-mock-photo` uses the mock.
-                let analyzer: any PhotoAnalysisServiceProtocol = ProcessInfo.processInfo.arguments
-                    .contains("--uitesting-mock-photo") ? MockPhotoAnalysisService() : services.nutrition.photoAnalysis
+                    // Simulator QA has no signed-in AI backend: `--uitesting-mock-photo` uses the mock.
+                    let analyzer: any PhotoAnalysisServiceProtocol = ProcessInfo.processInfo.arguments
+                        .contains("--uitesting-mock-photo") ? MockPhotoAnalysisService() : services.nutrition.photoAnalysis
                 #else
-                let analyzer = services.nutrition.photoAnalysis
+                    let analyzer = services.nutrition.photoAnalysis
                 #endif
                 let result = try await analyzer.analyzeMealPhoto(imageData, remainingBudget: nil)
 
@@ -628,15 +565,17 @@ private struct AddMissingItemSheet: View {
                 Section {
                     TextField("Food (e.g. olive oil)", text: $name)
                         .accessibilityIdentifier("photoAddName")
+                        .fuelRow()
                     HStack {
                         Text("Amount")
                         Spacer()
                         TextField("g", text: $gramsText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 80)
-                        Text("g").foregroundStyle(Color.tempoTextSecondary)
+                            .frame(width: Tide.fuelAmountField)
+                        Text("g").foregroundStyle(Tide.text2)
                     }
+                    .fuelRow()
                     if !name.trimmingCharacters(in: .whitespaces).isEmpty, !known {
                         HStack {
                             Text("Calories")
@@ -644,31 +583,38 @@ private struct AddMissingItemSheet: View {
                             TextField("kcal", text: $kcalText)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
-                                .frame(width: 80)
-                            Text("kcal").foregroundStyle(Color.tempoTextSecondary)
+                                .frame(width: Tide.fuelAmountField)
+                            Text("kcal").foregroundStyle(Tide.text2)
                         }
+                        .fuelRow()
                     }
                 } footer: {
                     Text(known || name.isEmpty
                         ? "Calories and macros come from Tempo's food table."
                         : "Not in Tempo's food table. Type the calories for that amount.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
+            .font(Tide.body)
+            .scrollContentBackground(.hidden)
+            .fuelBottomBar {
+                Button("Add") {
+                    if let item {
+                        onAdd(item)
+                        dismiss()
+                    }
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(item == nil)
+                .accessibilityIdentifier("photoAddConfirm")
+            }
+            .tidePage()
             .navigationTitle("Add item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        if let item {
-                            onAdd(item)
-                            dismiss()
-                        }
-                    }
-                    .disabled(item == nil)
-                    .accessibilityIdentifier("photoAddConfirm")
                 }
             }
         }
@@ -756,19 +702,21 @@ struct PhotoAlternativesSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s4) {
                     explainer
                     currentRow
                     candidatesList
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s4)
             }
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle("Other Guesses")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -784,20 +732,14 @@ struct PhotoAlternativesSheet: View {
 
     private var explainer: some View {
         Text("Pick the closest match. The macros below assume the model is right about portion size; tap a row to swap.")
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var currentRow: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text("CURRENT")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-            }
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Current")
             candidateCard(
                 name: primary.name,
                 portion: primary.estimatedPortion,
@@ -813,15 +755,9 @@ struct PhotoAlternativesSheet: View {
     }
 
     private var candidatesList: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text("ALTERNATIVES")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-            }
-            VStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Alternatives")
+            VStack(spacing: Tide.s2) {
                 ForEach(primary.alternatives) { alt in
                     candidateCard(
                         name: alt.name,
@@ -854,54 +790,37 @@ struct PhotoAlternativesSheet: View {
         isCurrent: Bool,
         action: (() -> Void)?
     ) -> some View {
-        let content = VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
+        let content = VStack(alignment: .leading, spacing: Tide.s1) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(name)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                     Text(portion)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                Spacer()
-                Text(confidenceBadgeLabel(confidence))
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(confidenceBadgeColor(confidence).opacity(0.15))
-                    .foregroundStyle(confidenceBadgeColor(confidence))
-                    .clipShape(Capsule())
+                Spacer(minLength: Tide.s2)
+                FuelPill(text: confidenceBadgeLabel(confidence), color: confidenceBadgeColor(confidence))
             }
-            HStack(spacing: TempoSpacing.lg) {
-                Text("\(calories) kcal")
-                    .font(.tempoCaption2.monospacedDigit())
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text("P \(Int(protein))g")
-                    .font(.tempoCaption2.monospacedDigit())
-                    .foregroundStyle(Color.tempoMacroProtein)
-                Text("C \(Int(carbs))g")
-                    .font(.tempoCaption2.monospacedDigit())
-                    .foregroundStyle(Color.tempoMacroCarbs)
-                Text("F \(Int(fat))g")
-                    .font(.tempoCaption2.monospacedDigit())
-                    .foregroundStyle(Color.tempoMacroFat)
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                TideNumber("\(calories)", unit: "kcal", size: Tide.numeralS, relativeTo: .headline)
+                FuelMacroInline(protein: Int(protein), carbs: Int(carbs), fat: Int(fat))
             }
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .padding(.vertical, 10)
+        .padding(Tide.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isCurrent ? Color.tempoBgSecondary : Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+        .frame(minHeight: Tide.hit)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
         .overlay {
             if isCurrent {
-                RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-                    .stroke(Color.tempoSignal, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .strokeBorder(mood.accent, lineWidth: Tide.focusLine)
             }
         }
 
         if let action {
-            Button(action: action) { content }
+            Button(action: action) { content.contentShape(.rect) }
                 .buttonStyle(.plain)
         } else {
             content
@@ -918,9 +837,9 @@ struct PhotoAlternativesSheet: View {
 
     private func confidenceBadgeColor(_ score: Double) -> Color {
         switch score {
-        case 0.8...: Color.tempoSuccess
-        case 0.5 ..< 0.8: Color.tempoWarning
-        default: Color.tempoError
+        case 0.8...: Tide.good
+        case 0.5 ..< 0.8: Tide.warn
+        default: Tide.danger
         }
     }
 }

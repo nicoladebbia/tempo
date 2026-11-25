@@ -20,130 +20,90 @@ struct TrainingTabView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
-    @State
-    private var viewModel: TrainingViewModel?
-    @State
-    private var showActiveWorkout = false
-    @State
-    private var showSummary = false
     /// Pause/travel-pain feature — see AwayModeSheet.swift.
     @State
     private var showAwayMode = false
+    @State
+    private var showSettings = false
+    @State
+    private var opened = 0
+    /// The page open inside Train. Search sets it through `requestedTrain`.
+    @State
+    private var path: [TrainDestination] = []
+    /// The exercise search opened the library on.
+    @State
+    private var librarySearch = ""
+    /// The Undo toast after a custom exercise is deleted from any page in Train.
+    @State
+    private var undoToast: ToastData?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let viewModel {
-                    TodayWorkoutView(
-                        viewModel: viewModel,
-                        showActiveWorkout: $showActiveWorkout,
-                        showSummary: $showSummary
-                    )
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.tempoBgPrimary)
-                }
-            }
+        // The session (view model and its screens) is owned by the app, not
+        // by this tab: Today and the Move detail drive the same one.
+        @Bindable
+        var session = services.workoutSession
+        let viewModel = session.viewModel
+        return NavigationStack(path: $path) {
+            TodayWorkoutView(
+                viewModel: viewModel,
+                showActiveWorkout: $session.showActiveWorkout,
+                showSummary: $session.showSummary
+            )
             .navigationTitle("Training")
-            .tempoSettingsToolbar()
+            .navigationBarTitleDisplayMode(.inline)
+            .firstTip(
+                "train.home",
+                "Tap Start workout to begin today's session, and use the menu at the top left for your plan, routines and progress.",
+                systemImage: "figure.strengthtraining.traditional"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        if let viewModel {
-                            NavigationLink {
-                                WeekPlanView(viewModel: viewModel)
-                            } label: {
-                                Label("Week Plan", systemImage: "calendar")
-                            }
-                        }
-
-                        if let viewModel {
-                            NavigationLink {
-                                RoutinesView(viewModel: viewModel)
-                            } label: {
-                                Label("My Routines", systemImage: "list.bullet.rectangle")
-                            }
-                        }
-
-                        NavigationLink {
-                            TrainerProgramView()
-                        } label: {
-                            Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
-                        }
-
-                        Button {
-                            showAwayMode = true
-                        } label: {
-                            Label("Away from the gym", systemImage: "airplane")
-                        }
-
-                        NavigationLink {
-                            ExerciseLibraryView()
-                        } label: {
-                            Label("Exercise Library", systemImage: "books.vertical")
-                        }
-
-                        NavigationLink {
-                            ProgressChartsView()
-                        } label: {
-                            Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
-                        }
-
-                        NavigationLink {
-                            MuscleHeatmapView()
-                        } label: {
-                            Label("Muscle Map", systemImage: "figure.arms.open")
-                        }
-
-                        NavigationLink {
-                            WorkoutHistoryView()
-                        } label: {
-                            Label("History", systemImage: "clock.arrow.circlepath")
-                        }
+                    moreMenu(viewModel: viewModel)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        opened += 1
+                        showSettings = true
                     } label: {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        Image(systemName: TempoSymbols.settings)
                     }
-                    .accessibilityLabel("More")
-                    .accessibilityHint("Open week plan, routines, exercise library, progress, or history.")
+                    .accessibilityLabel("Settings")
                 }
             }
-            .fullScreenCover(isPresented: $showActiveWorkout) {
-                if let viewModel {
-                    NavigationStack {
-                        ActiveWorkoutView(viewModel: viewModel)
-                    }
-                }
+            .navigationDestination(for: TrainDestination.self) { page in
+                destination(page, viewModel: viewModel)
             }
-            .fullScreenCover(isPresented: $showSummary, onDismiss: {
-                showSummary = false
-                // However the summary closed, its feedback is now final.
-                viewModel?.applyPendingLearning(modelContext: modelContext, summaryClosed: true)
-            }) {
-                if let viewModel {
-                    NavigationStack {
-                        WorkoutSummaryView(viewModel: viewModel)
-                    }
-                }
-            }
+            .tideCovered(showAwayMode || showSettings)
             .sheet(isPresented: $showAwayMode) {
-                if let viewModel {
-                    AwayModeSheet(viewModel: viewModel)
+                AwayModeSheet(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    DashboardSettingsView()
                 }
+                .persistenceAlert()
             }
         }
-        .onAppear {
-            if viewModel == nil {
-                viewModel = TrainingViewModel(
-                    trainingEngine: services.trainingEngine,
-                    whoop: services.whoop,
-                    healthKit: services.healthKit,
-                    apiClient: services.apiClient,
-                    calendarService: services.calendar
-                )
+        .environment(\.offerExerciseUndo) { snapshot in
+            undoToast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+                snapshot.restore(in: modelContext)
+                modelContext.saveOrAlert("exercise restore")
             }
+        }
+        .tempoToast($undoToast)
+        .sensoryFeedback(.selection, trigger: opened)
+        // Search asked for a page here: open it, then clear the request.
+        .onChange(of: path) { _, path in
+            if path.isEmpty {
+                librarySearch = ""
+            }
+        }
+        .onChange(of: services.appState.requestedTrain, initial: true) { _, request in
+            guard let request else {
+                return
+            }
+            services.appState.requestedTrain = nil
+            open(request)
         }
         .onReceive(
             // Tier 3.3 — re-personalize the training week when the schedule
@@ -154,57 +114,73 @@ struct TrainingTabView: View {
             NotificationCenter.default.publisher(for: .tempoTrainingSettingsChanged)
                 .debounce(for: .seconds(0.6), scheduler: DispatchQueue.main)
         ) { _ in
-            guard let viewModel, !(viewModel.sessionState.isActive) else {
+            guard !viewModel.sessionState.isActive else {
                 return
             }
             viewModel.repersonalizeSchedule(modelContext: modelContext)
         }
         .persistenceAlert()
-        .alert(
-            "Save failed",
-            isPresented: Binding(
-                get: { viewModel?.saveErrorMessage != nil },
-                set: {
-                    if !$0 {
-                        viewModel?.saveErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel?.saveErrorMessage ?? "")
+    }
+
+    // MARK: - Pages
+
+    @ViewBuilder
+    private func destination(_ page: TrainDestination, viewModel: TrainingViewModel) -> some View {
+        switch page {
+        case .weekPlan: WeekPlanView(viewModel: viewModel)
+        case .routines: RoutinesView(viewModel: viewModel)
+        case .trainerProgram: TrainerProgramView()
+        case .exerciseLibrary: ExerciseLibraryView(initialSearch: librarySearch)
+        case .progress: ProgressChartsView()
+        // Away mode is a sheet, not a page; the menu opens it directly.
+        case .awayMode: EmptyView()
         }
-        .onChange(of: viewModel?.sessionState) { _, newState in
-            if newState?.needsWorkoutScreen == true, !showActiveWorkout {
-                // A session that went live without the Start button (watch-
-                // started and adopted on load, or crash recovery) still needs
-                // its screen — otherwise timers run behind the Today view.
-                showActiveWorkout = true
-            } else if case .summary = newState {
-                // Persist completion the moment the session reaches summary —
-                // NOT on the SAVE button. Previously history was written only
-                // if the user tapped "SAVE & CLOSE"; swiping the summary away
-                // (or any non-button exit) silently lost the whole session.
-                // persistCompletion is idempotent, so the SAVE button calling
-                // it again is a no-op.
-                viewModel?.persistCompletion(modelContext: modelContext)
-                showActiveWorkout = false
-                showSummary = true
-            } else if case .discarded = newState {
-                // Discard → close the workout cover and reload today so the
-                // session settles back to a fresh, restartable state (the day
-                // was kept .planned). Driven from here, not a dismiss() inside
-                // the cover, so teardown can't race the reset into a blank screen.
-                showActiveWorkout = false
-                showSummary = false
-                if let viewModel {
-                    Task { @MainActor in
-                        await viewModel.loadToday(modelContext: modelContext)
-                        viewModel.sessionState = .idle
-                    }
-                }
+    }
+
+    private func open(_ request: TrainRoute) {
+        if request.page == .awayMode {
+            path = []
+            showAwayMode = true
+            return
+        }
+        librarySearch = request.exercise ?? ""
+        path = [request.page]
+    }
+
+    // MARK: - Toolbar
+
+    /// Everything else in Train: plan, routines, library, progress, history.
+    private func moreMenu(viewModel: TrainingViewModel) -> some View {
+        Menu {
+            NavigationLink(value: TrainDestination.weekPlan) {
+                Label("Week Plan", systemImage: "calendar")
             }
+
+            NavigationLink(value: TrainDestination.routines) {
+                Label("My Routines", systemImage: "list.bullet.rectangle")
+            }
+
+            NavigationLink(value: TrainDestination.trainerProgram) {
+                Label("Trainer Program", systemImage: "person.crop.circle.badge.checkmark")
+            }
+
+            Button {
+                showAwayMode = true
+            } label: {
+                Label("Away from the gym", systemImage: "airplane")
+            }
+
+            NavigationLink(value: TrainDestination.exerciseLibrary) {
+                Label("Exercise Library", systemImage: "books.vertical")
+            }
+
+            NavigationLink(value: TrainDestination.progress) {
+                Label("Progress", systemImage: "chart.line.uptrend.xyaxis")
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
         }
+        .accessibilityLabel("More")
+        .accessibilityHint("Open week plan, routines, trainer program, exercise library, or progress.")
     }
 }

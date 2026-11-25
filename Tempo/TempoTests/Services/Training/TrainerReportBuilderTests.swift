@@ -415,6 +415,38 @@ final class TrainerReportBuilderTests: XCTestCase {
         XCTAssertEqual(range.upperBound, wednesday)
     }
 
+    /// On a Monday the week so far is one day, so "This Week" reports the week
+    /// that just finished (the previous Monday to Sunday).
+    func testWeekScopeOnMondayCoversTheWeekThatJustEnded() throws {
+        let program = makeProgram() // starts Monday 2026-09-21
+        let nextMonday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 7, to: monday))
+        let range = TrainerReportBuilder.scheduleRange(for: .week, program: program, today: nextMonday)
+        let sunday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 6, to: monday))
+        XCTAssertEqual(range.lowerBound, monday)
+        XCTAssertEqual(range.upperBound, sunday)
+        XCTAssertTrue(TrainerReportBuilder.weekScopeLooksBack(program: program, today: nextMonday))
+    }
+
+    /// A program that starts today has no week behind it: keep today alone.
+    func testWeekScopeOnTheProgramsFirstMondayStaysOnToday() {
+        let program = makeProgram()
+        let range = TrainerReportBuilder.scheduleRange(for: .week, program: program, today: monday)
+        XCTAssertEqual(range.lowerBound, monday)
+        XCTAssertEqual(range.upperBound, monday)
+        XCTAssertFalse(TrainerReportBuilder.weekScopeLooksBack(program: program, today: monday))
+    }
+
+    /// From Tuesday on the current week is the report, as before.
+    func testWeekScopeOnTuesdayIsMondayToTuesday() throws {
+        let program = makeProgram()
+        let nextTuesday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 8, to: monday))
+        let nextMonday = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 7, to: monday))
+        let range = TrainerReportBuilder.scheduleRange(for: .week, program: program, today: nextTuesday)
+        XCTAssertEqual(range.lowerBound, nextMonday)
+        XCTAssertEqual(range.upperBound, nextTuesday)
+        XCTAssertFalse(TrainerReportBuilder.weekScopeLooksBack(program: program, today: nextTuesday))
+    }
+
     func testWholeProgramScopeStartsAtProgramStart() throws {
         let program = makeProgram()
         let today = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 20, to: monday))

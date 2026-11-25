@@ -2,14 +2,14 @@
 // TrainerProgramView.swift
 // Tempo
 //
-// "Trainer Program": the athlete's own coach's program, imported from a
-// photo/PDF/pasted text. Shows the active program (weeks/days summary,
-// current week, repeats/ends + start-date controls, deactivate/delete),
-// past programs (activate one — only one active at a time), and the entry
-// point into the import flow. Reached from the Training tab's ☰ menu.
-//
-// Only ONE edit to an existing Training file backs this screen
-// (TrainingTabView's menu link) — everything else here is new.
+// "Trainer Program": the one page for the athlete's own coach. The active
+// program (completion so far, weeks, repeats and start-date controls, edit,
+// pause, delete), the report to send back to the trainer, the changes the
+// trainer sent (`TrainerChangesSection`), the programs queued next and the
+// past programs with how much of each was done. The program is imported from
+// a photo, PDF or pasted text; the import stays one tap away (the + button,
+// or the bottom button before there is a program). Reached from the Train
+// tab's ☰ menu.
 //
 
 import SwiftData
@@ -27,6 +27,9 @@ struct TrainerProgramView: View {
 
     @State
     private var showImport = false
+    /// The Undo toast after a program is deleted.
+    @State
+    private var toast: ToastData?
     @State
     private var showEdit = false
     @State
@@ -51,21 +54,54 @@ struct TrainerProgramView: View {
     /// inside `body`, which re-runs on every render.
     @State
     private var complianceStats: TrainerProgramHistoryStats.Stats?
+    /// The same numbers for each past program, by program id.
+    @State
+    private var pastStats: [UUID: TrainerProgramHistoryStats.Stats] = [:]
 
     private var activeProgram: TrainerProgram? {
         programs.first { $0.isActive }
     }
 
-    /// What the compliance numbers depend on among the program's own fields.
-    private var complianceKey: String {
-        guard let program = activeProgram else {
-            return "none"
+    /// Deletes the program and offers Undo for a few seconds. The program is
+    /// copied first; Undo puts it back as it was and the week is rebuilt from it
+    /// again, the way it was when the program was first switched on.
+    private func delete(_ program: TrainerProgram) {
+        let snapshot = TrainerProgramSnapshot(program)
+        modelContext.delete(program)
+        _ = modelContext.saveOrAlert("trainer program delete")
+        if snapshot.isActive {
+            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
         }
-        return "\(program.id)-\(program.startDate.timeIntervalSince1970)-\(program.weeks.count)-\(program.skippedSessions.count)-\(program.scheduleMode.rawValue)"
+        toast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+            snapshot.restore(in: modelContext)
+            _ = modelContext.saveOrAlert("trainer program restore")
+            if snapshot.isActive {
+                NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+            }
+        }
     }
 
+    /// What the compliance numbers depend on among the program's own fields.
+    private var complianceKey: String {
+        let past = pastPrograms.map { "\($0.id)-\($0.startDate.timeIntervalSince1970)-\($0.endedAt?.timeIntervalSince1970 ?? 0)" }
+        let active = activeProgram.map {
+            "\($0.id)-\($0.startDate.timeIntervalSince1970)-\($0.weeks.count)-\($0.skippedSessions.count)-\($0.scheduleMode.rawValue)"
+        } ?? "none"
+        return "\(active)|\(past.joined(separator: ","))"
+    }
+
+    /// One fetch of the plans and overrides feeds every program's numbers.
     private func refreshCompliance() {
-        complianceStats = activeProgram.map { TrainerProgramHistoryStats.stats(for: $0, modelContext: modelContext) }
+        let plans = (try? modelContext.fetch(FetchDescriptor<WorkoutPlan>())) ?? []
+        let overrides = TrainerScheduleOverrides.fetch(modelContext: modelContext)
+        complianceStats = activeProgram.map {
+            TrainerProgramHistoryStats.stats(for: $0, plans: plans, overrides: overrides)
+        }
+        var past: [UUID: TrainerProgramHistoryStats.Stats] = [:]
+        for program in pastPrograms {
+            past[program.id] = TrainerProgramHistoryStats.stats(for: program, plans: plans, overrides: overrides)
+        }
+        pastStats = past
     }
 
     /// Fix #11(b) — queued to auto-activate later; not "past" (history) and
@@ -74,67 +110,47 @@ struct TrainerProgramView: View {
         programs.filter { !$0.isActive && $0.queuedActivationDate != nil }
     }
 
-    /// Fix #11(c) — archived (finished/replaced) programs live in
-    /// `TrainerProgramHistoryView`; a queued one isn't history yet.
+    /// Fix #11(c) — archived (finished/replaced) programs, listed under "Past
+    /// programs" with their completion; a queued one isn't history yet.
     private var pastPrograms: [TrainerProgram] {
         programs.filter { !$0.isActive && $0.queuedActivationDate == nil }
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                if let activeProgram {
-                    activeCard(activeProgram)
-                } else {
-                    EmptyStateView(
-                        icon: "figure.strengthtraining.traditional",
-                        title: "No Trainer Program",
-                        message: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days.",
-                        actionTitle: "Import from Trainer",
-                        action: { showImport = true }
-                    )
-                    .padding(.top, TempoSpacing.xxxl)
-                }
-
-                if !queuedPrograms.isEmpty {
-                    queuedSection
-                }
-
-                if !pastPrograms.isEmpty {
-                    pastSection
-
-                    // Fix #11(c) — same programs, read-only, with basic
-                    // completion stats (sessions done / scheduled).
-                    NavigationLink {
-                        TrainerProgramHistoryView()
-                    } label: {
-                        HStack {
-                            Label("Completion Stats", systemImage: "chart.bar.fill")
-                                .font(.tempoBodyBold)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                        .padding(TempoSpacing.cardPaddingCompact)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
-                    }
-                }
+        TrainPlanPage(spacing: Tide.s5) {
+            if let activeProgram {
+                activeCard(activeProgram)
+            } else {
+                emptyState
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+
+            if !queuedPrograms.isEmpty {
+                queuedSection
+            }
+
+            if !pastPrograms.isEmpty {
+                pastSection
+            }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Trainer Program")
+        .firstTip(
+            "train.program",
+            "Import your trainer's program from a photo, PDF or pasted text and Tempo shows each day's session in Training.",
+            systemImage: "square.and.arrow.down"
+        )
         .navigationBarTitleDisplayMode(.inline)
+        .tempoToast($toast)
         .task(id: complianceKey) {
             refreshCompliance()
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
             refreshCompliance()
+        }
+        // The one thing to do here sits under the thumb: send the report back
+        // to the trainer, or bring the program in when there is none yet.
+        .safeAreaBar(edge: .bottom) {
+            mainActionBar
         }
         .toolbar {
             if activeProgram != nil {
@@ -191,15 +207,10 @@ struct TrainerProgramView: View {
             presenting: pendingDelete
         ) { program in
             Button("Delete \"\(program.name)\"", role: .destructive) {
-                let wasActive = program.isActive
-                modelContext.delete(program)
-                _ = modelContext.saveOrAlert("trainer program delete")
-                if wasActive {
-                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                }
+                delete(program)
             }
         } message: { _ in
-            Text("This can't be undone. Your workout history stays either way.")
+            Text("Your workout history stays either way.")
         }
         .confirmationDialog(
             "Run this program?",
@@ -238,82 +249,102 @@ struct TrainerProgramView: View {
     // MARK: - Active program card
 
     private func activeCard(_ program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.cardGap) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text(program.name)
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+        VStack(spacing: Tide.s5) {
+            programHero(program)
+            TrainerChangesSection(program: program) {
+                feedbackProgram = program
+            }
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "Program settings")
+                settingsCard(program)
+            }
+            actionsBlock(program)
+        }
+    }
+
+    /// The hero: how much of the program is done, with the program's name,
+    /// its weeks and where it stands in time under it.
+    private func programHero(_ program: TrainerProgram) -> some View {
+        let scheduled = complianceStats?.scheduled ?? 0
+        let percent = Int(((complianceStats?.fraction ?? 0) * 100).rounded())
+        var chips = ["Active"]
+        if let current = program.weekIndex(on: Date()), program.weeks.count > 1 {
+            chips.append("Week \(current + 1) of \(program.weeks.count)")
+        }
+        return TrainDayHero(
+            label: "Sessions done",
+            figure: complianceStats.map { "\($0.done)" } ?? "–",
+            unit: scheduled > 0 ? "of \(scheduled)" : nil,
+            caption: scheduled > 0 ? program.name : "\(program.name) · No sessions due yet.",
+            chips: chips,
+            figureExplainer: TrainExplainers.sessionsDone
+        ) {
+            if scheduled > 0 {
+                TrainRing(progress: complianceStats?.fraction ?? 0, diameter: TideTrain.heroRing) {
+                    TideNumber("\(percent)", unit: "%", size: Tide.numeralS, relativeTo: .title2)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Completion")
+                .accessibilityValue("\(percent) percent")
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(summary(for: program))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // A repeating block's duration line only repeats the summary above.
+                    if program.cadence != .block || !program.repeats {
+                        Text(TrainerProgramDurationText.summary(for: program))
+                            .font(Tide.caption)
+                            .foregroundStyle(program.isFinished(on: Date()) ? TideTrain.caution : Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Spacer()
-                Text("ACTIVE")
-                    .font(.tempoCaption2.weight(.bold))
-                    .foregroundStyle(Color.tempoSignal)
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, TempoSpacing.xxs)
-                    .background(Color.tempoSignal.opacity(TempoOpacity.o15))
-                    .clipShape(Capsule())
+                weekList(program)
             }
+        }
+    }
 
-            Text(TrainerProgramDurationText.summary(for: program))
-                .font(.tempoCaption1)
-                .foregroundStyle(program.isFinished(on: Date()) ? Color.tempoWarning : Color.tempoTextTertiary)
-
-            // Compliance: sessions actually done / scheduled so far.
-            if let complianceStats {
-                TrainerComplianceBar(stats: complianceStats, emptyText: "No sessions due yet.")
-            }
-
-            Divider().background(Color.tempoDivider)
-
-            weekList(program)
-
-            Divider().background(Color.tempoDivider)
-
+    private func settingsCard(_ program: TrainerProgram) -> some View {
+        TrainPlanCard {
             if program.weeks.count > 1 {
-                Toggle(isOn: Binding(
-                    get: { program.repeats },
-                    set: { newValue in
-                        program.repeats = newValue
-                        _ = modelContext.saveOrAlert("trainer program repeats")
-                        // Fix #11 — Repeats changes which week (and, in
-                        // sequence mode, whether the program ever finishes)
-                        // applies to every future day, so the plan must
-                        // regenerate — this was silently missing before.
-                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                    }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Repeats").font(.tempoBodyBold).foregroundStyle(Color.tempoTextPrimary)
-                        Text("Loop back to Week 1 after the last week.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-                .tint(Color.tempoSignal)
+                TrainPlanToggleRow(
+                    title: "Repeats",
+                    detail: "Loop back to Week 1 after the last week.",
+                    isOn: Binding(
+                        get: { program.repeats },
+                        set: { newValue in
+                            program.repeats = newValue
+                            _ = modelContext.saveOrAlert("trainer program repeats")
+                            // Fix #11 — Repeats changes which week (and, in
+                            // sequence mode, whether the program ever finishes)
+                            // applies to every future day, so the plan must
+                            // regenerate — this was silently missing before.
+                            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                        }
+                    )
+                )
+                TrainPlanDivider()
             }
 
             // §13 — off = trainer days get exactly the sets the trainer
             // wrote, no Tempo-added ramp.
-            Toggle(isOn: Binding(
-                get: { program.warmupsEnabled },
-                set: { newValue in
-                    program.autoWarmups = newValue
-                    _ = modelContext.saveOrAlert("trainer program warm-ups")
-                    NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                }
-            )) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tempo Warm-Up Sets").font(.tempoBodyBold).foregroundStyle(Color.tempoTextPrimary)
-                    Text("A 50%/75% ramp before each lift. Off — exactly what your trainer wrote.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-            .tint(Color.tempoSignal)
+            TrainPlanToggleRow(
+                title: "Tempo Warm-Up Sets",
+                detail: "A 50%/75% ramp before each lift. Off — exactly what your trainer wrote.",
+                isOn: Binding(
+                    get: { program.warmupsEnabled },
+                    set: { newValue in
+                        program.autoWarmups = newValue
+                        _ = modelContext.saveOrAlert("trainer program warm-ups")
+                        NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+                    }
+                )
+            )
+
+            TrainPlanDivider()
 
             DatePicker(
                 "Start date (Monday)",
@@ -330,151 +361,161 @@ struct TrainerProgramView: View {
                 ),
                 displayedComponents: .date
             )
-            .font(.tempoBody)
-            .tint(Color.tempoSignal)
+            .font(Tide.bodyStrong)
+            .tint(Color.accentColor)
+            .frame(minHeight: Tide.hit)
+
+            TrainPlanDivider()
 
             // Fix #6 — editable here too (chosen first on the review screen).
-            HStack {
-                Text("Schedule")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Picker("Schedule", selection: Binding(
+            TrainPlanPickerRow(
+                title: "Schedule",
+                detail: program.scheduleMode.explanation,
+                selection: Binding(
                     get: { program.scheduleMode },
                     set: { newValue in
                         program.scheduleMode = newValue
                         _ = modelContext.saveOrAlert("trainer program schedule mode")
                         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                     }
-                )) {
-                    ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
+                )
+            ) {
+                ForEach(TrainerProgramScheduleMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
                 }
-                .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
             }
-            Text(program.scheduleMode.explanation)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+
+            TrainPlanDivider()
 
             // Weekly-upload feature — editable here too (chosen first on the
             // review screen).
-            HStack {
-                Text("New program")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Picker("Upload cadence", selection: Binding(
+            TrainPlanPickerRow(
+                title: "New program",
+                selection: Binding(
                     get: { program.cadence },
                     set: { newValue in
                         program.cadence = newValue
                         _ = modelContext.saveOrAlert("trainer program cadence")
                         NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
                     }
-                )) {
-                    ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
-                        Text(option.shortName).tag(option)
-                    }
-                }
-                .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
-            }
-
-            // Fix #8 — report the athlete's logged sessions back to the trainer.
-            Button {
-                reportProgram = program
-            } label: {
-                Label("Send Report to Trainer", systemImage: "paperplane")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tempoSecondary)
-            .padding(.top, TempoSpacing.xs)
-
-            // trainer-feedback-tests — paste/screenshot the trainer's reply,
-            // review the resulting diff, apply what's accepted.
-            Button {
-                feedbackProgram = program
-            } label: {
-                Label("Trainer Sent Changes", systemImage: "text.bubble")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tempoSecondary)
-
-            if !program.changeLog.isEmpty {
-                NavigationLink {
-                    TrainerProgramChangeLogView(program: program)
-                } label: {
-                    HStack {
-                        Text("Changes from Trainer")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        Text("\(program.changeLog.count)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Image(systemName: "chevron.right")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
+                )
+            ) {
+                ForEach(TrainerProgramCadence.allCases, id: \.self) { option in
+                    Text(option.shortName).tag(option)
                 }
             }
+        }
+    }
 
-            HStack(spacing: TempoSpacing.sm) {
-                Button {
-                    showEdit = true
-                } label: {
-                    Label("Edit", systemImage: "pencil")
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
+    private func actionsBlock(_ program: TrainerProgram) -> some View {
+        VStack(spacing: Tide.s3) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    editButton(program)
+                    pauseButton(program)
                 }
-                .buttonStyle(.tempoSecondary)
-
-                Button {
-                    pendingPause = program
-                } label: {
-                    Label("Pause", systemImage: "pause.circle")
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: Tide.s2) {
+                    editButton(program)
+                    pauseButton(program)
                 }
-                .buttonStyle(.tempoSecondary)
-                .accessibilityHint("Stops using this program. You can run it again later.")
             }
-            .padding(.top, TempoSpacing.xs)
 
             Button(role: .destructive) {
                 pendingDelete = program
             } label: {
                 Label("Delete program", systemImage: "trash")
-                    .font(.tempoFootnote)
-                    .foregroundStyle(Color.tempoError)
-                    .frame(maxWidth: .infinity)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                    .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xxs)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl))
+    }
+
+    /// The page's main action, in the thumb zone. With a program: report the
+    /// logged sessions back to the trainer (the weekly job). Without one:
+    /// bring the trainer's program in.
+    @ViewBuilder
+    private var mainActionBar: some View {
+        if let activeProgram {
+            Button {
+                reportProgram = activeProgram
+            } label: {
+                Label("Send Report to Trainer", systemImage: "paperplane")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        } else {
+            Button {
+                showImport = true
+            } label: {
+                Label("Import from Trainer", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        }
+    }
+
+    private func editButton(_: TrainerProgram) -> some View {
+        Button {
+            showEdit = true
+        } label: {
+            Label("Edit", systemImage: "pencil")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.trainPlanSecondary)
+    }
+
+    private func pauseButton(_ program: TrainerProgram) -> some View {
+        Button {
+            pendingPause = program
+        } label: {
+            Label("Pause", systemImage: "pause.circle")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.trainPlanSecondary)
+        .accessibilityHint("Stops using this program. You can run it again later.")
     }
 
     private func weekList(_ program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             ForEach(Array(program.weeks.enumerated()), id: \.offset) { index, week in
-                HStack {
-                    Text("Week \(index + 1)")
-                        .font(.tempoCaption1.weight(.semibold))
-                        .foregroundStyle(program.weekIndex(on: Date()) == index ? Color.tempoSignal : Color.tempoTextSecondary)
-                    Text(dayNames(week))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Spacer()
-                    Text("\(week.days.reduce(0) { $0 + $1.exercises.count }) exercises")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                let count = week.days.reduce(0) { $0 + $1.exercises.count }
+                let isCurrent = program.weekIndex(on: Date()) == index
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        weekLabel(index, isCurrent: isCurrent)
+                        Text(dayNames(week))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                        Spacer(minLength: Tide.s2)
+                        Text(TrainCount.text(count, "exercise"))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        weekLabel(index, isCurrent: isCurrent)
+                        Text(dayNames(week))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                        Text(TrainCount.text(count, "exercise"))
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
                 }
             }
         }
+    }
+
+    private func weekLabel(_ index: Int, isCurrent: Bool) -> some View {
+        Text("Week \(index + 1)")
+            .font(Tide.caption.weight(.semibold))
+            .foregroundStyle(isCurrent ? Color.accentColor : Tide.text2)
     }
 
     private func dayNames(_ week: ProgramWeek) -> String {
@@ -507,37 +548,40 @@ struct TrainerProgramView: View {
 
     // MARK: - Queued programs (fix #11(b))
 
+    private var emptyState: some View {
+        TrainEmptyCard(
+            systemImage: "figure.strengthtraining.traditional",
+            title: "No trainer program yet",
+            message: "Import your coach's program from a photo, PDF, or pasted text. Tempo follows it, adjusted for recovery and match days."
+        )
+        .padding(.top, Tide.s4)
+    }
+
     private var queuedSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("UP NEXT")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.sectionHeaderTop)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Up next")
+                .padding(.top, Tide.s2)
 
             ForEach(queuedPrograms) { program in
-                HStack(spacing: TempoSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Tide.s3) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(program.name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         if let date = program.queuedActivationDate {
                             Text("Starts \(date.formatted(date: .abbreviated, time: .omitted)) — auto-activates that day")
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    Spacer()
-                    Button {
+                    Spacer(minLength: Tide.s2)
+                    TrainIconButton(systemImage: "trash", label: "Delete \(program.name)", tint: Tide.danger) {
                         pendingDelete = program
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(Color.tempoError)
                     }
-                    .accessibilityLabel("Delete \(program.name)")
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
             }
         }
     }
@@ -545,38 +589,71 @@ struct TrainerProgramView: View {
     // MARK: - Past programs
 
     private var pastSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("PAST PROGRAMS")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.sectionHeaderTop)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Past programs")
+                .padding(.top, Tide.s2)
 
             ForEach(pastPrograms) { program in
-                HStack(spacing: TempoSpacing.sm) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(program.name)
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Text(summary(for: program))
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                    Spacer()
-                    Button("Run") {
-                        pendingActivate = program
-                    }
-                    .buttonStyle(.tempoGhost)
-                    Button {
-                        pendingDelete = program
-                    } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(Color.tempoError)
-                    }
-                    .accessibilityLabel("Delete \(program.name)")
+                pastRow(program)
+            }
+        }
+    }
+
+    /// A past program: what it was, how much of it was done, and Run / delete.
+    private func pastRow(_ program: TrainerProgram) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s3) {
+                    pastInfo(program)
+                    Spacer(minLength: Tide.s2)
+                    pastActions(program)
                 }
-                .padding(TempoSpacing.cardPaddingCompact)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    pastInfo(program)
+                    pastActions(program)
+                }
+            }
+            if let stats = pastStats[program.id] {
+                TrainPlanDivider()
+                TrainerComplianceBar(stats: stats, emptyText: "No sessions were ever generated for this program.")
+            }
+        }
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+    }
+
+    private func pastInfo(_ program: TrainerProgram) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(program.name)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(summary(for: program))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("\(TrainerProgramDurationText.historyText(for: program)) · \(program.scheduleMode.displayName)")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func pastActions(_ program: TrainerProgram) -> some View {
+        HStack(spacing: Tide.s2) {
+            Button {
+                pendingActivate = program
+            } label: {
+                Text("Run")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, Tide.s5)
+                    .frame(minHeight: Tide.hit)
+                    .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+                    .contentShape(.capsule)
+            }
+            .buttonStyle(.plain)
+            TrainIconButton(systemImage: "trash", label: "Delete \(program.name)", tint: Tide.danger) {
+                pendingDelete = program
             }
         }
     }

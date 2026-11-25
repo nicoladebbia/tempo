@@ -69,8 +69,6 @@ struct GuidedRunView: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
-
             if let session, session.phase == .finished || session.phase == .endedEarly {
                 GuidedRunSummaryView(
                     plan: plan,
@@ -89,7 +87,7 @@ struct GuidedRunView: View {
                 preStartContent
             }
         }
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -145,57 +143,68 @@ struct GuidedRunView: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(width: 44, height: 44)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
+                .accessibilityLabel("Close")
                 Spacer()
             }
-            .padding(.horizontal, TempoSpacing.sm)
+            .padding(.horizontal, Tide.s2)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                        Text("GUIDED RUN")
-                            .font(.tempoDrillLabel)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoSignal)
-                        Text(heading)
-                            .font(.tempoLargeTitle)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    TrainHeader(
+                        label: "Guided run",
+                        title: heading,
+                        detail: plan.isEmpty ? nil : "\(plan.blocks.count) \(plan.blocks.count == 1 ? "block" : "blocks"), rests and cues handled for you."
+                    ) {}
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                        ForEach(plan.blocks) { block in
-                            preStartBlockRow(block)
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        ForEach(Array(plan.blocks.enumerated()), id: \.element.id) { index, block in
+                            preStartBlockRow(block, number: index + 1)
                         }
                     }
 
                     if plan.isEmpty {
-                        Text("Nothing to guide here — log this one manually.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        TrainEmptyCard(
+                            systemImage: "figure.run",
+                            title: "Nothing to guide here",
+                            message: "Log this one manually."
+                        )
                     }
                 }
-                .padding(TempoSpacing.screenEdge)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
             }
+            .scrollBounceBehavior(.basedOnSize)
 
             startButton
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.bottom, TempoSpacing.xl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s3)
         }
     }
 
-    private func preStartBlockRow(_ block: GuidedRunBlock) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text(block.name.uppercased())
-                .font(.tempoOrdersLabel)
-                .tracking(TempoTracking.ordersLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+    private func preStartBlockRow(_ block: GuidedRunBlock, number: Int? = nil) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            // The block's place in the run, so the list reads as a sequence.
+            HStack(spacing: Tide.s2) {
+                if let number {
+                    Text("\(number)")
+                        .font(TideTrain.figure(.caption2, weight: .bold))
+                        .foregroundStyle(Tide.ink)
+                        .frame(minWidth: Tide.s6, minHeight: Tide.s6)
+                        .background(Color.accentColor, in: .circle)
+                        .accessibilityHidden(true)
+                }
+                Text(block.name).tideLabel(Color.accentColor)
+            }
             Text(block.trainerText)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
                 .fixedSize(horizontal: false, vertical: true)
+            TrainSessionRule()
             if block.restIsDefault {
                 Stepper(
                     "Rest between: \(Int(effectiveRest(block)))s",
@@ -206,18 +215,16 @@ struct GuidedRunView: View {
                     in: 10 ... 300,
                     step: 5
                 )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
             } else {
                 Text("Rest: \(Int(block.restSeconds))s (trainer's)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func effectiveRest(_ block: GuidedRunBlock) -> Double {
@@ -247,11 +254,9 @@ struct GuidedRunView: View {
             #endif
         } label: {
             Text(plan.isEmpty ? "Nothing to run" : "Start guided run")
-                .font(.tempoHeadline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(minHeight: TideTrain.bigButton - Tide.s2)
         }
-        .buttonStyle(TempoPrimaryButtonStyle())
+        .buttonStyle(.tidePrimary)
         .disabled(plan.isEmpty)
         .accessibilityIdentifier("guidedRunStartSessionButton")
     }

@@ -70,60 +70,54 @@ struct WeeklyUploadPromptCard: View {
     }
 
     private func card(for program: TrainerProgram) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: TempoSpacing.xs) {
-                Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoViolet)
-                    .accessibilityHidden(true)
-                Text("NEW WEEK")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoViolet)
-            }
-
-            Text(Self.title(for: program))
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("Recap the week, send your trainer the report, and load what's next.")
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-
+        // The ask is about a week, so the card opens on that week: its month
+        // over its Monday-to-Sunday range.
+        let tile = Self.weekTile()
+        return TrainAskCard(
+            label: "NEW WEEK",
+            tint: TideTrain.violet,
+            title: Self.title(for: program),
+            message: "Recap the week, send your trainer the report, and load what's next."
+        ) {
+            TrainFigureTile(label: tile.month, figure: tile.days, tint: TideTrain.violet)
+        } actions: {
             Button {
                 showWrapUp = true
             } label: {
                 Label("Wrap up the week", systemImage: "checkmark.seal")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .background(Color.tempoViolet.opacity(TempoOpacity.o15))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xxs)
+            .buttonStyle(.trainBanner(tint: TideTrain.violet))
 
             Button {
                 showImport = true
             } label: {
                 Text("Upload only")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.trainQuiet)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoViolet.opacity(TempoOpacity.o15), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
+    }
+
+    /// The tile's two lines for the week a wrap-up covers: "Sep" over "21–27",
+    /// or "Sep–Oct" over "28–4" when the week straddles two months.
+    static func weekTile(
+        now: Date = Date(),
+        calendar: Calendar = TrainingCalendar.iso8601
+    ) -> (month: String, days: String) {
+        let sunday = calendar.startOfDay(for: TrainerProgramWeeklyUpload.wrapUpWeekSunday(now: now, calendar: calendar))
+        let monday = calendar.date(byAdding: .day, value: -6, to: sunday) ?? sunday
+        func format(_ pattern: String, _ date: Date) -> String {
+            let f = DateFormatter()
+            f.calendar = calendar
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.timeZone = calendar.timeZone
+            f.dateFormat = pattern
+            return f.string(from: date)
+        }
+        let days = "\(format("d", monday))–\(format("d", sunday))"
+        if calendar.component(.month, from: monday) == calendar.component(.month, from: sunday) {
+            return (format("MMM", sunday), days)
+        }
+        return ("\(format("MMM", monday))–\(format("MMM", sunday))", days)
     }
 
     /// "Wrap up last week · 21–27 Sep" once the served week is behind us,

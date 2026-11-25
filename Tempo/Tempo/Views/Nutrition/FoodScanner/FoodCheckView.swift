@@ -19,6 +19,8 @@ struct FoodCheckView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @Query(sort: \ScannedFood.lastViewedAt, order: .reverse)
     private var saved: [ScannedFood]
@@ -31,6 +33,8 @@ struct FoodCheckView: View {
     private var showSearch = false
     @State
     private var catalog: FoodCatalog?
+    @State
+    private var toast: ToastData?
 
     enum Tab: String, CaseIterable, Identifiable {
         case history = "History"
@@ -43,39 +47,51 @@ struct FoodCheckView: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            KitchenList {
                 Section {
-                    HStack(spacing: TempoSpacing.md) {
-                        actionCard(icon: "barcode.viewfinder", title: "Scan a product", id: "checkScan") {
-                            showScanner = true
-                        }
-                        actionCard(icon: "magnifyingglass", title: "Search", id: "checkSearch") {
-                            showSearch = true
+                    GlassEffectContainer(spacing: Tide.s3) {
+                        HStack(spacing: Tide.s3) {
+                            actionCard(icon: "barcode.viewfinder", title: "Scan a product", id: "checkScan") {
+                                showScanner = true
+                            }
+                            actionCard(icon: "magnifyingglass", title: "Search", id: "checkSearch") {
+                                showSearch = true
+                            }
                         }
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 } footer: {
                     Text("Scan or search for the score, then log it, stock it or list it. Nothing happens until you tap.")
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
 
                 Section {
-                    Picker("List", selection: $tab) {
-                        ForEach(Tab.allCases) { tab in
-                            Text(tab.rawValue).tag(tab)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowInsets(EdgeInsets())
+                    KitchenSegmented(options: Tab.allCases, selection: $tab) { $0.rawValue }
+                        .accessibilityLabel("List")
+                        .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 }
 
                 if rows.isEmpty {
-                    Text(tab == .history ? "Products you scan or open show up here." : "Tap the star on a product to keep it here.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .listRowBackground(Color.clear)
+                    Section {
+                        if tab == .history {
+                            KitchenEmpty(
+                                systemImage: "clock.arrow.circlepath",
+                                title: "Nothing checked yet",
+                                message: "Products you scan or open show up here."
+                            )
+                        } else {
+                            KitchenEmpty(
+                                systemImage: "star",
+                                title: "No favourites yet",
+                                message: "Tap the star on a product to keep it here."
+                            )
+                        }
+                    }
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
                 } else if let catalog {
                     Section {
                         ForEach(rows) { row in
@@ -85,21 +101,30 @@ struct FoodCheckView: View {
                                 } label: {
                                     FoodProductRow(product: product, photo: row.photoData, subtitle: subtitle(row))
                                 }
-                                .listRowBackground(Color.tempoSurfaceCard)
+                                .listRowBackground(Tide.fill)
                             }
                         }
                         .onDelete { offsets in
                             let doomed = offsets.map { rows[$0] }
+                            let snapshots = doomed.map(ScannedFoodSnapshot.init)
                             for row in doomed {
                                 catalog.remove(row, in: modelContext)
+                            }
+                            let context = modelContext
+                            let message = snapshots.count == 1
+                                ? "\(snapshots[0].name) removed."
+                                : "\(FuelWords.count(snapshots.count, "product")) removed."
+                            toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+                                for snapshot in snapshots {
+                                    snapshot.restore(in: context)
+                                }
                             }
                         }
                     }
                 }
             }
             .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .scrollIndicators(.hidden)
             .navigationTitle("Check Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -107,10 +132,11 @@ struct FoodCheckView: View {
                     Button("Done") {
                         dismiss()
                     }
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
                 }
             }
+            .tempoToast($toast)
             .sheet(isPresented: $showScanner) {
                 UniversalScanView(context: .foodCheck)
             }
@@ -123,6 +149,7 @@ struct FoodCheckView: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     private var rows: [ScannedFood] {
@@ -149,18 +176,19 @@ struct FoodCheckView: View {
             HapticManager.lightImpact()
             action()
         } label: {
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s3) {
                 Image(systemName: icon)
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.title)
+                    .foregroundStyle(mood.accent)
+                    .accessibilityHidden(true)
                 Text(title)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.xl)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+            .padding(.vertical, Tide.s6)
+            .glassEffect(.regular.tint(Tide.glassCard).interactive(), in: .rect(cornerRadius: Tide.tileRadius))
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)

@@ -11,21 +11,17 @@ import Foundation
 // MARK: - XPEngineProtocol
 
 protocol XPEngineProtocol: Sendable {
-    func calculateXP(
-        from snapshot: DailySnapshot,
-        accountability: DailyAccountability,
-        floorForcedRest: Bool
-    ) -> [XPEvent]
-
     func currentLevel(totalXP: Int) -> Int
 
     func xpToNextLevel(totalXP: Int) -> Int
 
-    func streakMilestoneXP(streakCount: Int) -> XPEvent?
-
     func levelName(for level: Int) -> String
 
     func xpForLevel(_ level: Int) -> Int
+
+    /// The XP a day of real activity is worth. The ONE place the numbers live:
+    /// the Arena's ledger asks, it never invents an amount of its own.
+    func dayAwards(for activity: XPDayActivity) -> [XPAward]
 
     /// All XP earning categories with descriptions for the detail sheet.
     static var xpEarningCategories: [XPEarningCategory] { get }
@@ -39,6 +35,40 @@ struct XPEarningCategory: Identifiable {
     let name: String
     let description: String
     let xpRange: String
+}
+
+// MARK: - XPDayActivity
+
+/// What one calendar day actually held, counted from the user's own records.
+struct XPDayActivity: Equatable, Sendable {
+    /// Workouts finished that day.
+    var workouts = 0
+    /// Exercises with at least one logged working set, across those workouts.
+    var exercisesPerformed = 0
+    /// Hour (0-23) the day's earliest workout started, when it is known.
+    var earliestWorkoutHour: Int?
+    /// Distinct meal slots (breakfast, lunch, ...) with something logged.
+    var mealSlotsLogged = 0
+    /// Breakfast, lunch and dinner were all logged.
+    var mainMealsAllLogged = false
+    var studyMinutes = 0
+    /// Hour (0-23) the day's earliest study session started, when it is known.
+    var earliestStudyHour: Int?
+    /// Every daily non-negotiable was done.
+    var allNonNegotiablesDone = false
+
+    var isEmpty: Bool {
+        workouts == 0 && mealSlotsLogged == 0 && studyMinutes == 0 && !allNonNegotiablesDone
+    }
+}
+
+// MARK: - XPAward
+
+/// One source's XP for one day, with the sentence that says why.
+struct XPAward: Equatable, Sendable {
+    let source: XPSource
+    let amount: Int
+    let reason: String
 }
 
 // MARK: - LevelDefinition
@@ -89,6 +119,19 @@ enum LevelSystem {
         LevelDefinition(level: 34, name: "Legend", xpRequired: 100_000),
         LevelDefinition(level: 35, name: "Mythic", xpRequired: 120_000),
     ]
+
+    /// A title that is different for every level: the band's name on its first
+    /// level, then "Recruit II", "Recruit III" and so on. `definition(for:).name`
+    /// stays the band, for the places that mean the band ("Reach Level 10: Warrior").
+    static func displayTitle(for level: Int) -> String {
+        let def = definition(for: level)
+        let place = definitions.prefix { $0.level < def.level }.count { $0.name == def.name }
+        guard place > 0 else {
+            return def.name
+        }
+        let numerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+        return "\(def.name) \(numerals[min(place, numerals.count - 1)])"
+    }
 
     static func definition(for level: Int) -> LevelDefinition {
         let clamped = max(1, min(level, definitions.count))

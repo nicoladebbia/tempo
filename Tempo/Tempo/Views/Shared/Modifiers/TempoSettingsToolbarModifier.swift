@@ -1,5 +1,5 @@
 //
-// TempoSettingsToolbarModifier.swift
+// toolbar_new.swift
 // Tempo
 //
 // Created by Tempo on 06/05/2026.
@@ -22,25 +22,23 @@ struct TempoSettingsToolbarModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // The field under the page stops while Settings is over it.
+            .tideCovered(isPresented)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isPresented = true
-                        HapticManager.lightImpact()
                     } label: {
                         Image(systemName: TempoSymbols.settings)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
                     }
-                    // Bare icon — suppress the iOS bordered/glass toolbar
-                    // button treatment so the gear has no pill/border around
-                    // it (consistent across every tab).
-                    .buttonStyle(.plain)
                     .accessibilityLabel("Settings")
                 }
             }
+            .sensoryFeedback(.impact(weight: .light), trigger: isPresented) { _, isShown in isShown }
             .sheet(isPresented: $isPresented) {
                 NavigationStack {
                     DashboardSettingsView()

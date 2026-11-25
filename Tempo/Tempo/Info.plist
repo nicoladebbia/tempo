@@ -40,9 +40,9 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Tempo uses the camera to scan food barcodes, photograph products and nutrition labels, scan grocery receipts for your pantry, and photograph your trainer&apos;s workout program.</string>
+	<string>Tempo uses the camera to scan food barcodes, photograph products and nutrition labels, scan grocery receipts for your pantry, photograph your trainer's workout program, and take progress photos that stay on your phone.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Tempo reads product and nutrition-label photos, receipts and your trainer&apos;s workout programs from your photo library to import them.</string>
+	<string>Tempo reads product and nutrition-label photos, receipts and your trainer's workout programs from your photo library to import them.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.</string>
 	<key>NSRemindersUsageDescription</key>
@@ -62,8 +62,6 @@
 		<key>UIColorName</key>
 		<string>tempo-bg-primary</string>
 	</dict>
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

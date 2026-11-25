@@ -37,9 +37,14 @@ Gotchas:
 
 - On a brand-new simulator the calendar "full access" prompt still appears once (`simctl privacy` can't grant full access): `axe tap --label "Allow Full Access" --udid "$UDID"`. Notification and HealthKit prompts also can't be pre-granted. Never run `simctl privacy` while the app is running: it kills the app.
 
-- The ActiveWorkoutView full-screen cover and the ☰ menu are NOT in the AX tree (it shows the Training screen underneath). Drive them by screenshot coordinates. Menu rows sit at y≈93/135/177/219/261/303/345/387 (Week Plan … History).
+- The ActiveWorkoutView full-screen cover and the ☰ menu are NOT in the AX tree (it shows the Training screen underneath). Drive them by screenshot coordinates. Menu rows sit at y≈93/135/177/219/261/303 (Week Plan, My Routines, Trainer Program, Away from the gym, Exercise Library, Progress). History now lives inside Progress, as a tab.
+- A frozen screen with an empty AX tree is usually a redraw loop: `ps -o %cpu -p <pid>` shows 100% and `sample <pid> 3` shows the view bodies. Seen once: the Goal editor had its own `@Query` for active goals while the Profile screen that pushes it had the same one, and both spun forever. Fetching the goal once in `onAppear` fixed it.
+- Kill only your own simulator's app: `xcrun simctl terminate $UDID app.tempo.Tempo.dev`. `pkill -f "Tempo Dev"` also stops the apps of every other worktree's simulator.
 - A swipe often registers as a tap; for scrolling, start the swipe on empty space.
-- The Undo toast lasts 5 s. Tap it right away.
+- The Undo toast lasts 5 s, and a screenshot plus a reply takes longer than that. Do the action and the Undo tap in ONE bash call: `axe tap --label "Remove goal" --udid "$UDID"; sleep 1; axe tap --label "Undo" --udid "$UDID"`.
+- First-time tips ("tip.<area>.<feature>" in `describe-ui`, close button `tip.dismiss.<id>`) show once, 0.6 s after a page opens, as a bar above the tab bar; they go when you leave the page (another tab, a pushed screen) and never come back. A wiped app (`--scenario`, `--fresh`) shows them again. Launch with `-noTips` to turn them all off (UI tests do); `FirstTips.resetAll` is what "show tips again" calls.
+- Tap-a-number: anything with an `explain.<id>` identifier opens a three-answer sheet (what it is, how it is worked out, what to do) with a "Got it" button. Today header streak `today.streak`, the score dial inside the breakdown sheet, each score row, the week review numbers, the goal chip without a destination, the "Now" row of the goal editor, the Wake time on the Tomorrow card, the info button in "Your day".
+- Today layout (iPhone 17, points): search 255,95 / bell 307,95 / settings 359,95 / streak chip 345,141 / score dial 100,265. Tab bar y≈820: Today 63, Train 132, Fuel 200, Arena 268, "+" (Log) 349.
 - The trainer import sheet has "Load Sample Program (DEBUG)", so no backend is needed for it.
 
 If AXe can't reach something, a temporary XCUITest in `TempoUITests` that writes `app.screenshot().pngRepresentation` to the scratchpad works too (run with `scripts/sim.sh test -only-testing:TempoUITests/<Test>`). Delete it afterwards and rerun `xcodegen generate`.
@@ -75,6 +80,8 @@ scripts/testenv.sh up --real-ai --record; scripts/testenv.sh ai replay # save re
 - Local runs ask for notification permission and sim.sh taps Allow (AXe). To see the action buttons, go home (`axe button home`), send the notification, then long-press the banner (`axe touch -x 200 -y 90 --down`, wait, `--up`).
 - `sim.sh qa` / `run` without `--local` switch the simulator back to production.
 - A new scenario goes in `Tempo/Tempo/App/ScenarioSeed.swift` as a `case "name": // description` line.
+- Today states: `--scenario setup-incomplete` plus `-hasCompletedSetup NO -healthKitAuthorized NO` shows "Get set up" (extra launch args go after the options and the last one wins); `--scenario goal-set` (body weight) and `--scenario goal-lift` (squat e1RM) show the goal card and the goal chips on Train > Progress, Body progress and Fuel; `athlete` has the week of history behind "Week in review" (prominent Sunday evening and Monday morning, from the schedule's leisure start) and the evening "Tomorrow" card. The server clock does not move the app's Today: the app uses the phone's clock.
+- Ask Tempo (the "+" sheet) needs the test backend in `ai fake` mode; check it with `ai broken`, `empty`, `slow` and `error` too. A free account (`--free`) shows the "Pro feature" card instead. Known backend bug until `CoachTool` in `CoachClaudeProxyService.swift` is fixed: the global `.convertFromSnakeCase` decoder cannot find `input_schema`, the route answers 400 and Ask Tempo shows "Couldn't reach Coach." (check `scripts/testenv.sh logs`).
 
 ## Install on Nicola's iPhone
 

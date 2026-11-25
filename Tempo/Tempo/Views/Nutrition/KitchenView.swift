@@ -3,7 +3,8 @@
 // Tempo
 //
 // One home for everything you own or buy: Pantry (default), Groceries,
-// Receipts and Supplements. A small sub-picker on top switches between them.
+// Spending (receipts and what the shop cost) and Supplements. A glass
+// segmented control on top switches between them.
 //
 
 import SwiftUI
@@ -13,30 +14,38 @@ struct KitchenView: View {
     var viewModel: NutritionTabViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Kitchen section", selection: $viewModel.selectedKitchen) {
-                ForEach(KitchenSection.allCases) { section in
-                    Text(section.rawValue).tag(section)
+        VStack(spacing: Tide.s2) {
+            KitchenSegmented(
+                options: Array(KitchenSection.allCases),
+                selection: $viewModel.selectedKitchen
+            ) { $0 == .receipts ? "Spending" : $0.rawValue }
+                .padding(.horizontal, Tide.edge)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Kitchen section")
+                .accessibilityIdentifier("kitchenSectionPicker")
+
+            // Each section fades in as the segmented control's pill lands on it.
+            Group {
+                switch viewModel.selectedKitchen {
+                case .pantry:
+                    PantryView(viewModel: viewModel)
+                        .firstTip("fuel.pantry", "Scan a receipt and Tempo tells you what to use up first.")
+                case .groceries:
+                    GroceryListView(viewModel: viewModel)
+                        .firstTip("fuel.groceries", "Tick items off as you shop, or open Store Mode.")
+                case .receipts:
+                    SpendingView(viewModel: viewModel)
+                        .firstTip("fuel.spending", "Scan every receipt so this week's total is the real one.")
+                case .supplements:
+                    SupplementsView(openSupplementID: $viewModel.supplementToOpen)
+                        .firstTip("fuel.supplements", "Tick a supplement when you take it, and Tempo counts the days left.")
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.sm)
-            .accessibilityIdentifier("kitchenSectionPicker")
-            .onChange(of: viewModel.selectedKitchen) { _, _ in
-                HapticManager.selection()
-            }
-
-            switch viewModel.selectedKitchen {
-            case .pantry:
-                PantryView(viewModel: viewModel)
-            case .groceries:
-                GroceryListView(viewModel: viewModel)
-            case .receipts:
-                ReceiptsHistoryView(viewModel: viewModel)
-            case .supplements:
-                SupplementsView(openSupplementID: $viewModel.supplementToOpen)
-            }
+            .transition(.opacity)
         }
+        .animation(Tide.snap, value: viewModel.selectedKitchen)
+        // Fuel's page already draws the field behind the four sections, so
+        // they must not each draw a second one.
+        .environment(\.tideInsidePage, true)
     }
 }

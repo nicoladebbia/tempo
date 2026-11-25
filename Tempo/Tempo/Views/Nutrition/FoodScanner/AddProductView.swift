@@ -25,6 +25,8 @@ struct AddProductView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var name = ""
@@ -72,6 +74,16 @@ struct AddProductView: View {
     private var labelBlocker: AIBlocker?
     @State
     private var picker: PickerTarget?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ScaledMetric
+    private var photoSize: CGFloat = Tide.Kitchen.heroDisc
+    @ScaledMetric
+    private var fieldWidth: CGFloat = Tide.Kitchen.thumb + Tide.s8
+    @ScaledMetric
+    private var unitWidth: CGFloat = Tide.s8
+    @ScaledMetric
+    private var labelMaxHeight: CGFloat = Tide.Kitchen.heroPicture
 
     private enum PickerTarget: Identifiable {
         case front(UIImagePickerController.SourceType)
@@ -86,13 +98,12 @@ struct AddProductView: View {
     }
 
     var body: some View {
-        Form {
-            Section {
+        KitchenForm {
+            KitchenFormSection(
+                "Product photo",
+                footer: "Tempo cuts the product out and puts it on a clean white background. Done on your phone."
+            ) {
                 photoRow
-            } header: {
-                Text("Product photo")
-            } footer: {
-                Text("Tempo cuts the product out and puts it on a clean white background. Done on your phone.")
             }
 
             Section {
@@ -111,17 +122,20 @@ struct AddProductView: View {
                     .listRowInsets(EdgeInsets())
                 }
             } header: {
-                Text("Nutrition label")
+                Text("Nutrition label").tideLabel()
             } footer: {
                 if let labelMessage {
                     Text(labelMessage)
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.Kitchen.warn)
                 } else {
-                    Text("Snap the table — AI fills in the values below. You can always type them.")
+                    Text("Snap the table and AI fills in the values below. You can always type them.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
 
-            Section("Product") {
+            KitchenFormSection("Product") {
                 TextField("Name", text: $name)
                     .accessibilityIdentifier("addProductName")
                 TextField("Brand (optional)", text: $brand)
@@ -133,41 +147,23 @@ struct AddProductView: View {
             }
 
             Section {
-                numberField("Calories", text: $kcal, unit: "kcal", id: "addProductKcal")
-                numberField("Protein", text: $protein, unit: "g", id: "addProductProtein")
-                numberField("Carbs", text: $carbs, unit: "g", id: "addProductCarbs")
-                numberField("of which sugars", text: $sugars, unit: "g", id: "addProductSugars")
-                numberField("Fat", text: $fat, unit: "g", id: "addProductFat")
-                numberField("of which saturated", text: $saturatedFat, unit: "g", id: "addProductSatFat")
-                numberField("Fiber", text: $fiber, unit: "g", id: "addProductFiber")
-                numberField("Salt", text: $salt, unit: "g", id: "addProductSalt")
+                valuesCard
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
             } header: {
-                Text("Per 100 \(isBeverage ? "ml" : "g")")
-            } footer: {
-                Text("Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score.")
+                Text("Per 100 \(isBeverage ? "ml" : "g")").tideLabel()
             }
 
-            Section {
+            KitchenFormSection("Ingredients", footer: "E-numbers in the ingredients are used to rate additives.") {
                 TextField("Ingredients (optional)", text: $ingredients, axis: .vertical)
                     .lineLimit(3 ... 8)
-            } header: {
-                Text("Ingredients")
-            } footer: {
-                Text("E-numbers in the ingredients are used to rate additives.")
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .kitchenPage()
+        .kitchenBottomBar { saveBar }
         .onAppear(perform: applyPrefill)
         .navigationTitle(prefill == nil ? "Add product" : "Update label")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save", action: save)
-                    .disabled(draft == nil)
-                    .accessibilityIdentifier("addProductSave")
-            }
-        }
         .fullScreenCover(item: $picker) { target in
             switch target {
             case let .front(source):
@@ -214,7 +210,10 @@ struct AddProductView: View {
     // MARK: - Photo
 
     private var photoRow: some View {
-        HStack(spacing: TempoSpacing.lg) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s4))
+        return layout {
             ZStack {
                 if let photo, let image = UIImage(data: photo) {
                     Image(uiImage: image)
@@ -222,27 +221,28 @@ struct AddProductView: View {
                         .scaledToFit()
                 } else {
                     Image(systemName: "photo")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text3)
                 }
                 if isRenderingPhoto {
                     ProgressView()
                 }
             }
-            .frame(width: 88, height: 88)
-            .background(photo == nil ? Color.tempoBgTertiary : Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            .frame(width: photoSize, height: photoSize)
+            // White on purpose: the studio shot is a cut-out on white.
+            .background(photo == nil ? Tide.fill : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
 
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 if photo != nil {
-                    Text(photoIsCutOut ? "Studio photo ready" : "Couldn't cut it out — cropped instead")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(photoIsCutOut ? Color.tempoSuccess : Color.tempoTextSecondary)
+                    Text(photoIsCutOut ? "Studio photo ready" : "Couldn't cut it out, cropped instead")
+                        .font(Tide.caption)
+                        .foregroundStyle(photoIsCutOut ? Tide.Kitchen.good : Tide.text2)
                 }
-                captureButtons(camera: { picker = .front(.camera) }, library: { picker = .front(.photoLibrary) })
+                captureButtons(camera: { picker = .front(.camera) }, library: { picker = .front(.photoLibrary) }, stacked: true)
             }
         }
-        .padding(.vertical, TempoSpacing.xs)
+        .padding(.vertical, Tide.s1)
     }
 
     private func renderPhoto(_ image: UIImage) {
@@ -265,50 +265,51 @@ struct AddProductView: View {
         if let labelImage {
             // Captured: the capture buttons are gone; the label is a card and
             // the only control left is a small Retake.
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 Image(uiImage: labelImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .frame(maxHeight: labelMaxHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                     .overlay {
                         if isReadingLabel {
                             ZStack {
-                                Color.black.opacity(0.45)
-                                VStack(spacing: TempoSpacing.sm) {
-                                    ProgressView().tint(Color.tempoBone)
+                                Tide.Kitchen.scrim
+                                VStack(spacing: Tide.s2) {
+                                    ProgressView().tint(Tide.text)
                                     Text("Reading the label…")
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoBone)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text)
                                 }
                             }
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
                         }
                     }
                     .accessibilityLabel("Photo of the nutrition label")
                     .accessibilityIdentifier("addProductLabelCard")
                 if !isReadingLabel {
                     Button("Retake") { picker = .label(.camera) }
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit)
                         .buttonStyle(.borderless)
                         .accessibilityIdentifier("addProductLabelRetake")
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, TempoSpacing.xs)
+            .padding(.vertical, Tide.s1)
         } else if isReadingLabel {
-            HStack(spacing: TempoSpacing.md) {
+            HStack(spacing: Tide.s3) {
                 ProgressView()
                 Text("Reading the label…")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                 Spacer()
             }
-            .padding(.vertical, TempoSpacing.xs)
+            .padding(.vertical, Tide.s1)
         } else {
             captureButtons(camera: { picker = .label(.camera) }, library: { picker = .label(.photoLibrary) })
-                .padding(.vertical, TempoSpacing.xs)
+                .padding(.vertical, Tide.s1)
         }
     }
 
@@ -405,35 +406,143 @@ struct AddProductView: View {
 
     // MARK: - Helpers
 
-    private func captureButtons(camera: @escaping () -> Void, library: @escaping () -> Void) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Button(action: camera) {
-                Label("Camera", systemImage: "camera")
+    private func captureButtons(camera: @escaping () -> Void, library: @escaping () -> Void, stacked: Bool = false) -> some View {
+        let layout = stacked || typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return GlassEffectContainer(spacing: Tide.s2) {
+            layout {
+                Button(action: camera) {
+                    Label("Camera", systemImage: "camera")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                }
+                Button(action: library) {
+                    Label("Library", systemImage: "photo.on.rectangle")
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                }
             }
-            Button(action: library) {
-                Label("Library", systemImage: "photo.on.rectangle")
-            }
+            .buttonStyle(.tideGlass)
         }
-        .buttonStyle(.bordered)
-        .tint(Color.tempoSignal)
-        .font(.tempoCaption1)
+    }
+
+    /// The four values needed to log it first, big, in the colours of Today's
+    /// macro rings; salt, fiber and the two "of which" lines after.
+    private var valuesCard: some View {
+        let unit = "g"
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            coreMeter
+            KitchenPair {
+                KitchenNumberField(label: "Calories", unit: "kcal", placeholder: "—", tint: Tide.streak, text: $kcal, identifier: "addProductKcal")
+            } second: {
+                KitchenNumberField(label: "Protein", unit: unit, placeholder: "—", tint: Tide.protein, text: $protein, identifier: "addProductProtein")
+            }
+            KitchenPair {
+                KitchenNumberField(label: "Carbs", unit: unit, placeholder: "—", tint: Tide.carbs, text: $carbs, identifier: "addProductCarbs")
+            } second: {
+                KitchenNumberField(label: "Fat", unit: unit, placeholder: "—", tint: Tide.fat, text: $fat, identifier: "addProductFat")
+            }
+            Text("Also on the label").tideLabel(Tide.text3)
+                .padding(.top, Tide.s2)
+            KitchenPair {
+                KitchenNumberField(label: "Sugars", unit: unit, placeholder: "—", text: $sugars, identifier: "addProductSugars")
+            } second: {
+                KitchenNumberField(label: "Saturated", unit: unit, placeholder: "—", text: $saturatedFat, identifier: "addProductSatFat")
+            }
+            KitchenPair {
+                KitchenNumberField(label: "Fiber", unit: unit, placeholder: "—", text: $fiber, identifier: "addProductFiber")
+            } second: {
+                KitchenNumberField(label: "Salt", unit: unit, placeholder: "—", text: $salt, identifier: "addProductSalt")
+            }
+            Text("Calories, protein, carbs and fat are needed to log it. Add salt (plus sugars and saturated fat) for a Tempo score.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+    }
+
+    /// Save sits under the thumb. While it can't save, one line says what is
+    /// still missing.
+    private var saveBar: some View {
+        VStack(spacing: Tide.s2) {
+            if draft == nil {
+                Text(missingHint)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Tide.s3)
+                    .padding(.vertical, Tide.s1)
+                    .glassEffect(.regular, in: .rect(cornerRadius: Tide.controlRadius))
+                    .transition(.opacity)
+            }
+            Button(action: save) {
+                Text(prefill == nil ? "Save product" : "Save label")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.kitchenBar)
+            .disabled(draft == nil)
+            .accessibilityIdentifier("addProductSave")
+        }
+        .animation(Tide.snap, value: draft == nil)
+    }
+
+    private var missingHint: String {
+        let hasName = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch (hasName, coreFilled == 4) {
+        case (false, false): return "Add a name and the four values to save."
+        case (false, true): return "Add a name to save."
+        default: return "Add the four values to save."
+        }
     }
 
     private func numberField(_ label: String, text: Binding<String>, unit: String, id: String) -> some View {
         HStack {
             Text(label)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
             Spacer()
             TextField("—", text: text)
+                .font(Tide.bodyStrong)
                 .keyboardType(.decimalPad)
                 .multilineTextAlignment(.trailing)
-                .frame(width: 80)
+                .monospacedDigit()
+                .frame(width: fieldWidth)
                 .accessibilityIdentifier(id)
             Text(unit)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 32, alignment: .leading)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .frame(width: unitWidth, alignment: .leading)
         }
+        .frame(minHeight: Tide.hit)
+    }
+
+    /// How many of the four values needed to log this product are filled in, as a live meter.
+    private var coreFilled: Int {
+        [kcal, protein, carbs, fat].filter { Self.number($0) != nil }.count
+    }
+
+    private var coreMeter: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Needed to log it")
+                    .tideLabel()
+                Spacer()
+                Text("\(coreFilled) of 4")
+                    .font(Tide.numeral(Tide.numeralS))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .foregroundStyle(coreFilled == 4 ? Tide.Kitchen.good : Tide.text)
+            }
+            TideLevelBar(progress: Double(coreFilled) / 4, color: coreFilled == 4 ? Tide.Kitchen.good : mood.accent)
+                .animation(Tide.snap, value: coreFilled)
+        }
+        .padding(.vertical, Tide.s1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(coreFilled) of 4 values needed to log this product")
     }
 
     static func number(_ text: String) -> Double? {

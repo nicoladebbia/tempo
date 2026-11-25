@@ -35,6 +35,8 @@
 #   scripts/testenv.sh persona <name> <persona>      server half of a person with history (sim.sh
 #                                                    --scenario <persona> does both halves)
 #   scripts/testenv.sh shared <name>                 a user's grocery share links (open as the shopper)
+#   scripts/testenv.sh arena <name> [--friends N] [--requests N]   made-up friends with a week of XP + waiting requests
+#   scripts/testenv.sh invite <name>                 a user's friend invite link (open the tempo:// one on the other simulator)
 #   scripts/testenv.sh db [slot]                     only the databases (for swift test); empties that slot's Redis
 #   eval "$(scripts/testenv.sh test-env [slot])"     env for `swift test`: slot 1 (default) = you,
 #                                                    2 = fast check, 3 = nightly — runs at the same
@@ -438,7 +440,7 @@ case "${1:-status}" in
     status) cmd_status ;;
     logs) need_lane; if [ "${2:-}" = "-f" ]; then tail -f "$LOG"; else tail -100 "$LOG"; fi ;;
     ai) shift; need_lane; cmd_ai "$@" ;;
-    fault | auth | sign-out | users | time | job | sub | persona | shared) need_lane; TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
+    fault | auth | sign-out | users | time | job | sub | persona | shared | arena | invite) need_lane; TEMPO_TEST_URL="$URL" python3 "$(dirname "$0")/testctl.py" "$@" ;;
     pushes) shift; need_lane; cmd_pushes "$@" ;;
     url) need_lane; echo "$URL" ;;
     db)

@@ -18,39 +18,127 @@ struct FoodImageGalleryViewer: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            TabView(selection: $page) {
-                ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
-                    ZoomableImage {
-                        sourceImage(source)
+            TidePageBackground()
+            // Bar, photo, caption: stacked, so a large caption pushes the photo
+            // up instead of hiding behind it.
+            VStack(spacing: 0) {
+                topBar
+                TabView(selection: $page) {
+                    ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
+                        ZoomableImage {
+                            photoCard(source)
+                        }
+                        .padding(.horizontal, Tide.edge)
+                        .tag(index)
                     }
-                    .tag(index)
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: sources.count > 1 ? .always : .never))
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundStyle(.white, Color.black.opacity(TempoOpacity.o40))
-                    }
-                    .padding(TempoSpacing.lg)
-                    .accessibilityLabel("Close")
-                }
-                Spacer()
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxHeight: .infinity)
+                bottomBar
+                    .padding(.top, Tide.s3)
             }
         }
     }
 
+    /// Where you are in the set, on glass so it reads over any photo; Close on the right.
+    private var topBar: some View {
+        HStack {
+            if sources.count > 1 {
+                Text("\(page + 1) of \(sources.count)")
+                    .font(Tide.bodyStrong.monospacedDigit())
+                    .foregroundStyle(Tide.text)
+                    .padding(.horizontal, Tide.s4)
+                    .frame(minHeight: Tide.hit)
+                    .glassEffect(.regular, in: .capsule)
+                    .contentTransition(.numericText())
+                    .animation(Tide.snap, value: page)
+                    .accessibilityLabel("Photo \(page + 1) of \(sources.count)")
+            }
+            Spacer()
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .glassEffect(.regular.interactive(), in: .circle)
+            }
+            .accessibilityLabel("Close")
+        }
+        .padding(Tide.s4)
+    }
+
+    /// The product's name, and a strip of thumbnails to jump between photos.
+    private var bottomBar: some View {
+        VStack(spacing: Tide.s3) {
+            if let product {
+                VStack(spacing: Tide.hair) {
+                    Text(product.name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    if let brand = product.brand, !brand.isEmpty {
+                        Text(brand)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, Tide.edge)
+            }
+            if sources.count > 1 {
+                thumbnails
+            }
+        }
+        .padding(.bottom, Tide.s4)
+    }
+
+    private var thumbnails: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: Tide.s2) {
+                ForEach(Array(sources.enumerated()), id: \.offset) { index, source in
+                    let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    Button {
+                        withAnimation(Tide.snap) { page = index }
+                    } label: {
+                        photo(source)
+                            .frame(width: Tide.Kitchen.row, height: Tide.Kitchen.row)
+                            .background(Color.white)
+                            .clipShape(shape)
+                            .overlay(shape.strokeBorder(index == page ? mood.accent : Tide.hairline, lineWidth: index == page ? Tide.Kitchen.thumbRing : 1))
+                            .opacity(index == page ? 1 : Tide.Kitchen.thumbDimmed)
+                            .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Photo \(index + 1)")
+                    .accessibilityAddTraits(index == page ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+        }
+        .scrollIndicators(.hidden)
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    /// The photo on a white card: product shots are cut out on white, so the
+    /// card is what they were made for, and it zooms with the photo.
+    private func photoCard(_ source: FoodHeroSource) -> some View {
+        photo(source)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous))
+    }
+
     @ViewBuilder
-    private func sourceImage(_ source: FoodHeroSource) -> some View {
+    private func photo(_ source: FoodHeroSource) -> some View {
         switch source {
         case let .local(data):
             if let image = UIImage(data: data) {
@@ -100,8 +188,8 @@ private struct ZoomableImage<Content: View>: View {
             }
         }
         .onTapGesture(count: 2, perform: toggleZoom)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: scale)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: offset)
+        .animation(Tide.snap, value: scale)
+        .animation(Tide.snap, value: offset)
     }
 
     private var magnification: some Gesture {

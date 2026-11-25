@@ -19,53 +19,58 @@ struct PlanUpdateBanner: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .foregroundStyle(Color.tempoAmber)
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .top, spacing: Tide.s3) {
+                TideIconTile(systemName: "arrow.triangle.2.circlepath", tint: Tide.warn)
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text("Your setup changed — update the rest of the week?")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Meals you've eaten and past days stay. Planned meals from today on are replaced.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            HStack(spacing: TempoSpacing.lg) {
-                Spacer()
-                Button {
-                    HapticManager.selection()
-                    viewModel.dismissPlanUpdateBanner()
-                } label: {
-                    Text("Not now")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                }
-                .foregroundStyle(Color.tempoTextSecondary)
-                .accessibilityIdentifier("planUpdateNotNow")
+            GlassEffectContainer(spacing: Tide.s2) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s2))
+                layout {
+                    Button {
+                        HapticManager.selection()
+                        viewModel.dismissPlanUpdateBanner()
+                    } label: {
+                        Text("Not now")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tideGlass)
+                    .accessibilityIdentifier("planUpdateNotNow")
 
-                Button {
-                    HapticManager.lightImpact()
-                    viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
-                } label: {
-                    Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
+                    Button {
+                        HapticManager.lightImpact()
+                        viewModel.rebuildRestOfWeek(modelContext: modelContext, services: services)
+                    } label: {
+                        HStack(spacing: Tide.s2) {
+                            if viewModel.isGeneratingPlan {
+                                ProgressView().tint(Tide.ink)
+                            }
+                            Text(viewModel.isGeneratingPlan ? "Updating…" : "Update")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(viewModel.isGeneratingPlan)
+                    .accessibilityIdentifier("planUpdateConfirm")
                 }
-                .foregroundStyle(Color.tempoSignal)
-                .disabled(viewModel.isGeneratingPlan)
-                .accessibilityIdentifier("planUpdateConfirm")
             }
-            .buttonStyle(.plain)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityIdentifier("planUpdateBanner")
     }
 }

@@ -25,6 +25,10 @@ struct LockdownMainView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @Environment(\.tideMood)
+    private var mood
     @Query
     private var allSettings: [UserSettings]
 
@@ -38,6 +42,10 @@ struct LockdownMainView: View {
 
     @State
     private var showUnlockCelebration = false
+    /// The pending auto-dismiss of the unlock moment, so Continue (or a second unlock) can cancel it.
+    @State
+    private var unlockDismissTask: Task<Void, Never>?
+
     @State
     private var showNonNegotiableSetup = false
     @State
@@ -48,38 +56,48 @@ struct LockdownMainView: View {
     private var showHistoryAlert = false
     @State
     private var editingNonNegotiable: NonNegotiableProgress?
+    /// "Marked done" / "Skipped" with Undo for a few seconds.
+    @State
+    private var toast: ToastData?
+
+    private var showsQuickAction: Bool {
+        hasTimedNonNegotiable && focusTimerEnabled
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
             // Main scrollable content
-            ScrollView {
-                VStack(spacing: TempoSpacing.md) {
-                    // Date display
-                    dateHeader
+            TideScrollPage(energy: 1, spacing: Tide.s4, spacer: Tide.s2) {
+                // Date display
+                dateHeader
 
-                    // Status banner
+                if viewModel.isLoading, viewModel.progressItems.isEmpty {
+                    // The page's own shape, shimmering, instead of a false "Locked, 0 done".
+                    loadingState
+                } else if viewModel.progressItems.isEmpty {
+                    // Nothing to be done yet: the orders and the one way forward,
+                    // with no dial counting 0 of 0.
+                    drillSergeantSection
+                    emptyState
+                } else {
+                    // The day in one read: the dial, whether it is on pace, the orders...
                     statusBanner
-
-                    // Progress prediction
                     progressPredictionSection
-
-                    // Drill sergeant bubble
                     drillSergeantSection
 
-                    // Non-negotiable cards
-                    if viewModel.isLoading, viewModel.progressItems.isEmpty {
-                        loadingState
-                    } else if viewModel.progressItems.isEmpty {
-                        emptyState
-                    } else {
-                        nonNegotiableCards
-                    }
+                    // ...then what is still open, with what is finished under it.
+                    nonNegotiableCards
 
-                    // Bottom padding for sticky elements (tab bar + leisure bar clearance)
-                    Spacer()
-                        .frame(height: TempoSpacing.bottomSafe + 60)
+                    // Everything done: one line on what is next.
+                    if viewModel.isLeisureUnlocked {
+                        NextStepBar(place: .lockdownDone)
+                    }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // The one primary action, under the thumb. It is the same at every
+                // text size; the scrim keeps the cards from reading through it.
+                pinnedAction
             }
             .refreshable {
                 viewModel.loadToday(modelContext: modelContext)
@@ -92,44 +110,40 @@ struct LockdownMainView: View {
                 }
             }
 
-            // Sticky bottom: Quick action + Leisure status
-            VStack(spacing: 0) {
-                // Quick action button (only when focus timer is enabled)
-                if hasTimedNonNegotiable, focusTimerEnabled {
-                    quickActionButton
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.bottom, TempoSpacing.md)
-                }
-
-                // Leisure status bar
-                leisureStatusBar
-            }
-            .background(
-                Color.tempoBgPrimary
-                    .opacity(0.95)
-                    .background(.ultraThinMaterial)
-            )
-
             // Unlock celebration overlay
             if showUnlockCelebration {
                 unlockCelebrationOverlay
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage(energy: 1)
+        // The unlock is a moment of its own: the bar steps aside while it plays.
+        .toolbar(showUnlockCelebration ? .hidden : .automatic, for: .navigationBar)
+        // The field rests while a sheet is over this page.
+        .tideCovered(showNonNegotiableSetup || showMealLogging || editingNonNegotiable != nil)
         .sheet(isPresented: $showNonNegotiableSetup) {
             NonNegotiableSetupView()
                 .onDisappear {
                     viewModel.loadToday(modelContext: modelContext)
                 }
         }
+        .tempoToast($toast)
         .onChange(of: viewModel.isLeisureUnlocked) { _, unlocked in
+            if !unlocked {
+                // Undo took the unlock back: the moment is over.
+                unlockDismissTask?.cancel()
+                withAnimation { showUnlockCelebration = false }
+            }
             if unlocked {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.5)) {
+                withAnimation(Tide.lively) {
                     showUnlockCelebration = true
                 }
-                // Dismiss after 3 seconds
-                Task {
-                    try? await Task.sleep(for: .seconds(3))
+                // Dismiss after 6 seconds: the burst plays for 4.5, then Continue is the way out.
+                unlockDismissTask?.cancel()
+                unlockDismissTask = Task {
+                    try? await Task.sleep(for: .seconds(6))
+                    guard !Task.isCancelled else {
+                        return
+                    }
                     withAnimation { showUnlockCelebration = false }
                 }
             }
@@ -151,6 +165,11 @@ struct LockdownMainView: View {
                     viewModel.loadToday(modelContext: modelContext)
                 }
         }
+        .firstTip(
+            "lockdown.home",
+            "Tap a task to finish or skip it. All done unlocks the day.",
+            systemImage: "lock.open.fill"
+        )
     }
 
     // MARK: - Date Header
@@ -158,85 +177,98 @@ struct LockdownMainView: View {
     private var dateHeader: some View {
         TimelineView(.everyMinute) { context in
             Text(context.date, format: .dateTime.weekday(.wide).month(.wide).day())
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .tideLabel()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, TempoSpacing.sm)
         }
     }
 
     // MARK: - Status Banner
 
-    // Per MODULE_ACCOUNTABILITY.md — 80pt status banner with progress ring.
+    // Per MODULE_ACCOUNTABILITY.md — the day's progress as a shader-lit dial.
 
     private var statusBanner: some View {
-        HStack(spacing: TempoSpacing.md) {
-            // Progress ring
-            CircularRingView(
-                progress: viewModel.completionPercentage,
-                color: statusRingColor,
-                ringSize: .small,
-                valueText: "\(Int(viewModel.completionPercentage * 100))%"
-            )
+        let percent = Int((min(max(viewModel.completionPercentage, 0), 1) * 100).rounded())
 
-            // Status text
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(viewModel.isLeisureUnlocked ? Color.tempoSuccess : Color.tempoSignal)
-                        .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
+        return RecoveryHero {
+            TideDial(score: percent, caption: "Done", diameter: Tide.dialHero)
+                .explains(Explainer.lockdownProgress.showing("\(percent) percent"))
+        } side: {
+            HStack(spacing: Tide.s2) {
+                Image(systemName: heroIcon)
+                    .font(Tide.title2)
+                    .foregroundStyle(lockColor)
+                    .symbolEffect(.bounce, value: viewModel.isLeisureUnlocked)
+                    .accessibilityHidden(true)
 
-                    Text(viewModel.isLeisureUnlocked ? "UNLOCKED" : "LOCKED")
-                        .font(.tempoCallout)
-                        .foregroundStyle(viewModel.isLeisureUnlocked ? Color.tempoSuccess : Color.tempoSignal)
-                }
-
-                Text(statusTimeContext)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(statusTimeColor)
-                    .lineLimit(1)
+                Text(heroTitle)
+                    .font(Tide.title2)
+                    .foregroundStyle(lockColor)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            Text(statusTimeContext)
+                .font(Tide.body)
+                .foregroundStyle(statusTimeColor)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TideNumber(
+                "\(viewModel.completedCount)",
+                unit: "of \(viewModel.totalCount) done",
+                size: Tide.numeralM,
+                relativeTo: .title
+            )
         }
-        .padding(.horizontal, TempoSpacing.cardPadding)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(heroTitle). \(viewModel.completedCount) of \(viewModel.totalCount) done. \(statusTimeContext)"
         )
     }
 
-    private var statusRingColor: Color {
-        if viewModel.isLeisureUnlocked {
-            return .tempoSuccess
+    /// A rest day says so; the lock only speaks for a normal day.
+    private var heroTitle: String {
+        if let override = viewModel.activeOverride {
+            return Self.overrideTitle(override)
         }
-        if viewModel.dailyState == .dayFailed {
-            return .tempoSignal
+        return viewModel.isLeisureUnlocked ? "Unlocked" : "Locked"
+    }
+
+    private var heroIcon: String {
+        if viewModel.activeOverride != nil {
+            return "bed.double.fill"
         }
-        let pct = viewModel.completionPercentage
-        if pct >= 0.8 {
-            return .tempoSuccess
+        return viewModel.isLeisureUnlocked ? "lock.open.fill" : "lock.fill"
+    }
+
+    private static func overrideTitle(_ type: AccountabilityOverrideType) -> String {
+        switch type {
+        case .restDayFull: "Full rest day"
+        case .restDayReduced: "Reduced rest day"
+        case .sickDay: "Sick day"
+        case .mentalHealthDay: "Mental health day"
+        case .injuryMode: "Injury mode"
+        case .vacationMode: "Vacation mode"
         }
-        if pct >= 0.5 {
-            return .tempoAmber
+    }
+
+    private var lockColor: Color {
+        if viewModel.activeOverride != nil {
+            return Tide.text
         }
-        return .tempoElectric
+        return viewModel.isLeisureUnlocked ? TideTone.mint : Tide.danger
     }
 
     /// Per UX_COPY_BIBLE.md — time context strings
     private var statusTimeContext: String {
+        if viewModel.activeOverride != nil {
+            return "Rest days don't count toward your streak."
+        }
         if viewModel.isLeisureUnlocked {
             let hour = Calendar.current.component(.hour, from: Date())
             if hour < 12 {
                 return "All done by noon. Legend."
             }
-            let early = viewModel.timeToPS5
-            if early > 0 {
-                return "Unlocked \(viewModel.formattedTimeToPS5) early. Ahead of schedule."
+            if let early = PS5Countdown.remaining(viewModel.timeToPS5) {
+                return "Unlocked \(early) early. Ahead of schedule."
             }
             return "Unlocked. Better late than never."
         }
@@ -250,30 +282,23 @@ struct LockdownMainView: View {
             return "Just 1 more. So close."
         }
 
-        let timeToPS5 = viewModel.timeToPS5
-        if timeToPS5 < 30 * 60 {
-            return "\(viewModel.formattedTimeToPS5). Move."
-        }
-        if timeToPS5 < 60 * 60 {
-            return "\(viewModel.formattedTimeToPS5). Clock's ticking."
-        }
-        if timeToPS5 < 2 * 3600 {
-            return "\(viewModel.formattedTimeToPS5) left. Focus up."
-        }
-        return "\(viewModel.formattedTimeToPS5) until your usual PS5 time"
+        return PS5Countdown.statusLine(seconds: viewModel.timeToPS5)
     }
 
     private var statusTimeColor: Color {
+        if viewModel.activeOverride != nil {
+            return Tide.text2
+        }
         if viewModel.isLeisureUnlocked {
-            return .tempoSuccess
+            return TideTone.mint
         }
         if viewModel.dailyState == .dayFailed {
-            return .tempoSignal
+            return Tide.danger
         }
         if viewModel.timeToPS5 < 30 * 60 {
-            return .tempoSignal
+            return Tide.danger
         }
-        return .tempoTextSecondary
+        return Tide.text2
     }
 
     // MARK: - Drill Sergeant
@@ -282,9 +307,10 @@ struct LockdownMainView: View {
     // Enhanced with dynamic, context-aware message generation.
 
     private var drillSergeantSection: some View {
-        Group {
+        // Rooted in a stack so the card's own lifecycle is never attached to an EmptyView.
+        VStack(spacing: 0) {
             if let result = drillSergeantResult {
-                DrillSergeantBubble(message: result.message, intensity: result.intensity)
+                TideOrdersCard(message: result.message, intensity: result.intensity)
             }
         }
     }
@@ -313,33 +339,24 @@ struct LockdownMainView: View {
     // Predicts whether user will complete all non-negotiables by PS5 time.
 
     private var progressPredictionSection: some View {
-        Group {
+        VStack(spacing: 0) {
             if let prediction = completionPrediction, !viewModel.isLeisureUnlocked {
-                HStack(spacing: TempoSpacing.sm) {
+                let tint = prediction.onTrack ? TideTone.mint : Tide.danger
+                // A pace read-out under the dial, not a card of its own.
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                     Image(systemName: prediction.onTrack ? "checkmark.shield.fill" : "exclamationmark.triangle.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(tint)
+                        .accessibilityHidden(true)
 
                     Text(prediction.message)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
-                        .lineLimit(2)
-
-                    Spacer()
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(tint)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(TempoSpacing.md)
-                .background(
-                    (prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal)
-                        .opacity(0.08)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous)
-                        .stroke(
-                            (prediction.onTrack ? Color.tempoSuccess : Color.tempoSignal).opacity(0.3),
-                            lineWidth: 1
-                        )
-                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                .explains(Explainer.lockdownPace.showing(prediction.onTrack ? "On pace" : "Behind"))
             }
         }
     }
@@ -354,146 +371,159 @@ struct LockdownMainView: View {
             return nil
         }
 
-        let done = viewModel.completedCount
-        let total = viewModel.totalCount
-        let remaining = total - done
-        let timeToPS5 = viewModel.timeToPS5
-
-        // Already failed
-        if viewModel.dailyState == .dayFailed {
-            return ("PS5 time has passed. \(remaining) task\(remaining == 1 ? "" : "s") still incomplete.", false)
-        }
-
-        // All done (shouldn't reach here since we filter .unlocked)
-        if remaining == 0 {
-            return nil
-        }
-
-        // Calculate pace: how much time has elapsed and how much is done
-        let totalDaySeconds: TimeInterval = 11.5 * 3600 // 8 AM to 7:30 PM typical
-        let elapsed = max(1, totalDaySeconds - timeToPS5)
-        let pacePerTask = done > 0 ? elapsed / Double(done) : totalDaySeconds / Double(total)
-        let estimatedTimeForRemaining = pacePerTask * Double(remaining)
-
-        // Study-specific prediction
         let studyProgress = viewModel.progressItems.first(where: { $0.nonNegotiable?.type == .study })
         let studyRemaining = max(0, (studyProgress?.targetValue ?? 0) - (studyProgress?.currentValue ?? 0))
 
-        if studyRemaining > 0 {
-            let studySecondsNeeded = studyRemaining * 60 // minutes to seconds
-            let totalTimeNeeded = max(estimatedTimeForRemaining, studySecondsNeeded)
+        // The day has failed: the countdown is zero whatever the clock rounds to.
+        let timeToPS5 = viewModel.dailyState == .dayFailed ? 0 : viewModel.timeToPS5
 
-            if totalTimeNeeded > timeToPS5 {
-                let deficit = Int((totalTimeNeeded - timeToPS5) / 60)
-                return ("At this pace, you'll be \(deficit)min behind. Pick up the speed.", false)
-            }
+        guard let reading = LockdownPace.reading(
+            done: viewModel.completedCount,
+            total: viewModel.totalCount,
+            timeToPS5: timeToPS5,
+            studyMinutesRemaining: studyRemaining,
+            now: Date()
+        )
+        else {
+            return nil
         }
-
-        if estimatedTimeForRemaining > timeToPS5 {
-            return ("WARNING: At current pace, you won't finish in time. Accelerate.", false)
+        let message = LockdownPace.message(for: reading) { finish in
+            finish.formatted(date: .omitted, time: .shortened)
         }
-
-        // Estimate finish time
-        let estimatedFinish = Date().addingTimeInterval(estimatedTimeForRemaining)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mm a"
-        let finishStr = formatter.string(from: estimatedFinish)
-
-        if estimatedTimeForRemaining < timeToPS5 * 0.5 {
-            return ("On pace to finish by \(finishStr). Ahead of schedule.", true)
-        }
-
-        return ("At this pace, you'll finish by \(finishStr). Stay focused.", true)
+        return (message, reading.onTrack)
     }
 
     // MARK: - Non-Negotiable Cards
 
+    /// What is still open comes first, so the next thing to do is never below the fold.
+    private var openItems: [NonNegotiableProgress] {
+        viewModel.progressItems.filter { !$0.isCompleted }
+    }
+
+    /// Done and skipped, in the order they were set up.
+    private var finishedItems: [NonNegotiableProgress] {
+        viewModel.progressItems.filter(\.isCompleted)
+    }
+
     private var nonNegotiableCards: some View {
-        ForEach(viewModel.progressItems, id: \.persistentModelID) { progress in
-            NonNegotiableCardView(
-                progress: progress,
-                isExpanded: expandedCardID == progress.persistentModelID,
-                habitStreakCount: viewModel.habitStreakCount(for: progress.nonNegotiable?.type ?? .custom),
-                onTap: {
-                    withAnimation(TempoAnimation.springMedium) {
-                        expandedCardID = expandedCardID == progress.persistentModelID
-                            ? nil
-                            : progress.persistentModelID
-                    }
-                },
-                onComplete: {
-                    viewModel.completeItem(progress, modelContext: modelContext)
-                },
-                onSkip: {
-                    viewModel.skipItem(progress, modelContext: modelContext)
-                },
-                onUpdateValue: { value in
-                    viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
-                },
-                onStartTimer: focusTimerEnabled ? {
-                    viewModel.configureFocusTimer()
-                    showFocusTimer = true
-                } : nil,
-                onLogMeal: {
-                    showMealLogging = true
-                },
-                onEditNonNegotiable: {
-                    editingNonNegotiable = progress
-                },
-                onViewHistory: {
-                    showHistoryAlert = true
+        let open = openItems
+        let finished = finishedItems
+        return VStack(spacing: Tide.s4) {
+            if !open.isEmpty {
+                TideSectionLabel(title: "To do", trailing: "\(open.count) left")
+                    .padding(.top, Tide.s2)
+                ForEach(open, id: \.persistentModelID) { progress in
+                    card(for: progress)
                 }
-            )
+            }
+            if !finished.isEmpty {
+                TideSectionLabel(title: "Done", trailing: "\(finished.count) of \(viewModel.progressItems.count)")
+                    .padding(.top, open.isEmpty ? Tide.s2 : Tide.s1)
+                ForEach(finished, id: \.persistentModelID) { progress in
+                    card(for: progress)
+                }
+            }
         }
+        // A finished task slides down to the Done group instead of jumping.
+        .animation(Tide.snap, value: finished.count)
+    }
+
+    /// A few seconds to take a tap back: the task, the unlock and the streak go back as they were.
+    private func offerUndo(_ message: String, _ undo: NonNegotiableUndo) {
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            viewModel.undo(undo, modelContext: modelContext)
+        }
+    }
+
+    private func card(for progress: NonNegotiableProgress) -> some View {
+        NonNegotiableCardView(
+            progress: progress,
+            isExpanded: expandedCardID == progress.persistentModelID,
+            habitStreakCount: viewModel.habitStreakCount(for: progress.nonNegotiable?.type ?? .custom),
+            onTap: {
+                withAnimation(Tide.snap) {
+                    expandedCardID = expandedCardID == progress.persistentModelID
+                        ? nil
+                        : progress.persistentModelID
+                }
+            },
+            onComplete: {
+                let undo = viewModel.completeItem(progress, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") marked done.", undo)
+            },
+            onSkip: {
+                let undo = viewModel.skipItem(progress, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") skipped.", undo)
+            },
+            onUpdateValue: { value in
+                let undo = viewModel.updateItemProgress(progress, value: value, modelContext: modelContext)
+                offerUndo("\(progress.nonNegotiable?.name ?? "Task") updated.", undo)
+            },
+            onStartTimer: focusTimerEnabled ? {
+                viewModel.configureFocusTimer()
+                showFocusTimer = true
+            } : nil,
+            onLogMeal: {
+                showMealLogging = true
+            },
+            onEditNonNegotiable: {
+                editingNonNegotiable = progress
+            },
+            onViewHistory: {
+                showHistoryAlert = true
+            },
+            secondaryActions: showsQuickAction
+        )
     }
 
     // MARK: - Empty State
 
     // Per MODULE_ACCOUNTABILITY.md — empty state when no non-negotiables.
+    // The way forward is the pinned button; this is the explanation above it.
 
     private var emptyState: some View {
-        VStack(spacing: 0) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 44, weight: .ultraLight))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.top, TempoSpacing.xxl)
-
-            Text("No non-negotiables set")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.md)
-
-            Text("Define what you MUST do each day before you earn your downtime.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.xs)
-
-            Button("SET UP NON-NEGOTIABLES") {
-                showNonNegotiableSetup = true
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxl)
-            .padding(.top, TempoSpacing.lg)
-        }
+        // A rest day with nothing set up still says so: nothing is owed today.
+        let override = viewModel.activeOverride
+        return TideEmptyPanel(
+            systemImage: override == nil ? "lock.fill" : "bed.double.fill",
+            title: override.map(Self.overrideTitle) ?? "No non-negotiables set",
+            message: override == nil
+                ? "Define what you MUST do each day before you earn your downtime."
+                : "Rest day. No non-negotiables active."
+        )
+        .tideCard()
     }
 
     // MARK: - Loading State
 
+    /// The shape of the page while the day loads: the dial and its lines, then three cards.
     private var loadingState: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s4) {
+            HStack(spacing: Tide.s5) {
+                Circle()
+                    .fill(Tide.fill)
+                    .frame(width: Tide.dialHero, height: Tide.dialHero)
+                    .shimmer()
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(0 ..< 3, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: Tide.s1, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(height: index == 0 ? Tide.s6 : Tide.s4)
+                            .frame(maxWidth: index == 2 ? Tide.s10 * 2 : .infinity)
+                            .shimmer()
+                    }
+                }
+            }
+            .padding(.vertical, Tide.s2)
+
             ForEach(0 ..< 3, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .fill(Color.tempoSurfaceCard)
-                    .frame(height: 100)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.s10 * 2.5)
                     .shimmer()
             }
         }
+        .accessibilityHidden(true)
     }
 
     // MARK: - Quick Action Button
@@ -515,375 +545,75 @@ struct LockdownMainView: View {
         }
     }
 
+    private var quickActionLabel: some View {
+        HStack(spacing: Tide.s2) {
+            Image(systemName: "play.fill")
+                .accessibilityHidden(true)
+            Text(studyComplete ? "Start another session" : "Start study timer")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func startFocusTimer() {
+        HapticManager.impact(.heavy)
+        viewModel.configureFocusTimer()
+        showFocusTimer = true
+    }
+
+    @ViewBuilder
     private var quickActionButton: some View {
-        Button {
-            HapticManager.impact(.heavy)
-            viewModel.configureFocusTimer()
-            showFocusTimer = true
-        } label: {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 18))
+        if studyComplete {
+            Button(action: startFocusTimer) { quickActionLabel }
+                .buttonStyle(.tideGlass)
+        } else {
+            Button(action: startFocusTimer) { quickActionLabel }
+                .buttonStyle(.tidePrimary)
+        }
+    }
 
-                Text(studyComplete ? "START ANOTHER SESSION" : "START STUDY TIMER")
-                    .font(.tempoCallout)
-                    .tracking(1)
-            }
-            .foregroundStyle(studyComplete ? Color.tempoElectric : .white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 46)
-            .background {
-                if studyComplete {
-                    Color.clear
-                } else {
-                    LinearGradient(
-                        colors: [Color.tempoElectric, Color.tempoElectric.opacity(0.85)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+    // MARK: - Pinned Action
+
+    // The page's one primary action, pinned above the tab bar: the study timer
+    // on a day with tasks, "Set up" on a day without any.
+
+    @ViewBuilder
+    private var pinnedAction: some View {
+        if viewModel.progressItems.isEmpty, !viewModel.isLoading {
+            pinnedBar {
+                Button("Set up non-negotiables") {
+                    showNonNegotiableSetup = true
                 }
+                .buttonStyle(.tidePrimary)
             }
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                    .stroke(
-                        studyComplete ? Color.tempoElectric : .clear,
-                        lineWidth: studyComplete ? 2 : 0
-                    )
-            )
-            .shadow(
-                color: studyComplete ? .clear : Color.tempoElectric.opacity(0.3),
-                radius: 6, x: 0, y: 4
-            )
+        } else if showsQuickAction, !viewModel.progressItems.isEmpty {
+            pinnedBar { quickActionButton }
         }
     }
 
-    // MARK: - Leisure Status Bar
-
-    // Per MODULE_ACCOUNTABILITY.md — pinned above tab bar.
-
-    private var leisureStatusBar: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Divider()
-
-            HStack(spacing: TempoSpacing.sm) {
-                // Lock icon
-                Image(systemName: leisureLockIcon)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(leisureLockColor)
-                    .symbolEffect(.pulse, isActive: viewModel.dailyState == .dayFailed)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("LEISURE STATUS")
-                        .font(.tempoCaption2)
-                        .tracking(1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-
-                    Text(leisureStatusText)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(leisureStatusTextColor)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-
-            // Progress bar
-            if viewModel.activeOverride == nil {
-                LinearProgressBar(
-                    progress: viewModel.completionPercentage,
-                    color: leisureProgressColor,
-                    height: 5,
-                    showPercentage: false
-                )
-                .padding(.horizontal, TempoSpacing.screenEdge)
-            }
-        }
-        .padding(.vertical, TempoSpacing.sm)
-        .background(
-            leisureBackgroundTint
-                .opacity(0.03)
-                .background(Color.tempoBgPrimary)
-        )
-    }
-
-    private var leisureLockIcon: String {
-        if viewModel.isLeisureUnlocked || viewModel.activeOverride != nil {
-            return "lock.open.fill"
-        }
-        return "lock.fill"
-    }
-
-    private var leisureLockColor: Color {
-        if viewModel.isLeisureUnlocked {
-            return .tempoSuccess
-        }
-        if viewModel.activeOverride != nil {
-            return .tempoTextTertiary
-        }
-        if viewModel.dailyState == .dayFailed {
-            return .tempoSignal
-        }
-        return .tempoSignal
-    }
-
-    private var leisureStatusText: String {
-        if viewModel.activeOverride != nil {
-            return "Rest day. No non-negotiables active."
-        }
-        if viewModel.isLeisureUnlocked {
-            return "You earned it. Enjoy your evening."
-        }
-        if viewModel.dailyState == .dayFailed {
-            return "PS5 time has passed. Tasks still incomplete."
-        }
-        let remaining = viewModel.totalCount - viewModel.completedCount
-        if remaining == 1 {
-            return "Just 1 more. You're right there."
-        }
-        return "Complete \(remaining) more to unlock"
-    }
-
-    private var leisureStatusTextColor: Color {
-        if viewModel.isLeisureUnlocked {
-            return .tempoSuccess
-        }
-        if viewModel.dailyState == .dayFailed {
-            return .tempoSignal
-        }
-        let remaining = viewModel.totalCount - viewModel.completedCount
-        if remaining == 1 {
-            return .tempoAmber
-        }
-        return .tempoTextPrimary
-    }
-
-    private var leisureProgressColor: Color {
-        let pct = viewModel.completionPercentage
-        if pct >= 1.0 {
-            return .tempoSuccess
-        }
-        if pct >= 0.5 {
-            return .tempoAmber
-        }
-        return .tempoSignal
-    }
-
-    private var leisureBackgroundTint: Color {
-        if viewModel.isLeisureUnlocked {
-            return .tempoSuccess
-        }
-        if viewModel.dailyState == .dayFailed {
-            return .tempoSignal
-        }
-        return .clear
+    private func pinnedBar(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s2)
+            .pinnedBarScrim()
     }
 
     // MARK: - Unlock Celebration
 
-    // Per MODULE_ACCOUNTABILITY.md — confetti + glow on leisure unlock.
-    // Per SOUND_AND_HAPTICS.md — triple success haptic.
-    // Enhanced with confetti particle animation, score display, and streak update.
+    // Per MODULE_ACCOUNTABILITY.md - burst + glow on leisure unlock.
+    // Per SOUND_AND_HAPTICS.md - success haptic as the lock opens.
+    // The moment itself lives in the Lockdown kit; this only feeds it the day's numbers.
 
     private var unlockCelebrationOverlay: some View {
-        ZStack {
-            // Dark background
-            Color.tempoInk.opacity(0.85)
-                .ignoresSafeArea()
-
-            // Confetti particle system
-            ConfettiCanvasView()
-                .ignoresSafeArea()
-                .allowsHitTesting(false)
-
-            // Content
-            VStack(spacing: TempoSpacing.lg) {
-                Spacer()
-
-                // Controller icon
-                Image(systemName: "gamecontroller.fill")
-                    .font(.system(size: 52, weight: .bold))
-                    .foregroundStyle(Color.tempoSuccess)
-                    .shadow(color: Color.tempoSuccess.opacity(0.6), radius: 24)
-                    .scaleEffect(showUnlockCelebration ? 1.0 : 0.3)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.5), value: showUnlockCelebration)
-
-                // Lock icon
-                Image(systemName: "lock.open.fill")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(Color.tempoSuccess.opacity(0.7))
-
-                Text("PS5 UNLOCKED")
-                    .font(.tempoTitle1)
-                    .foregroundStyle(Color.tempoSuccess)
-
-                Text("You earned it. Enjoy your evening.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                // Score display
-                if let accountability = viewModel.accountability {
-                    let score = services.accountabilityEngine.calculateDailyScore(accountability: accountability)
-                    VStack(spacing: TempoSpacing.xs) {
-                        Text("TODAY'S SCORE")
-                            .font(.tempoCaption2)
-                            .tracking(1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-
-                        Text("\(score)")
-                            .font(.system(size: 48, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    .padding(.top, TempoSpacing.md)
-                }
-
-                // Streak badge
-                if viewModel.streakCount > 0 {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color.tempoAmber)
-
-                        Text("Day \(viewModel.streakCount)!")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoAmber)
-                    }
-                    .padding(.horizontal, TempoSpacing.lg)
-                    .padding(.vertical, TempoSpacing.sm)
-                    .background(Color.tempoAmber.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-
-                Spacer()
-            }
-            .transition(.scale.combined(with: .opacity))
+        let score = viewModel.accountability.map {
+            services.accountabilityEngine.calculateDailyScore(accountability: $0)
         }
-        .onTapGesture {
+
+        return LockdownUnlockMoment(score: score, streak: viewModel.streakCount) {
+            unlockDismissTask?.cancel()
             withAnimation { showUnlockCelebration = false }
         }
-    }
-}
-
-// MARK: - ConfettiCanvasView
-
-// Particle-based confetti animation using Canvas for the unlock celebration.
-
-struct ConfettiCanvasView: View {
-    @State
-    private var particles: [ConfettiParticle] = []
-    @State
-    private var animationTimer: Timer?
-
-    struct ConfettiParticle: Identifiable {
-        let id = UUID()
-        var x: CGFloat
-        var y: CGFloat
-        var velocityX: CGFloat
-        var velocityY: CGFloat
-        var rotation: Double
-        var rotationSpeed: Double
-        var scale: CGFloat
-        var color: Color
-        var shape: ConfettiShape
-        var opacity: Double = 1.0
-
-        enum ConfettiShape: CaseIterable {
-            case circle
-            case rectangle
-            case triangle
-        }
-    }
-
-    var body: some View {
-        TimelineView(.animation) { _ in
-            Canvas { context, _ in
-                for particle in particles {
-                    let rect = CGRect(
-                        x: particle.x - particle.scale * 4,
-                        y: particle.y - particle.scale * 4,
-                        width: particle.scale * 8,
-                        height: particle.scale * 8
-                    )
-
-                    context.opacity = particle.opacity
-
-                    switch particle.shape {
-                    case .circle:
-                        context.fill(
-                            Path(ellipseIn: rect),
-                            with: .color(particle.color)
-                        )
-                    case .rectangle:
-                        var transform = CGAffineTransform.identity
-                        transform = transform.translatedBy(x: particle.x, y: particle.y)
-                        transform = transform.rotated(by: particle.rotation)
-                        transform = transform.translatedBy(x: -particle.x, y: -particle.y)
-
-                        var path = Path()
-                        path.addRect(rect)
-                        path = path.applying(transform)
-
-                        context.fill(path, with: .color(particle.color))
-                    case .triangle:
-                        var path = Path()
-                        path.move(to: CGPoint(x: particle.x, y: particle.y - particle.scale * 5))
-                        path.addLine(to: CGPoint(x: particle.x - particle.scale * 4, y: particle.y + particle.scale * 3))
-                        path.addLine(to: CGPoint(x: particle.x + particle.scale * 4, y: particle.y + particle.scale * 3))
-                        path.closeSubpath()
-
-                        context.fill(path, with: .color(particle.color))
-                    }
-                }
-            }
-        }
-        .onAppear { spawnParticles() }
-        .onDisappear {
-            animationTimer?.invalidate()
-            animationTimer = nil
-        }
-    }
-
-    private func spawnParticles() {
-        let screenWidth = UIScreen.main.bounds.width
-        let colors: [Color] = [.tempoSuccess, .tempoElectric, .tempoAmber, .tempoSignal, .tempoViolet, .white]
-
-        // Spawn initial burst
-        for _ in 0 ..< 80 {
-            particles.append(ConfettiParticle(
-                x: CGFloat.random(in: 0 ... screenWidth),
-                y: CGFloat.random(in: -200 ... -20),
-                velocityX: CGFloat.random(in: -3 ... 3),
-                velocityY: CGFloat.random(in: 2 ... 8),
-                rotation: Double.random(in: 0 ... (.pi * 2)),
-                rotationSpeed: Double.random(in: -0.1 ... 0.1),
-                scale: CGFloat.random(in: 0.5 ... 1.5),
-                color: colors.randomElement()!,
-                shape: ConfettiParticle.ConfettiShape.allCases.randomElement()!
-            ))
-        }
-
-        // Animate
-        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { _ in
-            Task { @MainActor in
-                for i in particles.indices {
-                    particles[i].x += particles[i].velocityX
-                    particles[i].y += particles[i].velocityY
-                    particles[i].velocityY += 0.15 // gravity
-                    particles[i].velocityX *= 0.99 // air resistance
-                    particles[i].rotation += particles[i].rotationSpeed
-
-                    // Fade out near bottom
-                    let screenHeight = UIScreen.main.bounds.height
-                    if particles[i].y > screenHeight * 0.7 {
-                        particles[i].opacity = max(0, particles[i].opacity - 0.02)
-                    }
-                }
-
-                // Remove dead particles
-                particles.removeAll { $0.opacity <= 0 || $0.y > UIScreen.main.bounds.height + 50 }
-            }
-        }
+        .transition(.scale(scale: 0.96).combined(with: .opacity))
     }
 }
 
@@ -904,11 +634,19 @@ struct NonNegotiableCardView: View {
     var onLogMeal: () -> Void = {}
     var onEditNonNegotiable: () -> Void = {}
     var onViewHistory: () -> Void = {}
+    /// True when the page already carries one primary action (the pinned timer
+    /// button): the row actions step back to glass so only one button leads.
+    var secondaryActions = false
 
-    @Environment(\.colorScheme)
-    private var colorScheme
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    /// The card is one VoiceOver element, so the streak explainer is also reachable as an action.
+    @State
+    private var streakExplainer: Explainer?
 
     private var nn: NonNegotiable? {
         progress.nonNegotiable
@@ -918,86 +656,129 @@ struct NonNegotiableCardView: View {
         resolveCardState()
     }
 
+    private var fraction: Double {
+        progress.targetValue > 0 ? min(1, progress.currentValue / progress.targetValue) : 0
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             // Row 1: Icon + Name + Status
             headerRow
 
-            // Row 2: Progress bar
-            if cardState != .skipped {
+            if !isFinished {
+                // Row 2: Progress bar
                 progressRow
+
+                // Row 3: Supporting text + Action
+                supportingRow
             }
 
-            // Row 3: Supporting text + Action
-            supportingRow
-
-            // Expanded detail
-            if isExpanded {
+            // Expanded detail (a finished row has nothing left to do)
+            if isExpanded, !progress.isCompleted {
                 expandedContent
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: isFinished ? Tide.s3 : Tide.s4, radius: Tide.tileRadius)
         .overlay(cardBorder)
-        .shadow(
-            color: Color.tempoInk.opacity(colorScheme == .dark ? 0 : 0.06),
-            radius: 4, x: 0, y: 2
-        )
         .opacity(cardState == .skipped ? 0.6 : 1.0)
+        .contentShape(.rect(cornerRadius: Tide.tileRadius))
         .onTapGesture { onTap() }
         .contextMenu { cardContextMenu }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityDescription)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(progress.isCompleted ? "" : (isExpanded ? "Hides actions" : "Shows actions"))
+        .accessibilityActions {
+            if habitStreakCount > 0 {
+                Button("How the streak works") {
+                    streakExplainer = Explainer.habitStreak.showing("\(habitStreakCount) days")
+                }
+            }
+        }
+        .explainerSheet($streakExplainer)
     }
 
     // MARK: - Header Row
 
     private var headerRow: some View {
-        HStack(spacing: TempoSpacing.md) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+
+        return layout {
             // Icon
-            Image(systemName: nn?.icon ?? "star.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(iconColor)
-                .frame(width: 28, height: 28)
+            TideAreaIconTile(systemName: nn?.icon ?? "star.fill", tint: iconColor)
 
-            // Name
-            Text(nn?.name ?? "Task")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .strikethrough(cardState == .skipped)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                HStack(spacing: Tide.s2) {
+                    // Name
+                    Text(nn?.name ?? "Task")
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .strikethrough(cardState == .skipped)
 
-            // Mini streak badge
-            if habitStreakCount > 0 {
-                HStack(spacing: 2) {
-                    Image(systemName: "flame.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.tempoAmber)
-                    Text("\(habitStreakCount)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Color.tempoAmber)
+                    // Mini streak badge
+                    if habitStreakCount > 0 {
+                        HStack(spacing: Tide.hair) {
+                            Image(systemName: "flame.fill")
+                                .font(Tide.label)
+                                .accessibilityHidden(true)
+                            Text("\(habitStreakCount)")
+                                .font(Tide.numeral(Tide.numeralS - Tide.s2, .bold))
+                        }
+                        .foregroundStyle(Tide.streak)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
+                        .explains(Explainer.habitStreak.showing("\(habitStreakCount) days"))
+                        // The tap target is 44pt; the row stays slim.
+                        .padding(.vertical, -Tide.s3)
+                    }
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.tempoAmber.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+
+                // Source badge; a finished row says how it ended instead.
+                if isFinished {
+                    Text(finishedText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    sourceBadge
+                }
             }
 
-            Spacer()
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
 
-            // Status indicator
-            statusIndicator
+            // Status indicator (a finished row keeps its one action beside the check)
+            if isFinished {
+                HStack(spacing: Tide.s2) {
+                    actionButton
+                    statusIndicator
+                }
+            } else {
+                statusIndicator
+            }
         }
+    }
+
+    /// Done and skipped rows are one line: what is open is what gets the room.
+    private var isFinished: Bool {
+        cardState == .completed || cardState == .skipped
+    }
+
+    private var finishedText: String {
+        cardState == .skipped ? "Skipped today" : supportingText
     }
 
     private var iconColor: Color {
         switch cardState {
-        case .notStarted: .tempoTextTertiary
-        case .inProgress: .tempoElectric
-        case .completed: .tempoSuccess
-        case .overdue: .tempoSignal
-        case .skipped: .tempoTextTertiary
+        case .notStarted: Tide.text3
+        case .inProgress: mood.accent
+        case .completed: TideTone.mint
+        case .overdue: Tide.danger
+        case .skipped: Tide.text3
         }
     }
 
@@ -1005,30 +786,25 @@ struct NonNegotiableCardView: View {
     private var statusIndicator: some View {
         switch cardState {
         case .notStarted:
-            Text("NOT STARTED")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Not started").tideLabel(Tide.text3)
         case .inProgress:
             Text(progressText)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.bodyStrong)
+                .monospacedDigit()
+                .foregroundStyle(Tide.text2)
         case .completed:
-            HStack(spacing: TempoSpacing.xs) {
-                Text("DONE")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoSuccess)
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Color.tempoSuccess)
-            }
+            // The "Done" section says the word; the row keeps just the tick.
+            Image(systemName: "checkmark.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(TideTone.mint)
+                .accessibilityHidden(true)
         case .overdue:
-            Text("OVERDUE")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoSignal)
+            Text("Overdue").tideLabel(Tide.danger)
         case .skipped:
-            Text("SKIPPED")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Image(systemName: "forward.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
     }
 
@@ -1059,72 +835,66 @@ struct NonNegotiableCardView: View {
     // MARK: - Progress Row
 
     private var progressRow: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            // Source badge
-            sourceBadge
-
+        HStack(spacing: Tide.s3) {
             // Progress bar
-            LinearProgressBar(
-                progress: progress.targetValue > 0
-                    ? progress.currentValue / progress.targetValue
-                    : 0,
+            TideLevelBar(
+                progress: fraction,
                 color: progressBarColor,
-                height: 6,
-                showPercentage: false
+                height: Tide.bar
             )
 
             // Percentage
-            Text("\(Int(min(1, progress.targetValue > 0 ? progress.currentValue / progress.targetValue : 0) * 100))%")
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 36, alignment: .trailing)
+            Text("\(Int(fraction * 100))%")
+                .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                .foregroundStyle(Tide.text2)
+                .frame(minWidth: Tide.s10, alignment: .trailing)
         }
     }
 
     private var progressBarColor: Color {
         let pct = progress.targetValue > 0 ? progress.currentValue / progress.targetValue : 0
         if pct >= 0.8 {
-            return .tempoSuccess
+            return TideTone.mint
         }
         if pct >= 0.5 {
-            return .tempoAmber
+            return TideTone.amber
         }
-        return .tempoElectric
+        return mood.accent
     }
 
     @ViewBuilder
     private var sourceBadge: some View {
         if let nn {
             let badgeText = switch nn.type {
-            case .train: "WHOOP"
-            case .meals: "NUTRITRACK"
-            case .study: "MANUAL"
-            case .sleep: "HEALTHKIT"
-            case .steps: "HEALTHKIT"
-            case .hydration: "MANUAL"
-            case .custom: "MANUAL"
+            case .train: "Whoop"
+            case .meals: "NutriTrack"
+            case .study: "Manual"
+            case .sleep: "HealthKit"
+            case .steps: "HealthKit"
+            case .hydration: "Manual"
+            case .custom: "Manual"
             }
 
-            Text(badgeText)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.tempoBorder)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous))
+            Text(badgeText).tideLabel(Tide.text3)
         }
     }
 
     // MARK: - Supporting Row
 
     private var supportingRow: some View {
-        HStack {
-            Text(supportingText)
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .lineLimit(1)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
 
-            Spacer()
+        return layout {
+            Text(supportingText)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
 
             // Action button
             actionButton
@@ -1198,20 +968,20 @@ struct NonNegotiableCardView: View {
             case .study:
                 if let onStartTimer {
                     if progress.isCompleted {
-                        pillButton(title: "Add More", style: .outline) { onStartTimer() }
+                        pillButton(title: "Add more", style: .outline) { onStartTimer() }
                     } else {
-                        pillButton(title: "Start Timer", style: .filled) { onStartTimer() }
+                        pillButton(title: "Start timer", style: .filled) { onStartTimer() }
                     }
                 }
             case .train:
                 if !progress.isCompleted {
-                    pillButton(title: "Log Manually", style: .filled) {
+                    pillButton(title: "Log manually", style: .filled) {
                         onComplete()
                     }
                 }
             case .meals:
                 if !progress.isCompleted {
-                    pillButton(title: "Log Meal", style: .filled) { onLogMeal() }
+                    pillButton(title: "Log meal", style: .filled) { onLogMeal() }
                 }
             case .sleep,
                  .steps:
@@ -1222,18 +992,20 @@ struct NonNegotiableCardView: View {
                     pillButton(title: "+", style: .filled) {
                         onUpdateValue(progress.currentValue + 1)
                     }
+                    .accessibilityLabel("Add one")
                 }
             case .custom:
                 switch nn.trackingMethod {
                 case .timer:
                     if let onStartTimer, !progress.isCompleted {
-                        pillButton(title: "Start Timer", style: .filled) { onStartTimer() }
+                        pillButton(title: "Start timer", style: .filled) { onStartTimer() }
                     }
                 case .manual:
                     if !progress.isCompleted {
                         pillButton(title: "+", style: .filled) {
                             onUpdateValue(progress.currentValue + 1)
                         }
+                        .accessibilityLabel("Add one")
                     }
                 case .autoWhoop,
                      .autoHealthkit:
@@ -1245,78 +1017,88 @@ struct NonNegotiableCardView: View {
 
     enum PillStyle { case filled, outline }
 
-    private func pillButton(title: String, style: PillStyle, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    private func pillButton(title: String, style requested: PillStyle, action: @escaping () -> Void) -> some View {
+        let style: PillStyle = secondaryActions ? .outline : requested
+        return Button(action: action) {
             Text(title)
-                .font(.tempoCaption1)
-                .foregroundStyle(style == .filled ? .white : Color.tempoElectric)
-                .padding(.horizontal, TempoSpacing.md)
-                .frame(height: 28)
-                .background(style == .filled ? Color.tempoElectric : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                .overlay(
-                    style == .outline
-                        ? RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-                        .stroke(Color.tempoElectric, lineWidth: 1)
-                        : nil
-                )
+                .font(Tide.bodyStrong)
+                .foregroundStyle(style == .filled ? Tide.ink : Tide.text)
+                // One line at normal sizes; at the largest text it may wrap rather than
+                // grow wider than its card.
+                .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                .fixedSize(horizontal: !typeSize.isAccessibilitySize, vertical: typeSize.isAccessibilitySize)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, Tide.s4)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .background {
+                    if style == .filled {
+                        Capsule().fill(mood.accent)
+                    }
+                }
+                .glassEffect(style == .filled ? .identity : .regular.interactive(), in: .capsule)
+                .contentShape(.capsule)
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Expanded Content
 
     private var expandedContent: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Divider()
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideDivider()
 
             // Quick actions
-            HStack(spacing: TempoSpacing.md) {
+            let actions = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+                : AnyLayout(HStackLayout(spacing: Tide.s5))
+            actions {
                 if !progress.isCompleted {
                     Button {
                         HapticManager.notification(.success)
                         onComplete()
                     } label: {
-                        Label("Mark Complete", systemImage: "checkmark.circle")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoSuccess)
+                        Label("Mark complete", systemImage: "checkmark.circle")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(TideTone.mint)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
 
                     Button {
                         HapticManager.notification(.warning)
                         onSkip()
                     } label: {
-                        Label("Skip Today", systemImage: "forward.fill")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                        Label("Skip today", systemImage: "forward.fill")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text3)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .padding(.top, TempoSpacing.sm)
     }
 
     // MARK: - Card Visual State
 
-    private var cardBackground: Color {
-        switch cardState {
-        case .completed: Color.tempoSuccess.opacity(0.05)
-        case .overdue: Color.tempoSignal.opacity(0.03)
-        default: Color.tempoSurfaceCard
+    @ViewBuilder
+    private var cardBorder: some View {
+        if let stateColor = borderColor {
+            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                .strokeBorder(stateColor.opacity(cardState == .completed ? 0.3 : 0.55), lineWidth: Tide.rule)
+                .allowsHitTesting(false)
         }
     }
 
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-            .stroke(borderColor, lineWidth: 1)
-    }
-
-    private var borderColor: Color {
+    private var borderColor: Color? {
         switch cardState {
         case .notStarted,
-             .skipped: .tempoBorder
-        case .inProgress: .tempoElectric
-        case .completed: .tempoSuccess
-        case .overdue: .tempoSignal
+             .skipped: nil
+        case .inProgress: mood.accent
+        case .completed: TideTone.mint
+        case .overdue: Tide.danger
         }
     }
 

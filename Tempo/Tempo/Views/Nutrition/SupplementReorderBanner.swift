@@ -27,6 +27,8 @@ struct SupplementReorderBanner: View {
 
     @State
     private var reorderTarget: Supplement?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     private var recentLogs: [SupplementIntakeLog] {
         let calendar = Calendar.current
@@ -58,19 +60,17 @@ struct SupplementReorderBanner: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "cart.badge.plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.tempoAmber)
-                Text("RUNNING OUT")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.Kitchen.warn)
+                    .accessibilityHidden(true)
+                Text("Running out").tideLabel()
                 Spacer()
             }
 
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 ForEach(lowItems, id: \.supplement.id) { item in
                     Button {
                         reorderTarget = item.supplement
@@ -81,14 +81,10 @@ struct SupplementReorderBanner: View {
                 }
             }
         }
-        .padding(TempoSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .fill(Color.tempoSurfaceCard)
-        )
+        .tideCard(padding: Tide.s4)
         .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoAmber.opacity(0.30), lineWidth: 1)
+            RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                .strokeBorder(Tide.Kitchen.warn.opacity(0.30), lineWidth: 1)
         )
         .sheet(item: $reorderTarget) { supplement in
             SupplementReorderSheet(supplement: supplement)
@@ -96,22 +92,29 @@ struct SupplementReorderBanner: View {
     }
 
     private func row(for supplement: Supplement, daysLeft: Int) -> some View {
-        HStack {
+        // At the accessibility sizes the tag drops under the name, so the name keeps the full width.
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
             Text(supplement.name)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Text(daysLeft <= 0 ? "out" : "\(daysLeft)d left")
-                .font(.tempoCaption2)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill((daysLeft <= 0 ? Color.tempoError : Color.tempoAmber).opacity(0.15)))
-                .foregroundStyle(daysLeft <= 0 ? Color.tempoError : Color.tempoAmber)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+            if !typeSize.isAccessibilitySize {
+                Spacer()
+            }
+            HStack(spacing: Tide.s2) {
+                KitchenTag(
+                    text: daysLeft <= 0 ? "Out" : "\(daysLeft)d left",
+                    tint: daysLeft <= 0 ? Tide.danger : Tide.Kitchen.warn
+                )
+                Image(systemName: "chevron.right")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+            }
         }
-        .contentShape(Rectangle())
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
     }
 }

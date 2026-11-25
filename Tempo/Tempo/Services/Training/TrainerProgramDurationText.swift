@@ -3,7 +3,7 @@
 // Tempo
 //
 // Cadence-aware duration text for TrainerProgramView's active card and
-// TrainerProgramHistoryView's rows: how long a `.block` runs (current week +
+// the Trainer page's past-program rows: how long a `.block` runs (current week +
 // end date, or "repeats"), or a `.weekly` program's current week + the
 // standing reminder that the next one is due Sunday. Pure/testable — no view
 // dependency.
@@ -35,7 +35,7 @@ enum TrainerProgramDurationText {
         }
     }
 
-    /// TrainerProgramHistoryView's row subtitle — dates, cadence-aware.
+    /// The Trainer page's past-program row subtitle — dates, cadence-aware.
     static func historyText(for program: TrainerProgram) -> String {
         switch program.cadence {
         case .weekly:

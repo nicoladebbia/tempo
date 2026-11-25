@@ -21,8 +21,14 @@ struct ActiveWorkoutView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
     @Environment(\.scenePhase)
     private var scenePhase
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var inputWeight: Double = 0
@@ -184,6 +190,27 @@ struct ActiveWorkoutView: View {
 
     @State
     private var prToast: PersonalRecord?
+
+    /// The few-second Undo after a set is logged or skipped. Sits under the
+    /// timer bar so Pause and Finish stay reachable.
+    @State
+    private var undoToast: ToastData?
+
+    /// What was typed into a set that Undo just reopened, shown again
+    /// instead of the defaults so it can be corrected and logged.
+    @State
+    private var restoredEntry: RestoredEntry?
+
+    struct RestoredEntry {
+        let setID: UUID
+        let weight: Double
+        let reps: Double
+        let addedLoad: Double
+        /// Set only when the two sides of a per-side set were logged
+        /// separately; `reps` is then the left side.
+        let rightReps: Double?
+    }
+
     @State
     private var showNotes = false
 
@@ -201,75 +228,94 @@ struct ActiveWorkoutView: View {
     }
 
     private func prToastView(_ pr: PersonalRecord) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "trophy.fill")
-                .foregroundStyle(Color.tempoPRGold)
+                .foregroundStyle(TideTrain.record)
             VStack(alignment: .leading, spacing: 0) {
-                Text("NEW PR")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoPRGold)
+                Text("New PR")
+                    .font(Tide.headline)
+                    .foregroundStyle(TideTrain.record)
                 // §15 fix — the weight shown here comes from `pr.value`
                 // converted to the user's unit (PRDisplay), never from the
                 // engine's kg-only, unit-unaware `context` string.
                 Text("\(pr.exercise?.name ?? "Exercise") · \(PRDisplay.valueLabel(pr, unit: weightUnit))")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text)
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s2)
+        .background(Tide.fill)
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.tempoPRGold.opacity(0.6), lineWidth: 1))
+        .overlay(
+            Capsule().strokeBorder(
+                TideTrain.record.opacity(TideTrainSession.outlineOpacity),
+                lineWidth: TideTrainSession.rule
+            )
+        )
         .accessibilityElement(children: .combine)
     }
 
-    var body: some View {
-        ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
+    /// The page for the current phase of the session.
+    @ViewBuilder
+    private var phaseContent: some View {
+        switch viewModel.sessionState {
+        case .warmup:
+            warmupContent
 
-            VStack(spacing: 0) {
-                // Timer bar
-                timerBar
+        case .exercise(.setActive):
+            // The tip waits for the first set: warm-up has no Finish Set to point at.
+            setActiveContent
+                .firstTip(
+                    "train.logger",
+                    "Check the weight and reps, tap the yellow button to log the set, and Tempo times your rest, with Undo for a few seconds if you slip.",
+                    systemImage: "checkmark.circle"
+                )
 
-                // Content based on state
-                switch viewModel.sessionState {
-                case .warmup:
-                    warmupContent
+        case .exercise(.resting):
+            RestTimerView(viewModel: viewModel)
 
-                case .exercise(.setActive):
-                    setActiveContent
+        case let .exercise(.betweenExercises(_, toIndex)):
+            exerciseTransition(toIndex: toIndex)
 
-                case .exercise(.resting):
-                    RestTimerView(viewModel: viewModel)
+        case .paused:
+            pausedOverlay
 
-                case let .exercise(.betweenExercises(_, toIndex)):
-                    exerciseTransition(toIndex: toIndex)
+        case .interruptedCall:
+            interruptedCallOverlay
 
-                case .paused:
-                    pausedOverlay
+        case .crashedRecovery:
+            crashRecoveryContent
 
-                case .interruptedCall:
-                    interruptedCallOverlay
-
-                case .crashedRecovery:
-                    crashRecoveryContent
-
-                default:
-                    // Transient states (cooldown/summary/saved/discarded/idle):
-                    // the cover is being dismissed — show the app background, not
-                    // a blank "broken"-looking view, during the teardown frame.
-                    Color.tempoBgPrimary
-                }
-            }
+        default:
+            // Transient states (cooldown/summary/saved/discarded/idle):
+            // the cover is being dismissed — keep the page, not a blank
+            // "broken"-looking view, during the teardown frame.
+            Color.clear
         }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Timer bar
+            timerBar
+
+            // Content based on state
+            phaseContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .tempoToast($undoToast)
+        }
+        // Set → rest → next set cross-fades instead of cutting.
+        .animation(reduceMotion ? nil : Tide.snap, value: phaseKey)
+        // The cover is opened from inside a page: draw its own field.
+        .trainSheetRoot(energy: 0.8)
         // §12 — the PR moment lands on the set that earned it, not later on
         // the summary. logSet appends to detectedPRs when one fires.
         .overlay(alignment: .top) {
             if let pr = prToast {
                 prToastView(pr)
                     .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.top, TempoSpacing.xxl)
+                    .padding(.top, Tide.s6)
             }
         }
         .onChange(of: viewModel.detectedPRs.count) { old, new in
@@ -277,11 +323,11 @@ struct ActiveWorkoutView: View {
                 return
             }
             HapticManager.success()
-            withAnimation(.spring(duration: 0.35)) { prToast = pr }
+            withAnimation(Tide.lively) { prToast = pr }
             Task {
                 try? await Task.sleep(for: .seconds(2.5))
                 if prToast?.id == pr.id {
-                    withAnimation(.easeOut(duration: 0.25)) { prToast = nil }
+                    withAnimation(Tide.snap) { prToast = nil }
                 }
             }
         }
@@ -289,9 +335,9 @@ struct ActiveWorkoutView: View {
             if let plan = viewModel.todayPlan {
                 NavigationStack {
                     SessionNotesField(plan: plan)
-                        .padding(TempoSpacing.screenEdge)
+                        .padding(Tide.edge)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .background(Color.tempoBgPrimary)
+                        .trainSheetRoot()
                         .toolbar {
                             ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
@@ -329,17 +375,18 @@ struct ActiveWorkoutView: View {
                     viewModel.pause()
                 } label: {
                     Image(systemName: "pause.fill")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
+                .accessibilityLabel("Pause workout")
             }
             ToolbarItem(placement: .topBarLeading) {
                 Button {
                     showNotes = true
                 } label: {
                     Image(systemName: viewModel.todayPlan?.userNotes == nil ? "note.text.badge.plus" : "note.text")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
                 .accessibilityLabel("Session notes")
             }
@@ -356,8 +403,10 @@ struct ActiveWorkoutView: View {
                         showFinishConfirmation = true
                     } label: {
                         Text("Finish")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.headline)
+                            // The toolbar sits outside the sheet root's mood,
+                            // so it reads the day's accent itself.
+                            .foregroundStyle(TideMood(score: services.appState.dayScore).accent)
                     }
                 }
             }
@@ -366,7 +415,11 @@ struct ActiveWorkoutView: View {
             "Log this set?",
             isPresented: Binding(
                 get: { setPlausibilityWarning != nil },
-                set: { if !$0 { setPlausibilityWarning = nil } }
+                set: {
+                    if !$0 {
+                        setPlausibilityWarning = nil
+                    }
+                }
             )
         ) {
             Button("Log it") {
@@ -386,7 +439,7 @@ struct ActiveWorkoutView: View {
                 // Discard rolls back + resets; TrainingTabView observes
                 // .discarded and dismisses the cover (don't dismiss here too,
                 // which raced the reset and left a blank screen).
-                viewModel.discardActiveWorkout(modelContext: modelContext)
+                viewModel.discardActiveWorkoutCapturingUndo(modelContext: modelContext)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -435,166 +488,182 @@ struct ActiveWorkoutView: View {
     // MARK: - Timer Bar
 
     private var timerBar: some View {
-        HStack {
-            // Elapsed time
-            Text(viewModel.formattedElapsedTime)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .monospacedDigit()
+        TrainSessionBar(
+            elapsed: viewModel.formattedElapsedTime,
+            done: viewModel.completedSets,
+            total: viewModel.totalSets,
+            volume: viewModel.formattedVolume
+        )
+    }
 
-            Spacer()
-
-            // Progress
-            Text("\(viewModel.completedSets)/\(viewModel.totalSets) sets")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Spacer()
-
-            // Volume
-            Text(viewModel.formattedVolume)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+    /// Which screen the session is on: a change cross-fades the page.
+    private var phaseKey: Int {
+        switch viewModel.sessionState {
+        case .warmup: 0
+        case .exercise(.setActive): 1
+        case .exercise(.resting): 2
+        case .exercise(.betweenExercises): 3
+        case .paused: 4
+        case .interruptedCall: 5
+        case .crashedRecovery: 6
+        default: 7
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
     }
 
     // MARK: - Set Active Content
 
     // Per MODULE_TRAINING.md Section 3 — Weight/reps inputs, DONE button
 
-    /// §11.7 rework — a single-screen cockpit: compact header, one-line alert
-    /// chips, LAST/TARGET/BEST context from real history, steppers, dots, and
-    /// a Skip+Finish action row. No ScrollView: everything fits one page.
+    /// The logger: what you are lifting, then the current set as one hero card
+    /// (weight and reps side by side, the numbers you compare them with in its
+    /// footer), then what is next. Finish Set sits at the bottom, under the thumb.
     private var setActiveContent: some View {
-        VStack(spacing: TempoSpacing.md) {
-            exerciseHeader
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Tide.s4) {
+                exerciseHeader
 
-            alertChips
+                alertChips
 
-            contextStrip
-
-            if isBodyweightLift {
                 // §15 fix — no bodyweight on file yet: prompt for it inline,
                 // once, right here (not a separate screen), so the FIRST
                 // bodyweight-lift log of the session never has to fall back
                 // to 0 kg. Persisted to UserProfile.weightKg on Finish Set —
                 // see `persistBodyweightIfNeeded()`.
-                if bodyweightKg <= 0 {
-                    VStack(spacing: TempoSpacing.sm) {
-                        Text("YOUR BODYWEIGHT — needed to log this lift")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        NumberStepperView(
-                            value: $bodyweightPromptDisplayValue,
-                            range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
-                            step: weightStep,
-                            format: weightUnit == .kg ? "%.1f" : "%.0f",
-                            unit: weightUnit.abbreviation,
-                            onTapValue: { activeEntryField = .bodyweight }
-                        )
-                        Text("Saved to your profile — used for pull-ups, dips, and similar lifts.")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
-                // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
-                // load — negative = assistance (band/machine), positive =
-                // weight belt/vest. Effective load = bodyweight ± this.
-                VStack(spacing: TempoSpacing.sm) {
-                    Text("ADDED LOAD — − assisted / + weighted")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    NumberStepperView(
-                        value: $inputAddedLoad,
-                        range: -weightRangeMax ... weightRangeMax,
-                        step: weightStep,
-                        format: weightUnit == .kg ? "%+.1f" : "%+.0f",
-                        unit: weightUnit.abbreviation,
-                        onTapValue: { activeEntryField = .addedLoad }
-                    )
-                    Text(bodyweightEffectiveHint)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-            } else {
-                // Weight input — the logged number is TOTAL load including the
-                // bar. For bar-loaded lifts we show a per-side plate hint so
-                // there's no ambiguity about what to actually put on.
-                VStack(spacing: TempoSpacing.sm) {
-                    if currentSetIsCalibration {
-                        // §5 — no pre-filled weight; the athlete picks one.
-                        Text(calibrationPromptText)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoAmber)
-                            .multilineTextAlignment(.center)
-                    } else {
-                        Text(currentEquipment.isBarLoaded ? "WEIGHT — total incl. bar" : "WEIGHT")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                    NumberStepperView(
-                        value: $inputWeight,
-                        range: weightRangeMin ... weightRangeMax,
+                if isBodyweightLift, bodyweightKg <= 0 {
+                    TrainStepper(
+                        value: $bodyweightPromptDisplayValue,
+                        label: "Your bodyweight",
+                        range: WeightUnit.kg.convert(30, to: weightUnit) ... WeightUnit.kg.convert(300, to: weightUnit),
                         step: weightStep,
                         format: weightUnit == .kg ? "%.1f" : "%.0f",
                         unit: weightUnit.abbreviation,
-                        onTapValue: { activeEntryField = .weight }
+                        caption: "Needed to log this lift. Saved to your profile for pull-ups, dips and similar lifts.",
+                        onTapValue: { activeEntryField = .bodyweight }
                     )
-                    if let hint = perSideHint {
-                        Text(hint)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                    .tideCard(padding: Tide.s4)
                 }
-            }
 
-            // Reps input
-            VStack(spacing: TempoSpacing.sm) {
-                Text(isPerSideExercise ? "REPS — LEFT" : "REPS")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                NumberStepperView(
-                    value: $inputReps,
-                    range: 1 ... 100,
-                    step: 1,
-                    format: "%.0f",
-                    unit: isPerSideExercise ? "reps / side" : "reps",
-                    onTapValue: { activeEntryField = .reps }
-                )
+                setCard
+
                 // Fix #9 — optional L/R split (e.g. L 8 / R 7).
                 if isPerSideExercise, !currentSetIsWarmup {
                     PerSideRepsControl(left: $inputReps, right: $inputRepsRight, splitEnabled: $logRepsSeparately)
                 }
-                // §11.12 — the effort target that makes the weight make
-                // sense: the load is computed FOR this rep count at this
-                // proximity to failure.
-                if !currentSetIsWarmup, let rir = viewModel.currentSet?.targetRIR {
-                    Text(rir == 0
-                        ? "All out — nothing left in the tank"
-                        : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoAmber)
+
+                // Form guide for this lift: one collapsed row under the set
+                // card, so it is never between you and logging. Lifts the
+                // guide does not cover show nothing.
+                if let exercise = viewModel.currentExercise?.exercise,
+                   let technique = ExerciseTechniqueLibrary.technique(for: exercise)
+                {
+                    WorkoutFormRow(technique: technique)
+                        .id(exercise.id)
                 }
+
+                // RPE is collected end-of-set in the inline feedback panel
+                // (under the rest timer), not here — one prompt, not two.
+
+                upNextLine
             }
-
-            // RPE is collected end-of-set in the inline feedback panel
-            // (under the rest timer), not here — one prompt, not two.
-
-            dropSetControl
-
-            Spacer(minLength: 0)
-
-            setProgress
-
-            upNextLine
-
-            actionRow
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.md)
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            actionRow
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s3)
+        }
+    }
+
+    /// The current set: weight and reps as one card.
+    private var setCard: some View {
+        let hasHints = loadHint != nil || effortCaption != nil
+        return TrainSessionSetCard(showsHints: hasHints) {
+            if isBodyweightLift {
+                // Bodyweight-loaded lift (pull-up/dip): log a SIGNED added
+                // load — negative = assistance (band/machine), positive =
+                // weight belt/vest. Effective load = bodyweight ± this.
+                TrainSessionField(
+                    value: $inputAddedLoad,
+                    label: "Added load",
+                    range: -weightRangeMax ... weightRangeMax,
+                    step: weightStep,
+                    format: weightUnit == .kg ? "%+.1f" : "%+.0f",
+                    unit: weightUnit.abbreviation,
+                    reserveLabel: true,
+                    onTapValue: { activeEntryField = .addedLoad }
+                )
+            } else {
+                // Weight input — the logged number is TOTAL load including the
+                // bar. For bar-loaded lifts we show a per-side plate hint so
+                // there's no ambiguity about what to actually put on.
+                TrainSessionField(
+                    value: $inputWeight,
+                    label: currentEquipment.isBarLoaded ? "Weight, total with bar" : "Weight",
+                    range: weightRangeMin ... weightRangeMax,
+                    step: weightStep,
+                    format: weightUnit == .kg ? "%.1f" : "%.0f",
+                    unit: weightUnit.abbreviation,
+                    reserveLabel: true,
+                    onTapValue: { activeEntryField = .weight }
+                )
+            }
+        } secondary: {
+            TrainSessionField(
+                value: $inputReps,
+                label: isPerSideExercise ? "REPS — LEFT" : "Reps",
+                range: 1 ... 100,
+                step: 1,
+                format: "%.0f",
+                unit: isPerSideExercise ? "reps / side" : "reps",
+                reserveLabel: true,
+                onTapValue: { activeEntryField = .reps }
+            )
+        } hints: {
+            if let loadHint {
+                Text(loadHint.text)
+                    .font(Tide.caption)
+                    .foregroundStyle(loadHint.color)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // §11.12 — the effort target that makes the weight make
+            // sense: the load is computed FOR this rep count at this
+            // proximity to failure.
+            if let effortCaption {
+                Text(effortCaption)
+                    .font(Tide.caption)
+                    .foregroundStyle(TideTrain.caution)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .explains(TrainExplainers.rir)
+            }
+        } footer: {
+            contextStrip
+        }
+    }
+
+    /// The line under the weight: the plates to load, the calibration prompt,
+    /// or what a bodyweight set adds up to.
+    private var loadHint: (text: String, color: Color)? {
+        if isBodyweightLift {
+            return ("Minus is assisted, plus is weighted. \(bodyweightEffectiveHint)", Tide.text2)
+        }
+        if currentSetIsCalibration {
+            return (calibrationPromptText, TideTrain.caution)
+        }
+        return perSideHint.map { ($0, Tide.text2) }
+    }
+
+    /// "Leave 2 reps in the tank" — nil on ramp sets and when there is no target.
+    private var effortCaption: String? {
+        guard !currentSetIsWarmup, let rir = viewModel.currentSet?.targetRIR else {
+            return nil
+        }
+        return rir == 0
+            ? "All out — nothing left in the tank"
+            : "Effort: leave \(rir) rep\(rir == 1 ? "" : "s") in the tank"
     }
 
     /// One-line condition chips (ramp / pain / superset / drop) — the old
@@ -608,49 +677,56 @@ struct ActiveWorkoutView: View {
         if currentSetIsWarmup || currentSetIsCalibration || painFlagged
             || viewModel.currentSupersetPartnerName != nil || dropIndex != nil
         {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: TempoSpacing.xs) {
-                    if currentSetIsWarmup {
-                        // §13 — a trainer day's ramp is one Tempo added.
-                        let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
-                        chip(
-                            "flame",
-                            isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
-                            Color.tempoSignal
-                        )
-                    }
-                    if currentSetIsCalibration {
-                        chip("ruler", "CALIBRATION SET", Color.tempoAmber)
-                    }
-                    if painFlagged {
-                        chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", Color.tempoWarning)
-                    }
-                    if let partner = viewModel.currentSupersetPartnerName {
-                        let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
-                        chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.tempoSignal)
-                    }
-                    // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
-                    if let dropIndex {
-                        chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", Color.tempoAmber)
+            // A big text size stacks the tags so each can wrap; otherwise a row that scrolls.
+            if typeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    alertChipItems
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Tide.s1) {
+                        alertChipItems
                     }
                 }
             }
         }
     }
 
-    private func chip(_ icon: String, _ text: String, _ color: Color) -> some View {
-        HStack(spacing: TempoSpacing.xxs) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-            Text(text)
-                .font(.tempoCaption2)
-                .lineLimit(1)
+    @ViewBuilder
+    private var alertChipItems: some View {
+        let exerciseID: UUID? = viewModel.currentExercise?.exercise?.id
+        let painFlagged = exerciseID.map { viewModel.painFlaggedExercises.contains($0) } ?? false
+        let dropIndex = viewModel.currentSet?.dropStepIndex
+        if currentSetIsWarmup {
+            // §13 — a trainer day's ramp is one Tempo added.
+            let isTrainerDay = viewModel.currentExercise?.workoutPlan?.programSessionKey != nil
+            chip(
+                "flame",
+                isTrainerDay ? "TEMPO WARM-UP — doesn't count" : "RAMP-UP — doesn't count",
+                Color.accentColor
+            )
+            .explains(TrainExplainers.rampUp)
         }
-        .foregroundStyle(color)
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, 6)
-        .background(color.opacity(0.12))
-        .clipShape(Capsule())
+        if currentSetIsCalibration {
+            chip("ruler", "CALIBRATION SET", TideTrain.caution)
+                .explains(TrainExplainers.calibration)
+        }
+        if painFlagged {
+            chip("exclamationmark.triangle.fill", "Pain flagged — weight held, go easy", TideTrain.caution)
+        }
+        if let partner = viewModel.currentSupersetPartnerName {
+            let label = viewModel.currentGroupIsCircuit ? "Circuit" : "Superset"
+            chip("arrow.triangle.2.circlepath", "\(label): \(partner)", Color.accentColor)
+        }
+        // §6.4/§7.7 — a drop step: no rest, reduced weight, to failure.
+        if let dropIndex {
+            chip("arrow.down.circle.fill", "DROP \(dropIndex) — no rest, to failure", TideTrain.caution)
+                .explains(TrainExplainers.dropSet)
+        }
+    }
+
+    private func chip(_ icon: String, _ text: String, _ color: Color) -> some View {
+        TrainTag(text: text, systemImage: icon, color: color, wraps: typeSize.isAccessibilitySize)
     }
 
     // MARK: - Context Strip (§11.7 — the "more data")
@@ -691,7 +767,7 @@ struct ActiveWorkoutView: View {
         // No external load: 0 is "just bodyweight" on a bodyweight lift, and
         // "no weight prescribed yet" on a loaded one — never "0 × 10".
         if w <= 0 {
-            return isBodyweightLift ? "BW × \(reps)" : "\(reps) reps"
+            return isBodyweightLift ? "BW × \(reps)" : "\(reps) \(TrainCount.noun(set.targetReps, "rep"))"
         }
         return "\(displayWeight(w)) × \(reps)"
     }
@@ -712,6 +788,7 @@ struct ActiveWorkoutView: View {
     }
 
     private func commitCurrentSet() {
+        var undo: TrainingViewModel.LoggedSetUndo?
         // Inputs are in the user's display unit; persist kg. For a
         // bodyweight lift the logged weight is the EFFECTIVE load
         // (bodyweight ± added) and we also record the signed added load.
@@ -720,7 +797,7 @@ struct ActiveWorkoutView: View {
             // logging, so this and every later bodyweight lift this
             // session (and beyond) reads a real weight, not 0.
             persistBodyweightIfNeeded()
-            viewModel.logSet(
+            undo = viewModel.logSetCapturingUndo(
                 weight: bodyweightEffectiveKg,
                 reps: Int(inputReps),
                 addedLoadKg: weightUnit.convert(inputAddedLoad, to: .kg),
@@ -730,7 +807,7 @@ struct ActiveWorkoutView: View {
             )
         } else {
             let weightKg = weightUnit.convert(inputWeight, to: .kg)
-            viewModel.logSet(
+            undo = viewModel.logSetCapturingUndo(
                 weight: weightKg,
                 reps: Int(inputReps),
                 leftReps: splitLeftReps,
@@ -738,7 +815,66 @@ struct ActiveWorkoutView: View {
                 modelContext: modelContext
             )
         }
-        HapticManager.notification(.success)
+        if let undo {
+            // The toast brings its own success haptic.
+            offerUndo(undo)
+        } else {
+            // This log cannot be undone: an older Undo must not stay up.
+            undoToast = nil
+            HapticManager.notification(.success)
+        }
+    }
+
+    /// Few-second Undo after a set is logged. Brings the set back open with
+    /// the numbers that were typed, so a slip is a one-tap fix.
+    private func offerUndo(_ undo: TrainingViewModel.LoggedSetUndo) {
+        // Short on purpose: the exercise is already on screen, and a long
+        // toast takes over the page at large text sizes.
+        // A bodyweight lift shows its added load ("BW + 10 kg"), not the
+        // effective total, as everywhere else.
+        let load = undo.addedLoadKg == nil
+            ? WeightFormat.text(kg: undo.weightKg, unit: weightUnit)
+            : WeightFormat.bodyweightLoad(addedKg: undo.addedLoadKg, unit: weightUnit)
+        let reps = if let left = undo.leftReps, let right = undo.rightReps {
+            "\(left)/\(right)"
+        } else {
+            "\(undo.reps)"
+        }
+        let message = "Logged \(load) x \(reps)"
+        undoToast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+            let typed = RestoredEntry(
+                setID: undo.setID,
+                weight: WeightUnit.kg.convert(undo.weightKg, to: weightUnit),
+                reps: Double(undo.leftReps ?? undo.reps),
+                addedLoad: WeightUnit.kg.convert(undo.addedLoadKg ?? 0, to: weightUnit),
+                rightReps: undo.rightReps.map(Double.init)
+            )
+            restoredEntry = typed
+            guard viewModel.undoLoggedSet(undo, modelContext: modelContext) else {
+                restoredEntry = nil
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
+                return
+            }
+            loadCurrentSetInputs()
+        }
+    }
+
+    /// Few-second Undo after a set or a warm-up ramp is skipped.
+    private func offerUndo(_ undo: TrainingViewModel.SkippedSetsUndo) {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+            if !viewModel.undoSkippedSets(undo, modelContext: modelContext) {
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
+            }
+        }
+    }
+
+    /// Few-second Undo after the "−" button takes a set out.
+    private func offerUndo(_ undo: TrainingViewModel.RemovedSetUndo) {
+        undoToast = ToastData(message: undo.message, style: .info, actionTitle: "Undo") {
+            if !viewModel.undoRemovedSet(undo, modelContext: modelContext) {
+                undoToast = ToastData(message: "Can't undo that now", style: .info)
+            }
+        }
     }
 
     /// All-time best estimated 1RM for this lift.
@@ -755,31 +891,11 @@ struct ActiveWorkoutView: View {
     /// LAST / TARGET / BEST — the numbers a lifter actually wants mid-set:
     /// what you did last time, what today asks, what your ceiling is.
     private var contextStrip: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            statCell("LAST", lastSessionStat ?? "—")
-            statCell("TARGET", targetStat ?? "—", highlight: true)
-            statCell("BEST e1RM", bestE1RMStat ?? "—")
-        }
-    }
-
-    private func statCell(_ label: String, _ value: String, highlight: Bool = false) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text(value)
-                .font(.tempoSubheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(highlight ? Color.tempoAccent : Color.tempoTextPrimary)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .contentTransition(.numericText())
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.sm)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        TrainSessionContext(cells: [
+            .init(label: "Last", value: lastSessionStat ?? "—"),
+            .init(label: "Target", value: targetStat ?? "—", highlight: true, explainer: TrainExplainers.target),
+            .init(label: "Best e1RM", value: bestE1RMStat ?? "—", explainer: TrainExplainers.bestE1RM),
+        ])
     }
 
     // MARK: - Drop Set Control (§6.4 / §6.5)
@@ -809,8 +925,10 @@ struct ActiveWorkoutView: View {
                     viewModel.currentSetHasPendingDrop ? "Remove Drop" : "+ Drop Set",
                     systemImage: viewModel.currentSetHasPendingDrop ? "minus.circle" : "arrow.down.circle"
                 )
-                .font(.tempoCaption1)
-                .foregroundStyle(viewModel.currentSetHasPendingDrop ? Color.tempoTextTertiary : Color.tempoAmber)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(viewModel.currentSetHasPendingDrop ? Tide.text2 : TideTrain.caution)
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
         }
@@ -820,39 +938,43 @@ struct ActiveWorkoutView: View {
 
     /// Skip + Finish side by side — skip always visible, never the hero.
     private var actionRow: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            // §2.16 — skip without logging. On a warmup set one tap drops the
-            // whole remaining ramp; on a working set it skips just this set.
-            Button {
-                if currentSetIsWarmup {
-                    viewModel.skipRemainingWarmups(modelContext: modelContext)
-                } else {
-                    viewModel.skipCurrentSet(modelContext: modelContext)
+        GlassEffectContainer(spacing: Tide.s3) {
+            // Large text: the two buttons stack, Finish Set last (lowest, under the thumb).
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
+            layout {
+                // §2.16 — skip without logging. On a warmup set one tap drops the
+                // whole remaining ramp; on a working set it skips just this set.
+                Button {
+                    let undo = if currentSetIsWarmup {
+                        viewModel.skipRemainingWarmupsCapturingUndo(modelContext: modelContext)
+                    } else {
+                        viewModel.skipCurrentSetCapturingUndo(modelContext: modelContext)
+                    }
+                    if let undo {
+                        offerUndo(undo)
+                    } else {
+                        undoToast = nil
+                    }
+                } label: {
+                    Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
+                        .frame(minHeight: TideTrain.bigButton - Tide.s2)
                 }
-            } label: {
-                Text(currentSetIsWarmup ? "Skip Ramp" : "Skip")
-                    .font(.tempoSubheadline)
-                    .frame(width: 104)
-                    .frame(height: 56)
-                    .background(Color.tempoBgSecondary)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-            }
+                .buttonStyle(.tideGlass)
 
-            Button {
-                if let warning = pendingSetWarning {
-                    setPlausibilityWarning = warning
-                    return
+                Button {
+                    if let warning = pendingSetWarning {
+                        setPlausibilityWarning = warning
+                        return
+                    }
+                    commitCurrentSet()
+                } label: {
+                    Text(finishButtonLabel)
+                        .frame(minHeight: TideTrain.bigButton - Tide.s2)
                 }
-                commitCurrentSet()
-            } label: {
-                Text(finishButtonLabel)
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                .buttonStyle(.tidePrimary)
+                .sensoryFeedback(.success, trigger: viewModel.completedSets)
             }
         }
     }
@@ -913,74 +1035,87 @@ struct ActiveWorkoutView: View {
         let routine = viewModel.warmupRoutine
         let total = routine?.moves.count ?? 0
         let isTimed = (move.durationSeconds ?? 0) > 0
+        let left = viewModel.warmupMoveRemaining
+        let fraction = isTimed ? min(max(left / Double(move.durationSeconds ?? 1), 0), 1) : 0
 
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("WARM-UP · MOVE \(viewModel.warmupMoveIndex + 1) OF \(total)")
-                        .font(.tempoCaption2)
-                        .tracking(TempoTracking.drillLabel)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Warm-up · move \(viewModel.warmupMoveIndex + 1) of \(total)").tideLabel()
+                    TrainSessionDots(count: total, current: viewModel.warmupMoveIndex)
                     Text(move.name)
-                        .font(.tempoTitle1)
-                        .foregroundStyle(move.isTendonPrep ? Color.tempoSignal : Color.tempoTextPrimary)
+                        .font(Tide.title)
+                        .foregroundStyle(move.isTendonPrep ? Color.accentColor : Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(move.dose)
-                        .font(.tempoHeadline)
-                        .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(TideTrain.figure(.headline))
+                        .foregroundStyle(Tide.text2)
                 }
 
                 if isTimed {
-                    Text(warmupCountdownLabel)
-                        .font(.tempoDataLarge)
-                        .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .frame(maxWidth: .infinity, alignment: .center)
+                    TrainRing(progress: fraction, diameter: TideTrainSession.restRingCompact) {
+                        Text(warmupCountdownLabel)
+                            .trainNumeral(TideTrainSession.ringClock)
+                            .foregroundStyle(Tide.text)
+                            .contentTransition(.numericText(countsDown: true))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .animation(.linear(duration: 1), value: fraction)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Time left")
+                    .accessibilityValue(warmupCountdownLabel)
                 }
 
-                Text(move.howTo)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text(move.howTo)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                if let cue = move.cue {
-                    HStack(alignment: .top, spacing: TempoSpacing.xs) {
-                        Image(systemName: "lightbulb.fill")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoSignal)
-                        Text(cue)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if let cue = move.cue {
+                        TrainSessionRule()
+                        HStack(alignment: .top, spacing: Tide.s2) {
+                            Image(systemName: "lightbulb.fill")
+                                .font(Tide.caption)
+                                .foregroundStyle(TideTrain.caution)
+                                .accessibilityHidden(true)
+                            Text(cue)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            VStack(spacing: Tide.s2) {
                 Button {
                     viewModel.skipWarmupMove()
                     HapticManager.notification(.success)
                 } label: {
                     Text(isTimed ? "Skip →" : "Done — Next →")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
                 }
+                .buttonStyle(.tidePrimary)
 
                 Button {
                     viewModel.advancePastWarmup()
                     HapticManager.selection()
                 } label: {
                     Text("Skip whole warm-up")
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .frame(maxWidth: .infinity)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.xl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 
@@ -995,60 +1130,55 @@ struct ActiveWorkoutView: View {
         let warmupSets = (firstExercise?.orderedSets ?? []).filter(\.isWarmup)
 
         return ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("WARM-UP DONE")
-                        .font(.tempoCaption1)
-                        .tracking(TempoTracking.drillLabel)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text("Warm-up done").tideLabel()
                     Text("Ramp up: \(firstExercise?.exercise?.name ?? "")")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, TempoSpacing.lg)
-                .padding(.horizontal, TempoSpacing.screenEdge)
 
                 if !warmupSets.isEmpty {
-                    VStack(spacing: TempoSpacing.sm) {
+                    VStack(spacing: Tide.s3) {
                         ForEach(Array(warmupSets.enumerated()), id: \.element.id) { index, set in
-                            HStack {
-                                Text("Ramp set \(index + 1)")
-                                    .font(.tempoHeadline)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                                Spacer()
-                                Text(warmupTargetLabel(set))
-                                    .font(.tempoHeadline)
-                                    .monospacedDigit()
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                            if index > 0 {
+                                TrainSessionRule()
                             }
-                            .padding(TempoSpacing.cardPadding)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                            HStack(alignment: .firstTextBaseline) {
+                                Text("Ramp set \(index + 1)")
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.text2)
+                                Spacer(minLength: Tide.s2)
+                                Text(warmupTargetLabel(set))
+                                    .font(TideTrain.figure(.title3))
+                                    .foregroundStyle(Tide.text)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            .accessibilityElement(children: .combine)
                         }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 } else {
                     Text("No ramp sets for this exercise — go straight to your working sets.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.horizontal, TempoSpacing.screenEdge)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                 }
-
-                Button {
-                    viewModel.advancePastWarmup()
-                    HapticManager.notification(.success)
-                } label: {
-                    Text("Start Working Sets")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-                .padding(.horizontal, TempoSpacing.screenEdge)
             }
-            .padding(.vertical, TempoSpacing.lg)
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s4)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            Button {
+                viewModel.advancePastWarmup()
+                HapticManager.notification(.success)
+            } label: {
+                Text("Start Working Sets")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 
@@ -1062,84 +1192,35 @@ struct ActiveWorkoutView: View {
 
     // MARK: - Exercise Header
 
-    /// §11.13 rework — the demo picture is the hero again: full-width 150pt
-    /// card, name + muscle/set line on a bottom gradient, session ring
-    /// top-right, and a "How to" button opening the full exercise detail
-    /// (instructions + cues) without spending page height on them.
+    /// What you are lifting: the demo picture, the name, where you are in it, and
+    /// the "How to" and "This hurts" buttons. The set strip sits right under it:
+    /// it is the progress of this exercise.
     private var exerciseHeader: some View {
         Group {
             if let exercise = viewModel.currentExercise?.exercise {
-                ExerciseImageView(exercise: exercise, style: .hero)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 150)
-                    .background(Color.tempoSurfaceCard)
-                    .overlay(
-                        LinearGradient(
-                            colors: [.clear, .clear, Color.black.opacity(0.8)],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .overlay(alignment: .bottomLeading) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            // trainer-feedback-tests — this session's a
-                            // trainer-flagged 1RM/3RM/5RM/time-trial test.
-                            if viewModel.currentExercise?.isTestExercise == true {
-                                Text("TEST — WORK UP TO A MAX")
-                                    .font(.tempoCaption2.weight(.bold))
-                                    .foregroundStyle(Color.tempoSignal)
-                                    .padding(.horizontal, TempoSpacing.sm)
-                                    .padding(.vertical, 2)
-                                    .background(Color.white.opacity(0.9))
-                                    .clipShape(Capsule())
-                            }
-                            Text(exercise.name.uppercased())
-                                .font(.tempoTitle3)
-                                .foregroundStyle(.white)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.75)
-                            Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(.white.opacity(0.85))
-                                .contentTransition(.numericText())
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    if typeSize.isAccessibilitySize {
+                        // Large text: picture and buttons on one row, the name
+                        // gets the full width under them.
+                        HStack(spacing: Tide.s3) {
+                            headerPicture(exercise)
+                            Spacer(minLength: 0)
+                            headerButtons
                         }
-                        .padding(TempoSpacing.md)
-                    }
-                    .overlay(alignment: .topTrailing) {
-                        sessionRing
-                            .padding(TempoSpacing.sm)
-                    }
-                    .overlay(alignment: .topLeading) {
-                        Button {
-                            showHowTo = true
-                        } label: {
-                            Label("How to", systemImage: "info.circle.fill")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, TempoSpacing.sm)
-                                .padding(.vertical, 6)
-                                .background(Color.black.opacity(0.45))
-                                .clipShape(Capsule())
+                        headerTitle(exercise)
+                    } else {
+                        HStack(alignment: .center, spacing: Tide.s3) {
+                            headerPicture(exercise)
+                            headerTitle(exercise)
+                            Spacer(minLength: 0)
+                            headerButtons
                         }
-                        .padding(TempoSpacing.sm)
                     }
-                    // "This hurts" flow — see PainReportSheet.swift.
-                    .overlay(alignment: .bottomTrailing) {
-                        Button {
-                            showPainReport = true
-                        } label: {
-                            Label("This hurts", systemImage: "bandage.fill")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, TempoSpacing.sm)
-                                .padding(.vertical, 6)
-                                .background(Color.tempoError.opacity(0.55))
-                                .clipShape(Capsule())
-                        }
-                        .padding(TempoSpacing.sm)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    setProgress
+                }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         // Slide-in on exercise change — .id remounts the header so the
         // asymmetric transition fires exactly once per movement.
         .id(viewModel.currentExerciseIndex)
@@ -1147,23 +1228,76 @@ struct ActiveWorkoutView: View {
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .leading).combined(with: .opacity)
         ))
-        .animation(.spring(duration: 0.45), value: viewModel.currentExerciseIndex)
+        .animation(Tide.lively, value: viewModel.currentExerciseIndex)
+    }
+
+    private func headerPicture(_ exercise: Exercise) -> some View {
+        ExerciseImageView(exercise: exercise, style: .hero)
+            .frame(width: TideTrain.thumb, height: TideTrain.thumb)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private func headerTitle(_ exercise: Exercise) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            // trainer-feedback-tests — this session's a
+            // trainer-flagged 1RM/3RM/5RM/time-trial test.
+            if viewModel.currentExercise?.isTestExercise == true {
+                Text("TEST — WORK UP TO A MAX")
+                    .font(Tide.label)
+                    .foregroundStyle(Color.accentColor)
+            }
+            Text(exercise.name)
+                .accessibilityLabel(exercise.name.uppercased())
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                .minimumScaleFactor(Tide.labelShrink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("\(exercise.muscleGroup.displayName) · \(viewModel.setCountText)")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var headerButtons: some View {
+        GlassEffectContainer(spacing: Tide.s2) {
+            HStack(spacing: Tide.s2) {
+                TrainIconButton(systemImage: "info.circle", label: "How to") {
+                    showHowTo = true
+                }
+                // "This hurts" flow — see PainReportSheet.swift.
+                TrainIconButton(systemImage: "bandage", label: "This hurts", tint: Tide.danger) {
+                    showPainReport = true
+                }
+            }
+        }
     }
 
     /// §11.13 — what's coming after this exercise, visible WHILE lifting
     /// (the rest screen already previews it; the set screen didn't).
     private var upNextLine: some View {
-        HStack(spacing: TempoSpacing.xs) {
-            Text("UP NEXT")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text(upNextName ?? "Last exercise — finish strong")
-                .font(.tempoCaption1)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .lineLimit(1)
-            Spacer()
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                Text("Up next").tideLabel()
+                Text(upNextName ?? "Last exercise — finish strong")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                Spacer(minLength: Tide.s2)
+                dropSetControl
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Up next").tideLabel()
+                Text(upNextName ?? "Last exercise — finish strong")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                dropSetControl
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var upNextName: String? {
@@ -1176,171 +1310,125 @@ struct ActiveWorkoutView: View {
             .flatMap { exercises[$0].exercise?.name }
     }
 
-    /// Compact session ring: today's completed working sets over planned.
-    private var sessionRing: some View {
-        let total = max(1, viewModel.totalSets)
-        let fraction = Double(viewModel.completedSets) / Double(total)
-        return ZStack {
-            Circle()
-                .stroke(Color.tempoTextTertiary.opacity(0.2), lineWidth: 4)
-            Circle()
-                .trim(from: 0, to: fraction)
-                .stroke(Color.tempoAccent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(duration: 0.5), value: fraction)
-            Text("\(viewModel.completedSets)/\(viewModel.totalSets)")
-                .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.tempoTextPrimary)
-                .contentTransition(.numericText())
-        }
-        .frame(width: 46, height: 46)
-        .padding(6)
-        .background(Color.tempoBgPrimary.opacity(0.85))
-        .clipShape(Circle())
-    }
-
     // MARK: - Set Progress
 
+    /// One capsule per set, with the remove and add buttons at its ends.
     private var setProgress: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xs) {
-                if let exercise = viewModel.currentExercise {
-                    // Iterate the elements by stable id — never index into
-                    // orderedSets by position. The +/- buttons mutate this
-                    // array; a ForEach over `.indices` keeps a stale range
-                    // and crashes (Index out of range) on the next render.
-                    ForEach(Array(exercise.orderedSets.enumerated()), id: \.element.id) { idx, set in
-                        Group {
-                            if set.isWarmup {
-                                // Warmup sets shown as smaller, outlined dots
-                                Circle()
-                                    .stroke(setDotColor(set: set, index: idx), lineWidth: 1.5)
-                                    .frame(width: 10, height: 10)
-                            } else {
-                                Circle()
-                                    .fill(setDotColor(set: set, index: idx))
-                                    .frame(width: 12, height: 12)
-                            }
-                        }
-                        // §11.6 — the live dot breathes; completion springs.
-                        .scaleEffect(idx == viewModel.currentSetIndex ? 1.35 : 1)
-                        .animation(.spring(duration: 0.35), value: viewModel.currentSetIndex)
-                        .animation(.spring(duration: 0.35), value: set.completed)
-                    }
+        HStack(spacing: Tide.s2) {
+            Button {
+                if let removed = viewModel.removeLastUncompletedSetCapturingUndo(
+                    from: viewModel.currentExerciseIndex,
+                    modelContext: modelContext
+                ) {
+                    offerUndo(removed)
                 }
+            } label: {
+                Image(systemName: "minus")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .disabled((viewModel.currentExercise?.orderedSets.count ?? 0) <= 1)
+            .accessibilityLabel("Remove a set")
+
+            if let exercise = viewModel.currentExercise {
+                // Iterate the elements by stable id — never index into
+                // orderedSets by position. The +/- buttons mutate this
+                // array; a ForEach over `.indices` keeps a stale range
+                // and crashes (Index out of range) on the next render.
+                TrainSetStrip(items: exercise.orderedSets.enumerated().map { idx, set in
+                    TrainSetStrip.Item(
+                        id: set.id,
+                        done: set.completed,
+                        current: idx == viewModel.currentSetIndex,
+                        warmup: set.isWarmup
+                    )
+                })
             }
 
-            // +/- set buttons
-            HStack(spacing: TempoSpacing.md) {
-                Button {
-                    viewModel.removeLastUncompletedSet(
-                        from: viewModel.currentExerciseIndex,
-                        modelContext: modelContext
-                    )
-                } label: {
-                    Image(systemName: "minus.circle")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .disabled((viewModel.currentExercise?.orderedSets.count ?? 0) <= 1)
-
-                Text("\(viewModel.workingSetCount) sets")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-
-                Button {
-                    viewModel.addSet(
-                        to: viewModel.currentExerciseIndex,
-                        modelContext: modelContext
-                    )
-                } label: {
-                    Image(systemName: "plus.circle")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
-                }
+            Button {
+                viewModel.addSet(
+                    to: viewModel.currentExerciseIndex,
+                    modelContext: modelContext
+                )
+            } label: {
+                Image(systemName: "plus")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.circle)
             }
-        }
-    }
-
-    private func setDotColor(set: PlannedSet, index: Int) -> Color {
-        if set.completed {
-            Color.tempoRecoveryGreen
-        } else if index == viewModel.currentSetIndex {
-            Color.tempoSignal
-        } else {
-            Color.tempoTextTertiary.opacity(0.3)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add a set")
         }
     }
 
     // MARK: - Exercise Transition
 
+    /// The brief moment between two exercises: who is next, with their picture.
     private func exerciseTransition(toIndex: Int) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        let exercises = viewModel.todayPlan?.orderedExercises ?? []
+        let next = toIndex < exercises.count ? exercises[toIndex] : nil
+        return VStack(spacing: Tide.s4) {
             Spacer()
-
-            Text("NEXT EXERCISE")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            if let plan = viewModel.todayPlan {
-                let exercises = plan.orderedExercises
-                if toIndex < exercises.count, let name = exercises[toIndex].exercise?.name {
-                    Text(name.uppercased())
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
+            if let exercise = next?.exercise {
+                ExerciseImageView(exercise: exercise, style: .hero)
+                    .frame(width: TideTrain.hero, height: TideTrain.hero)
+                    .clipShape(RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous))
+                    .accessibilityHidden(true)
+                VStack(spacing: Tide.s2) {
+                    Text("Next exercise").tideLabel(Tide.text3)
+                    Text(exercise.name)
+                        .accessibilityLabel(exercise.name.uppercased())
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(exercise.muscleGroup.displayName)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
+                // Where it sits in the day: a tick per exercise, filled as each is done.
+                VStack(spacing: Tide.s1) {
+                    TrainSetTicks(done: toIndex, total: exercises.count, label: "Exercises")
+                    Text("\(toIndex + 1) of \(exercises.count)")
+                        .font(TideTrain.figure(.caption, weight: .semibold))
+                        .foregroundStyle(Tide.text3)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                Text("Next exercise").tideLabel(Tide.text3)
             }
-
-            ProgressView()
-
             Spacer()
         }
+        .padding(.horizontal, Tide.edge)
         .frame(maxWidth: .infinity)
     }
 
     // MARK: - Paused Overlay
 
     private var pausedOverlay: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Image(systemName: "pause.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text("PAUSED")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(viewModel.formattedElapsedTime)
-                .font(.tempoDataLarge)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .monospacedDigit()
-
-            VStack(spacing: TempoSpacing.md) {
-                Button {
-                    viewModel.resume()
-                } label: {
-                    Text("RESUME")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-
-                Button {
-                    showFinishConfirmation = true
-                } label: {
-                    Text("End Workout")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoRecoveryRed)
-                }
+        TrainSessionStateView(
+            systemImage: "pause.fill",
+            title: "PAUSED",
+            figure: viewModel.formattedElapsedTime
+        ) {
+            Button {
+                viewModel.resume()
+            } label: {
+                Text("Resume")
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .buttonStyle(.tidePrimary)
 
-            Spacer()
+            Button {
+                showFinishConfirmation = true
+            } label: {
+                Text("End Workout")
+                    .foregroundStyle(Tide.danger)
+            }
+            .buttonStyle(.tideGlass)
         }
     }
 
@@ -1350,78 +1438,44 @@ struct ActiveWorkoutView: View {
     /// restores itself when the call ends (no buttons needed, but an escape
     /// hatch resumes manually if CallKit never reports the end).
     private var interruptedCallOverlay: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Image(systemName: "phone.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoSignal)
-
-            Text("ON A CALL")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Workout paused — it resumes by itself when you hang up.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-
+        TrainSessionStateView(
+            systemImage: "phone.fill",
+            title: "On a call",
+            message: "Workout paused — it resumes by itself when you hang up."
+        ) {
             Button {
                 viewModel.handleCallChange(callEnded: true)
             } label: {
                 Text("Resume now")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
             }
-
-            Spacer()
+            .buttonStyle(.tideGlass)
         }
     }
 
     // MARK: - Crash Recovery Content
 
     private var crashRecoveryContent: some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-
-            Image(systemName: "arrow.counterclockwise.circle.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(Color.tempoRecoveryYellow)
-
-            Text("Resume Your Workout?")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("It looks like a workout was in progress.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            VStack(spacing: TempoSpacing.md) {
-                Button {
-                    viewModel.resumeFromCrash()
-                } label: {
-                    Text("RESUME WORKOUT")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(Color.tempoSignal)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-
-                Button {
-                    // .discarded closes this cover from TrainingTabView.
-                    viewModel.discardCrashedWorkout(modelContext: modelContext)
-                } label: {
-                    Text("Discard")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoRecoveryRed)
-                }
+        TrainSessionStateView(
+            systemImage: "arrow.counterclockwise",
+            tint: TideTrain.caution,
+            title: "Resume Your Workout?",
+            message: "It looks like a workout was in progress."
+        ) {
+            Button {
+                viewModel.resumeFromCrash()
+            } label: {
+                Text("Resume workout")
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            .buttonStyle(.tidePrimary)
 
-            Spacer()
+            Button {
+                // .discarded closes this cover from TrainingTabView.
+                viewModel.discardActiveWorkoutCapturingUndo(modelContext: modelContext)
+            } label: {
+                Text("Discard")
+                    .foregroundStyle(Tide.danger)
+            }
+            .buttonStyle(.tideGlass)
         }
     }
 
@@ -1524,6 +1578,21 @@ struct ActiveWorkoutView: View {
 
     private func loadCurrentSetInputs() {
         logRepsSeparately = false // Fix #9 — never sticky across sets
+        // Undo just reopened this set: show the numbers that were logged so
+        // they can be corrected, not the defaults.
+        if let restored = restoredEntry {
+            if restored.setID == viewModel.currentSet?.id {
+                inputWeight = restored.weight
+                inputReps = restored.reps
+                inputAddedLoad = restored.addedLoad
+                if let right = restored.rightReps {
+                    inputRepsRight = right
+                    logRepsSeparately = true
+                }
+                return
+            }
+            restoredEntry = nil
+        }
         // §15 — seed the inline bodyweight prompt with a sane default the
         // first time it's needed this session (only matters while
         // bodyweightKg <= 0; otherwise the prompt never renders).

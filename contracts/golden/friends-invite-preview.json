@@ -1,0 +1,13 @@
+{
+  "data" : {
+    "already_friends" : false,
+    "display_name" : "Test contract-arena-alice",
+    "is_own" : false,
+    "level" : 1
+  },
+  "meta" : {
+    "request_id" : "req_000000000000000000000001",
+    "timestamp" : "2026-01-01T00:00:00Z"
+  },
+  "ok" : true
+}

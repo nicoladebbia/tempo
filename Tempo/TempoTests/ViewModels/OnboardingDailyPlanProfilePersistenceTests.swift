@@ -91,6 +91,28 @@ final class OnboardingDailyPlanProfilePersistenceTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<ClassBlock>()).count, 1, "old class blocks removed")
     }
 
+    func testTheFinishScreenKeepsAProfileThatIsAlreadyThere() throws {
+        let existing = UserDailyPlanProfile(eatingWindowStartMinutes: 10 * 60)
+        existing.wakeTimeMinutes = 6 * 60
+        context.insert(existing)
+        try context.save()
+
+        let vm = makeVM(start: 8 * 60, end: 18 * 60, skip: false, postWorkout: true)
+        let created = try vm.persistDailyPlanProfile(in: context, replacingExisting: false)
+
+        XCTAssertFalse(created)
+        let rows = try allProfiles()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.eatingWindowStartMinutes, 10 * 60, "not reset to the onboarding defaults")
+        XCTAssertEqual(rows.first?.wakeTimeMinutes, 6 * 60)
+    }
+
+    func testTheFinishScreenMakesTheProfileWhenThereIsNone() throws {
+        let vm = makeVM(start: 8 * 60, end: 18 * 60, skip: false, postWorkout: true)
+        XCTAssertTrue(try vm.persistDailyPlanProfile(in: context, replacingExisting: false))
+        XCTAssertEqual(try allProfiles().count, 1)
+    }
+
     func testPersistCollapsesLegacyDuplicates() throws {
         // Older builds inserted a new row on every complete-step appearance.
         context.insert(UserDailyPlanProfile(eatingWindowStartMinutes: 7 * 60))

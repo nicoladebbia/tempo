@@ -28,7 +28,7 @@ struct MobilityFlowPickerView: View {
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     ForEach(MobilityFlow.all) { flow in
                         Button {
                             activeFlow = flow
@@ -38,10 +38,10 @@ struct MobilityFlowPickerView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.md)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
             }
-            .background(Color.tempoBgPrimary)
+            .trainSheetRoot()
             .navigationTitle("Mobility Flows")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -59,32 +59,31 @@ struct MobilityFlowPickerView: View {
     }
 
     private func flowRow(_ flow: MobilityFlow) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: "figure.flexibility")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoSignal)
-                .frame(width: 32)
+        HStack(spacing: Tide.s3) {
+            TideIconTile(systemName: "figure.flexibility")
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(flow.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Text(flow.focus)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("\(flow.estimatedDuration) · \(TrainCount.text(flow.moves.count, "move"))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
-            Text("\(flow.estimatedDuration) · \(flow.moves.count) moves")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Image(systemName: "chevron.right")
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 }
 
@@ -126,7 +125,7 @@ struct MobilityFlowPlayerView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.tempoBgPrimary)
+            .trainSheetRoot()
             .navigationTitle(flow.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -157,111 +156,115 @@ struct MobilityFlowPlayerView: View {
 
     private func moveContent(_ move: WarmupMove) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                Text("MOVE \(moveIndex + 1) OF \(flow.moves.count)")
-                    .font(.tempoCaption1)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xl)
+            VStack(spacing: Tide.s5) {
+                VStack(spacing: Tide.s2) {
+                    Text("Move \(moveIndex + 1) of \(flow.moves.count)").tideLabel(Tide.text3)
+                    TrainSessionDots(count: flow.moves.count, current: moveIndex)
+                }
+                .padding(.top, Tide.s3)
 
-                Text(move.name.uppercased())
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: Tide.s1) {
+                    Text(move.name)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text(move.dose)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoSignal)
+                    Text(move.dose)
+                        .font(TideTrain.figure(.headline))
+                        .foregroundStyle(Color.accentColor)
+                }
 
                 // Countdown for timed moves — wall-clock, survives backgrounding.
-                if move.durationSeconds != nil, let end = moveEndDate {
+                if let secs = move.durationSeconds, let end = moveEndDate {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         let remaining = max(0, Int(end.timeIntervalSince(context.date).rounded()))
-                        Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.tempoTextPrimary)
+                        TrainRing(
+                            progress: secs > 0 ? Double(remaining) / Double(secs) : 0,
+                            diameter: TideTrainSession.restRingCompact
+                        ) {
+                            Text(String(format: "%d:%02d", remaining / 60, remaining % 60))
+                                .trainNumeral(TideTrainSession.ringClock, weight: .bold)
+                                .foregroundStyle(Tide.text)
+                                .contentTransition(.numericText(countsDown: true))
+                                .lineLimit(1)
+                                .minimumScaleFactor(TideTrainSession.clockShrink)
+                        }
                     }
                 }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     Text(move.howTo)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let cue = move.cue {
-                        HStack(alignment: .top, spacing: TempoSpacing.xs) {
+                        TrainSessionRule()
+                        HStack(alignment: .top, spacing: Tide.s2) {
                             Image(systemName: "lightbulb.fill")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoSignal)
+                                .font(Tide.caption)
+                                .foregroundStyle(TideTrain.caution)
+                                .accessibilityHidden(true)
                             Text(cue)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .padding(TempoSpacing.lg)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-
-                Button {
-                    advance()
-                } label: {
-                    Text(move.durationSeconds == nil ? "DONE — NEXT" : "SKIP")
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(move.durationSeconds == nil ? Color.tempoSignal : Color.tempoSurfaceCard)
-                        .foregroundStyle(move.durationSeconds == nil ? .white : Color.tempoTextPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                .tideCard(padding: Tide.s4)
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s5)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            Group {
+                if move.durationSeconds == nil {
+                    Button {
+                        advance()
+                    } label: {
+                        Text("Done — next")
+                            .frame(minHeight: TideTrain.bigButton - Tide.s2)
+                    }
+                    .buttonStyle(.tidePrimary)
+                } else {
+                    Button {
+                        advance()
+                    } label: {
+                        Text("Skip")
+                            .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
+                    }
+                    .buttonStyle(.tideGlass)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.xxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s3)
         }
     }
 
     // MARK: Completion
 
     private var completionContent: some View {
-        VStack(spacing: TempoSpacing.xl) {
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Color.tempoRecoveryGreen)
-
-            Text("FLOW COMPLETE")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(dayMarkedDone
+        TrainSessionStateView(
+            systemImage: "checkmark.circle.fill",
+            tint: TideTrain.positive,
+            title: "Flow complete",
+            message: dayMarkedDone
                 ? "Mobility day logged. That counts."
-                : "Recovery work done. Your future sessions thank you.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-
-            Spacer()
-
+                : "Recovery work done. Your future sessions thank you."
+        ) {
             Button {
                 dismiss()
                 onFinished()
             } label: {
                 Text("DONE")
-                    .font(.tempoHeadline)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                    .frame(minHeight: TideTrain.bigButton - Tide.s2)
             }
-            .padding(.bottom, TempoSpacing.xxl)
+            .buttonStyle(.tidePrimary)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: Advance

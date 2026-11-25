@@ -29,14 +29,6 @@ final class CoachAnalyticsTests: XCTestCase {
         XCTAssertEqual(CoachAnalytics.CapType.budget.rawValue, "budget")
     }
 
-    // MARK: - CorrectionAction
-
-    func testCorrectionAction_rawValues() {
-        XCTAssertEqual(CoachAnalytics.CorrectionAction.edit.rawValue, "edit")
-        XCTAssertEqual(CoachAnalytics.CorrectionAction.delete.rawValue, "delete")
-        XCTAssertEqual(CoachAnalytics.CorrectionAction.verify.rawValue, "verify")
-    }
-
     // MARK: - Helper compilation
 
     /// Tests that every helper method compiles and accepts its
@@ -45,7 +37,6 @@ final class CoachAnalyticsTests: XCTestCase {
     /// are no-ops; we're verifying the call shape.
     func testHelpers_compileAndDispatch() {
         let convID = UUID()
-        let prefID = UUID()
         CoachAnalytics.conversationStarted(conversationID: convID, source: .tab)
         CoachAnalytics.conversationStarted(
             conversationID: convID,
@@ -69,15 +60,11 @@ final class CoachAnalyticsTests: XCTestCase {
             subject: "meal_timing.breakfast.skipped",
             polarity: "positive"
         )
-        CoachAnalytics.preferenceCorrectedByUser(prefID: prefID, action: .edit)
         CoachAnalytics.outcomeGraded(
             actionToolName: "moveMeal",
             outcome: "followedThrough",
             daysFromDecision: 1
         )
-        CoachAnalytics.selfGradeDismissed(weekISO: "2026-W22")
-        CoachAnalytics.interviewCompleted(skipped: false, questionsAnswered: 4)
-        CoachAnalytics.inlinePillTapped(source: .training)
         // No assertions — reaching this point IS the test.
     }
 }

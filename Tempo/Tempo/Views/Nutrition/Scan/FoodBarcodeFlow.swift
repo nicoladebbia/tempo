@@ -64,9 +64,7 @@ struct FoodBarcodeFlow: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary
-                .ignoresSafeArea()
-
+            TidePageBackground()
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
@@ -171,89 +169,78 @@ struct FoodBarcodeFlow: View {
 
     // MARK: - Loading
 
+    /// The product page's own shape, shimmering: the picture, then the score.
     private var loadingContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView()
-                .controlSize(.large)
+        VStack(spacing: Tide.s4) {
+            VStack(spacing: Tide.s4) {
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.Kitchen.heroPicture)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.fill)
+                        .frame(width: Tide.Kitchen.heroPicture, height: Tide.s5)
+                    RoundedRectangle(cornerRadius: Tide.controlRadius)
+                        .fill(Tide.fill)
+                        .frame(width: Tide.Kitchen.suggestion, height: Tide.s4)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.Kitchen.verdictDial + Tide.s10)
+            }
+            .shimmer()
             Text("Looking up product…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Looking up product")
     }
 
     // MARK: - Not found
 
     private func notFoundContent(_ barcode: String) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Image(systemName: "barcode.viewfinder")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
-
-            Text("Not in the database yet")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
-
-            Text("Barcode \(barcode). Add it once with two photos — every scan after that is instant.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.sm)
-
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Add this product") {
-                    showAddProduct = true
-                }
-                .buttonStyle(.tempoPrimary)
-                .accessibilityIdentifier("addMissingProduct")
-
-                Button("Search by name") {
-                    showSearch = true
-                }
-                .buttonStyle(.tempoSecondary)
-
-                Button("Scan again") {
-                    scanState = .scanning
-                }
-                .buttonStyle(.tempoGhost)
-            }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
-
-            Spacer()
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Add this product", systemImage: "plus", role: .primary, identifier: "addMissingProduct") {
+                showAddProduct = true
+            },
+            KitchenStateAction(title: "Search by name", systemImage: "magnifyingglass") {
+                showSearch = true
+            },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+                scanState = .scanning
+            },
+        ]) {
+            KitchenStateHero(
+                systemImage: "barcode.viewfinder",
+                title: "Not in the database yet",
+                message: "Barcode \(barcode). Add it once with two photos — every scan after that is instant."
+            )
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Failed
 
     private func failedContent(barcode: String, message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: "wifi.exclamationmark")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Try again") {
-                    lookUp(barcode)
-                }
-                .buttonStyle(.tempoPrimary)
-                Button("Scan again") {
-                    scanState = .scanning
-                }
-                .buttonStyle(.tempoSecondary)
-            }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Try again", systemImage: "arrow.clockwise", role: .primary) {
+                lookUp(barcode)
+            },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+                scanState = .scanning
+            },
+        ]) {
+            KitchenStateHero(
+                systemImage: "exclamationmark.triangle.fill",
+                tint: Tide.danger,
+                title: "Couldn't look it up",
+                message: message
+            )
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
     // MARK: - Actions

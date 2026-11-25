@@ -7,396 +7,294 @@
 //
 
 import SwiftUI
-import UIKit
 
 // MARK: - FriendSystemView
 
-// Per MODULE_ARENA.md Section 8 — Friend list, requests, search.
-// Per WIREFRAMES.md Screen 41 — Friend list layout.
+// Real friends from the server: people who asked to be your friend (answer
+// them), people you are friends with (and their XP this week), and the way to
+// add more, your invite link. A friend sees your name, level and weekly XP,
+// nothing else; removing a friend takes you off each other's boards.
 
 struct FriendSystemView: View {
-    @Environment(ServiceContainer.self)
-    private var services
+    @Environment(ArenaService.self)
+    private var arena
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
-    private var searchText = ""
+    private var showInvite = false
     @State
-    private var showAddFriend = false
-
-    /// Mock data — will be replaced with API calls
+    private var undoToast: ToastData?
     @State
-    private var friends: [FriendDisplayItem] = []
+    private var errorMessage: String?
     @State
-    private var pendingRequests: [FriendRequestItem] = []
-    @State
-    private var showComingSoonAlert = false
-    @State
-    private var showShareSheet = false
+    private var busyIDs: Set<String> = []
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                // Search bar
-                searchBar
-
-                // Pending requests
-                if !pendingRequests.isEmpty {
-                    pendingSection
+        Group {
+            switch arena.phase {
+            case .idle,
+                 .loading:
+                TideScrollPage {
+                    ArenaListSkeleton(rows: 4, label: "Loading friends")
                 }
 
-                // Online friends
-                let online = friends.filter(\.isOnline)
-                if !online.isEmpty {
-                    friendSection(title: "ONLINE (\(online.count))", friends: online, isOnline: true)
+            case let .failed(message):
+                TideScrollPage {
+                    TideEmptyPanel(
+                        systemImage: "wifi.exclamationmark", title: "Could not load your friends",
+                        message: message, actionTitle: "Try again"
+                    ) { Task { await arena.refresh() } }
+                        .tideCard()
                 }
 
-                // Offline friends
-                let offline = friends.filter { !$0.isOnline }
-                if !offline.isEmpty {
-                    friendSection(title: "OFFLINE (\(offline.count))", friends: offline, isOnline: false)
+            case .ready:
+                if arena.friends.isEmpty, arena.requests.isEmpty {
+                    emptyPage
+                } else {
+                    list
                 }
-
-                // Empty state
-                if friends.isEmpty, pendingRequests.isEmpty {
-                    emptyState
-                }
-
-                // Invite button
-                inviteButton
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.xxxl)
         }
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("FRIENDS")
+        .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAddFriend = true
-                } label: {
-                    Image(systemName: "person.badge.plus")
-                        .foregroundStyle(Color.tempoSignal)
+        .accessibilityIdentifier("arena.friends")
+        .task { await arena.refresh() }
+        .sheet(isPresented: $showInvite) {
+            FriendInviteSheet()
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: {
+                if !$0 {
+                    errorMessage = nil
                 }
             }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "")
         }
-        .sheet(isPresented: $showAddFriend) {
-            addFriendSheet
-        }
-    }
-
-    // MARK: - Search Bar
-
-    private var searchBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.tempoTextTertiary)
-            TextField("Search friends...", text: $searchText)
-                .font(.system(size: 15))
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 0.5)
+        // Removing a friend or declining a request can be taken back for a few seconds:
+        // the server is only asked when the Undo toast ends.
+        .arenaUndoToast($undoToast)
+        .firstTip(
+            "arena.friends",
+            "Invite a friend with your link. They only see your name, level and XP.",
+            systemImage: "person.2.fill"
         )
     }
 
-    // MARK: - Pending Requests
+    // MARK: - Empty
 
-    private var pendingSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("PENDING (\(pendingRequests.count))")
-                .font(.system(size: 13, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(Color.tempoWarning)
+    private var emptyPage: some View {
+        ArenaEmptyPage(
+            title: "Race someone",
+            message: "Send your link to a friend. When they say yes you are on each other's weekly leaderboard.",
+            actionTitle: "Invite a friend",
+            actionSystemImage: "person.badge.plus",
+            action: { showInvite = true },
+            art: { ArenaGhostAvatars() }
+        )
+    }
 
-            ForEach(pendingRequests) { request in
-                HStack(spacing: TempoSpacing.sm) {
-                    Circle()
-                        .fill(Color.tempoWarning.opacity(0.2))
-                        .frame(width: 8, height: 8)
+    // MARK: - List
 
-                    Circle()
-                        .fill(Color.tempoSignal.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(String(request.username.prefix(1).uppercased()))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("@\(request.username)")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Text(request.timeAgo)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextTertiary)
+    private var list: some View {
+        TideScrollPage {
+            if !arena.incomingRequests.isEmpty {
+                section("Requests", count: arena.incomingRequests.count) {
+                    ForEach(Array(arena.incomingRequests.enumerated()), id: \.element.id) { index, request in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        requestRow(request)
                     }
-
-                    Spacer()
-
-                    Button("Accept") { acceptRequest(request) }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.tempoSignal)
-                        .clipShape(Capsule())
-
-                    Button("Decline") { declineRequest(request) }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.tempoSurfaceCard)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.tempoBorder, lineWidth: 0.5))
                 }
-                .frame(height: 56)
             }
-        }
-    }
 
-    // MARK: - Friend Section (Online / Offline)
-
-    private func friendSection(title: String, friends: [FriendDisplayItem], isOnline: Bool) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .tracking(1.2)
-                .foregroundStyle(isOnline ? Color.tempoSuccess : Color.tempoTextSecondary)
-
-            ForEach(friends) { friend in
-                HStack(spacing: TempoSpacing.sm) {
-                    // Online dot
-                    Circle()
-                        .fill(isOnline ? Color.tempoSuccess : Color.tempoSteel)
-                        .frame(width: 8, height: 8)
-
-                    // Avatar
-                    Circle()
-                        .fill(Color.tempoSignal.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(String(friend.displayName.prefix(1)))
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(Color.tempoSignal)
-                        )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(friend.displayName)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Text("Level \(friend.level)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoTextTertiary)
+            if !arena.friends.isEmpty {
+                section("Friends", count: arena.friends.count) {
+                    ForEach(Array(arena.friends.enumerated()), id: \.element.id) { index, friend in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        friendRow(friend)
                     }
-
-                    Spacer()
-
-                    Text("\(friend.weeklyXP) XP")
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextSecondary)
                 }
-                .frame(height: 56)
             }
-        }
-    }
 
-    // MARK: - Empty State
-
-    private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "person.2")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No friends yet")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Add friends to see their activity and compete on the leaderboard.")
-                .font(.system(size: 14))
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
-    }
-
-    // MARK: - Invite Button
-
-    private var inviteButton: some View {
-        Button {
-            showAddFriend = true
-        } label: {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "person.badge.plus")
-                Text("Invite More Friends")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundStyle(Color.tempoSignal)
-            .frame(maxWidth: .infinity)
-            .frame(height: 48)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.tempoSignal, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-            )
-        }
-    }
-
-    // MARK: - Add Friend Sheet
-
-    private var addFriendSheet: some View {
-        NavigationStack {
-            VStack(spacing: TempoSpacing.xxl) {
-                // Search
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("ADD FRIENDS")
-                        .font(.system(size: 13, weight: .semibold))
-                        .tracking(1.2)
-                        .foregroundStyle(Color.tempoTextSecondary)
-
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        TextField("Search by username...", text: $searchText)
-                            .font(.system(size: 15))
+            if !arena.outgoingRequests.isEmpty {
+                section("Waiting for an answer", count: arena.outgoingRequests.count) {
+                    ForEach(Array(arena.outgoingRequests.enumerated()), id: \.element.id) { index, request in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        waitingRow(request)
                     }
-                    .padding(TempoSpacing.md)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.tempoBorder, lineWidth: 0.5)
+                }
+            }
+
+            if arena.isStale {
+                Label("Showing the last list we got. Pull down to retry.", systemImage: "wifi.slash")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .refreshable { await arena.refresh() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button {
+                showInvite = true
+            } label: {
+                Label("Invite a friend", systemImage: "person.badge.plus")
+            }
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+            .accessibilityIdentifier("arena.inviteButton")
+        }
+    }
+
+    private func section(_ title: String, count: Int, @ViewBuilder rows: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: title, trailing: "\(count)")
+            VStack(spacing: 0) {
+                rows()
+            }
+        }
+        .tideCard(padding: Tide.s4)
+    }
+
+    // MARK: - Rows
+
+    private func friendRow(_ friend: ArenaFriendDTO) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideInitialAvatar(name: friend.displayName)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(friend.displayName)
+                    .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                Text("Level \(friend.level) · \(friend.weeklyXP.formatted()) XP this week")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+            .explains(Explainer.friendWeeklyXP.showing("\(friend.weeklyXP.formatted()) XP this week"))
+            Menu {
+                Button("Remove friend", systemImage: "person.badge.minus", role: .destructive) {
+                    undoToast = arena.removalToast(
+                        ArenaRemoval(kind: .friend, id: friend.id),
+                        message: "\(friend.displayName) removed."
                     )
                 }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .accessibilityLabel("More for \(friend.displayName)")
+            .accessibilityIdentifier("arena.friendMenu")
+        }
+        .frame(minHeight: Tide.hit + Tide.s3)
+        .opacity(busyIDs.contains(friend.id) ? 0.5 : 1)
+        .accessibilityElement(children: .contain)
+    }
 
-                Text("— OR —")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .frame(maxWidth: .infinity)
-
-                // Alternative methods
-                VStack(spacing: TempoSpacing.md) {
-                    addMethodButton(icon: "qrcode.viewfinder", title: "QR Code Scan")
-                    addMethodButton(icon: "link", title: "Share Link")
-                    addMethodButton(icon: "person.crop.rectangle", title: "Import from Contacts")
+    private func requestRow(_ request: ArenaFriendRequestDTO) -> some View {
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        let busy = busyIDs.contains(request.id)
+        return layout {
+            HStack(spacing: Tide.s3) {
+                TideInitialAvatar(name: request.displayName)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(request.displayName)
+                        .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                        .lineLimit(stacked ? 3 : 1)
+                    Text("Level \(request.level) · wants to be friends")
+                        .font(Tide.caption).foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Spacer()
             }
-            .padding(.horizontal, TempoSpacing.lg)
-            .padding(.top, TempoSpacing.lg)
-            .background(Color.tempoBgPrimary)
-            .navigationTitle("Add Friends")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showAddFriend = false }
-                        .foregroundStyle(Color.tempoSignal)
+            if !stacked {
+                Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s2) {
+                Button {
+                    undoToast = arena.removalToast(
+                        ArenaRemoval(kind: .request, id: request.id),
+                        message: "Request from \(request.displayName) declined."
+                    )
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Decline \(request.displayName)")
+                .accessibilityIdentifier("arena.requestDecline")
+
+                Button {
+                    run(request.id) { try await arena.accept(request) }
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.ink)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .glassEffect(.regular.tint(mood.accent).interactive(), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Accept \(request.displayName)")
+                .accessibilityIdentifier("arena.requestAccept")
+            }
+            .disabled(busy)
+        }
+        .frame(minHeight: Tide.hit + Tide.s3)
+        .opacity(busy ? 0.5 : 1)
+    }
+
+    private func waitingRow(_ request: ArenaFriendRequestDTO) -> some View {
+        HStack(spacing: Tide.s3) {
+            TideInitialAvatar(name: request.displayName)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(request.displayName)
+                    .font(Tide.bodyStrong).foregroundStyle(Tide.text)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+                Text("Level \(request.level)")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+            }
+            Spacer(minLength: Tide.s2)
+            TideStatusPill(text: "Sent", tint: Tide.text2, systemImage: "paperplane.fill")
+        }
+        .frame(minHeight: Tide.hit + Tide.s3)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Actions
+
+    /// Runs one answer, shows it as busy, and says plainly if it failed.
+    private func run(_ id: String, _ work: @escaping () async throws -> Void) {
+        guard !busyIDs.contains(id) else {
+            return
+        }
+        busyIDs.insert(id)
+        Task {
+            defer { busyIDs.remove(id) }
+            do {
+                try await work()
+            } catch {
+                errorMessage = error.localizedDescription
             }
         }
-        .presentationDetents([.large])
-        .alert("Coming Soon", isPresented: $showComingSoonAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("This feature is not yet available. Stay tuned!")
-        }
-        .sheet(isPresented: $showShareSheet) {
-            ShareSheetView(activityItems: ["Join me on Tempo! Download the app and add me as a friend."])
-        }
     }
-
-    // MARK: - Friend Request Actions
-
-    private func acceptRequest(_ request: FriendRequestItem) {
-        withAnimation {
-            // Move from pending to friends
-            pendingRequests.removeAll { $0.id == request.id }
-            friends.append(FriendDisplayItem(
-                userID: request.requestID,
-                username: request.username,
-                displayName: request.username.capitalized,
-                level: 1,
-                weeklyXP: 0,
-                isOnline: false
-            ))
-        }
-    }
-
-    private func declineRequest(_ request: FriendRequestItem) {
-        withAnimation {
-            pendingRequests.removeAll { $0.id == request.id }
-        }
-    }
-
-    private func addMethodButton(icon: String, title: String) -> some View {
-        Button {
-            if title == "Share Link" {
-                showShareSheet = true
-            } else {
-                showComingSoonAlert = true
-            }
-        } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 32)
-                Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.tempoTextTertiary)
-            }
-            .padding(TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.tempoBorder, lineWidth: 0.5)
-            )
-        }
-    }
-}
-
-// MARK: - FriendDisplayItem
-
-struct FriendDisplayItem: Identifiable {
-    let id = UUID()
-    let userID: String
-    let username: String
-    let displayName: String
-    let level: Int
-    let weeklyXP: Int
-    let isOnline: Bool
-}
-
-// MARK: - FriendRequestItem
-
-struct FriendRequestItem: Identifiable {
-    let id = UUID()
-    let requestID: String
-    let username: String
-    let timeAgo: String
-}
-
-// MARK: - ShareSheetView
-
-struct ShareSheetView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

@@ -12,33 +12,42 @@ struct RecoveryOverrideStepView: View {
     @Bindable
     var coordinator: WizardCoordinator
 
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .title)
+    private var ring = Tide.fuelHeroRing
+
     var body: some View {
         WizardStepScaffold(
             title: "Adjust around training?",
             subtitle: subtitleText,
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             onBack: coordinator.goBack,
             onPrimary: coordinator.advance,
             onCancel: coordinator.cancel
         ) {
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 if let score = coordinator.snapshot.whoop?.recoveryScore {
                     recoveryBadge(score: score)
                 }
 
                 Toggle(isOn: $coordinator.intake.recoveryAdjusted) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Skew fueling to training load")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text("More fuel on training days, lighter on rest days.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .tint(Color.tempoSignal)
-                .tempoCard()
+                .tint(mood.accent)
+                .frame(minHeight: Tide.hit)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
         }
     }
@@ -50,26 +59,39 @@ struct RecoveryOverrideStepView: View {
         return "Adjust calorie distribution based on training intensity this week?"
     }
 
+    /// Yesterday's Whoop recovery as a lit ring: the number is the hero of this step.
     private func recoveryBadge(score: Double) -> some View {
-        let color: Color = if score >= 67 {
-            .tempoSuccess
+        let color: Color
+        let band: String
+        if score >= 67 {
+            color = Tide.good
+            band = "Green"
         } else if score >= 34 {
-            .tempoWarning
+            color = Tide.warn
+            band = "Yellow"
         } else {
-            .tempoError
+            color = Tide.danger
+            band = "Red"
         }
-        return HStack(spacing: TempoSpacing.sm) {
-            Circle()
-                .fill(color)
-                .frame(width: 10, height: 10)
-            Text("Whoop recovery yesterday")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
-            Text("\(Int(score))")
-                .font(.system(size: 22, weight: .bold, design: .monospaced))
-                .foregroundStyle(color)
+        return HStack(spacing: Tide.s4) {
+            ZStack {
+                TideRing(progress: min(max(score / 100, 0), 1), color: color, lineWidth: Tide.fuelHeroRingLine)
+                TideNumber("\(Int(score))", size: Tide.numeralS, relativeTo: .headline, color: color)
+            }
+            .frame(width: ring, height: ring)
+            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text("Whoop recovery yesterday")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(band)
+                    .font(Tide.caption)
+                    .foregroundStyle(color)
+            }
+            Spacer(minLength: 0)
         }
-        .tempoCard()
+        .accessibilityElement(children: .combine)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 }

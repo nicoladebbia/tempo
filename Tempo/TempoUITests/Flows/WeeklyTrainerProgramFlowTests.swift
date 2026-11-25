@@ -37,7 +37,7 @@ final class WeeklyTrainerProgramFlowTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()
@@ -110,7 +110,7 @@ final class WeeklyTrainerProgramFlowTests: XCTestCase {
         app.launchForTesting(extraArguments: ["--uitesting-weekly-upload-due"])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
         // The card sits below the day's own session content (same position
         // as MissedTrainerSessionCard). Today's whole VStack renders eagerly
@@ -160,7 +160,7 @@ final class WeeklyTrainerProgramFlowTests: XCTestCase {
         app.launchForTesting(extraArguments: ["--uitesting-late-night", "--uitesting-guided-run-sample"])
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["It's past midnight. Get to bed."].waitForExistence(timeout: 10))
         attach("weekly-05-bedtime-card-skip-for-tonight")

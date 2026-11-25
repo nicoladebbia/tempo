@@ -18,31 +18,29 @@ struct DrillSergeantBubble: View {
     var intensity: DrillSergeantIntensity = .standard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: intensity.icon)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(intensity.accentColor)
+        HStack(alignment: .top, spacing: Tide.s3) {
+            TideIconTile(systemName: intensity.icon, tint: intensity.accentColor, size: Tide.tile)
 
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(intensity.label)
-                    .font(.tempoOrdersLabel)
-                    .tracking(TempoTracking.ordersLabel)
-                    .foregroundStyle(Color.tempoAmber)
-            }
+                    .tideLabel(intensity.accentColor)
 
-            Text(message)
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoBone)
-                .fixedSize(horizontal: false, vertical: true)
+                Text(message)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoInk)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .shadow(
-            color: intensity.accentColor.opacity(0.15),
-            radius: 8, x: 0, y: 0
-        )
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .overlay(alignment: .leading) {
+            Capsule()
+                .fill(intensity.accentColor)
+                .frame(width: Tide.s1)
+                .padding(.vertical, Tide.s4)
+                .padding(.leading, Tide.s1)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -74,10 +72,10 @@ enum DrillSergeantIntensity {
 
     var accentColor: Color {
         switch self {
-        case .encouraging: .tempoSuccess
+        case .encouraging: Tide.success
         case .standard: .tempoSignal
         case .urgent: .tempoAmber
-        case .critical: .tempoSignal
+        case .critical: Tide.danger
         }
     }
 }

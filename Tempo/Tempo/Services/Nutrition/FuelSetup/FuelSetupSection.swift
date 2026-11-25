@@ -339,7 +339,7 @@ extension FuelSetupDraft {
     private func mealsSummaryParts() -> [String] {
         var items: [String] = []
         if let mealsPerDay {
-            items.append("\(mealsPerDay) meals")
+            items.append(FuelWords.count(mealsPerDay, "meal"))
         }
         if breakfastSkipped == true {
             items.append("no breakfast")

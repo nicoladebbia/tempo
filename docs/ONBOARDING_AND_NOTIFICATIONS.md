@@ -9,11 +9,14 @@
 Primary source files referenced throughout (cited by file + symbol, never line number — lines drift):
 
 Onboarding:
-- `Tempo/Tempo/ViewModels/OnboardingViewModel.swift` — `enum OnboardingStep`, `advance()`, `goBack()`, persistence, `buildDailyPlanProfile()`
-- `Tempo/Tempo/Views/Onboarding/OnboardingContainerView.swift` — `stepContent` switch, `progressBar`, splash auto-advance
-- `Tempo/Tempo/Views/Onboarding/*View.swift` — per-step screens (`OnboardingSplashView`, `ValueDemoView`, `GoalSetupView`, `HealthKitPermissionView`, `OnboardingAuthView`, `ProfileSetupView`, `IdentitySetupView`, `TrainingSetupView`, `AcademicSetupView`, `DailyPlanProfileViews`, `WhoopConnectView`, `NotificationSetupView`, `TermsAcceptanceView`, `AIConsentView`, `OnboardingCompleteView`, `ArenaIntroView` *(orphaned)*)
+
+- `Tempo/Tempo/ViewModels/OnboardingViewModel.swift` — `enum OnboardingStep`, `advance()`, `goBack()`, persistence, `resumed(fromSaved:)`, `submitToSAcceptance`, `buildDailyPlanProfile()`
+- `Tempo/Tempo/Views/Onboarding/OnboardingContainerView.swift` — `stepContent` switch, progress bar
+- `Tempo/Tempo/Views/Onboarding/*View.swift` — the six steps: `ValueDemoView`, `GoalSetupView`, `OnboardingAuthView`, `ProfileSetupView`, `PermissionsSetupView`, `OnboardingCompleteView`
+- `Tempo/Tempo/DesignSystem/Tide+Onboarding.swift` — the onboarding kit (scaffold, choice cards, notes, footer bar)
 
 Notifications:
+
 - `Tempo/Tempo/Services/Notifications/NotificationService.swift` — scheduling, categories, 64-slot eviction, daily budget, badge, sound
 - `Tempo/Tempo/Services/Notifications/AccountabilityEscalationEngine.swift` — escalation state machine
 - `Tempo/Tempo/Services/Notifications/AccountabilityCopyPool.swift` — `CopyTier`, `CopyIntensity`, `pick()`, `interpolate()`
@@ -56,74 +59,63 @@ Notifications:
 
 > **Status: NOT IMPLEMENTED (in app code).** App Store listing copy, screenshots, and metadata are marketing artifacts (an `appstore/` directory exists in the repo) and are not part of the app target. Not auditable as implementation.
 
-### 1.2 First Launch: Splash Screen
+### 1.2 First Launch
 
-`OnboardingSplashView` renders `TempoLogoView(size: 80, showGlow: true)` plus a `Text("TEMPO")` wordmark. `OnboardingContainerView` auto-advances off `.splash` after `Task.sleep(for: .seconds(1.8))`. The progress bar is hidden during `.splash`, `.valueDemo`, and `.complete`.
-
-> **Divergence from original spec:** The spec called for a 4-ring convergence animation. The code is a **wordmark + logo loader**, not a ring animation (commit `4292b6ee` explicitly replaced the prior skeleton with the wordmark loader). No ring geometry, no convergence choreography.
+There is no splash step any more: a fresh install opens straight on the hook (`ValueDemoView`, "THIS IS TEMPO", with clearly labelled sample data). The progress bar is hidden on the hook and on the finish screen.
 
 ---
 
 ## 2. Step-by-Step Onboarding
 
-> **Divergence from original spec — THE ENTIRE FLOW MODEL.** The spec described a **13-step ordered flow** (Welcome → Sign In → Profile → Training → Academics → Goals → Whoop → NutriTrack → HealthKit → Notifications → AI Consent → Arena Preview → Summary/Briefing). The code implements a **20-case `OnboardingStep` enum** with a **"show-then-ask" ordering** that front-loads value and goals *before* authentication. The spec's step numbers, copy progress model ("Step 4 of 13"), and several screens do not exist as described. This section documents the **actual** sequence.
+> **Rework 2026-11-24 — six steps.** Onboarding was cut from 20 steps to 6: hook, goal, sign in, about you, permissions, ready. Everything else is asked later, in the place it is needed. Each dropped question has a default and stays settable in Settings or in the feature (table in 2.2).
 
-### 2.1 The Actual Step Sequence
+### 2.1 The Step Sequence
 
-`OnboardingStep` is a `String, Codable, CaseIterable` enum. `next`/`previous` walk `allCases` in declaration order, so the flow order **is** the enum declaration order. There is no separate ordered-flow table — declaration order is the single source of truth (intentional: "adding/reordering steps doesn't require touching" a switch). The 20 cases, in flow order:
+`OnboardingStep` is a `String, Codable, CaseIterable` enum. `next`/`previous` walk `allCases` in declaration order, so the flow order **is** the enum declaration order.
 
-| # | `OnboardingStep` | Screen | Required | Skippable |
-|---|------------------|--------|----------|-----------|
-| 1 | `splash` | `OnboardingSplashView` (wordmark loader, auto-advance 1.8s) | — | — |
-| 2 | `valueDemo` | `ValueDemoView` ("THIS IS TEMPO") | — | — |
-| 3 | `goals` | `GoalSetupView` ("WHAT ARE YOU FIGHTING FOR?") | **yes** | no |
-| 4 | `healthkit` | `HealthKitPermissionView` ("LET'S CONNECT YOUR HEALTH DATA.") | no | yes |
-| 5 | `auth` | `OnboardingAuthView` (Sign in with Apple; value-prop headline merged here) | **yes** | no |
-| 6 | `profile` | `ProfileSetupView` (display name **+ inline username**) | **yes** | no |
-| 7 | `identity` | `IdentitySetupView` ("What best describes you?" → `UserProfile.identityLabel`) | **yes** | no |
-| 8 | `trainingSetup` | `TrainingSetupView` | no | yes |
-| 9 | `academicSetup` | `AcademicSetupView` | no | yes |
-| 10 | `dailyRhythm` | wake time + sleep target + chronotype (`DailyPlanProfileViews`) | no | yes |
-| 11 | `classSchedule` | term-bounded weekly class schedule + work shifts | no | yes |
-| 12 | `eatingWindow` | intermittent-fasting / eating-window preferences | no | yes |
-| 13 | `studyPreferences` | Pomodoro length + study session preferences | no | yes |
-| 14 | `trainingPreferences` | preferred training time of day | no | yes |
-| 15 | `weekendMode` | weekend differential | no | yes |
-| 16 | `whoopConnect` | `WhoopConnectView` ("YOUR BODY TALKS. LET'S LISTEN.") | no | yes |
-| 17 | `notifications` | `NotificationSetupView` ("THE DRILL SERGEANT NEEDS YOUR ATTENTION.") | no | yes |
-| 18 | `tosAccept` | `TermsAcceptanceView` (ToS + Privacy; backend `ToSGateMiddleware` 451-gates until accepted) | **yes** | no |
-| 19 | `aiConsent` | `AIConsentView` ("ENABLE AI COACHING."; Anthropic disclosure; backend `SubscriptionMiddleware` 402-gates AI routes) | no | yes |
-| 20 | `complete` | `OnboardingCompleteView` ("YOU'RE IN.") | — | — |
+| #   | `OnboardingStep` | Screen                                                                                                              | Required | Counted in the bar |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------- | -------- | ------------------ |
+| 1   | `valueDemo`      | `ValueDemoView` ("THIS IS TEMPO"; "Skip tour" also goes to the goal)                                                    | —        | no                 |
+| 2   | `goals`          | `GoalSetupView` ("WHAT ARE YOU FIGHTING FOR?"; one card per `PrimaryGoal`, saved to `UserSettings.primaryGoalRaw`)  | **yes**  | 1 of 4             |
+| 3   | `auth`           | `OnboardingAuthView` (Terms + Privacy checkbox, then Sign in with Apple; the acceptance is POSTed after sign-in)    | **yes**  | 2 of 4             |
+| 4   | `aboutYou`       | `ProfileSetupView` (display name, username with live availability check, one identity menu)                         | **yes**  | 3 of 4             |
+| 5   | `permissions`    | `PermissionsSetupView` (Apple Health, Notifications, Location; each optional, each with its own Allow button)       | no       | 4 of 4             |
+| 6   | `complete`       | `OnboardingCompleteView` ("YOU'RE IN.")                                                                             | —        | no                 |
 
-`isRequired` = `{auth, profile, identity, goals}`. `isSkippable` = `{healthkit, trainingSetup, academicSetup, dailyRhythm, classSchedule, eatingWindow, studyPreferences, trainingPreferences, weekendMode, whoopConnect, notifications, aiConsent}`. `stepNumber` is derived from `allCases.firstIndex`. The daily-plan-profile block (steps 10–15) feeds `buildDailyPlanProfile()` → `UserDailyPlanProfile` SwiftData row + backend sync (per INTELLIGENCE_REMEDIATION_PLAN.md §8).
+- **Terms.** The Apple button is dimmed and blocked until the checkbox is ticked. After a successful sign-in the app posts the acceptance (`submitToSAcceptance`), because the backend `ToSGateMiddleware` answers 451 until it has it. `tosRecorded` is saved so a relaunch does not ask twice. A person already signed in (came back to this step) sees only the checkbox and Continue. The DEBUG-only "Skip Sign In" button is kept (id `onboardingSkipSignIn`).
+- **About you.** The username follows the display name until the person types in the username field (`usernameEdited`); a saved username that is not the suggestion counts as typed.
+- **Permissions.** Apple Health reads "Done" once asked (Health never reveals whether reading was allowed); Notifications and Location read "On" when granted and offer "Open Settings" when denied.
+- **Resuming an older run.** `OnboardingStep.resumed(fromSaved:)` maps every saved step name from the 20-step flow: `splash` and `valueDemo` to the hook, `goals` to the goal, `aiConsent` and `complete` to the finish, and everything in between back to sign-in (where the terms are asked). An unknown name starts over. A person who already finished onboarding (`tempo.onboarding.complete`) never sees any of this again.
+- **Launch arguments.** `--uitesting-skip-onboarding` still skips the flow; `--uitesting-reset` clears `tempo.onboarding.complete`.
 
-### 2.2 Steps That Diverge
+### 2.2 Questions that were dropped, their default, and where they are set now
 
-- **Step 3 `profile` — inline username.** `ProfileSetupView` collects display name **and username with a live availability check** (`checkUsernameAvailability()`, 3–30 chars, allowed-charset validation).
+| Dropped question                                      | Default                                                       | Where it is set now                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Training days per week                                | 4 (Upper/Lower split)                                         | Settings > Training > Split                                                 |
+| Experience level                                      | not set (read as Beginner)                                    | Settings > Training > Experience                                            |
+| Preferred training time of day                        | any free slot                                                 | Settings > Training > Usual training time                                   |
+| Wake time, sleep target                               | 07:00, 23:00                                                  | Settings > Schedule                                                         |
+| Evening start                                         | 19:30                                                         | Settings > Schedule > Leisure starts                                        |
+| Eating window, breakfast, post-workout meal           | 12 hours, defaults                                            | Settings > Diet Profile                                                     |
+| Study session length                                  | 25 / 5 / 15 min                                               | Settings > Focus Timer                                                      |
+| Whoop                                                 | not connected                                                 | Settings > Connections                                                      |
+| Apple Health, Notifications, Location                 | asked on the permissions step; Continue without allowing leaves them off           | Permissions step, Settings > Connections, Settings > Notifications          |
+| Terms and Privacy                                     | asked on the sign-in step                                     | —                                                                           |
+| AI consent                                            | off                                                           | asked in place when an AI feature needs it (`AIBlockerCard`), and Settings  |
+| Goal                                                  | none until chosen                                             | Settings > Profile > Goal                                                   |
+| Name, username, identity                              | —                                                             | Settings > Profile                                                          |
+| Time-waster, university, chronotype, class/work/term, weekend mode | not used by any feature                          | dropped; the daily-plan fields stay in the saved blob with their defaults   |
 
-  > **Divergence from original spec:** The spec explicitly *deferred* username to first Arena access ("Username: DEFERRED"). Code collects it inline during onboarding. Photo picker from the spec is not present.
+The daily-plan fields (`buildDailyPlanProfile()` → `UserDailyPlanProfile` SwiftData row + backend sync) are still written with defaults, so the planner behaves as it did for a person who tapped through the old steps.
 
-- **Step 1 value prop merged into `auth`.** The spec's standalone "Welcome / Value Prop" screen (headline "STOP MANAGING YOUR LIFE IN 5 DIFFERENT APPS") lives on `OnboardingAuthView` together with Sign in with Apple. `ValueDemoView` ("THIS IS TEMPO") is the separate `valueDemo` step. No ring animation on either.
+### 2.3 Steps that no longer exist
 
-  > **Divergence from original spec:** Spec's "Why is sign-in required?" bottom sheet and 2-cancellation hint not present. A "Skip Sign In (Debug Only)" affordance exists on `OnboardingAuthView`.
-
-- **Academics split across three screens.** Spec's single Academics step is `AcademicSetupView` ("YOUR ACADEMICS." — spec headline was "NOW THE HARD PART. YOUR BRAIN.") + `ClassScheduleView` + `StudyPreferencesView`. No in-flow "add courses"/"add exams" chips, no daily-study-goal segmented selector, no in-step calendar import.
-
-- **Goals abbreviated.** `GoalSetupView` headline "WHAT ARE YOU FIGHTING FOR?" and the evening-start copy ("This is when the drill sergeant gets serious.") match. The spec's 8-max non-negotiable editor, time-waster selector, and primary-goal cards are abbreviated/not all confirmed present.
-
-### 2.3 Steps That Are MISSING
-
-> **Status: NOT IMPLEMENTED — Step 8 "Connect NutriTrack."** No NutriTrack onboarding step exists; there is no `nutritrack` case in `OnboardingStep`. NutriTrack was removed product-wide (backend `Migrations/DropNutriTrackIntegrations.swift`). The spec section is stale.
-
-> **Status: NOT IMPLEMENTED — Step 12 "Arena Preview" (in-flow).** `ArenaIntroView` ("WELCOME TO THE ARENA.") exists as a file but is **orphaned**: there is no `.arena*` case in `OnboardingStep` and no branch in `OnboardingContainerView.stepContent`. It is unreachable as an onboarding step.
-
-> **Status: NOT IMPLEMENTED — Step 13 "Summary / First Day Briefing."** No data-recap + Day-1 briefing step exists. `OnboardingCompleteView` is a generic "YOU'RE IN." completion screen, not the spec's summary of collected data plus first-day briefing.
+`OnboardingSplashView`, `HealthKitPermissionView`, `IdentitySetupView`, `TrainingSetupView`, `AcademicSetupView`, `DailyPlanProfileViews`, `WhoopConnectView`, `NotificationSetupView`, `TermsAcceptanceView`, `AIConsentView` and the orphaned `ArenaIntroView` were deleted. NutriTrack was removed product-wide (backend `Migrations/DropNutriTrackIntegrations.swift`), so it never returns as a step.
 
 ### 2.4 Global Onboarding UX
 
-`OnboardingContainerView` sets `.preferredColorScheme(.dark)`. The progress bar is a **single continuous fill** (`geo.size.width * viewModel.progress`, height 3, `.easeInOut(0.3)`), hidden on splash/valueDemo/complete. Step transitions use `.transition(.opacity)` (a code comment notes `.scale`/`.move` caused overflow artifacts). `advance()` walks `currentStep.next` with `.easeInOut(0.3)`; falling off the end calls `complete()`. `goBack()` walks `.previous` when `canGoBack`. `skip()` is `advance()`.
-
-> **Divergence from original spec:** Spec required a **13-segment** progress bar and a **0.35s horizontal slide** transition. Code uses one continuous fill bar and an opacity crossfade. No 13 discrete segments.
+`OnboardingContainerView` sets `.preferredColorScheme(.dark)`. The progress bar is a single continuous fill driven by `OnboardingStep.progressPosition` (1 to 4), hidden on the hook and the finish screen. Step transitions use `.transition(.opacity)`. `advance()` walks `currentStep.next`; falling off the end calls `complete()`. `goBack()` walks `.previous` when `canGoBack` (not on the hook or the finish screen). Every step uses `OnboardingScaffold` and works at accessibility sizes.
 
 ---
 
@@ -131,11 +123,11 @@ Notifications:
 
 ### 3.1 Data Persistence Strategy
 
-Implemented. `OnboardingViewModel` persists the current step to `UserDefaults` key `tempo.onboarding.step` and the in-memory state JSON to `tempo.onboarding.data`; it resumes at the last step on relaunch. A migration guard handles a saved step that no longer maps to a valid case (e.g. the removed "arena") by falling back rather than crashing. On `complete()` it sets `tempo.onboarding.complete` and clears the step/data keys.
+Implemented. `OnboardingViewModel` persists the current step to `UserDefaults` key `tempo.onboarding.step` and the in-memory state JSON to `tempo.onboarding.data`; it resumes at the last step on relaunch. A saved step from the older 20-step flow is mapped by `OnboardingStep.resumed(fromSaved:)` (see 2.1) rather than crashing. The blob also carries `primaryGoal` and `tosRecorded`; `ContentView.ensureUserProfile` reads it once to create the profile and settings, and a goal chosen on a phone that already has a profile replaces the saved one. On `complete()` it sets `tempo.onboarding.complete` and clears the step/data keys.
 
 ### 3.2 Validation Rules / Error States / Accessibility
 
-Partial. The required/skippable model exists (`isRequired`, `isSkippable`). `ProfileSetupView` has real per-field username validation (length + charset + availability) with error strings. Systematic per-field validation rules and the spec's documented error-state copy across every step are not verified. Dynamic Type / VoiceOver behavior is not independently auditable from code.
+Partial. `canContinue` gates each step: a goal on the goal step, the ticked terms on sign-in, a name and a valid username on about-you; permissions are always optional. `ProfileSetupView` has real per-field username validation (length + charset + availability) with error strings. Systematic per-field validation rules and the spec's documented error-state copy across every step are not verified. Dynamic Type / VoiceOver behavior is not independently auditable from code.
 
 ---
 
@@ -206,6 +198,7 @@ Partial. `rescheduleAllForToday` exists and runs on foreground. No `BGAppRefresh
 ### 7.6 Backend Scheduled Jobs
 
 Implemented. Wired in `configure.swift`:
+
 - `MorningBriefingJob` (struct lives in `NotificationScheduleJob.swift` — file/struct name mismatch, harmless) — every 15 min
 - `WeeklySummaryJob` — Sunday 20:00
 - `DrillSergeantBatchJob` — Sun + Wed 20:00
@@ -219,6 +212,7 @@ Implemented. Wired in `configure.swift`:
 > **Divergence from original spec — MASSIVE SHORTFALL.** The spec defined **13 channels × 30+ variations × 4 intensities**. The code has exactly **one** copy bank: `Resources/AccountabilityCopy.json` (~101 lines), covering only the accountability channels.
 
 What exists:
+
 - `AccountabilityCopyPool.pick(tier:intensity:context:)` selects from `AccountabilityCopy.json`.
 - `CopyTier` enum: `gentle / firm / urgent / critical / allClear` (5 tiers).
 - `CopyIntensity` enum: `gentle / firm / savage` — **3 intensities, not 4**. There is no distinct "Drill Sergeant" intensity; level 3 collapses into firm/savage.
@@ -245,7 +239,7 @@ Partial. `NotificationSettingsView` provides: an intensity section (4 `Intensity
 
 > **Status: NOT IMPLEMENTED — Intensity Level Behavior Matrix.** Only 3 distinct copy intensities exist (`CopyIntensity` gentle/firm/savage); the UI's 4-level selector collapses Drill Sergeant into firm/savage. Per-intensity Time-Sensitive behavior and override-shaming differences are not implemented.
 
-> **Status: NOT IMPLEMENTED — Quiet Hours enforcement.** `UserSettings` has `quietHours` fields and the settings UI renders a quiet-hours section, but **no code in `Services` ever reads `quietHours`**. The scheduling layer never suppresses or queues based on quiet hours. This is **dead data** — settings + UI exist, enforcement does not.
+> **Status: IMPLEMENTED (Nov 2026) — Quiet Hours enforcement.** `NotificationPolicy` (`Services/Notifications/NotificationPolicy.swift`) is applied in `NotificationService` where reminders are scheduled: inside the window a reminder is skipped (not delayed), except escalating accountability warnings and defrost reminders. It covers reminders Tempo schedules on this phone; server pushes, rest and workout timers, snoozes and the Recovery Coach schedulers are not covered. The page also has one three-level setting (Essential / Balanced / Everything) over the per-category toggles, and an in-app list of today's notifications (`NotificationInbox`).
 
 > **Status: NOT IMPLEMENTED — adaptive/weekend schedule.** Wake/evening/bedtime time config exists, but Whoop/Health auto-detect of schedule, 14-day adaptive learning, and the "weekend +1h" behavior are not enforced (`weekendMode` is a settings flag with no scheduling effect).
 

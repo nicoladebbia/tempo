@@ -18,10 +18,20 @@ struct GroceryListView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// True while the AddGroceryItemSheet is presented.
     @State
     private var showAddItem = false
+
+    /// The Undo toast for a tick, an add or a remove. It takes its own room above the Store Mode
+    /// bar: the Fuel host's toast floats over the rows and that bar, and a tap on its Undo can
+    /// reach them instead.
+    @State
+    private var toast: ToastData?
 
     /// Inline result message after a pantry-sync run ("removed 3 items").
     @State
@@ -35,90 +45,40 @@ struct GroceryListView: View {
     @State
     private var showDoneShopping = false
 
-    /// Weekly spend vs. budget history.
-    @State
-    private var showSpendHistory = false
-
     /// Cheaper-swaps suggestion sheet (over-budget path).
     @State
     private var showCheaperSwaps = false
 
+    @State
+    private var ticks = 0
+    @Namespace
+    private var zoom
+
+    /// Something is presented over the page: its shaders stop.
+    private var isCovered: Bool {
+        showAddItem || showStoreMode || showDoneShopping || showCheaperSwaps
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                headerCard
-                if let list = viewModel.groceryState.latest {
-                    storeModeBar
-                    progressBar(for: list)
-                    budgetSection(for: list)
-                    ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
-                        categorySection(category: category, items: items(in: list, category: category))
-                    }
-                    if !list.boughtItems.isEmpty {
-                        boughtSection(for: list)
-                    }
-                    exportButton(for: list)
-                } else {
-                    emptyState
-                }
-                if let error = viewModel.groceryState.lastError {
-                    Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                }
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
-        }
-        .background(Color.tempoBgPrimary)
-        .toolbar {
-            // Only surface Add/Sync when a list actually exists — there's
-            // nothing to add to or sync against until generation runs.
+        Group {
             if let list = viewModel.groceryState.latest {
-                // feat/grocery-share-order (Lane C) — share as text / live link / order online.
-                ToolbarItem(placement: .topBarTrailing) {
-                    GroceryShareMenu(list: list)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            showAddItem = true
-                        } label: {
-                            Label("Add Item", systemImage: "plus")
-                        }
-                        Button {
-                            let removed = viewModel.reapplyPantryToGrocery()
-                            pantrySyncMessage = removed == 0
-                                ? "List is already in sync with pantry"
-                                : "Removed \(removed) item\(removed == 1 ? "" : "s") already in pantry"
-                            HapticManager.lightImpact()
-                        } label: {
-                            Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        Button {
-                            showSpendHistory = true
-                        } label: {
-                            Label("Spend History", systemImage: "chart.bar.fill")
-                        }
-                        storePickerMenu
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
+                listPage(list)
+            } else {
+                emptyState
             }
         }
+        .tidePage()
+        .tideCovered(isCovered)
+        .sensoryFeedback(.selection, trigger: ticks)
         .sheet(isPresented: $showAddItem) {
             AddGroceryItemSheet { name, qty, unit in
-                viewModel.addGroceryItem(name: name, quantity: qty, unit: unit)
+                viewModel.addGroceryItemWithUndo(name: name, quantity: qty, unit: unit) { toast = $0 }
             }
         }
         .sheet(isPresented: $showDoneShopping) {
             if let list = viewModel.groceryState.latest {
                 GroceryDoneShoppingView(viewModel: viewModel, list: list)
             }
-        }
-        .sheet(isPresented: $showSpendHistory) {
-            GroceryWeeklySpendView(viewModel: viewModel)
         }
         .sheet(isPresented: $showCheaperSwaps) {
             CheaperSwapsSheet(viewModel: viewModel)
@@ -129,6 +89,7 @@ struct GroceryListView: View {
                     showStoreMode = false
                     showDoneShopping = true
                 }
+                .navigationTransition(.zoom(sourceID: "storeMode", in: zoom))
             }
         }
         .alert("Pantry Sync", isPresented: Binding(
@@ -150,20 +111,95 @@ struct GroceryListView: View {
         }
     }
 
-    // MARK: - Store mode entry + picker
+    // MARK: - The list
 
-    private var storeModeBar: some View {
-        HStack(spacing: TempoSpacing.sm) {
+    private func listPage(_ list: GroceryList) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                summaryCard(for: list)
+                ForEach(viewModel.resolvedGroceryCategoryOrder(for: list), id: \.self) { category in
+                    categorySection(category: category, items: items(in: list, category: category))
+                }
+                if !list.boughtItems.isEmpty {
+                    boughtSection(for: list)
+                }
+                addItemRow
+                exportButton(for: list)
+                if let error = viewModel.groceryState.lastError {
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
+                }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s4)
+        }
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
+        // Before the bottom bar, so the toast rests above "Store Mode", not on it.
+        .kitchenToast($toast)
+        // The way into the shop sits where the thumb is, not up in the card.
+        .kitchenBottomBar {
             Button {
-                HapticManager.lightImpact()
                 showStoreMode = true
             } label: {
                 Label("Store Mode", systemImage: "figure.walk")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.kitchenBar)
+            .matchedTransitionSource(id: "storeMode", in: zoom)
+            .sensoryFeedback(.impact(weight: .light), trigger: showStoreMode)
         }
     }
+
+    /// Everything that used to live in the navigation bar, which the Fuel tab
+    /// hides: add, rebuild, sync with the pantry, spend history, the store.
+    private var moreMenu: some View {
+        Menu {
+            Button {
+                showAddItem = true
+            } label: {
+                Label("Add Item", systemImage: "plus")
+            }
+            Button {
+                viewModel.generateGroceryList()
+            } label: {
+                Label("Generate list", systemImage: "wand.and.stars")
+            }
+            .disabled(viewModel.groceryState.isGenerating)
+            Button {
+                let removed = viewModel.reapplyPantryToGrocery()
+                pantrySyncMessage = removed == 0
+                    ? "List is already in sync with pantry"
+                    : "Removed \(removed) item\(removed == 1 ? "" : "s") already in pantry"
+                HapticManager.lightImpact()
+            } label: {
+                Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
+            }
+            Button {
+                viewModel.openKitchen(.receipts)
+            } label: {
+                Label("Spending", systemImage: "chart.bar.fill")
+            }
+            storePickerMenu
+        } label: {
+            KitchenGlassIcon(systemImage: "ellipsis", isWorking: viewModel.groceryState.isGenerating)
+        }
+        .accessibilityLabel("More")
+    }
+
+    private var addItemRow: some View {
+        Button {
+            showAddItem = true
+        } label: {
+            Label("Add an item", systemImage: "plus")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Store picker
 
     private var storePickerMenu: some View {
         Menu {
@@ -183,47 +219,91 @@ struct GroceryListView: View {
         }
     }
 
-    // MARK: - Budget / cost
+    // MARK: - Summary: progress, cost, the way into Store Mode
 
-    private func budgetSection(for list: GroceryList) -> some View {
+    private func summaryCard(for list: GroceryList) -> some View {
+        let total = max(1, list.itemCount)
+        let progress = Double(list.checkedCount) / Double(total)
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(spacing: Tide.s2) {
+                Text("This week").tideLabel()
+                if progress >= 1 {
+                    KitchenTag(text: "All checked", tint: Tide.Kitchen.good)
+                }
+                Spacer(minLength: Tide.s2)
+                GroceryShareMenu(list: list)
+                moreMenu
+            }
+            TideNumber(
+                "\(list.checkedCount)", unit: "of \(list.itemCount) checked",
+                size: Tide.numeralL, relativeTo: .largeTitle,
+                color: progress >= 1 ? Tide.Kitchen.good : Tide.text
+            )
+            TideLevelBar(progress: progress, color: progress >= 1 ? Tide.Kitchen.good : mood.accent, height: Tide.bar)
+                .animation(Tide.settle, value: progress)
+                .accessibilityLabel("Checked off")
+            budgetLine(for: list)
+        }
+        .tideCard()
+    }
+
+    /// What the list costs against what you set aside: the total, and a bar
+    /// that fills toward the budget and turns red when it passes it.
+    private func budgetLine(for list: GroceryList) -> some View {
         let cap = viewModel.groceryBudgetCapUSD
         let total = list.estimatedTotalUSD
         let isOver = viewModel.groceryIsOverBudget()
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total))
-                    .font(.tempoBody)
-                    .foregroundStyle(isOver ? Color.tempoError : Color.tempoTextPrimary)
-                if list.hasUnresolvedPrices {
-                    Text("pricing…")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+        let spent = cap.map { $0 > 0 ? min(total / Double($0), 1) : 0 } ?? 0
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        list.totalIsApproximate ? "≈ \(formatUSD(total))" : formatUSD(total),
+                        size: Tide.numeralM, relativeTo: .title,
+                        color: isOver ? Tide.danger : Tide.text
+                    )
+                    if list.hasUnresolvedPrices {
+                        Text("pricing…")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
                 }
-                Spacer()
+                .explains(.fuelGroceryTotal.showing(formatUSD(total)))
+                Spacer(minLength: Tide.s2)
                 if let cap {
                     Text("of $\(cap) budget")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
+                        .explains(.fuelGroceryBudget.showing("$\(cap)"))
                 }
             }
+            if cap != nil {
+                TideLevelBar(progress: spent, color: isOver ? Tide.danger : Tide.water, height: Tide.barSlim)
+                    .animation(Tide.settle, value: spent)
+                    .accessibilityLabel("Budget used")
+            }
             if isOver {
-                HStack {
-                    Text("Over budget — tighten up or swap something.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                    Spacer()
-                    Button("Cheaper swaps") {
+                let stacked = typeSize.isAccessibilitySize
+                let layout = stacked
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
+                    Text("Over budget. Tighten up or swap something.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !stacked {
+                        Spacer(minLength: Tide.s2)
+                    }
+                    TideChip(title: "Cheaper swaps") {
                         showCheaperSwaps = true
                         Task { await viewModel.fetchCheaperSwaps() }
                     }
-                    .font(.tempoCaption1)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private func formatUSD(_ value: Double) -> String {
@@ -233,78 +313,25 @@ struct GroceryListView: View {
     // MARK: - Bought section (Done-shopping record)
 
     private func boughtSection(for list: GroceryList) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("BOUGHT")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        KitchenGroup(
+            title: "Bought",
+            systemImage: "checkmark.circle.fill",
+            trailing: "\(list.boughtItems.count)",
+            tint: Tide.Kitchen.good
+        ) {
             ForEach(list.boughtItems, id: \.id) { item in
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s3) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.tempoSuccess)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.Kitchen.good)
+                        .accessibilityHidden(true)
                     Text(item.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .strikethrough()
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
             }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard.opacity(TempoOpacity.o70))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    // MARK: - Header
-
-    private var headerCard: some View {
-        HStack(alignment: .center, spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("THIS WEEK")
-                    .font(.tempoModuleTag)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                if let list = viewModel.groceryState.latest {
-                    Text("\(list.itemCount) items, \(list.checkedCount) checked")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                } else {
-                    Text("No list generated yet")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
-            }
-            Spacer()
-            Button {
-                viewModel.generateGroceryList()
-            } label: {
-                if viewModel.groceryState.isGenerating {
-                    ProgressView().tint(.white)
-                } else {
-                    Label("Generate", systemImage: "wand.and.stars")
-                }
-            }
-            .buttonStyle(.tempoPrimary)
-            .disabled(viewModel.groceryState.isGenerating)
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    private func progressBar(for list: GroceryList) -> some View {
-        let total = max(1, list.itemCount)
-        let progress = Double(list.checkedCount) / Double(total)
-        return VStack(alignment: .leading, spacing: 4) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.tempoBorder.opacity(0.5)).frame(height: 6)
-                    Capsule().fill(Color.tempoSignal).frame(width: geo.size.width * progress, height: 6)
-                }
-            }
-            .frame(height: 6)
-            Text("\(Int(progress * 100))% checked off")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
         }
     }
 
@@ -315,48 +342,33 @@ struct GroceryListView: View {
     }
 
     private func categorySection(category: String, items: [GroceryListItem]) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(category.uppercased())
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextSecondary)
+        let left = items.filter { !$0.isChecked }.count
+        return KitchenGroup(
+            title: category,
+            trailing: left == 0 ? "Done" : "\(left) left"
+        ) {
             ForEach(items, id: \.id) { item in
                 Button {
-                    viewModel.toggleGroceryItem(item)
+                    let undoToast = viewModel.toggleGroceryItemWithUndo(item)
+                    ticks += 1
                     if item.isChecked {
                         viewModel.recordGroceryCategoryTick(item.category)
                     }
-                } label: {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(item.isChecked ? Color.tempoSuccess : Color.tempoTextTertiary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.displayName)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .strikethrough(item.isChecked)
-                            // "4 breasts chicken" already carries its amount.
-                            if !item.displayNameEmbedsQuantity {
-                                Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
-                                    .font(.tempoCaption1)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
-                        }
-                        Spacer()
-                        if let price = item.estimatedPriceUSD {
-                            Text(item.priceSource == .estimate ? "≈\(formatUSD(price))" : formatUSD(price))
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
+                    if let undoToast {
+                        toast = undoToast
                     }
+                } label: {
+                    itemRow(item)
                 }
                 .buttonStyle(.plain)
+                .accessibilityValue(item.isChecked ? "Checked" : "Not checked")
                 // Long-press to delete. Can't use SwiftUI swipeActions here
                 // because the list isn't inside a List/Form — these rows
                 // are a custom VStack. The contextMenu works on any tap
                 // target and matches iOS's expected long-press affordance.
                 .contextMenu {
                     Button(role: .destructive) {
-                        viewModel.deleteGroceryItem(item)
+                        viewModel.deleteGroceryItemWithUndo(item) { toast = $0 }
                         HapticManager.notification(.warning)
                     } label: {
                         Label("Remove from List", systemImage: "trash")
@@ -364,10 +376,34 @@ struct GroceryListView: View {
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func itemRow(_ item: GroceryListItem) -> some View {
+        HStack(spacing: Tide.s3) {
+            KitchenCheck(checked: item.isChecked)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(item.displayName)
+                    .font(Tide.headline)
+                    .foregroundStyle(item.isChecked ? Tide.text3 : Tide.text)
+                    .strikethrough(item.isChecked)
+                    .fixedSize(horizontal: false, vertical: true)
+                // "4 breasts chicken" already carries its amount.
+                if !item.displayNameEmbedsQuantity {
+                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+            }
+            Spacer(minLength: Tide.s2)
+            if let price = item.estimatedPriceUSD {
+                Text(item.priceSource == .estimate ? "≈\(formatUSD(price))" : formatUSD(price))
+                    .font(Tide.numeral(Tide.numeralS, .semibold))
+                    .foregroundStyle(Tide.text2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+        }
+        .contentShape(.rect)
     }
 
     // MARK: - Reminders export
@@ -378,42 +414,44 @@ struct GroceryListView: View {
                 await viewModel.exportGroceryListToReminders()
             }
         } label: {
-            HStack {
+            HStack(spacing: Tide.s2) {
                 if viewModel.groceryState.isExporting {
-                    ProgressView().tint(.white)
+                    ProgressView()
                 }
                 Label(
                     list.exportedToReminders ? "Re-export to Reminders" : "Export to Reminders",
                     systemImage: "list.bullet.rectangle.fill"
                 )
-                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.tempoSecondary)
+        .buttonStyle(.tideGlass)
         .disabled(viewModel.groceryState.isExporting)
     }
 
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            Image(systemName: "cart")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No grocery list yet")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Generate a meal plan first, then tap Generate to build your shopping list.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+        let generating = viewModel.groceryState.isGenerating
+        return KitchenStatePage(actions: [
+            KitchenStateAction(
+                title: generating ? "Generating…" : "Generate",
+                systemImage: "wand.and.stars",
+                role: .primary,
+                isEnabled: !generating
+            ) { viewModel.generateGroceryList() },
+        ]) {
+            VStack(spacing: Tide.s4) {
+                KitchenStateHero(
+                    systemImage: "cart",
+                    title: "No grocery list yet",
+                    message: "Generate a meal plan first, then tap Generate to build your shopping list."
+                )
+                if let error = viewModel.groceryState.lastError {
+                    KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: error, tint: Tide.danger)
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
-    }
-
-    private func formatQuantity(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }
 
@@ -448,12 +486,12 @@ private struct AddGroceryItemSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Item") {
+            KitchenForm {
+                KitchenFormSection("Item") {
                     TextField("Name (e.g. olive oil)", text: $name)
                         .textInputAutocapitalization(.never)
                 }
-                Section("Quantity") {
+                KitchenFormSection("Quantity") {
                     HStack {
                         TextField("Amount", text: $quantityText)
                             .keyboardType(.decimalPad)
@@ -481,5 +519,6 @@ private struct AddGroceryItemSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 }

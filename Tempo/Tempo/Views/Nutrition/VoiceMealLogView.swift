@@ -20,6 +20,8 @@ struct VoiceMealLogView: View {
     /// Low-confidence fallback: dismiss and open the Search tab pre-filled.
     var onSearchInstead: ((String) -> Void)?
 
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
     @Environment(\.dismiss)
@@ -39,6 +41,8 @@ struct VoiceMealLogView: View {
         case blocked(AIBlocker)
     }
 
+    private static let noFoodMessage = "No food items found."
+
     @State private var phase: Phase = .idle
     @State private var questions: [VoiceClarifyingQuestion] = []
     @State private var questionIndex = 0
@@ -47,9 +51,10 @@ struct VoiceMealLogView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 switch phase {
-                case .idle, .recording:
+                case .idle,
+                     .recording:
                     micSection
                 case .thinking:
                     thinkingSection
@@ -64,8 +69,14 @@ struct VoiceMealLogView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
+            .padding(Tide.edge)
+            // The one action sits under the thumb once there is something to log.
+            .fuelBottomBar(isShown: phase == .confirming) {
+                Button("Log it") { logResolvedItems() }
+                    .buttonStyle(.tidePrimary)
+            }
+            .animation(Tide.settle, value: phase)
+            .tidePage()
             .navigationTitle("Voice Log")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -94,43 +105,47 @@ struct VoiceMealLogView: View {
     // MARK: - Mic
 
     private var micSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s5) {
             Spacer()
 
             Text(transcriber.isListening
                 ? "Listening… describe your meal"
                 : "Tap the mic and say what you ate")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text2)
                 .multilineTextAlignment(.center)
 
             Button {
                 Task { await toggleRecording() }
             } label: {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
-                    .clipShape(Circle())
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.ink)
+                    .symbolEffect(.pulse, isActive: transcriber.isListening)
+                    .frame(width: Tide.fuelMic, height: Tide.fuelMic)
+                    .background(transcriber.isListening ? Tide.danger : mood.accent, in: .circle)
+                    .contentShape(.circle)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FuelPressStyle())
+            .animation(Tide.snap, value: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop recording" : "Start recording")
 
             if !transcriber.transcribedText.isEmpty {
                 Text(transcriber.transcribedText)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.center)
-                    .padding(TempoSpacing.cardPadding)
                     .frame(maxWidth: .infinity)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                    .transition(.opacity)
             }
 
             if let err = transcriber.error {
                 Text(err)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -152,19 +167,17 @@ struct VoiceMealLogView: View {
     // MARK: - Thinking
 
     private var thinkingSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
-            ProgressView()
-                .controlSize(.large)
-            Text("Reading your meal…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+            FuelAIState(kind: .working("Reading your meal…"))
             Spacer()
         }
     }
 
     private func runExtraction() async {
-        guard let service else { return }
+        guard let service else {
+            return
+        }
         let transcript = transcriber.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !transcript.isEmpty else {
             phase = .idle
@@ -188,35 +201,29 @@ struct VoiceMealLogView: View {
     // MARK: - Clarifying (one question at a time, tappable answers only)
 
     private var clarifyingSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            Text("Question \(questionIndex + 1) of \(questions.count)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Question \(questionIndex + 1) of \(questions.count)")
 
             if questionIndex < questions.count {
                 let q = questions[questionIndex]
                 Text(q.question)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(q.options.prefix(4), id: \.self) { option in
                     Button {
+                        HapticManager.lightImpact()
                         answers[q.question] = option
                         advanceQuestion()
                     } label: {
                         Text(option)
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.body)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(TempoSpacing.md)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.tempoBorder, lineWidth: 1)
-                            )
+                            .padding(.horizontal, Tide.s4)
+                            .fuelChoice(selected: false, minHeight: Tide.hit + Tide.s3)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(FuelPressStyle())
                 }
             }
 
@@ -235,7 +242,9 @@ struct VoiceMealLogView: View {
     // MARK: - Resolve + Confirmation
 
     private func runResolve() async {
-        guard let service else { return }
+        guard let service else {
+            return
+        }
         phase = .thinking
         do {
             resolved = try await service.resolve(
@@ -243,7 +252,7 @@ struct VoiceMealLogView: View {
                 answers: answers
             )
             phase = resolved.isEmpty
-                ? .failed("No food items found.")
+                ? .failed(Self.noFoodMessage)
                 : .confirming
         } catch {
             phase = AIBlocker(error).map(Phase.blocked) ?? .failed(AIBlocker.readableDescription(error))
@@ -251,46 +260,46 @@ struct VoiceMealLogView: View {
     }
 
     private var confirmationSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("Confirm your meal")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+        // What will be logged: the confident items only, so the number matches
+        // the Confirm Meal sheet the user lands on next.
+        let kcal = Int(resolved.filter { !$0.isLowConfidence }.reduce(0.0) { $0 + $1.calories }.rounded())
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(
+                title: "Confirm your meal",
+                trailing: FuelWords.count(resolved.count, "item")
+            )
+            TideNumber("\(kcal)", unit: "kcal", size: Tide.numeralL)
 
             ScrollView {
-                VStack(spacing: TempoSpacing.sm) {
+                VStack(spacing: Tide.s2) {
                     ForEach(Array(resolved.enumerated()), id: \.offset) { _, item in
                         resolvedRow(item)
                     }
                 }
             }
-
-            Button {
-                logResolvedItems()
-            } label: {
-                Text("Log it")
-            }
-            .buttonStyle(.tempoPrimary)
+            .scrollIndicators(.hidden)
         }
     }
 
     private func resolvedRow(_ item: VoiceResolvedItem) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
                 Text(item.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: Tide.s2)
                 if item.isLowConfidence {
-                    Text("Low confidence")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoWarning)
+                    FuelPill(text: "Low confidence", color: Tide.warn)
                 }
             }
 
-            Text("\(Int(item.quantityG)) g · \(Int(item.calories)) kcal · "
-                + "P \(Int(item.proteinG)) / C \(Int(item.carbsG)) / F \(Int(item.fatG))")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+            Text("\(Int(item.quantityG)) g · \(Int(item.calories.rounded())) kcal · "
+                + "P \(Int(item.proteinG.rounded())) / C \(Int(item.carbsG.rounded())) / F \(Int(item.fatG.rounded()))")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .monospacedDigit()
+                .fixedSize(horizontal: false, vertical: true)
 
             if item.isLowConfidence {
                 Button {
@@ -299,17 +308,17 @@ struct VoiceMealLogView: View {
                     onSearchInstead?(item.name)
                 } label: {
                     Text("Search instead")
-                        .font(.tempoCaption1)
+                        .font(Tide.caption)
                         .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(mood.accent)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func logResolvedItems() {
@@ -340,7 +349,7 @@ struct VoiceMealLogView: View {
     // MARK: - Failure
 
     private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
             AIBlockerCard(blocker: blocker, onConsentGranted: retry)
             Spacer()
@@ -348,22 +357,24 @@ struct VoiceMealLogView: View {
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        // transcriber.start() clears transcribedText itself.
+        let retry = { phase = .idle }
+        return VStack(spacing: Tide.s4) {
             Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoWarning)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            Button {
-                // transcriber.start() clears transcribedText itself.
-                phase = .idle
-            } label: {
-                Text("Try again")
+            if message == Self.noFoodMessage {
+                FuelAIState(
+                    kind: .empty(
+                        title: "No food found",
+                        message: "Nothing in that sounded like food. Say what was on the plate, with amounts if you can."
+                    ),
+                    actionTitle: "Try again", action: retry
+                )
+            } else {
+                FuelAIState(
+                    kind: .failed(title: "Couldn't read that", message: message),
+                    actionTitle: "Try again", action: retry
+                )
             }
-            .buttonStyle(.tempoPrimary)
             Spacer()
         }
     }

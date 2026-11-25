@@ -698,7 +698,7 @@ Complete every item before clicking "Submit for Review" in App Store Connect.
 - [ ] All deprecated API usage removed
 - [ ] No private API usage (run `nm` and `strings` on the binary to verify)
 - [ ] No API keys, secrets, or tokens embedded in the iOS binary (all keys are backend-only)
-- [ ] Minimum deployment target: iOS 17.4
+- [ ] Minimum deployment target: iOS 26.0
 - [ ] App icon provided for all required sizes
 - [ ] Launch screen configured (no black screen on cold start)
 

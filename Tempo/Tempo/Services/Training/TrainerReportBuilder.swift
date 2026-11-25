@@ -80,6 +80,16 @@ enum TrainerReportBuilder {
         switch scope {
         case .week:
             let monday = TrainingCalendar.mondayOfWeek(containing: today)
+            // On a Monday the week so far is a single day, which makes a
+            // useless report ("23 Nov - 23 Nov"). Report the week that just
+            // finished instead (the scope's doc: "or the last 7 days if the
+            // program isn't currently mid-week").
+            if weekScopeLooksBack(program: program, today: today) {
+                let lastMonday = cal.date(byAdding: .day, value: -7, to: monday) ?? monday
+                let lastSunday = cal.date(byAdding: .day, value: -1, to: monday) ?? monday
+                let programStart = cal.startOfDay(for: program.startDate)
+                return max(lastMonday, min(programStart, lastSunday)) ... lastSunday
+            }
             let sunday = cal.date(byAdding: .day, value: 6, to: monday) ?? monday
             let end = min(sunday, startOfToday)
             let start = min(monday, end)
@@ -88,6 +98,18 @@ enum TrainerReportBuilder {
             let start = min(cal.startOfDay(for: program.startDate), startOfToday)
             return start ... startOfToday
         }
+    }
+
+    /// True when "This Week" resolves to the previous Monday-to-Sunday: today
+    /// is a Monday and the program started before today, so there is a week
+    /// behind it worth reporting. The report sheet labels the segment "Last
+    /// Week" in that case.
+    static func weekScopeLooksBack(program: TrainerProgram, today: Date = Date()) -> Bool {
+        let cal = Calendar.current
+        let startOfToday = cal.startOfDay(for: today)
+        let monday = TrainingCalendar.mondayOfWeek(containing: today)
+        return startOfToday == cal.startOfDay(for: monday)
+            && cal.startOfDay(for: program.startDate) < startOfToday
     }
 
     /// A padded window around `scopeRange` to search for a "moved" match —

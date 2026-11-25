@@ -15,6 +15,9 @@ import SwiftUI
 // Generates a JSON file with user data and presents UIActivityViewController.
 
 struct DataExportView: View {
+    @Environment(\.tideMood)
+    private var mood
+
     @Environment(\.modelContext)
     private var modelContext
     @Query
@@ -33,77 +36,144 @@ struct DataExportView: View {
     @State
     private var exportFileURL: URL?
 
-    var body: some View {
-        List {
-            Section {
-                Picker("Date Range", selection: $exportRange) {
-                    ForEach(ExportRange.allCases) { range in
-                        Text(range.displayName).tag(range)
-                    }
-                }
-                .font(.system(size: 14))
-            } header: {
-                Text("Export Range")
-            } footer: {
-                Text("Your data will be exported as a JSON file that you can save or share.")
-                    .font(.tempoCaption1)
-            }
-            .listRowBackground(Color.tempoSurfaceCard)
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
-            Section {
-                Button {
-                    exportData()
-                } label: {
-                    HStack {
-                        Spacer()
-                        if isExporting {
-                            ProgressView()
-                                .tint(Color.tempoTextInverse)
-                        } else {
-                            Label("Export My Data", systemImage: "square.and.arrow.up")
-                                .font(.system(size: 15, weight: .semibold))
-                        }
-                        Spacer()
-                    }
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .padding(.vertical, TempoSpacing.sm)
+    /// The export action: pinned under the thumb, or in the page at a big text size.
+    private var exportButton: some View {
+        Button {
+            exportData()
+        } label: {
+            if isExporting {
+                HStack(spacing: Tide.s2) {
+                    ProgressView()
+                        .tint(Tide.ink)
+                    Text("Preparing your export")
                 }
-                .listRowBackground(Color.tempoSignal)
-                .disabled(isExporting)
+            } else {
+                Label("Export My Data", systemImage: "square.and.arrow.up")
+            }
+        }
+        .buttonStyle(.tidePrimary)
+        .disabled(isExporting)
+    }
+
+    /// How far back the file reaches, as one big figure with the choice under it.
+    private var rangeHero: some View {
+        TideSettingsHero {
+            TideLabel("Your data")
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    exportRange.figure.value, unit: exportRange.figure.unit,
+                    size: Tide.numeralL, relativeTo: .largeTitle
+                )
+                .contentTransition(.numericText())
+            }
+            Text("Saved as a JSON file that you can keep or share.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            if typeSize.isAccessibilitySize {
+                SettingsControlRow(label: "Date Range", icon: "calendar") {
+                    rangePicker.pickerStyle(.menu)
+                }
+                .padding(.horizontal, -Tide.s4)
+            } else {
+                rangePicker
+                    .pickerStyle(.segmented)
+                    .padding(.top, Tide.s2)
+            }
+        }
+        .animation(Tide.snap, value: exportRange)
+    }
+
+    private var rangePicker: some View {
+        Picker("Date Range", selection: $exportRange) {
+            ForEach(ExportRange.allCases) { range in
+                Text(typeSize.isAccessibilitySize ? range.displayName : range.shortName).tag(range)
+            }
+        }
+        .labelsHidden()
+        .disabled(isExporting)
+        .sensoryFeedback(.selection, trigger: exportRange)
+    }
+
+    var body: some View {
+        TideSettingsPage {
+            rangeHero
+
+            if typeSize.isAccessibilitySize {
+                exportButton
             }
 
             if let error = exportError {
-                Section {
-                    Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
+                exportStatusCard(
+                    icon: "exclamationmark.triangle.fill", tint: Tide.danger,
+                    title: "Export failed", detail: error
+                )
+            } else if let url = exportFileURL, !isExporting {
+                exportStatusCard(
+                    icon: "checkmark.circle.fill", tint: mood.accent,
+                    title: "Export ready", detail: url.lastPathComponent
+                )
             }
 
-            Section {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    exportInfoRow(icon: "person.fill", text: "Profile & biometrics")
-                    exportInfoRow(icon: "gearshape.fill", text: "Settings & preferences")
-                    exportInfoRow(icon: "dumbbell.fill", text: "Workout history")
-                    exportInfoRow(icon: "heart.fill", text: "Recovery data")
-                    exportInfoRow(icon: "brain.head.profile", text: "Study sessions")
-                    exportInfoRow(icon: "flame.fill", text: "Streaks & achievements")
-                }
-            } header: {
-                Text("Included Data")
+            SettingsFormCard(title: "Included data") {
+                exportInfoRow(icon: "person.fill", text: "Profile & biometrics")
+                SettingsRowDivider()
+                exportInfoRow(icon: "gearshape.fill", text: "Settings & preferences")
+                SettingsRowDivider()
+                exportInfoRow(icon: "dumbbell.fill", text: "Workout history")
+                SettingsRowDivider()
+                exportInfoRow(icon: "heart.fill", text: "Recovery data")
+                SettingsRowDivider()
+                exportInfoRow(icon: "brain.head.profile", text: "Study sessions")
+                SettingsRowDivider()
+                exportInfoRow(icon: "flame.fill", text: "Streaks & achievements")
             }
-            .listRowBackground(Color.tempoSurfaceCard)
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
+        .safeAreaBar(edge: .bottom) {
+            if !typeSize.isAccessibilitySize {
+                exportButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
+            }
+        }
+        .animation(Tide.snap, value: isExporting)
+        .animation(Tide.snap, value: exportError)
+        .sensoryFeedback(.success, trigger: showShareSheet) { _, isShown in isShown }
+        .sensoryFeedback(.error, trigger: exportError) { _, new in new != nil }
         .navigationTitle("Export Data")
         .navigationBarTitleDisplayMode(.inline)
+        .tideCovered(showShareSheet)
         .sheet(isPresented: $showShareSheet) {
             if let url = exportFileURL {
                 ShareSheet(items: [url])
             }
         }
+    }
+
+    /// The result of the last export: calm, in one glass card.
+    private func exportStatusCard(icon: String, tint: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: Tide.s3) {
+            Image(systemName: icon)
+                .font(Tide.headline)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .transition(.opacity)
     }
 
     // MARK: - Export Logic
@@ -284,15 +354,23 @@ struct DataExportView: View {
     }
 
     private func exportInfoRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(width: 20)
+        HStack(spacing: Tide.s3) {
+            SettingsIconTile(systemName: icon, tint: Tide.text2)
             Text(text)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
+            Image(systemName: "checkmark")
+                .font(Tide.caption)
+                .foregroundStyle(mood.accent)
+                .accessibilityHidden(true)
         }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -314,6 +392,26 @@ enum ExportRange: String, CaseIterable, Identifiable {
         case .last30Days: "Last 30 Days"
         case .last90Days: "Last 90 Days"
         case .allTime: "All Time"
+        }
+    }
+
+    /// The label on the segmented control, short enough for four to share a row.
+    var shortName: String {
+        switch self {
+        case .last7Days: "7 days"
+        case .last30Days: "30 days"
+        case .last90Days: "90 days"
+        case .allTime: "All time"
+        }
+    }
+
+    /// The big figure in the export hero.
+    var figure: (value: String, unit: String) {
+        switch self {
+        case .last7Days: ("7", "days")
+        case .last30Days: ("30", "days")
+        case .last90Days: ("90", "days")
+        case .allTime: ("All", "time")
         }
     }
 

@@ -79,33 +79,44 @@ struct TrainerReportSheet: View {
         _language = State(initialValue: TrainerReportBuilder.detectLanguage(program: program))
     }
 
+    /// "This Week", or "Last Week" on a Monday, when the report covers the
+    /// week that just finished (see `TrainerReportBuilder.weekScopeLooksBack`).
+    private var weekScopeLabel: String {
+        TrainerReportBuilder.weekScopeLooksBack(program: program, today: referenceDate) ? "Last Week" : "This Week"
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    Picker("Scope", selection: $scope) {
-                        Text("This Week").tag(TrainerReportScope.week)
-                        Text("Whole Program").tag(TrainerReportScope.wholeProgram)
-                    }
-                    .pickerStyle(.segmented)
+            TrainPlanPage {
+                TrainPlanTabs(
+                    items: [
+                        (tag: TrainerReportScope.week, label: weekScopeLabel),
+                        (tag: TrainerReportScope.wholeProgram, label: "Whole Program"),
+                    ],
+                    selection: $scope
+                )
 
-                    Picker("Language", selection: $language) {
-                        ForEach(TrainerReportLanguage.allCases) { lang in
-                            Text(lang.displayName).tag(lang)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    if let document {
-                        previewSection(document)
-                        shareButtons(document)
-                    }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    TideSectionLabel(title: "Language")
+                    TrainPlanTabs(
+                        items: TrainerReportLanguage.allCases.map { (tag: $0, label: $0.displayName) },
+                        selection: $language
+                    )
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+
+                if let document {
+                    previewSection(document)
+                }
             }
-            .background(Color.tempoBgPrimary)
+            .safeAreaBar(edge: .bottom) {
+                // Sharing is why the sheet exists, so it sits under the thumb.
+                if let document {
+                    shareButtons(document)
+                        .padding(.horizontal, Tide.edge)
+                        .padding(.bottom, Tide.s2)
+                }
+            }
+            .trainSheetRoot()
             .navigationTitle("Report to Trainer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -136,44 +147,44 @@ struct TrainerReportSheet: View {
     // MARK: - Preview
 
     private func previewSection(_ document: TrainerReportDocument) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(document.title)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(document.dateRangeLabel)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(spacing: Tide.s4) {
+            if !document.sessions.isEmpty {
+                reportHero(document)
+            }
+            TrainPlanCard {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(document.title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(document.dateRangeLabel)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                ForEach(Array(document.summaryLines.enumerated()), id: \.offset) { _, line in
-                    Text("• \(line)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    ForEach(Array(document.summaryLines.enumerated()), id: \.offset) { _, line in
+                        Text("• \(line)")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
-            .padding(TempoSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
 
-            if document.sessions.isEmpty {
-                Text(document.strings.noSessionsText)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-            } else {
-                ForEach(document.sessions) { session in
-                    HStack(spacing: TempoSpacing.xs) {
-                        Text(session.dateLabel)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(session.title)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
-                        Spacer()
-                        Text(session.statusLabel)
-                            .font(.tempoCaption2.weight(.semibold))
-                            .foregroundStyle(statusColor(session.status))
+            TrainPlanCard(label: "Sessions") {
+                if document.sessions.isEmpty {
+                    Text(document.strings.noSessionsText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(Array(document.sessions.enumerated()), id: \.element.id) { index, session in
+                        if index > 0 {
+                            TrainPlanDivider()
+                        }
+                        sessionRow(session)
                     }
                 }
             }
@@ -181,40 +192,93 @@ struct TrainerReportSheet: View {
             // Pause/travel-pain feature — football/pain/pauses/travel-swap
             // sections. See TrainerReportSupplementalSections.swift.
             ForEach(document.extraSections) { section in
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text(section.title.uppercased())
-                        .font(.tempoCaption2.weight(.semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
-                        Text("• \(line)")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                TrainPlanCard(label: section.title) {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                            Text("• \(line)")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
-                .padding(.top, TempoSpacing.xs)
             }
         }
     }
 
+    /// What the trainer will read first: how many of the sessions got done.
+    private func reportHero(_ document: TrainerReportDocument) -> some View {
+        let total = document.sessions.count
+        let done = document.sessions.filter { $0.status == .done }.count
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Sessions done").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(done)/\(total)", size: Tide.numeralM, relativeTo: .title)
+                Text(document.dateRangeLabel)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TrainSetTicks(done: done, total: total, label: "Sessions")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Sessions done")
+        .accessibilityValue("\(done) of \(total)")
+    }
+
+    private func sessionRow(_ session: TrainerReportSessionRow) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                Text(session.dateLabel)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                Text(session.title)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(1)
+                Spacer(minLength: Tide.s2)
+                Text(session.statusLabel)
+                    .font(Tide.caption.weight(.semibold))
+                    .foregroundStyle(statusColor(session.status))
+            }
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(session.dateLabel)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                Text(session.title)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(session.statusLabel)
+                    .font(Tide.caption.weight(.semibold))
+                    .foregroundStyle(statusColor(session.status))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
     private func statusColor(_ status: TrainerReportSessionStatus) -> Color {
         switch status {
-        case .done: Color.tempoRecoveryGreen
-        case .missed: Color.tempoError
-        case .moved: Color.tempoWarning
+        case .done: TideTrain.positive
+        case .missed: Tide.danger
+        case .moved: TideTrain.caution
         }
     }
 
     // MARK: - Share
 
     private func shareButtons(_ document: TrainerReportDocument) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             Button {
                 shareItem = ShareItem(payload: TrainerReportTextFormatter.text(for: document))
             } label: {
                 Label("Share as Text", systemImage: "message")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.tidePrimary)
 
             if let pdfShareURL {
                 Button {
@@ -223,7 +287,7 @@ struct TrainerReportSheet: View {
                     Label("Share as PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.trainPlanSecondary)
             } else {
                 Button {
                     preparePDF(document)
@@ -231,10 +295,9 @@ struct TrainerReportSheet: View {
                     Label("Prepare PDF", systemImage: "doc.richtext")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.trainPlanSecondary)
             }
         }
-        .padding(.top, TempoSpacing.sm)
         .sheet(item: $shareItem) { item in
             ActivityShareSheet(items: [item.payload]) { completed in
                 if completed {

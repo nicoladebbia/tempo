@@ -19,42 +19,57 @@ struct NonNegotiableSetupView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Query(sort: \NonNegotiable.order)
-    private var nonNegotiables: [NonNegotiable]
+    private var allNonNegotiables: [NonNegotiable]
+
+    /// What the page shows. The one just swiped away stays in the store, hidden,
+    /// until its Undo toast is over: deleting it takes its history with it.
+    private var nonNegotiables: [NonNegotiable] {
+        allNonNegotiables.filter { $0.id != pendingDeleteID }
+    }
 
     @State
     private var showAddSheet = false
     @State
     private var editingItem: NonNegotiable?
     @State
-    private var showDeleteConfirmation = false
+    private var pendingDeleteID: UUID?
+    /// An item with history waits here for the warning below before it is hidden.
     @State
-    private var pendingDeleteItem: NonNegotiable?
+    private var confirmDeleteItem: NonNegotiable?
+    @State
+    private var toast: ToastData?
 
     private let maxNonNegotiables = 7
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
-
+            Group {
                 if nonNegotiables.isEmpty {
                     emptyState
                 } else {
                     nonNegotiableList
                 }
             }
+            .tidePage()
             .navigationTitle("Non-Negotiables")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        commitPendingDeletion()
+                        dismiss()
+                    }
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
                     addButton
                 }
             }
+            // The field rests while the edit sheet is over this page.
+            .tideCovered(showAddSheet || editingItem != nil)
             .sheet(isPresented: $showAddSheet) {
                 NonNegotiableEditSheet(
                     existingCount: nonNegotiables.count,
@@ -70,28 +85,48 @@ struct NonNegotiableSetupView: View {
             }
             .confirmationDialog(
                 "Delete Non-Negotiable?",
-                isPresented: $showDeleteConfirmation,
+                isPresented: Binding(
+                    get: { confirmDeleteItem != nil },
+                    set: {
+                        if !$0 {
+                            confirmDeleteItem = nil
+                        }
+                    }
+                ),
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    if let item = pendingDeleteItem {
-                        modelContext.delete(item)
-                        try? modelContext.save()
+                    if let item = confirmDeleteItem {
+                        removeWithUndo(item)
                     }
-                    pendingDeleteItem = nil
+                    confirmDeleteItem = nil
                 }
                 Button("Cancel", role: .cancel) {
-                    pendingDeleteItem = nil
+                    confirmDeleteItem = nil
                 }
             } message: {
                 Text(
-                    "This will permanently delete \"\(pendingDeleteItem?.name ?? "this item")\" and all its historical progress data. This cannot be undone."
+                    "This will permanently delete \"\(confirmDeleteItem?.name ?? "this item")\" and all its historical progress data. You get a few seconds to undo it."
                 )
+            }
+            .tempoToast($toast)
+            // A toast that ran out (or was swiped away) without Undo makes the delete final.
+            .onChange(of: toast) { _, newValue in
+                if newValue == nil {
+                    commitPendingDeletion()
+                }
+            }
+            // Leaving the page makes it final too: there is no toast left to undo from.
+            .onDisappear {
+                commitPendingDeletion()
+                toast = nil
             }
         }
     }
 
     // MARK: - List
+
+    // A native List on purpose: swipe-to-delete and drag-to-reorder stay.
 
     private var nonNegotiableList: some View {
         List {
@@ -103,8 +138,7 @@ struct NonNegotiableSetupView: View {
                 .onDelete { offsets in
                     let active = nonNegotiables.filter(\.isActive)
                     if let index = offsets.first {
-                        pendingDeleteItem = active[index]
-                        showDeleteConfirmation = true
+                        requestDelete(active[index])
                     }
                 }
                 .onMove { from, to in
@@ -112,22 +146,20 @@ struct NonNegotiableSetupView: View {
                 }
             } header: {
                 HStack {
-                    Text("ACTIVE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Active").tideLabel(Tide.text3)
                     Spacer()
                     Text("\(nonNegotiables.filter(\.isActive).count) / \(maxNonNegotiables)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .tideLabel(Tide.text3)
+                        .monospacedDigit()
                 }
             } footer: {
                 if nonNegotiables.count >= maxNonNegotiables {
                     Text("Maximum \(maxNonNegotiables) non-negotiables. Keep it focused — too many dilutes accountability.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoAmber)
+                        .font(Tide.caption)
+                        .foregroundStyle(TideTone.amber)
                 }
             }
-            .listRowBackground(Color.tempoSurfaceCard)
+            .tideListRow()
 
             // Inactive items
             let inactive = nonNegotiables.filter { !$0.isActive }
@@ -139,16 +171,13 @@ struct NonNegotiableSetupView: View {
                     }
                     .onDelete { offsets in
                         if let index = offsets.first {
-                            pendingDeleteItem = inactive[index]
-                            showDeleteConfirmation = true
+                            requestDelete(inactive[index])
                         }
                     }
                 } header: {
-                    Text("INACTIVE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Inactive").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
             }
 
             // Default templates
@@ -156,9 +185,20 @@ struct NonNegotiableSetupView: View {
                 templatesSection
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(Color.tempoBgPrimary)
         .environment(\.editMode, .constant(.active))
+        // Adding is this page's action: it stays under the thumb while there is room for more.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if nonNegotiables.filter(\.isActive).count < maxNonNegotiables {
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Label("New non-negotiable", systemImage: "plus")
+                }
+                .buttonStyle(.tidePrimary)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+            }
+        }
     }
 
     // MARK: - Row
@@ -167,45 +207,41 @@ struct NonNegotiableSetupView: View {
         Button {
             editingItem = nn
         } label: {
-            HStack(spacing: TempoSpacing.md) {
-                Image(systemName: nn.icon)
-                    .font(.system(size: 24))
-                    .foregroundStyle(nn.isActive ? Color.tempoElectric : Color.tempoTextTertiary)
-                    .frame(width: 32)
+            HStack(spacing: Tide.s3) {
+                TideAreaIconTile(systemName: nn.icon, tint: nn.isActive ? mood.accent : Tide.text3)
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(nn.name)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
 
-                    HStack(spacing: TempoSpacing.sm) {
-                        Text(nn.type.displayName)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
-
-                        if let source = nn.integrationSourceName {
-                            Text("·")
-                                .foregroundStyle(Color.tempoTextTertiary)
-                            Text(source)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoElectric)
-                        }
-
-                        Text("·")
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text(targetDescription(nn))
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                    rowSubtitle(nn)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: Tide.s2)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .accessibilityHint("Edit")
+    }
+
+    private func rowSubtitle(_ nn: NonNegotiable) -> Text {
+        let type = Text(nn.type.displayName)
+        let target = Text(targetDescription(nn)).foregroundStyle(Tide.text2)
+        if let source = nn.integrationSourceName {
+            return Text("\(type) · \(Text(source).foregroundStyle(mood.accent)) · \(target)")
+        }
+        return Text("\(type) · \(target)")
     }
 
     private func targetDescription(_ nn: NonNegotiable) -> String {
@@ -238,42 +274,17 @@ struct NonNegotiableSetupView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Image(systemName: "checklist")
-                .font(.system(size: 48, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-
-            Text("Set your non-negotiables")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .padding(.top, TempoSpacing.lg)
-
-            Text("These are the things you MUST do every day. No excuses. No exceptions.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            Button("USE DEFAULT TEMPLATES") {
-                addDefaultTemplates()
-            }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
-
-            Button("CREATE FROM SCRATCH") {
-                showAddSheet = true
-            }
-            .font(.tempoHeadline)
-            .foregroundStyle(Color.tempoElectric)
-            .padding(.top, TempoSpacing.md)
-
-            Spacer()
-        }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        // One picture, one line, the fast way on under the thumb and the slow way beneath it.
+        ArenaEmptyPage(
+            title: "Set your non-negotiables",
+            message: "These are the things you MUST do every day. No excuses. No exceptions.",
+            actionTitle: "Use default templates",
+            actionSystemImage: "wand.and.stars",
+            action: { addDefaultTemplates() },
+            secondaryTitle: "Create from scratch",
+            secondaryAction: { showAddSheet = true },
+            art: { ArenaEmptyArt(systemImage: "checklist", tint: mood.accent) }
+        )
     }
 
     // MARK: - Templates Section
@@ -283,27 +294,29 @@ struct NonNegotiableSetupView: View {
             Button {
                 addDefaultTemplates()
             } label: {
-                HStack(spacing: TempoSpacing.md) {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 20))
-                        .foregroundStyle(Color.tempoElectric)
+                HStack(spacing: Tide.s3) {
+                    TideAreaIconTile(systemName: "wand.and.stars", tint: mood.accent)
 
-                    VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text("Add Default Templates")
-                            .font(.tempoHeadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
                         Text("Study 2h · Train · 3 Meals · Sleep 7h")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    Spacer(minLength: Tide.s2)
                 }
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
+            .buttonStyle(.plain)
         } header: {
-            Text("QUICK START")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+            Text("Quick start").tideLabel(Tide.text3)
         }
-        .listRowBackground(Color.tempoSurfaceCard)
+        .tideListRow()
     }
 
     // MARK: - Add Button
@@ -316,6 +329,7 @@ struct NonNegotiableSetupView: View {
             } label: {
                 Image(systemName: "plus")
             }
+            .accessibilityLabel("Add non-negotiable")
         }
     }
 
@@ -325,13 +339,63 @@ struct NonNegotiableSetupView: View {
         nn.order = nonNegotiables.count
         modelContext.insert(nn)
         try? modelContext.save()
+        offerAddUndo(ids: [nn.id], message: "\(nn.name) added.")
     }
 
-    private func deleteItems(at offsets: IndexSet, from items: [NonNegotiable]) {
-        for index in offsets {
-            modelContext.delete(items[index])
+    /// The tasks are in at once; Undo takes back exactly these.
+    private func offerAddUndo(ids: [UUID], message: String) {
+        // A removal still waiting on its own Undo becomes final first.
+        commitPendingDeletion()
+        toast = ToastData(message: message, style: .success, actionTitle: "Undo") {
+            withAnimation(Tide.snap) {
+                _ = NonNegotiableAddUndo.remove(ids: ids, from: modelContext)
+            }
+            NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
         }
-        try? modelContext.save()
+    }
+
+    /// An item that has recorded days takes them with it, so it asks first. One
+    /// that has none is hidden straight away with an Undo.
+    private func requestDelete(_ item: NonNegotiable) {
+        if item.progressEntries?.isEmpty == false {
+            confirmDeleteItem = item
+        } else {
+            removeWithUndo(item)
+        }
+    }
+
+    /// Hides the item and offers Undo. It is only deleted when the toast is over.
+    private func removeWithUndo(_ item: NonNegotiable) {
+        // A second swipe while the first toast is up makes the first final.
+        commitPendingDeletion()
+        let id = item.id
+        withAnimation(Tide.snap) {
+            pendingDeleteID = id
+        }
+        toast = ToastData(
+            message: "\(item.name) removed.",
+            style: .info,
+            actionTitle: "Undo"
+        ) {
+            withAnimation(Tide.snap) {
+                if pendingDeleteID == id {
+                    pendingDeleteID = nil
+                }
+            }
+        }
+    }
+
+    private func commitPendingDeletion() {
+        guard let id = pendingDeleteID else {
+            return
+        }
+        pendingDeleteID = nil
+        if let item = allNonNegotiables.first(where: { $0.id == id }) {
+            modelContext.delete(item)
+            try? modelContext.save()
+            // Today and Lockdown reload their lists when a non-negotiable changes.
+            NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        }
     }
 
     private func moveItems(from source: IndexSet, to destination: Int) {
@@ -352,6 +416,7 @@ struct NonNegotiableSetupView: View {
             ("Sleep", .sleep, "moon.fill", 7, .autoHealthkit),
         ]
 
+        var addedIDs: [UUID] = []
         for (index, t) in templates.enumerated() {
             let existing = nonNegotiables.contains { $0.type == t.1 }
             guard !existing else {
@@ -367,8 +432,15 @@ struct NonNegotiableSetupView: View {
                 order: nonNegotiables.count + index
             )
             modelContext.insert(nn)
+            addedIDs.append(nn.id)
         }
         try? modelContext.save()
+        if !addedIDs.isEmpty {
+            offerAddUndo(
+                ids: addedIDs,
+                message: addedIDs.count == 1 ? "1 task added." : "\(addedIDs.count) tasks added."
+            )
+        }
     }
 }
 
@@ -377,6 +449,10 @@ struct NonNegotiableSetupView: View {
 struct NonNegotiableEditSheet: View {
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     let editing: NonNegotiable?
     let existingCount: Int
@@ -422,113 +498,90 @@ struct NonNegotiableEditSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                // Name
+                // Name, type and icon: one group
                 Section {
                     TextField("Name", text: $name)
-                        .font(.tempoBody)
-                } header: {
-                    Text("NAME")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .frame(minHeight: Tide.hit)
 
-                // Type
-                Section {
                     Picker("Type", selection: $selectedType) {
                         ForEach(NonNegotiableType.allCases, id: \.self) { type in
                             Text(type.displayName)
                                 .tag(type)
                         }
                     }
-                    .font(.tempoBody)
-                } header: {
-                    Text("TYPE")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
+                    .font(Tide.body)
+                    .frame(minHeight: Tide.hit)
 
-                // Icon
-                Section {
                     Button {
                         showIconPicker = true
                     } label: {
                         HStack {
                             Text("Icon")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                             Spacer()
                             Image(systemName: icon)
-                                .font(.system(size: 24))
-                                .foregroundStyle(Color.tempoElectric)
+                                .font(Tide.title2)
+                                .foregroundStyle(mood.accent)
+                                .accessibilityHidden(true)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
+                                .accessibilityHidden(true)
                         }
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Choose an icon")
                 } header: {
-                    Text("ICON")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Details").tideLabel(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
-                // Target
+                // Target and how it is tracked
                 Section {
                     targetEditor
-                } header: {
-                    Text("TARGET")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                } footer: {
-                    Text(targetHelpText)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
 
-                // Tracking
-                Section {
                     Picker("Tracking", selection: $trackingMethod) {
                         Text("Manual").tag(TrackingMethod.manual)
                         Text("Timer").tag(TrackingMethod.timer)
                         Text("Whoop (Auto)").tag(TrackingMethod.autoWhoop)
                         Text("HealthKit (Auto)").tag(TrackingMethod.autoHealthkit)
                     }
-                    .font(.tempoBody)
+                    .font(Tide.body)
+                    .frame(minHeight: Tide.hit)
                 } header: {
-                    Text("TRACKING METHOD")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Text("Target").tideLabel(Tide.text3)
+                } footer: {
+                    Text(targetHelpText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
+                .tideListRow()
 
-                // Active days
+                // Schedule
                 Section {
                     activeDaysPicker
-                } header: {
-                    Text("ACTIVE DAYS")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .listRowBackground(Color.tempoSurfaceCard)
 
-                // Active toggle (edit only)
-                if editing != nil {
-                    Section {
+                    // Active toggle (edit only)
+                    if editing != nil {
                         Toggle(isOn: $isActive) {
                             Text("Active")
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text)
                         }
-                        .tint(Color.tempoElectric)
+                        .tint(mood.accent)
+                        .frame(minHeight: Tide.hit)
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                } header: {
+                    Text("Active days").tideLabel(Tide.text3)
                 }
+                .tideListRow()
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .tidePage()
             .navigationTitle(editing != nil ? "Edit Non-Negotiable" : "Add Non-Negotiable")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -544,6 +597,7 @@ struct NonNegotiableEditSheet: View {
                 icon = newType.defaultIcon
                 applyTypeDefaults(newType)
             }
+            .tideCovered(showIconPicker)
             .sheet(isPresented: $showIconPicker) {
                 IconPickerSheet(selectedIcon: $icon)
             }
@@ -556,64 +610,39 @@ struct NonNegotiableEditSheet: View {
     private var targetEditor: some View {
         switch selectedType {
         case .study:
-            Stepper(
-                "Duration: \(Int(targetValue)) min",
-                value: $targetValue,
-                in: 15 ... 480,
-                step: 15
-            )
-            .font(.tempoBody)
+            targetStepper("Duration: \(Int(targetValue)) min", range: 15 ... 480, step: 15)
         case .meals:
-            Stepper(
-                "Meals: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 6,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Meals: \(Int(targetValue))", range: 1 ... 6, step: 1)
         case .train:
             HStack {
                 Text("Sessions per day")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Text("\(Int(targetValue))")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text2)
             }
+            .frame(minHeight: Tide.hit)
+            .accessibilityElement(children: .combine)
         case .sleep:
-            Stepper(
-                "Hours: \(Int(targetValue))",
-                value: $targetValue,
-                in: 4 ... 12,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Hours: \(Int(targetValue))", range: 4 ... 12, step: 1)
         case .steps:
-            Stepper(
-                "Steps: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1000 ... 30000,
-                step: 1000
-            )
-            .font(.tempoBody)
+            targetStepper("Steps: \(Int(targetValue))", range: 1000 ... 30000, step: 1000)
         case .hydration:
-            Stepper(
-                "Glasses: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 20,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Glasses: \(Int(targetValue))", range: 1 ... 20, step: 1)
         case .custom:
-            Stepper(
-                "Target: \(Int(targetValue))",
-                value: $targetValue,
-                in: 1 ... 1000,
-                step: 1
-            )
-            .font(.tempoBody)
+            targetStepper("Target: \(Int(targetValue))", range: 1 ... 1000, step: 1)
         }
+    }
+
+    private func targetStepper(_ title: String, range: ClosedRange<Double>, step: Double) -> some View {
+        Stepper(title, value: $targetValue, in: range, step: step)
+            .font(Tide.body)
+            .monospacedDigit()
+            .foregroundStyle(Tide.text)
+            .frame(minHeight: Tide.hit)
     }
 
     private var targetHelpText: String {
@@ -634,7 +663,12 @@ struct NonNegotiableEditSheet: View {
         let dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         let dayValues: [ActiveDays] = [.monday, .tuesday, .wednesday, .thursday, .friday, .saturday, .sunday]
 
-        return HStack(spacing: TempoSpacing.sm) {
+        // Seven in a row, or four to a row once the text is large enough to need the room.
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s1),
+            count: typeSize.isAccessibilitySize ? 4 : 7
+        )
+        return LazyVGrid(columns: columns, spacing: Tide.s1) {
             ForEach(0 ..< 7, id: \.self) { index in
                 let day = dayValues[index]
                 let isOn = (activeDays.rawValue & day.rawValue) != 0
@@ -643,14 +677,23 @@ struct NonNegotiableEditSheet: View {
                     activeDays.toggle(day)
                 } label: {
                     Text(dayLabels[index])
-                        .font(.tempoCaption1)
-                        .foregroundStyle(isOn ? .white : Color.tempoTextSecondary)
-                        .frame(width: 36, height: 36)
-                        .background(isOn ? Color.tempoElectric : Color.tempoSurfaceElevated)
-                        .clipShape(Circle())
+                        .font(Tide.label)
+                        .foregroundStyle(isOn ? Tide.ink : Tide.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .background(
+                            isOn ? mood.accent : Tide.fill,
+                            in: .rect(cornerRadius: Tide.controlRadius)
+                        )
+                        .contentShape(.rect(cornerRadius: Tide.controlRadius))
                 }
+                // Several buttons share one list row: plain keeps each tap separate.
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
+        .animation(Tide.snap, value: activeDays.rawValue)
     }
 
     // MARK: - Type Defaults
@@ -721,6 +764,8 @@ struct IconPickerSheet: View {
     var selectedIcon: String
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     private let categories: [(name: String, icons: [String])] = [
         ("Fitness", [
@@ -750,63 +795,24 @@ struct IconPickerSheet: View {
         ]),
     ]
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: TempoSpacing.md), count: 6)
+    private let columns = [GridItem(.adaptive(minimum: Tide.hit + Tide.s2), spacing: Tide.s3)]
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
-                    ForEach(categories, id: \.name) { category in
-                        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                            Text(category.name.uppercased())
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                                .padding(.horizontal, TempoSpacing.screenEdge)
+            TideScrollPage(spacing: Tide.s5) {
+                ForEach(categories, id: \.name) { category in
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        TideSectionLabel(title: category.name)
 
-                            LazyVGrid(columns: columns, spacing: TempoSpacing.md) {
-                                ForEach(category.icons, id: \.self) { iconName in
-                                    let isSelected = iconName == selectedIcon
-                                    Button {
-                                        HapticManager.selection()
-                                        selectedIcon = iconName
-                                        dismiss()
-                                    } label: {
-                                        Image(systemName: iconName)
-                                            .font(.system(size: 22))
-                                            .foregroundStyle(
-                                                isSelected ? Color.tempoElectric : Color.tempoTextSecondary
-                                            )
-                                            .frame(width: 44, height: 44)
-                                            .background(
-                                                isSelected
-                                                    ? Color.tempoElectric.opacity(0.12)
-                                                    : Color.tempoSurfaceElevated
-                                            )
-                                            .clipShape(
-                                                RoundedRectangle(
-                                                    cornerRadius: TempoRadius.xl,
-                                                    style: .continuous
-                                                )
-                                            )
-                                            .overlay(
-                                                isSelected
-                                                    ? RoundedRectangle(
-                                                        cornerRadius: TempoRadius.xl,
-                                                        style: .continuous
-                                                    )
-                                                    .stroke(Color.tempoElectric, lineWidth: 2)
-                                                    : nil
-                                            )
-                                    }
-                                }
+                        LazyVGrid(columns: columns, spacing: Tide.s3) {
+                            ForEach(category.icons, id: \.self) { iconName in
+                                iconButton(iconName)
                             }
-                            .padding(.horizontal, TempoSpacing.screenEdge)
                         }
+                        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                     }
                 }
-                .padding(.vertical, TempoSpacing.lg)
             }
-            .background(Color.tempoBgPrimary)
             .navigationTitle("Choose Icon")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -815,6 +821,34 @@ struct IconPickerSheet: View {
                 }
             }
         }
+    }
+
+    private func iconButton(_ iconName: String) -> some View {
+        let isSelected = iconName == selectedIcon
+        return Button {
+            HapticManager.selection()
+            selectedIcon = iconName
+            dismiss()
+        } label: {
+            Image(systemName: iconName)
+                .font(Tide.headline)
+                .foregroundStyle(isSelected ? mood.accent : Tide.text2)
+                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                .background(
+                    isSelected ? mood.accent.opacity(0.2) : Tide.fill,
+                    in: .rect(cornerRadius: Tide.controlRadius)
+                )
+                .overlay {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: Tide.controlRadius)
+                            .strokeBorder(mood.accent, lineWidth: Tide.hair)
+                    }
+                }
+                .contentShape(.rect(cornerRadius: Tide.controlRadius))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(iconName.replacingOccurrences(of: ".", with: " "))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

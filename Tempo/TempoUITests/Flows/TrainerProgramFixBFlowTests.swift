@@ -38,7 +38,7 @@ final class TrainerProgramFixBFlowTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()
@@ -81,7 +81,7 @@ final class TrainerProgramFixBFlowTests: XCTestCase {
 
         // Back to Today — repersonalizeSchedule regenerates the week from
         // the newly-activated program (debounced ~0.6s off .tempoTrainingSettingsChanged).
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         // Whichever trainer day landed today, wait for its first exercise

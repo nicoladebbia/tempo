@@ -35,6 +35,8 @@ struct SundayWrapUpSheet: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query private var userSettings: [UserSettings]
 
     @State
@@ -72,7 +74,7 @@ struct SundayWrapUpSheet: View {
                 }
             }
         }
-        .background(Color.tempoBgPrimary)
+        .trainSheetRoot()
         .task { rebuildReportData() }
     }
 
@@ -81,42 +83,38 @@ struct SundayWrapUpSheet: View {
     private var topBar: some View {
         HStack {
             Button("Close") { dismiss() }
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .frame(minHeight: Tide.hit)
 
             Spacer()
 
-            HStack(spacing: TempoSpacing.xs) {
-                ForEach(Step.allCases, id: \.rawValue) { candidate in
-                    Circle()
-                        .fill(candidate == step ? Color.tempoViolet : Color.tempoDivider)
-                        .frame(width: 7, height: 7)
-                }
-            }
-            .accessibilityHidden(true)
+            TrainSessionDots(count: Step.allCases.count, current: step.rawValue)
+                .accessibilityHidden(true)
 
             Spacer()
 
             // Symmetry spacer so the dots stay visually centered.
-            Text("Close").font(.tempoSubheadline).opacity(0)
+            Text("Close")
+                .font(Tide.body)
+                .hidden()
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.md)
-        .padding(.bottom, TempoSpacing.sm)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s3)
+        .padding(.bottom, Tide.s2)
     }
 
     // MARK: - Step (a): Your week
 
     private var recapStep: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text("YOUR WEEK")
-                        .font(.tempoCaption2.weight(.semibold))
-                        .foregroundStyle(Color.tempoViolet)
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("YOUR WEEK").tideLabel(TideTrain.violet)
                     Text(WeeklyUploadPromptCard.wrapUpWeekLabel())
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                 }
 
                 if let document {
@@ -132,26 +130,31 @@ struct SundayWrapUpSheet: View {
                     }
                     if document.summary.scheduledCount == 0 {
                         Text("No sessions were scheduled this week.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 } else {
                     ProgressView()
+                        .controlSize(.large)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, TempoSpacing.xxl)
+                        .tideCard(padding: Tide.s6, radius: Tide.tileRadius)
                 }
-
-                Button {
-                    step = .sendReport
-                } label: {
-                    Text("Continue")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                .disabled(document == nil)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s5)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
+            Button {
+                step = .sendReport
+            } label: {
+                Text("Continue")
+                    .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
+            }
+            .buttonStyle(.tidePrimary)
+            .disabled(document == nil)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s3)
         }
     }
 
@@ -176,35 +179,33 @@ struct SundayWrapUpSheet: View {
 
     private func sessionsSummaryCard(_ document: TrainerReportDocument) -> some View {
         let summary = document.summary
-        return VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-            Text("SESSIONS")
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("\(summary.doneCount) done · \(summary.missedCount) missed · \(summary.movedCount) moved")
-                .font(.tempoBodyBold)
-                .foregroundStyle(Color.tempoTextPrimary)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        return VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Sessions").tideLabel()
+            layout {
+                TrainStat(value: "\(summary.doneCount)", label: "done", color: TideTrain.positive)
+                TrainStat(value: "\(summary.missedCount)", label: "missed", color: summary.missedCount > 0 ? TideTrain.caution : Tide.text)
+                TrainStat(value: "\(summary.movedCount)", label: "moved")
+            }
         }
-        .padding(TempoSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private func bulletCard(title: String, lines: [String]) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-            Text(title)
-                .font(.tempoCaption2.weight(.bold))
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(title).tideLabel()
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 Text("• \(line)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(TempoSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     // MARK: - Step (b): Send to trainer
@@ -212,36 +213,44 @@ struct SundayWrapUpSheet: View {
     private var sendReportStep: some View {
         VStack(spacing: 0) {
             if reportSentThisWeek {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(spacing: Tide.s1) {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.tempoRecoveryGreen)
+                        .foregroundStyle(TideTrain.positive)
                     Text("Report already sent this week")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
-                .padding(.bottom, TempoSpacing.xs)
+                .padding(.bottom, Tide.s1)
             }
 
             TrainerReportSheet(program: program, onShared: markReportSent, embedded: true, referenceDate: wrapUpSunday)
 
-            HStack(spacing: TempoSpacing.md) {
-                Button("Skip") {
+            let footer = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(spacing: Tide.s2))
+                : AnyLayout(HStackLayout(spacing: Tide.s3))
+            footer {
+                Button {
                     step = .uploadNext
+                } label: {
+                    Text("Skip")
+                        .lineLimit(1)
+                        .frame(maxWidth: typeSize.isAccessibilitySize ? .infinity : nil, minHeight: TideTrain.bigButton - Tide.s2)
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
+                .fixedSize(horizontal: !typeSize.isAccessibilitySize, vertical: false)
 
                 Button {
                     markReportSent()
                     step = .uploadNext
                 } label: {
                     Text("Sent — Continue")
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton - Tide.s2)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.sm)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s3)
         }
     }
 

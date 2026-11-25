@@ -2,18 +2,18 @@
 // SettingsComponents.swift
 // Tempo
 //
-// Reusable building blocks for the redesigned Settings screen.
-// All values come from the design tokens (TempoSpacing / TempoRadius /
-// Color.tempo* / Font.tempo*) — no hardcoded magic numbers.
+// Reusable building blocks for Settings, in the Tide look: one glass card per
+// group, hairlines under the row title, tinted icon tiles, small status
+// capsules. Layout tokens come from Tide; shared pieces live in
+// DesignSystem/Tide+Settings.swift.
 //
 
 import SwiftUI
 
 // MARK: - SettingsGroupCard
 
-/// A rounded card that groups related rows, with hairline dividers between
-/// them and an optional uppercased section title above. Replaces the flat
-/// `List` section + `.listRowBackground` pattern.
+/// A glass card that groups related rows, with hairline dividers between
+/// them and a small tracked section label above.
 ///
 /// Rows are supplied as an explicit array of type-erased views so the card
 /// can insert a divider between each pair (but not after the last) without
@@ -22,38 +22,31 @@ struct SettingsGroupCard: View {
     var title: String?
     let rows: [AnyView]
 
+    @ScaledMetric(relativeTo: .footnote)
+    private var scaledTile = Tide.icon
+
+    private var tile: CGFloat { min(scaledTile, Tide.settingsTileCap) }
+
     /// Convenience: build from a result-builder of rows.
     init(title: String? = nil, @SettingsRowBuilder rows: () -> [AnyView]) {
         self.title = title
         self.rows = rows()
     }
 
-    /// Divider inset: card padding + icon-tile width + icon-to-text gap, so
+    /// Divider inset: row padding + icon-tile width + icon-to-text gap, so
     /// the hairline starts under the row title, not the icon.
-    private var dividerInset: CGFloat { TempoSpacing.lg + 28 + TempoSpacing.md }
+    private var dividerInset: CGFloat {
+        Tide.s4 + tile + Tide.s3
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            if let title {
-                Text(title.uppercased())
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.leading, TempoSpacing.sm)
-            }
-
-            VStack(spacing: 0) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                    row
-                    if index < rows.count - 1 {
-                        Divider()
-                            .overlay(Color.tempoDivider)
-                            .padding(.leading, dividerInset)
-                    }
+        TideSettingsSection(title: title) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                row
+                if index < rows.count - 1 {
+                    TideSettingsHairline(inset: dividerInset)
                 }
             }
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
         }
     }
 }
@@ -65,7 +58,7 @@ struct SettingsGroupCard: View {
 @resultBuilder
 enum SettingsRowBuilder {
     static func buildBlock(_ components: [AnyView]...) -> [AnyView] {
-        components.flatMap { $0 }
+        components.flatMap(\.self)
     }
 
     static func buildExpression(_ expression: some View) -> [AnyView] {
@@ -85,24 +78,55 @@ enum SettingsRowBuilder {
     }
 
     static func buildArray(_ components: [[AnyView]]) -> [AnyView] {
-        components.flatMap { $0 }
+        components.flatMap(\.self)
     }
 }
 
 // MARK: - SettingsIconTile
 
-/// A 28×28 rounded-square SF Symbol tile, tinted per settings group.
+/// A small rounded-square SF Symbol tile, tinted per row. It is a fill, not
+/// glass: it sits inside a glass card.
 struct SettingsIconTile: View {
     let systemName: String
     let tint: Color
 
+    @ScaledMetric(relativeTo: .footnote)
+    private var scaledSize = Tide.icon
+
+    private var size: CGFloat { min(scaledSize, Tide.settingsTileCap) }
+
     var body: some View {
         Image(systemName: systemName)
-            .font(.system(size: 14, weight: .semibold))
+            .font(Tide.settingsGlyph)
             .foregroundStyle(tint)
-            .frame(width: 28, height: 28)
-            .background(tint.opacity(TempoOpacity.o15))
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+            .frame(width: size, height: size)
+            .background(tint.opacity(Tide.settingsTileOpacity), in: .rect(cornerRadius: Tide.settingsTileRadius))
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - SettingsRowTitle
+
+/// A row's title, never truncated.
+private struct SettingsRowTitle: View {
+    let text: String
+    var color: Color = Tide.text
+
+    var body: some View {
+        Text(text)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(color)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The padding every settings row shares.
+private extension View {
+    func settingsRowFrame(vertical: CGFloat = Tide.s3) -> some View {
+        padding(.horizontal, Tide.s4)
+            .padding(.vertical, vertical)
+            .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
     }
 }
 
@@ -112,36 +136,38 @@ struct SettingsIconTile: View {
 /// optional live summary subtitle + chevron.
 struct SettingsNavRow: View {
     let icon: String
-    var iconTint: Color = .tempoSignal
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     let title: String
     var subtitle: String?
 
-    var body: some View {
-        HStack(spacing: TempoSpacing.md) {
-            SettingsIconTile(systemName: icon, tint: iconTint)
+    @Environment(\.tideMood)
+    private var mood
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(title)
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+    var body: some View {
+        HStack(spacing: Tide.s3) {
+            SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
+
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                SettingsRowTitle(text: title)
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .lineLimit(1)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Spacer(minLength: TempoSpacing.sm)
+            Spacer(minLength: Tide.s2)
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.label)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
+        .settingsRowFrame()
+        .contentShape(.rect)
     }
 }
 
@@ -151,51 +177,54 @@ struct SettingsNavRow: View {
 /// (for integrations: Connected / Not Set Up / Error).
 struct SettingsStatusRow: View {
     let icon: String
-    var iconTint: Color = .tempoElectric
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     let title: String
     let status: String
     let statusColor: Color
     var showsChevron = true
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
-            SettingsIconTile(systemName: icon, tint: iconTint)
-
-            Text(title)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Spacer(minLength: TempoSpacing.sm)
-
-            SettingsStatusPill(text: status, color: statusColor)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+        TideSettingsRowLine {
+            HStack(spacing: Tide.s3) {
+                SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
+                SettingsRowTitle(text: title)
+            }
+        } trailing: {
+            HStack(spacing: Tide.s2) {
+                SettingsStatusPill(text: status, color: statusColor)
+                if showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                }
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
+        .settingsRowFrame()
+        .contentShape(.rect)
     }
 }
 
-/// A small tinted pill used for integration status.
+// MARK: - SettingsStatusPill
+
+/// A small tinted capsule used for integration status.
 struct SettingsStatusPill: View {
     let text: String
     let color: Color
 
     var body: some View {
         Text(text)
-            .font(.tempoCaption1)
-            .fontWeight(.semibold)
+            .font(Tide.label)
             .foregroundStyle(color)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xxs)
-            .background(color.opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Tide.s3)
+            .padding(.vertical, Tide.s1)
+            .background(color.opacity(Tide.settingsTileOpacity), in: .capsule)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -206,78 +235,66 @@ struct SettingsStatusPill: View {
 struct SettingsActionRow: View {
     let icon: String
     let title: String
-    var tint: Color = .tempoTextPrimary
+    var tint: Color = Tide.text
     var trailingText: String?
 
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
-            SettingsIconTile(systemName: icon, tint: tint)
-
-            Text(title)
-                .font(.tempoSubheadline)
-                .foregroundStyle(tint)
-
-            Spacer(minLength: TempoSpacing.sm)
-
+        TideSettingsRowLine {
+            HStack(spacing: Tide.s3) {
+                SettingsIconTile(systemName: icon, tint: tint)
+                SettingsRowTitle(text: title, color: tint)
+            }
+        } trailing: {
             if let trailingText {
                 Text(trailingText)
-                    .font(.tempoDataSmall)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
+        .settingsRowFrame()
+        .contentShape(.rect)
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    ZStack {
-        Color.tempoBgPrimary.ignoresSafeArea()
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                SettingsGroupCard(title: "You & your day") {
-                    SettingsNavRow(
-                        icon: "clock.fill", iconTint: .tempoAmber,
-                        title: "Schedule", subtitle: "Wake 6:00 · Bed 22:30 · Leisure 60m"
-                    )
-                    SettingsNavRow(
-                        icon: "dumbbell.fill", iconTint: .tempoSignal,
-                        title: "Training", subtitle: "PPL · 2 football days · kg"
-                    )
-                }
+    TideSettingsPage {
+        SettingsGroupCard(title: "You & your day") {
+            SettingsNavRow(
+                icon: "clock.fill",
+                title: "Schedule", subtitle: "Wake 6:00 · Bed 22:30 · Leisure 19:30"
+            )
+            SettingsNavRow(
+                icon: "dumbbell.fill",
+                title: "Training", subtitle: "PPL · 2 football days · kg"
+            )
+        }
 
-                SettingsGroupCard(title: "Connections") {
-                    SettingsStatusRow(
-                        icon: "waveform.path.ecg", title: "Whoop",
-                        status: "Connected", statusColor: .tempoSuccess
-                    )
-                    SettingsStatusRow(
-                        icon: "fork.knife", title: "Diet Profile",
-                        status: "Not Set Up", statusColor: .tempoTextTertiary
-                    )
-                }
+        SettingsGroupCard(title: "Connections") {
+            SettingsStatusRow(
+                icon: "waveform.path.ecg", title: "Whoop",
+                status: "Connected", statusColor: Tide.water
+            )
+            SettingsStatusRow(
+                icon: "fork.knife", title: "Diet Profile",
+                status: "Not Set Up", statusColor: Tide.text3
+            )
+        }
 
-                SettingsGroupCard(title: "Account") {
-                    SettingsActionRow(
-                        icon: "trash", title: "Delete Account", tint: .tempoError
-                    )
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xl)
-            .padding(.vertical, TempoSpacing.lg)
+        SettingsGroupCard(title: "Account") {
+            SettingsActionRow(icon: "trash", title: "Delete Account", tint: Tide.danger)
         }
     }
 }
 
-// MARK: - Detail-screen primitives
+// MARK: - SettingsFormCard
+
 //
 // Card-styled chrome around NATIVE controls (DatePicker/Picker/Toggle/Stepper)
-// so detail screens match the redesigned root without rebuilding working
-// inputs. Use SettingsFormCard as the container and the *Row wrappers inside.
+// so detail screens match the root without rebuilding working inputs. Use
+// SettingsFormCard as the container and the *Row wrappers inside.
 
 /// A titled card that wraps a column of detail-screen rows. The detail-screen
 /// analogue of SettingsGroupCard, but it accepts arbitrary control rows
@@ -285,71 +302,66 @@ struct SettingsActionRow: View {
 struct SettingsFormCard<Content: View>: View {
     var title: String?
     var footnote: String?
+    var footnoteColor: Color = Tide.text2
     @ViewBuilder var content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            if let title {
-                Text(title.uppercased())
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.leading, TempoSpacing.sm)
-            }
-
-            VStack(spacing: 0) {
-                content
-            }
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-
-            if let footnote {
-                Text(footnote)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.horizontal, TempoSpacing.sm)
-            }
+        TideSettingsSection(title: title, footnote: footnote, footnoteColor: footnoteColor) {
+            content
         }
     }
 }
 
-/// A hairline divider inset to align under a row's label, for use between
-/// rows inside a SettingsFormCard.
+// MARK: - SettingsRowDivider
+
+/// A hairline divider between rows inside a SettingsFormCard. By default it
+/// starts under the row's title (rows with an icon tile); pass `false` for
+/// rows without one.
 struct SettingsRowDivider: View {
+    var underTitle = true
+
+    @ScaledMetric(relativeTo: .footnote)
+    private var scaledTile = Tide.icon
+
+    private var tile: CGFloat { min(scaledTile, Tide.settingsTileCap) }
+
     var body: some View {
-        Divider()
-            .overlay(Color.tempoDivider)
-            .padding(.leading, TempoSpacing.lg)
+        TideSettingsHairline(inset: underTitle ? Tide.s4 + tile + Tide.s3 : Tide.s4)
     }
 }
+
+// MARK: - SettingsInfoRow
 
 /// Read-only label + value row — the workhorse for surfacing data.
 struct SettingsInfoRow: View {
     let label: String
     let value: String
     var icon: String?
-    var iconTint: Color = .tempoTextSecondary
-    var valueColor: Color = .tempoTextSecondary
+    var iconTint: Color = Tide.text2
+    var valueColor: Color = Tide.text2
 
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
-            if let icon {
-                SettingsIconTile(systemName: icon, tint: iconTint)
+        TideSettingsRowLine {
+            HStack(spacing: Tide.s3) {
+                if let icon {
+                    SettingsIconTile(systemName: icon, tint: iconTint)
+                }
+                SettingsRowTitle(text: label)
             }
-            Text(label)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer(minLength: TempoSpacing.sm)
+        } trailing: {
             Text(value)
-                .font(.tempoDataSmall)
+                .font(Tide.bodyStrong)
+                .monospacedDigit()
                 .foregroundStyle(valueColor)
                 .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.md)
-        .frame(minHeight: 44)
+        .settingsRowFrame()
+        .accessibilityElement(children: .combine)
     }
 }
+
+// MARK: - SettingsControlRow
 
 /// A card row hosting a trailing native control (DatePicker, Picker, Toggle,
 /// Stepper). The control is passed in via the `control` builder so callers
@@ -357,22 +369,24 @@ struct SettingsInfoRow: View {
 struct SettingsControlRow<Control: View>: View {
     let label: String
     var icon: String?
-    var iconTint: Color = .tempoTextSecondary
+    /// `nil` takes the mood accent.
+    var iconTint: Color?
     @ViewBuilder var control: Control
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
-        HStack(spacing: TempoSpacing.md) {
-            if let icon {
-                SettingsIconTile(systemName: icon, tint: iconTint)
+        TideSettingsRowLine {
+            HStack(spacing: Tide.s3) {
+                if let icon {
+                    SettingsIconTile(systemName: icon, tint: iconTint ?? mood.accent)
+                }
+                SettingsRowTitle(text: label)
             }
-            Text(label)
-                .font(.tempoSubheadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer(minLength: TempoSpacing.sm)
+        } trailing: {
             control
         }
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.vertical, TempoSpacing.sm)
-        .frame(minHeight: 44)
+        .settingsRowFrame(vertical: Tide.s2)
     }
 }

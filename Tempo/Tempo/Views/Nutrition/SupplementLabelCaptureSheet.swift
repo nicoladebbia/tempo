@@ -25,6 +25,8 @@ struct SupplementLabelCaptureSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Environment(ServiceContainer.self)
     private var services
 
@@ -41,15 +43,9 @@ struct SupplementLabelCaptureSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.lg) {
-                Spacer(minLength: 0)
-                content
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, TempoSpacing.xxl)
-            .frame(maxWidth: .infinity)
-            .background(Color.tempoBgPrimary.ignoresSafeArea())
-            .navigationTitle("Read a label")
+            content
+                .animation(Tide.snap, value: model?.state)
+                .navigationTitle("Read a label")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -78,6 +74,7 @@ struct SupplementLabelCaptureSheet: View {
                 }
             }
         }
+        .kitchenSheet()
         .interactiveDismissDisabled(model?.state == .reading)
     }
 
@@ -94,118 +91,112 @@ struct SupplementLabelCaptureSheet: View {
     }
 
     private var idleContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Image(systemName: "text.viewfinder")
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.tempoSignal)
-            Text("Photograph the label")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Get the Supplement Facts panel in frame — flat, lit, close. Tempo reads it and you check it before anything is saved.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button {
-                    pickerSource = .camera
-                } label: {
-                    Label("Take a photo", systemImage: "camera")
-                        .frame(maxWidth: .infinity)
+        KitchenStatePage(actions: [
+            KitchenStateAction(
+                title: "Take a photo", systemImage: "camera", role: .primary,
+                identifier: "supplementLabelTakePhoto"
+            ) {
+                pickerSource = .camera
+            },
+            KitchenStateAction(
+                title: "Choose from library", systemImage: "photo.on.rectangle",
+                identifier: "supplementLabelChoosePhoto"
+            ) {
+                pickerSource = .library
+            },
+            KitchenStateAction(title: "Type it instead", role: .quiet) {
+                onTypeIt()
+            },
+        ]) {
+            VStack(spacing: Tide.s5) {
+                KitchenStateHero(
+                    systemImage: "text.viewfinder",
+                    title: "Photograph the label",
+                    message: "Get the Supplement Facts panel in frame. Tempo reads it and you check it before anything is saved."
+                )
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    tip("rectangle.portrait", "Hold it flat, the whole panel in frame")
+                    tip("sun.max", "Good light, no glare on the print")
+                    tip("viewfinder", "Close enough that the small print is sharp")
                 }
-                .buttonStyle(.tempoPrimary)
-                .accessibilityIdentifier("supplementLabelTakePhoto")
-                Button {
-                    pickerSource = .library
-                } label: {
-                    Label("Choose from library", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                .accessibilityIdentifier("supplementLabelChoosePhoto")
-                Button("Type it instead") { onTypeIt() }
-                    .buttonStyle(.tempoGhost)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
-            .padding(.top, TempoSpacing.md)
+        }
+    }
+
+    private func tip(_ systemImage: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+            Image(systemName: systemImage)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.icon)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private var readingContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().controlSize(.large)
-            Text("Reading your label…")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("This takes about 10 seconds. Hold tight.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+        KitchenStatePage {
+            KitchenStateHero(
+                systemImage: "text.viewfinder",
+                title: "Reading your label…",
+                message: "This takes about 10 seconds. Hold tight.",
+                working: true
+            )
+            .accessibilityIdentifier("supplementLabelReading")
         }
-        .accessibilityIdentifier("supplementLabelReading")
     }
 
     private func failureContent(_ failure: SupplementLabelPhotoModel.Failure) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Image(systemName: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoAsh)
-            Text(failure == .unreadable ? "Couldn't read that one" : "Couldn't read the label")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(failure.message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            if case let .blocked(blocker) = failure {
-                AIBlockerCard(blocker: blocker, message: failure.message) {
-                    model?.reset()
-                }
-            }
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                if failure.canRetrySamePhoto {
-                    Button {
-                        retry()
-                    } label: {
-                        Label("Try again", systemImage: "arrow.clockwise")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoPrimary)
-                }
-                if failure != .busy {
-                    if failure.canRetrySamePhoto {
-                        retakeButton.buttonStyle(.tempoSecondary)
-                    } else {
-                        retakeButton.buttonStyle(.tempoPrimary)
+        KitchenStatePage(actions: failureActions(failure)) {
+            VStack(spacing: Tide.s5) {
+                KitchenStateHero(
+                    systemImage: failure == .offline ? "wifi.exclamationmark" : "text.viewfinder",
+                    tint: Tide.Kitchen.warn,
+                    title: failure == .unreadable ? "Couldn't read that one" : "Couldn't read the label",
+                    // The blocker card below carries the same line.
+                    message: failure.isBlocked ? "" : failure.message
+                )
+                if case let .blocked(blocker) = failure {
+                    AIBlockerCard(blocker: blocker, message: failure.message) {
+                        model?.reset()
                     }
                 }
-                if failure == .busy {
-                    typeItButton.buttonStyle(.tempoPrimary)
-                } else {
-                    typeItButton.buttonStyle(.tempoSecondary)
-                }
             }
-            .padding(.top, TempoSpacing.sm)
         }
     }
 
-    private var typeItButton: some View {
-        Button {
+    /// Every failure keeps a way forward: try the same photo again, retake it,
+    /// or type it. The one that fits best is the bar button.
+    private func failureActions(_ failure: SupplementLabelPhotoModel.Failure) -> [KitchenStateAction] {
+        var actions: [KitchenStateAction] = []
+        if failure.canRetrySamePhoto {
+            actions.append(KitchenStateAction(title: "Try again", systemImage: "arrow.clockwise", role: .primary) {
+                retry()
+            })
+        }
+        if failure != .busy {
+            actions.append(KitchenStateAction(
+                title: "Retake", systemImage: "camera",
+                role: failure.canRetrySamePhoto ? .secondary : .primary,
+                identifier: "supplementLabelRetake"
+            ) {
+                model?.reset()
+                pickerSource = .camera
+            })
+        }
+        actions.append(KitchenStateAction(
+            title: "Type it", systemImage: "square.and.pencil",
+            role: failure == .busy ? .primary : .secondary,
+            identifier: "supplementLabelTypeIt"
+        ) {
             onTypeIt()
-        } label: {
-            Label("Type it", systemImage: "square.and.pencil")
-                .frame(maxWidth: .infinity)
-        }
-        .accessibilityIdentifier("supplementLabelTypeIt")
-    }
-
-    private var retakeButton: some View {
-        Button {
-            model?.reset()
-            pickerSource = .camera
-        } label: {
-            Label("Retake", systemImage: "camera")
-                .frame(maxWidth: .infinity)
-        }
-        .accessibilityIdentifier("supplementLabelRetake")
+        })
+        return actions
     }
 
     // MARK: - Actions
@@ -237,5 +228,14 @@ struct SupplementLabelCaptureSheet: View {
         } else {
             HapticManager.warning()
         }
+    }
+}
+
+private extension SupplementLabelPhotoModel.Failure {
+    var isBlocked: Bool {
+        if case .blocked = self {
+            return true
+        }
+        return false
     }
 }

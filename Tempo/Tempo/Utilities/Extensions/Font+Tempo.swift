@@ -137,15 +137,11 @@ extension Font {
         textStyle: UIFont.TextStyle,
         maxSize: CGFloat?
     ) -> Font {
-        var font = UIFont.systemFont(ofSize: size, weight: weight)
-        if let descriptor = font.fontDescriptor.withDesign(.rounded) {
-            font = UIFont(descriptor: descriptor, size: size)
-        }
         let metrics = UIFontMetrics(forTextStyle: textStyle)
-        if let maxSize {
-            return Font(metrics.scaledFont(for: font, maximumPointSize: maxSize))
-        }
-        return Font(metrics.scaledFont(for: font))
+        var scaled = metrics.scaledValue(for: size)
+        if let maxSize { scaled = min(scaled, maxSize) }
+        // Tide numerals: condensed, tabular (TideTokens `numeral`).
+        return Tide.numeral(scaled, Font.Weight(weight))
     }
 
     /// Creates a scaled SF Mono font using UIFontMetrics for Dynamic Type support.
@@ -155,15 +151,11 @@ extension Font {
         textStyle: UIFont.TextStyle,
         maxSize: CGFloat?
     ) -> Font {
-        var font = UIFont.systemFont(ofSize: size, weight: weight)
-        if let descriptor = font.fontDescriptor.withDesign(.monospaced) {
-            font = UIFont(descriptor: descriptor, size: size)
-        }
         let metrics = UIFontMetrics(forTextStyle: textStyle)
-        if let maxSize {
-            return Font(metrics.scaledFont(for: font, maximumPointSize: maxSize))
-        }
-        return Font(metrics.scaledFont(for: font))
+        var scaled = metrics.scaledValue(for: size)
+        if let maxSize { scaled = min(scaled, maxSize) }
+        // Tide numerals: condensed, tabular (TideTokens `numeral`).
+        return Tide.numeral(scaled, Font.Weight(weight))
     }
 
     /// Creates a scaled SF Pro (default design) font using UIFontMetrics for Dynamic Type support.
@@ -219,4 +211,15 @@ enum TempoTracking {
     static let ordersLabel: CGFloat = 2.0
     static let zoneLabel: CGFloat = 1.0
     static let moduleTag: CGFloat = 0.5
+}
+
+private extension Font.Weight {
+    init(_ weight: UIFont.Weight) {
+        switch weight {
+        case .bold, .heavy, .black: self = .bold
+        case .semibold: self = .semibold
+        case .medium: self = .medium
+        default: self = .regular
+        }
+    }
 }

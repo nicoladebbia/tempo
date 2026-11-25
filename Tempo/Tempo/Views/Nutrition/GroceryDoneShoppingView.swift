@@ -20,6 +20,8 @@ struct GroceryDoneShoppingView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     private struct Row: Identifiable {
         let item: GroceryListItem
@@ -37,16 +39,29 @@ struct GroceryDoneShoppingView: View {
     @State
     private var rows: [Row] = []
 
+    private var includedCount: Int {
+        rows.filter(\.include).count
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
                 if rows.isEmpty {
                     Section {
-                        Text("Nothing checked off yet — tick items on the list or in Store Mode first.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        KitchenEmpty(
+                            systemImage: "cart",
+                            title: "Nothing checked off yet",
+                            message: "Tick items on the list or in Store Mode first."
+                        )
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
                 } else {
+                    Section {
+                        header
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                    }
                     ForEach($rows) { $row in
                         rowSection(row: $row)
                     }
@@ -58,15 +73,37 @@ struct GroceryDoneShoppingView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add to Pantry") {
-                        confirm()
-                    }
-                    .disabled(rows.allSatisfy { !$0.include })
+            }
+            .kitchenBottomBar {
+                Button {
+                    confirm()
+                } label: {
+                    Label("Add to Pantry", systemImage: "tray.and.arrow.down.fill")
                 }
+                .buttonStyle(.tidePrimary)
+                .disabled(rows.allSatisfy { !$0.include })
             }
         }
+        .kitchenSheet()
         .onAppear(perform: loadRows)
+    }
+
+    /// The trip, turned into stock: how many of the ticked items are going in.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Into your pantry", trailing: includedCount == rows.count ? "All of it" : "\(rows.count - includedCount) left out")
+            TideNumber("\(includedCount)", unit: includedCount == 1 ? "item" : "items", size: Tide.numeralL, relativeTo: .largeTitle)
+            TideLevelBar(
+                progress: Double(includedCount) / Double(max(rows.count, 1)),
+                color: mood.accent,
+                height: Tide.bar
+            )
+            .animation(Tide.settle, value: includedCount)
+            .accessibilityHidden(true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard()
+        .accessibilityElement(children: .combine)
     }
 
     private func loadRows() {
@@ -86,7 +123,7 @@ struct GroceryDoneShoppingView: View {
     private func rowSection(row: Binding<Row>) -> some View {
         Section {
             Toggle(row.wrappedValue.item.displayName, isOn: row.include)
-                .font(.tempoBodyBold)
+                .font(Tide.headline)
             if row.wrappedValue.include {
                 HStack {
                     TextField("Amount", text: row.quantityText)
@@ -109,11 +146,11 @@ struct GroceryDoneShoppingView: View {
                     Text("Paid (optional)")
                     Spacer()
                     Text("$")
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .foregroundStyle(Tide.text2)
                     TextField("0.00", text: row.priceText)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 80)
+                        .frame(maxWidth: Tide.Kitchen.row + Tide.s6)
                 }
             }
         }

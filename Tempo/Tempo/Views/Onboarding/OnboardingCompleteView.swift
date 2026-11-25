@@ -24,44 +24,80 @@ struct OnboardingCompleteView: View {
     private var services
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
-    @State private var opacity: Double = 0
-    @State private var scale: Double = 0.9
+    @Environment(\.tideMood)
+    private var mood
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var titleSize: CGFloat = Tide.numeralL
+
+    @State private var shown = false
+    @State private var pulse = false
     @State private var didPersist = false
 
+    /// The closing ring: `dialSheet` plus a hand.
+    private let ring = Tide.dialSheet + Tide.s2
+
     var body: some View {
-        VStack(spacing: TempoSpacing.xxl) {
+        VStack(spacing: Tide.s6) {
             Spacer()
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(Color.tempoSuccess)
-                .scaleEffect(scale)
-                .opacity(opacity)
+            // The ring closes, the check lands.
+            ZStack {
+                // One soft ripple leaves the ring once it has closed.
+                Circle()
+                    .strokeBorder(mood.accent.opacity(0.5), lineWidth: Tide.hair)
+                    .frame(width: ring, height: ring)
+                    .scaleEffect(pulse ? 1.7 : 1)
+                    .opacity(shown && !pulse ? 0.8 : 0)
+                TideRing(progress: shown ? 1 : 0, color: mood.accent, lineWidth: Tide.s2)
+                    .frame(width: ring, height: ring)
+                Image(systemName: "checkmark")
+                    .font(Tide.numeral(Tide.numeralL + Tide.s3, .heavy))
+                    .foregroundStyle(mood.accent)
+                    .scaleEffect(shown ? 1 : 0.5)
+                    .opacity(shown ? 1 : 0)
+            }
+            .accessibilityHidden(true)
 
-            Text("YOU'RE IN.")
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(.white)
-                .opacity(opacity)
+            VStack(spacing: Tide.s2) {
+                Text("YOU'RE IN.")
+                    .font(Tide.numeral(titleSize, .heavy))
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("Welcome to Tempo.\nYour operating system starts now.")
-                .font(.system(size: 17))
-                .foregroundStyle(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-                .opacity(opacity)
+                Text("Welcome to Tempo.\nYour operating system starts now.\nThe rest is asked when you need it.")
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : Tide.s3)
 
             Spacer()
-
-            OnboardingPrimaryButton(title: "LET'S GO", enabled: true) {
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Tide.edge)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button("LET'S GO") {
                 viewModel.complete()
             }
-
-            Spacer().frame(height: TempoSpacing.xxxl)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
+        .sensoryFeedback(.success, trigger: shown)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.6)) {
-                opacity = 1
-                scale = 1
+            if reduceMotion {
+                shown = true
+            } else {
+                withAnimation(Tide.lively.delay(0.15)) { shown = true }
+                withAnimation(.easeOut(duration: 1.3).delay(1.1)) { pulse = true }
             }
             persistDailyPlanProfileIfNeeded()
         }
@@ -71,19 +107,26 @@ struct OnboardingCompleteView: View {
     /// the backend. Idempotent — guarded by `didPersist` so re-entering this
     /// view (e.g. via state restoration) doesn't insert duplicate rows.
     private func persistDailyPlanProfileIfNeeded() {
-        guard !didPersist else { return }
+        guard !didPersist else {
+            return
+        }
         didPersist = true
 
         // Local SwiftData first — survives offline, and is what the meal
         // planner reads for the eating window. Upsert, so a relaunch on this
         // step never leaves a duplicate row.
+        // A profile that is already there (onboarding run again) is kept, not reset to defaults.
+        var created = false
         do {
-            try viewModel.persistDailyPlanProfile(in: modelContext)
+            created = try viewModel.persistDailyPlanProfile(in: modelContext, replacingExisting: false)
         } catch {
             print("[onboarding] persistDailyPlanProfile local save failed: \(error.localizedDescription)")
         }
 
         // Backend sync — non-blocking. Failures are logged in the VM helper.
+        guard created else {
+            return
+        }
         Task {
             await viewModel.syncDailyPlanProfile(apiClient: services.apiClient)
         }
@@ -92,6 +135,5 @@ struct OnboardingCompleteView: View {
 
 #Preview {
     OnboardingCompleteView(viewModel: OnboardingViewModel())
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

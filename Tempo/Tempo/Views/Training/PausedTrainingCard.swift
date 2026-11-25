@@ -27,46 +27,31 @@ struct PausedTrainingCard: View {
     private var showResumeOptions = false
 
     var body: some View {
-        VStack(alignment: .center, spacing: TempoSpacing.md) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoSuccess)
-                .accessibilityHidden(true)
+        // A pause is a stretch of days, so the hero is that count, with a ring
+        // that fills toward the planned return when there is one.
+        TrainDayHero(
+            label: "Paused",
+            figure: "\(daysPaused)",
+            unit: daysPaused == 1 ? "day" : "days",
+            caption: title,
+            chips: [pause.reason.displayName]
+        ) {
+            returnRing
+        } footer: {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text(subtitle)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Text("PAUSED")
-                .font(.tempoCaption2.weight(.bold))
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-
-            Text(subtitle)
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-
-            Button {
-                showResumeOptions = true
-            } label: {
-                Text("Resume now")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoSuccess)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                Button {
+                    showResumeOptions = true
+                } label: {
+                    Text("Resume now")
+                }
+                .buttonStyle(.trainBanner(tint: TideTrain.positive))
             }
-            .buttonStyle(.plain)
-            .padding(.top, TempoSpacing.xs)
         }
-        .frame(maxWidth: .infinity)
-        .padding(TempoSpacing.xl)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
         .confirmationDialog("Resume training?", isPresented: $showResumeOptions, titleVisibility: .visible) {
             if needsFixedModeDecision {
                 Button("Continue this week where I left off (shift program)") {
@@ -92,6 +77,46 @@ struct PausedTrainingCard: View {
 
     private var needsFixedModeDecision: Bool {
         pause.scheduleModeAtPauseTyped == .fixed
+    }
+
+    // MARK: - Hero
+
+    /// Whole days since the pause began, counting today.
+    private var daysPaused: Int {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: pause.startDate)
+        let today = cal.startOfDay(for: Date())
+        return max(1, (cal.dateComponents([.day], from: start, to: today).day ?? 0) + 1)
+    }
+
+    /// Whole days from the start to the planned return, inclusive; nil when open-ended.
+    private var plannedDays: Int? {
+        guard let end = pause.plannedEndDate else {
+            return nil
+        }
+        let cal = Calendar.current
+        let days = (cal.dateComponents([.day], from: cal.startOfDay(for: pause.startDate), to: cal.startOfDay(for: end)).day ?? 0) + 1
+        return max(days, 1)
+    }
+
+    @ViewBuilder
+    private var returnRing: some View {
+        if let plannedDays {
+            TrainRing(
+                progress: Double(min(daysPaused, plannedDays)) / Double(plannedDays),
+                tint: TideTrain.positive,
+                diameter: TideTrain.heroRing
+            ) {
+                Image(systemName: "leaf.fill")
+                    .font(Tide.title2)
+                    .foregroundStyle(TideTrain.positive)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Pause progress")
+            .accessibilityValue("Day \(min(daysPaused, plannedDays)) of \(plannedDays)")
+        } else {
+            TideIconTile(systemName: "leaf.fill", tint: TideTrain.positive, size: TideTrainSession.stateTile)
+        }
     }
 
     private var title: String {

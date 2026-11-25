@@ -277,6 +277,11 @@ final class AccountabilityEscalationEngine: @unchecked Sendable {
     // MARK: - Helpers
 
     private func fireImmediateNotification(id: String, title: String, body: String, categoryID: String) {
+        // The All Clear is good news, not urgent: it waits out the user's switches and quiet hours.
+        guard NotificationPolicyStore.current.decide(category: categoryID, fireDate: Date()).isAllowed else {
+            logger.info("Skipped \(id, privacy: .public): the user's notification settings")
+            return
+        }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

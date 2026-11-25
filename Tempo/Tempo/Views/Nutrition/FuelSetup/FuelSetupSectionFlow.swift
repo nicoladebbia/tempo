@@ -41,6 +41,8 @@ struct FuelSetupSectionFlow: View {
     private var entry: FuelSetupDraft?
     @State
     private var isSaving = false
+    @Environment(\.tideMood)
+    private var mood
 
     init(
         section: FuelSetupSection,
@@ -103,6 +105,7 @@ struct FuelSetupSectionFlow: View {
 
     var body: some View {
         FuelFlowScaffold(
+            eyebrow: section.title,
             title: Self.title(for: step),
             subtitle: Self.subtitle(for: step),
             index: min(index, steps.count - 1),
@@ -115,7 +118,7 @@ struct FuelSetupSectionFlow: View {
             onSaveAndClose: saveCloseAction,
             canSaveAndClose: allStepsValid,
             onSkipSection: skipSectionAction,
-            onBack: { entry = working; withAnimation(TempoAnimation.springMedium) { index = max(0, index - 1) } },
+            onBack: { entry = working; withAnimation(Tide.snap) { index = max(0, index - 1) } },
             onNext: next,
             onClose: onClose
         ) {
@@ -123,13 +126,15 @@ struct FuelSetupSectionFlow: View {
         }
         .id(step)
         .transition(.opacity)
+        // The field sits outside the per-step identity, so it stays put while the questions cross-fade.
+        .tidePage()
     }
 
     private func next() {
         KeyboardDismisser.dismiss()
         if index < steps.count - 1 {
             entry = working
-            withAnimation(TempoAnimation.springMedium) { index += 1 }
+            withAnimation(Tide.snap) { index += 1 }
             return
         }
         save()
@@ -141,7 +146,7 @@ struct FuelSetupSectionFlow: View {
         working = entry ?? original
         if index < steps.count - 1 {
             entry = working
-            withAnimation(TempoAnimation.springMedium) { index += 1 }
+            withAnimation(Tide.snap) { index += 1 }
         } else {
             save()
         }
@@ -227,9 +232,13 @@ struct FuelSetupSectionFlow: View {
         case .healthBody: healthBody
         case .bodyStats: bodyStats
         case .sex:
-            VStack(spacing: TempoSpacing.sm) {
+            choiceStack {
                 ForEach(BiologicalSex.allCases, id: \.self) { sex in
-                    FuelChoiceCard(title: sex.displayName, icon: sex == .male ? "figure.stand" : "figure.stand.dress", isSelected: working.sex == sex) {
+                    FuelChoiceCard(
+                        title: sex.displayName,
+                        icon: sex == .male ? "figure.stand" : "figure.stand.dress",
+                        isSelected: working.sex == sex
+                    ) {
                         working.sex = sex
                     }
                 }
@@ -247,12 +256,29 @@ struct FuelSetupSectionFlow: View {
                 id: "fuelTrainingDays"
             )
         case .meals:
-            VStack(spacing: TempoSpacing.sm) {
-                FuelBigStepper(value: $working.mealsPerDay, defaultValue: 4, range: 1 ... 8, unit: "meals", label: "Meals a day", id: "fuelMeals")
-                FuelChoiceCard(title: "I eat breakfast", subtitle: "First meal in the morning", icon: "sunrise.fill", isSelected: working.breakfastSkipped == false) {
+            choiceStack {
+                FuelBigStepper(
+                    value: $working.mealsPerDay,
+                    defaultValue: 4,
+                    range: 1 ... 8,
+                    unit: "meals",
+                    label: "Meals a day",
+                    id: "fuelMeals"
+                )
+                FuelChoiceCard(
+                    title: "I eat breakfast",
+                    subtitle: "First meal in the morning",
+                    icon: "sunrise.fill",
+                    isSelected: working.breakfastSkipped == false
+                ) {
                     working.breakfastSkipped = false
                 }
-                FuelChoiceCard(title: "I skip it", subtitle: "First meal comes later", icon: "moon.zzz.fill", isSelected: working.breakfastSkipped == true) {
+                FuelChoiceCard(
+                    title: "I skip it",
+                    subtitle: "First meal comes later",
+                    icon: "moon.zzz.fill",
+                    isSelected: working.breakfastSkipped == true
+                ) {
                     working.breakfastSkipped = true
                 }
             }
@@ -261,39 +287,39 @@ struct FuelSetupSectionFlow: View {
         case .places: places
         case .notes:
             TextField("Notes for your planner", text: $working.notes, axis: .vertical)
-                .font(.tempoBody)
+                .font(Tide.body)
                 .lineLimit(4 ... 10)
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .padding(Tide.s4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
         case .restrictions:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 restrictions
-                sectionLabel("ALLERGIES")
+                sectionLabel("Allergies")
                 FuelChipListInput(
                     values: $working.allergies, placeholder: "Peanuts, shellfish…",
                     suggestions: ["Peanuts", "Tree nuts", "Shellfish", "Eggs", "Soy"], id: "fuelAllergies"
                 )
             }
         case .wontEat:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                sectionLabel("NEVER SERVE ME")
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                sectionLabel("Never serve me")
                 FuelChipListInput(values: $working.dislikedFoods, placeholder: "Mushrooms, olives…", id: "fuelWontEat")
-                sectionLabel("SICK OF THESE")
+                sectionLabel("Sick of these")
                 FuelChipListInput(values: $working.boredOfFoods, placeholder: "Chicken, oats…", id: "fuelBored")
             }
         case .favourites:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                sectionLabel("FOODS")
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                sectionLabel("Foods")
                 FuelChipListInput(values: $working.favoriteFoods, placeholder: "Salmon, rice, eggs…", id: "fuelFavourites")
-                sectionLabel("CUISINES")
+                sectionLabel("Cuisines")
                 FuelChipListInput(
                     values: $working.favoriteCuisines, placeholder: "Italian, Mexican…",
                     suggestions: Self.cuisineSuggestions, id: "fuelCuisines"
                 )
             }
         case .tastes:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 FuelPillPicker(
                     label: "How spicy?",
                     options: SpiceLevel.allCases.map { ($0, $0.displayName) },
@@ -306,7 +332,7 @@ struct FuelSetupSectionFlow: View {
                 )
             }
         case .appetite:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 FuelPillPicker(
                     label: "Snacks a day",
                     options: SnackHabit.range.map { ($0, $0 == 0 ? "None" : "\($0)") },
@@ -319,7 +345,7 @@ struct FuelSetupSectionFlow: View {
                 )
             }
         case .skill:
-            VStack(spacing: TempoSpacing.sm) {
+            choiceStack {
                 ForEach(CookingSkill.allCases, id: \.self) { skill in
                     FuelChoiceCard(title: skill.displayName, subtitle: Self.skillBlurb(skill), isSelected: working.cookingSkill == skill) {
                         working.cookingSkill = skill
@@ -328,7 +354,7 @@ struct FuelSetupSectionFlow: View {
             }
         case .cookTimes: cookTimes
         case .leftovers:
-            VStack(spacing: TempoSpacing.sm) {
+            choiceStack {
                 ForEach(LeftoverTolerance.allCases) { tolerance in
                     FuelChoiceCard(title: tolerance.displayName, isSelected: working.leftoverTolerance == tolerance) {
                         working.leftoverTolerance = tolerance
@@ -337,7 +363,7 @@ struct FuelSetupSectionFlow: View {
             }
         case .equipment: equipment
         case .clearSkin:
-            VStack(spacing: TempoSpacing.sm) {
+            choiceStack {
                 FuelChoiceCard(title: "On", subtitle: "Plan around clearer skin", icon: "sparkles", isSelected: working.clearSkinFocus) {
                     working.clearSkinFocus = true
                 }
@@ -346,20 +372,36 @@ struct FuelSetupSectionFlow: View {
                 }
             }
         case .shopping:
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                FuelNumberField(value: intBinding(\.weeklyBudgetUSD), unit: "$ / week", label: "Budget", keyboard: .numberPad, id: "fuelBudget")
-                sectionLabel("WHERE YOU SHOP")
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                FuelNumberField(
+                    value: intBinding(\.weeklyBudgetUSD),
+                    unit: "$ / week",
+                    label: "Budget",
+                    keyboard: .numberPad,
+                    id: "fuelBudget"
+                )
+                sectionLabel("Where you shop")
                 FuelChipListInput(
                     values: $working.stores, placeholder: "Walmart, Aldi…",
                     suggestions: ["Walmart", "Costco", "Trader Joe's", "Aldi", "Publix", "Whole Foods"], id: "fuelStores"
                 )
             }
         case .recovery:
-            VStack(spacing: TempoSpacing.sm) {
-                FuelChoiceCard(title: "Follow my recovery", subtitle: "Heavier fuel after hard days, lighter on rest", icon: "heart.fill", isSelected: working.recoveryAdjusted) {
+            choiceStack {
+                FuelChoiceCard(
+                    title: "Follow my recovery",
+                    subtitle: "Heavier fuel after hard days, lighter on rest",
+                    icon: "heart.fill",
+                    isSelected: working.recoveryAdjusted
+                ) {
                     working.recoveryAdjusted = true
                 }
-                FuelChoiceCard(title: "Same every day", subtitle: "Ignore recovery data", icon: "equal", isSelected: !working.recoveryAdjusted) {
+                FuelChoiceCard(
+                    title: "Same every day",
+                    subtitle: "Ignore recovery data",
+                    icon: "equal",
+                    isSelected: !working.recoveryAdjusted
+                ) {
                     working.recoveryAdjusted = false
                 }
             }
@@ -369,15 +411,21 @@ struct FuelSetupSectionFlow: View {
     static let cuisineSuggestions = ["Italian", "Mexican", "Asian", "Mediterranean", "Indian", "American"]
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoModuleTag)
-            .tracking(TempoTracking.drillLabel)
-            .foregroundStyle(Color.tempoTextTertiary)
+        TideSectionLabel(title: text)
+    }
+
+    /// A stack of choice tiles: one glass group, so the tiles sample the field together.
+    private func choiceStack(@ViewBuilder _ content: () -> some View) -> some View {
+        GlassEffectContainer(spacing: Tide.s1) {
+            VStack(spacing: Tide.s2) {
+                content()
+            }
+        }
     }
 
     /// Weight, height and age together, only the ones Health doesn't supply.
     private var bodyStats: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             if !locked.contains(.weight) {
                 FuelNumberField(value: weightBinding(\.weightKg), unit: unit.abbreviation, label: "Weight", id: "fuelWeight")
             }
@@ -406,22 +454,22 @@ struct FuelSetupSectionFlow: View {
                 HealthBadge()
                 Spacer()
             }
-            .padding(.bottom, TempoSpacing.sm)
+            .padding(.bottom, Tide.s2)
             if locked.contains(.weight), let kg = working.weightKg {
                 FuelHealthRow(label: "Weight", value: "\(Int(WeightUnit.kg.convert(kg, to: unit).rounded())) \(unit.abbreviation)")
-                Divider().overlay(Color.tempoDivider)
+                Divider().overlay(Tide.hairline)
             }
             if locked.contains(.height), let cm = working.heightCm {
                 FuelHealthRow(label: "Height", value: "\(Int(cm.rounded())) cm")
-                Divider().overlay(Color.tempoDivider)
+                Divider().overlay(Tide.hairline)
             }
             if locked.contains(.age), let age = working.age {
                 FuelHealthRow(label: "Age", value: "\(age) yrs")
-                Divider().overlay(Color.tempoDivider)
+                Divider().overlay(Tide.hairline)
             }
             if locked.contains(.sex), let sex = working.sex {
                 FuelHealthRow(label: "Sex", value: sex.displayName)
-                Divider().overlay(Color.tempoDivider)
+                Divider().overlay(Tide.hairline)
             }
             if locked.contains(.bodyFat), let fat = working.bodyFatPercent {
                 FuelHealthRow(label: "Body fat", value: "\(String(format: "%.1f", fat)) %")
@@ -429,19 +477,17 @@ struct FuelSetupSectionFlow: View {
             let missing = FuelBodyField.allCases.filter { !locked.contains($0) && $0 != .bodyFat }
             if !missing.isEmpty {
                 Text("Next: the few things Health doesn't have.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, TempoSpacing.md)
+                    .padding(.top, Tide.s3)
             }
         }
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     private var goalChoices: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        choiceStack {
             ForEach(DietaryGoal.allCases, id: \.self) { goal in
                 FuelChoiceCard(
                     title: goal.displayName,
@@ -472,34 +518,41 @@ struct FuelSetupSectionFlow: View {
     }
 
     private var goalTarget: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             FuelNumberField(value: weightBinding(\.goalWeightKg), unit: unit.abbreviation, label: "Goal weight", id: "fuelGoalWeight")
             FuelNumberField(value: weightBinding(\.weeklyRateKg), unit: "\(unit.abbreviation) / wk", label: "Per week", id: "fuelRate")
         }
     }
 
     private var windowPicker: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
             let hasWindow = working.eatingWindowStartMinutes != nil
-            FuelChoiceCard(title: "Set a window", subtitle: "Meals stay between your first and last", icon: "clock.fill", isSelected: hasWindow) {
-                working.eatingWindowStartMinutes = working.eatingWindowStartMinutes ?? 8 * 60
-                working.eatingWindowEndMinutes = working.eatingWindowEndMinutes ?? 21 * 60
-            }
-            FuelChoiceCard(title: "No fixed window", subtitle: "Spread meals around my day", icon: "infinity", isSelected: !hasWindow) {
-                working.eatingWindowStartMinutes = nil
-                working.eatingWindowEndMinutes = nil
+            choiceStack {
+                FuelChoiceCard(
+                    title: "Set a window",
+                    subtitle: "Meals stay between your first and last",
+                    icon: "clock.fill",
+                    isSelected: hasWindow
+                ) {
+                    working.eatingWindowStartMinutes = working.eatingWindowStartMinutes ?? 8 * 60
+                    working.eatingWindowEndMinutes = working.eatingWindowEndMinutes ?? 21 * 60
+                }
+                FuelChoiceCard(title: "No fixed window", subtitle: "Spread meals around my day", icon: "infinity", isSelected: !hasWindow) {
+                    working.eatingWindowStartMinutes = nil
+                    working.eatingWindowEndMinutes = nil
+                }
             }
             if hasWindow {
-                timeRow("FIRST MEAL", minutes: $working.eatingWindowStartMinutes, fallback: 8 * 60)
-                timeRow("LAST MEAL", minutes: $working.eatingWindowEndMinutes, fallback: 21 * 60)
+                timeRow("First meal", minutes: $working.eatingWindowStartMinutes, fallback: 8 * 60)
+                timeRow("Last meal", minutes: $working.eatingWindowEndMinutes, fallback: 21 * 60)
                 if !FuelFlowStep.window.isValid(in: working) {
                     Text("Last meal has to come after the first.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                 } else if let spacing = working.mealSpacingText, let meals = working.mealsPerDay {
-                    Text("\(meals) meals · \(spacing.lowercased())")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    Text("\(FuelWords.count(meals, "meal")) · \(spacing.lowercased())")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
         }
@@ -508,11 +561,9 @@ struct FuelSetupSectionFlow: View {
     private func timeRow(_ label: String, minutes: Binding<Int?>, fallback: Int) -> some View {
         VStack(spacing: 0) {
             Text(label)
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .tideLabel()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, TempoSpacing.md)
+                .padding(.top, Tide.s3)
             DatePicker("", selection: Binding(
                 get: { OptionalTimeRow.date(minutes.wrappedValue ?? fallback) },
                 set: { minutes.wrappedValue = OptionalTimeRow.minutes($0) }
@@ -520,40 +571,39 @@ struct FuelSetupSectionFlow: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
-                .frame(height: 100)
+                .frame(height: Tide.fuelWheel)
                 .clipped()
         }
-        .padding(.horizontal, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .padding(.horizontal, Tide.s3)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
     }
 
+    /// The seven days as one glass card of rows, not seven cards.
     private var weekDays: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        FuelRowGroup {
             ForEach(working.routine.days) { day in
                 NavigationLink {
                     DayRoutineEditor(day: $working.routine[day.weekday], places: working.routine.places)
                 } label: {
-                    HStack(spacing: TempoSpacing.md) {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: Tide.s3) {
+                        VStack(alignment: .leading, spacing: Tide.hair) {
                             Text(day.name)
-                                .font(.tempoBodyBold)
-                                .foregroundStyle(Color.tempoTextPrimary)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
                             Text(Self.daySummary(of: day, places: working.routine.places))
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
-                                .lineLimit(2)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                                 .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .accessibilityHidden(true)
                     }
-                    .padding(TempoSpacing.md)
-                    .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                    .frame(minHeight: Tide.hit)
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("fuelDay\(day.weekday)")
@@ -587,34 +637,42 @@ struct FuelSetupSectionFlow: View {
     }
 
     private var places: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             ForEach($working.routine.places) { $place in
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    HStack {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(spacing: Tide.s2) {
                         TextField("Place", text: $place.name)
-                            .font(.tempoBodyBold)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
                         if place.hasCoordinate {
                             Image(systemName: "mappin.circle.fill")
-                                .foregroundStyle(Color.tempoSuccess)
+                                .foregroundStyle(Tide.good)
                                 .accessibilityLabel("Found on the map")
                         }
                         Button {
                             working.routine.places.removeAll { $0.id == place.id }
                         } label: {
                             Image(systemName: "trash")
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text2)
+                                .frame(width: Tide.hit, height: Tide.hit)
+                                .contentShape(.rect)
                         }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("Remove place")
                     }
                     TextField("Restaurants you eat at here", text: Binding(
                         get: { place.usualRestaurants.joined(separator: ", ") },
                         set: { place.usualRestaurants = FuelSetupText.split($0) }
                     ))
-                    .font(.tempoCaption1)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                .padding(.leading, Tide.s4)
+                .padding(.trailing, Tide.s1)
+                .padding(.vertical, Tide.s2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
             }
             Button {
                 working.routine.places.append(RoutinePlace(name: ""))
@@ -622,12 +680,12 @@ struct FuelSetupSectionFlow: View {
                 Label("Add a place", systemImage: "plus")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.tideGlass)
         }
     }
 
     private var restrictions: some View {
-        FlowLayout(spacing: TempoSpacing.sm, lineSpacing: TempoSpacing.sm) {
+        FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
             ForEach(DietRestriction.allCases) { restriction in
                 let on = working.restrictions.contains(restriction)
                 Button {
@@ -638,64 +696,92 @@ struct FuelSetupSectionFlow: View {
                         working.restrictions.insert(restriction)
                     }
                 } label: {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         if on {
                             Image(systemName: "checkmark")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(Tide.label)
                         }
                         Text(restriction.label)
                     }
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(on ? Color.tempoTextInverse : Color.tempoTextPrimary)
-                    .padding(.horizontal, TempoSpacing.lg)
-                    .padding(.vertical, TempoSpacing.md)
-                    .background(on ? Color.tempoSignal : Color.tempoSurfaceCard)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(on ? Color.clear : Color.tempoBorder, lineWidth: 0.5))
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(on ? Tide.ink : Tide.text)
+                    .padding(.horizontal, Tide.s4)
+                    .frame(minHeight: Tide.hit)
+                    .background(on ? mood.accent : Tide.fill, in: .capsule)
+                    .contentShape(.capsule)
                 }
                 .buttonStyle(.plain)
+                .animation(Tide.snap, value: on)
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
     }
 
     private var cookTimes: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            FuelBigStepper(value: $working.cookableDaysPerWeek, defaultValue: 4, range: 0 ... 7, unit: "days", label: "Days you cook", id: "fuelCookDays")
-            FuelBigStepper(value: $working.cookMinutesWeekday, defaultValue: 30, range: 0 ... 180, step: 5, unit: "min", label: "Weekdays", id: "fuelCookWeekday")
-            FuelBigStepper(value: $working.cookMinutesWeekend, defaultValue: 60, range: 0 ... 240, step: 5, unit: "min", label: "Weekends", id: "fuelCookWeekend")
+        VStack(spacing: Tide.s2) {
+            FuelBigStepper(
+                value: $working.cookableDaysPerWeek,
+                defaultValue: 4,
+                range: 0 ... 7,
+                unit: "days",
+                label: "Days you cook",
+                id: "fuelCookDays"
+            )
+            FuelBigStepper(
+                value: $working.cookMinutesWeekday,
+                defaultValue: 30,
+                range: 0 ... 180,
+                step: 5,
+                unit: "min",
+                label: "Weekdays",
+                id: "fuelCookWeekday"
+            )
+            FuelBigStepper(
+                value: $working.cookMinutesWeekend,
+                defaultValue: 60,
+                range: 0 ... 240,
+                step: 5,
+                unit: "min",
+                label: "Weekends",
+                id: "fuelCookWeekend"
+            )
         }
     }
 
     private var equipment: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: TempoSpacing.sm), GridItem(.flexible(), spacing: TempoSpacing.sm)], spacing: TempoSpacing.sm) {
-            ForEach(KitchenApplianceKind.allCases, id: \.self) { kind in
-                let owned = working.equipment[kind.rawValue] ?? kind.seededAvailable
-                Button {
-                    HapticManager.selection()
-                    working.equipment[kind.rawValue] = !owned
-                } label: {
-                    VStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: kind.icon)
-                            .font(.system(size: 20))
-                            .foregroundStyle(owned ? Color.tempoSignal : Color.tempoTextTertiary)
-                            .frame(height: 30)
-                        Text(kind.displayName)
-                            .font(.tempoCallout)
-                            .foregroundStyle(owned ? Color.tempoTextPrimary : Color.tempoTextTertiary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+        GlassEffectContainer(spacing: Tide.s1) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: Tide.s2), GridItem(.flexible(), spacing: Tide.s2)], spacing: Tide.s2) {
+                ForEach(KitchenApplianceKind.allCases, id: \.self) { kind in
+                    let owned = working.equipment[kind.rawValue] ?? kind.seededAvailable
+                    Button {
+                        HapticManager.selection()
+                        working.equipment[kind.rawValue] = !owned
+                    } label: {
+                        VStack(spacing: Tide.s2) {
+                            Image(systemName: kind.icon)
+                                .font(Tide.title2)
+                                .foregroundStyle(owned ? mood.accent : Tide.text3)
+                                .frame(minHeight: Tide.icon + Tide.s1)
+                                .accessibilityHidden(true)
+                            Text(kind.displayName)
+                                .font(Tide.body)
+                                .foregroundStyle(owned ? Tide.text : Tide.text2)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(minHeight: Tide.s10 + Tide.s6)
+                        .tideCard(padding: Tide.s2, radius: Tide.tileRadius)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                                .strokeBorder(mood.accent, lineWidth: 1.5)
+                                .opacity(owned ? 1 : 0)
+                        }
+                        .contentShape(.rect(cornerRadius: Tide.tileRadius))
                     }
-                    .frame(maxWidth: .infinity, minHeight: 72)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                            .stroke(owned ? Color.tempoSignal : Color.tempoBorder, lineWidth: owned ? 2 : 0.5)
-                    )
+                    .buttonStyle(FuelPressStyle())
+                    .animation(Tide.snap, value: owned)
+                    .accessibilityAddTraits(owned ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(owned ? .isSelected : [])
             }
         }
     }

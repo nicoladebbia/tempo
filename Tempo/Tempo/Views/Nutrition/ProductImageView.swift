@@ -53,9 +53,9 @@ struct ProductImageView: View {
     private var image: UIImage?
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
         ZStack {
-            Color.tempoBgSecondary
+            Tide.fill
             if let image {
                 Image(uiImage: image)
                     .resizable()
@@ -63,13 +63,15 @@ struct ProductImageView: View {
                     .transition(.opacity)
             } else {
                 Image(systemName: fallbackIcon)
-                    .font(.system(size: size * 0.4, weight: .medium))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.4, height: size * 0.4)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .frame(width: size, height: size)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
+        .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
         .task(id: url) {
             guard let url else {
                 image = nil

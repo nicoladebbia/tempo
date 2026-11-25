@@ -183,6 +183,11 @@ final class AuthService: NSObject {
         authState = .expired
     }
 
+    /// Runs after sign-out and after account deletion, once the tokens are
+    /// gone. The app uses it to remove anything it saved for this person
+    /// outside the database (the Today snapshot on disk).
+    var onSessionEnded: (@MainActor () -> Void)?
+
     // MARK: - Sign Out
 
     func signOut() async {
@@ -200,6 +205,7 @@ final class AuthService: NSObject {
 
         try? KeychainService.deleteAll()
         authState = .unauthenticated
+        onSessionEnded?()
     }
 
     // MARK: - Account Deletion
@@ -224,6 +230,7 @@ final class AuthService: NSObject {
 
         try? KeychainService.deleteAll()
         authState = .unauthenticated
+        onSessionEnded?()
     }
 
     // MARK: - Token Access

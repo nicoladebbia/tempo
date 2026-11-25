@@ -76,12 +76,9 @@ struct GroceryShareMenu: View {
                 Label("Find Online", systemImage: "magnifyingglass")
             }
         } label: {
-            if isWorking {
-                ProgressView()
-            } else {
-                Image(systemName: "square.and.arrow.up")
-            }
+            KitchenGlassIcon(systemImage: "square.and.arrow.up", isWorking: isWorking)
         }
+        .accessibilityLabel("Share or order this list")
         .disabled(isWorking)
         .task {
             let svc = SharedGroceryListService(apiClient: services.apiClient)
@@ -224,42 +221,35 @@ struct ShareLiveLinkSheet: View {
     private var dismiss
     @State private var showSystemShareSheet = false
     @State private var showStopConfirmation = false
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.lg) {
-                Image(systemName: "link.circle.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.tempoSignal)
-                Text("Anyone with this link can check off items while you shop — no Tempo account needed.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .multilineTextAlignment(.center)
-                Text(share.url)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity)
-                    .padding(TempoSpacing.cardPadding)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                Spacer()
-                Button {
+            KitchenStatePage(actions: [
+                KitchenStateAction(title: "Share Link", systemImage: "square.and.arrow.up", role: .primary) {
                     showSystemShareSheet = true
-                } label: {
-                    Label("Share Link", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                Button(role: .destructive) {
+                },
+                KitchenStateAction(title: "Stop Sharing", role: .destructive) {
                     showStopConfirmation = true
-                } label: {
-                    Text("Stop Sharing")
+                },
+            ]) {
+                VStack(spacing: Tide.s5) {
+                    KitchenStateHero(
+                        systemImage: "link",
+                        title: "Your list is live",
+                        message: "Anyone with this link can check off items while you shop. No Tempo account needed."
+                    )
+                    Text(share.url)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
                         .frame(maxWidth: .infinity)
+                        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 }
-                .buttonStyle(.tempoSecondary)
             }
-            .padding(TempoSpacing.screenEdge)
             .navigationTitle("Live Shared List")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -286,6 +276,7 @@ struct ShareLiveLinkSheet: View {
                 Text("The link will stop working immediately.")
             }
         }
+        .kitchenSheet()
     }
 }
 
@@ -305,28 +296,36 @@ struct GroceryOrderLinksSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
+            KitchenList {
                 Section {
-                    Text("Instacart ordering isn't set up yet, or the request failed. Search for each item instead:")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    KitchenSheetHeader(
+                        systemImage: "magnifyingglass",
+                        title: "Find these online",
+                        subtitle: "Instacart ordering isn't set up yet, or the request failed. Search for each item instead:"
+                    )
                 }
-                ForEach(GroceryOrderLinks.fallbackLinks(for: itemNames)) { link in
-                    Button {
-                        openURL(link.url)
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(link.itemName)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Text(link.storeName)
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
+                Section {
+                    ForEach(GroceryOrderLinks.fallbackLinks(for: itemNames)) { link in
+                        Button {
+                            openURL(link.url)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: Tide.hair) {
+                                    Text(link.itemName)
+                                        .font(Tide.headline)
+                                        .foregroundStyle(Tide.text)
+                                    Text(link.storeName)
+                                        .font(Tide.caption)
+                                        .foregroundStyle(Tide.text3)
+                                }
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(Tide.caption)
+                                    .foregroundStyle(Tide.text3)
+                                    .accessibilityHidden(true)
                             }
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .foregroundStyle(Color.tempoTextTertiary)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
                         }
                     }
                 }
@@ -339,5 +338,6 @@ struct GroceryOrderLinksSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 }

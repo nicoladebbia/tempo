@@ -292,37 +292,11 @@ OneSignal and FCM add 2-3MB each for a dashboard and segmentation features we do
 
 ---
 
-### 2.8 Animations -- Lottie
+### 2.8 Animations -- Lottie (REMOVED 2026-11-22)
 
-| Detail | Value |
-|--------|-------|
-| **Package** | `lottie-ios` |
-| **GitHub** | https://github.com/airbnb/lottie-ios |
-| **Current version** | 4.x (latest stable) |
-| **What it does in Tempo** | Streak flame animation (Arena, looping), pull-to-refresh trophy spin (Arena), level-up celebration, achievement unlock shimmer |
-| **Maintenance status** | Very active. Airbnb-maintained. 50+ contributors. |
-| **Stars** | 25K+ |
-| **License** | Apache 2.0 |
-| **Binary size impact** | ~1.8MB (Lottie 4.x with Core Animation renderer) |
-| **Alternatives considered** | SwiftUI `.animation()` (insufficient for complex multi-element animations), SpriteKit (overkill), custom Canvas (too much work for designer-authored animations) |
-| **Why Lottie** | MODULE_ARENA.md explicitly specifies Lottie for streak flame (Section 4), pull-to-refresh trophy animation (Section 5.4), and level-up celebration. Lottie enables designers to author animations in After Effects and export as JSON -- no developer animation code needed. |
-| **Risk if abandoned** | Low (Airbnb has used it in production for 8+ years). If abandoned, Lottie JSON files can be converted to Core Animation code or replaced with SwiftUI animations. |
-| **Can we vendor/fork?** | Yes. Apache 2.0 allows forking. The codebase is self-contained with no external dependencies. |
+**Decision: REMOVED.** Lottie was approved on 2026-03-24 for designer-authored Arena animations (streak flame, level-up, pull-to-refresh trophy). None of them was ever built: the package was linked but no view imported it. The UI rework (`docs/UI_REWORK_PLAN.md`) draws its motion with SwiftUI animations and Metal shaders (`Tempo/Tempo/DesignSystem/Tide.metal`), so the package was dropped from `project.yml` together with the move to iOS 26.
 
-**Decision: APPROVED -- Lottie**
-
-**Binary size mitigation:** Use Lottie 4.x's Core Animation rendering mode (not the Main Thread renderer). Core Animation mode is faster and uses less memory.
-
-**Lottie JSON files budget:** Each animation JSON should be < 50KB. Total Lottie asset budget: < 500KB.
-
-| Animation | File | Est. Size | Loop? |
-|-----------|------|-----------|-------|
-| Streak flame (3 tiers) | `streak_flame_1.json`, `_2.json`, `_3.json` | 30KB each | Yes |
-| Pull-to-refresh trophy | `trophy_spin.json` | 40KB | No |
-| Level-up burst | `level_up.json` | 50KB | No |
-| Achievement unlock shimmer | `achievement_unlock.json` | 25KB | No |
-| XP gain float | `xp_gain.json` | 15KB | No |
-| **Total** | | **~230KB** | |
+Do not add it back for a single animation. Use SwiftUI springs, `PhaseAnimator` / `KeyframeAnimator`, SF Symbol effects, or a Tide shader. See Section 9 (Rejected Dependencies).
 
 ---
 
@@ -514,10 +488,9 @@ Mapbox/Google Maps would blow the entire 15MB dependency budget on one feature.
 |------------|-------------|----------|---------------|
 | PostHog iOS SDK | ~1.5MB | Analytics + Feature Flags + A/B Testing | Replaces 3 separate tools |
 | Firebase Crashlytics | ~3.5MB | Crash Reporting | Industry standard, no alternative |
-| Lottie | ~1.8MB | Animations | Designer-authored animations for Arena |
 | swift-snapshot-testing | 0 (test only) | Testing | Snapshot regression tests |
-| **Total third-party** | **~6.8MB** | | |
-| **Budget** | **< 15MB** | | **Under budget by 8.2MB** |
+| **Total third-party** | **~5.0MB** | | |
+| **Budget** | **< 15MB** | | **Under budget by 10MB** |
 
 Everything else uses Apple built-in frameworks:
 
@@ -740,11 +713,6 @@ let package = Package(
             from: "11.0.0"
         ),
 
-        // Designer-authored animations (streak flame, level-up, etc.)
-        .package(
-            url: "https://github.com/airbnb/lottie-ios.git",
-            from: "4.4.0"
-        ),
     ],
     targets: [
         .target(
@@ -752,7 +720,6 @@ let package = Package(
             dependencies: [
                 .product(name: "PostHog", package: "posthog-ios"),
                 .product(name: "FirebaseCrashlytics", package: "firebase-ios-sdk"),
-                .product(name: "Lottie", package: "lottie-ios"),
             ]
         ),
 
@@ -782,7 +749,7 @@ let package = Package(
 3. Link only the products listed to the app target
 4. Link `SnapshotTesting` only to the `TempoTests` test target
 
-**Watch app target:** The Watch app target should link only `TempoCore` (shared models). It should NOT link PostHog, Firebase, or Lottie. The Watch app uses WatchKit haptics (not Lottie) and does not need analytics or crash reporting independently.
+**Watch app target:** The Watch app target should link only `TempoCore` (shared models). It should NOT link PostHog or Firebase. The Watch app uses WatchKit haptics and does not need analytics or crash reporting independently.
 
 ---
 
@@ -893,13 +860,11 @@ tempo-backend/
 | App executable (arm64, LTO optimized) | ~6MB | 5 modules, engines, services, views |
 | Asset catalog (SF Symbols, colors, app icon) | ~2MB | Mostly vector assets |
 | Exercise library seed (JSON, compressed) | ~300KB | Gzipped, lazy-loaded |
-| Lottie animation files | ~230KB | 6 animation JSONs |
 | **PostHog SDK** | ~1.5MB | Static linked |
 | **Firebase Crashlytics** | ~3.5MB | Static linked (includes FirebaseCore, GoogleDataTransport, nanopb) |
-| **Lottie framework** | ~1.8MB | Static linked |
 | Localization (English only) | ~200KB | Strings files |
 | Storyboard / Launch screen | ~50KB | Minimal |
-| **Subtotal (before thinning)** | **~23.6MB** | |
+| **Subtotal (before thinning)** | **~21.6MB** | |
 | App Thinning (arm64 slice only) | -15% | Xcode strips unused architectures |
 | **Estimated download size** | **~20MB** | |
 | **Budget** | **< 50MB** | |
@@ -1036,6 +1001,7 @@ A record of every dependency considered and rejected, so future engineers do not
 
 | Dependency | Category | Binary Size | Why Rejected |
 |------------|----------|-------------|--------------|
+| **Lottie** | Animations | ~1.8MB | Approved in March 2026, removed 2026-11-22 without ever being used. SwiftUI animations and the Tide Metal shaders cover every animation in the app. |
 | **Alamofire** | Networking | ~1.5MB | URLSession + 200-line wrapper covers all needs. Alamofire is unnecessary abstraction for a single-API-backend app. |
 | **Kingfisher** | Image Loading | ~2MB | AsyncImage + 80-line disk cache is sufficient. Tempo has < 50 images to load in any view. |
 | **Nuke** | Image Loading | ~500KB | Same rationale as Kingfisher. Lighter, but still unnecessary. |
@@ -1075,4 +1041,5 @@ When adding or removing a dependency in the future, add an entry here:
 | 2026-03-24 | Added | PostHog iOS SDK 3.x | Analytics + feature flags + A/B testing in one tool | +1.5MB |
 | 2026-03-24 | Added | Firebase Crashlytics 11.x | Crash reporting (industry standard) | +3.5MB |
 | 2026-03-24 | Added | Lottie 4.x | Arena animations (streak flame, level-up, pull-to-refresh) | +1.8MB |
+| 2026-11-22 | Removed | Lottie 4.x | Never used by any view; UI rework animates with SwiftUI and Metal shaders (Tide) | -1.8MB (and ~230KB of planned JSON files) |
 | 2026-03-24 | Added | swift-snapshot-testing 1.x | Snapshot tests (test target only) | +0MB |

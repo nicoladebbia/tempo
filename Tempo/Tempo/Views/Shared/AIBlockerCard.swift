@@ -22,6 +22,8 @@ struct AIBlockerCard: View {
 
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var showPaywall = false
     @State
@@ -30,37 +32,44 @@ struct AIBlockerCard: View {
     private var consentError: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.xs) {
-                Image(systemName: "lock.fill")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoAmber)
-                Text(message ?? blocker.message)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // A message of several lines keeps its icon level with the first.
+            let head = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+            head {
+                TideIconTile(
+                    systemName: blocker == .proRequired ? "lock.fill" : "sparkles",
+                    tint: Tide.streak
+                )
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(blocker.title)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(message ?? blocker.message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             if let consentError {
                 Text(consentError)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Button {
                 act()
             } label: {
                 Text(isWorking ? "Working…" : blocker.actionTitle)
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tidePrimary)
             .disabled(isWorking)
             .accessibilityIdentifier("aiBlockerAction")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoAmber.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .accessibilityIdentifier("aiBlockerCard")
         .sheet(isPresented: $showPaywall) {
             PaywallView()

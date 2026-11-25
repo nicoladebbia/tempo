@@ -44,7 +44,7 @@ struct SupplementPicksView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 if isLoading {
                     loadingState
                 } else if let loadErrorMessage {
@@ -53,11 +53,11 @@ struct SupplementPicksView: View {
                     content(for: picks)
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.md)
-            .padding(.bottom, TempoSpacing.bottomSafe)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s3)
+            .padding(.bottom, Tide.s10)
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .kitchenPage()
         .navigationTitle("Best \(supplement.kind.displayName)")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -68,40 +68,38 @@ struct SupplementPicksView: View {
     // MARK: - Loading / error
 
     private var loadingState: some View {
-        VStack {
-            ProgressView()
+        VStack(spacing: Tide.s3) {
+            // The shape of the answer while it loads: two pick cards.
+            VStack(spacing: Tide.s3) {
+                ForEach(0 ..< 2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: Tide.cardRadius, style: .continuous)
+                        .fill(Tide.fill)
+                        .frame(height: Tide.Kitchen.suggestion + Tide.s10)
+                }
+            }
+            .shimmer()
             Text("Finding the best picks…")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Finding the best picks")
     }
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.sm) {
-            // Icon size/color per DESIGN_SYSTEM.md §12.5 (Full-Screen Error) —
-            // same convention as the shared ErrorStateView component.
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoError)
-            Text(message)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            Button("Try Again") {
-                Task { await loadPicks() }
-            }
-            .buttonStyle(.tempoSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        KitchenFailure(
+            title: "Picks unavailable",
+            message: message,
+            retryTitle: "Try Again",
+            retry: { Task { await loadPicks() } }
+        )
     }
 
     // MARK: - Content
 
     private func content(for picks: SupplementPicksDTO) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             if let lookFor = picks.lookFor, !lookFor.isEmpty {
                 lookForCard(lookFor)
             }
@@ -113,7 +111,7 @@ struct SupplementPicksView: View {
             if picks.picks.isEmpty {
                 emptyPicksState
             } else {
-                VStack(spacing: TempoSpacing.md) {
+                VStack(spacing: Tide.s3) {
                     ForEach(picks.picks, id: \.id) { pick in
                         pickCard(pick)
                     }
@@ -125,62 +123,47 @@ struct SupplementPicksView: View {
     }
 
     private func lookForCard(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("WHAT TO LOOK FOR")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text("What to look for").tideLabel()
             Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private var unverifiedBanner: some View {
-        HStack(alignment: .top, spacing: TempoSpacing.sm) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(Color.tempoWarning)
-            Text("AI suggestions — not verified. Double-check any certification claim yourself before buying.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-        .padding(TempoSpacing.cardPaddingCompact)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoWarning.opacity(TempoOpacity.o10))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        KitchenNotice(
+            systemImage: "sparkles",
+            text: "AI suggestions, not verified. Double-check any certification claim yourself before buying."
+        )
     }
 
     private var emptyPicksState: some View {
-        Text("No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself.")
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        KitchenEmpty(
+            systemImage: "magnifyingglass",
+            title: "No picks right now",
+            message: "No suggestions available for this one right now. Try again later, or search for a third-party certified option yourself."
+        )
     }
 
     private func pickCard(_ pick: SupplementPicksDTO.Pick) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(pick.brand)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
+                Text(pick.brand).tideLabel(Tide.text3)
                 Text(pick.product)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 if let form = pick.form, !form.isEmpty {
                     Text(form.capitalized)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
             }
 
             if !pick.certifications.isEmpty {
-                HStack(spacing: TempoSpacing.xs) {
+                HStack(spacing: Tide.s1) {
                     ForEach(pick.certifications, id: \.self) { certification in
                         certificationBadge(certification)
                     }
@@ -188,17 +171,29 @@ struct SupplementPicksView: View {
             }
 
             Text(pick.why)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
 
-            if pick.approxPricePerServingUSD != nil {
-                Text(priceLine(for: pick))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+            if let price = pick.approxPricePerServingUSD {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    TideNumber(
+                        String(format: "$%.2f", price),
+                        unit: "/serving",
+                        size: Tide.numeralS,
+                        relativeTo: .headline
+                    )
+                    if let priceAsOf = pick.priceAsOf, let formatted = Self.formatPriceAsOf(priceAsOf) {
+                        Text("approx. \(formatted)")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(priceLine(for: pick))
             }
 
             if !pick.buyLinks.isEmpty {
-                HStack(spacing: TempoSpacing.sm) {
+                HStack(spacing: Tide.s2) {
                     ForEach(pick.buyLinks, id: \.url) { link in
                         buyLinkButton(link)
                     }
@@ -206,9 +201,7 @@ struct SupplementPicksView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
     }
 
     private func priceLine(for pick: SupplementPicksDTO.Pick) -> String {
@@ -223,14 +216,7 @@ struct SupplementPicksView: View {
     }
 
     private func certificationBadge(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoSuccess)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xxs)
-            .background(Color.tempoSuccess.opacity(TempoOpacity.o15))
-            .clipShape(Capsule())
+        KitchenTag(text: text, tint: Tide.Kitchen.good)
     }
 
     private func buyLinkButton(_ link: SupplementPicksDTO.BuyLink) -> some View {
@@ -240,19 +226,16 @@ struct SupplementPicksView: View {
             }
         } label: {
             Text(link.label)
-                .font(.tempoCaption1)
-                .fontWeight(.semibold)
+                .font(Tide.bodyStrong)
         }
-        .buttonStyle(.tempoGhost)
+        .buttonStyle(.tideGlass)
     }
 
     // MARK: - Nearby
 
     private var nearbySection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("NEARBY STORES")
-                .font(.tempoModuleTag)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Nearby stores").tideLabel()
 
             switch nearbyState {
             case .idle:
@@ -261,47 +244,56 @@ struct SupplementPicksView: View {
                 } label: {
                     Label("Find Nearby Stores", systemImage: "location")
                 }
-                .buttonStyle(.tempoSecondary)
+                .buttonStyle(.tideGlass)
 
             case .loading:
-                HStack {
-                    ProgressView()
-                    Text("Searching nearby…")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                VStack(spacing: Tide.s2) {
+                    ForEach(0 ..< 3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(height: Tide.Kitchen.tile)
+                    }
                 }
+                .shimmer()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Searching nearby")
 
             case .denied:
-                Text("Location access is off, so we can't search nearby. Enable it in Settings to find stores.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                KitchenNotice(
+                    systemImage: "location.slash",
+                    text: "Location access is off, so we can't search nearby. Enable it in Settings to find stores.",
+                    tint: Tide.text2
+                )
 
             case .failed:
-                Text("Couldn't search nearby stores right now.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                KitchenNotice(
+                    systemImage: "wifi.exclamationmark",
+                    text: "Couldn't search nearby stores right now.",
+                    tint: Tide.text2,
+                    actionTitle: "Try again",
+                    action: { Task { await loadNearby() } }
+                )
 
             case let .loaded(results):
                 if results.isEmpty {
                     Text("No vitamin or supplement stores found nearby.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 } else {
                     VStack(spacing: 0) {
                         ForEach(results) { result in
                             nearbyRow(result)
                             if result.id != results.last?.id {
-                                Divider()
+                                Rectangle().fill(Tide.hairline).frame(height: 1)
+                                    .accessibilityHidden(true)
                             }
                         }
                     }
-                    .padding(TempoSpacing.cardPadding)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+                    .tideCard(padding: Tide.s4)
 
                     Text("Stock isn't known — call ahead if you need something specific.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                 }
             }
         }
@@ -313,24 +305,25 @@ struct SupplementPicksView: View {
         } label: {
             HStack {
                 Text(result.name)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                 Spacer()
                 Text(Self.formatDistance(result.distanceMeters))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.numeral(Tide.numeralS, .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Tide.text2)
                 Image(systemName: "chevron.right")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
-            .padding(.vertical, TempoSpacing.xs)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
     }
 
     private func openInMaps(_ result: NearbyStoreResult) {
-        let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude))
-        let mapItem = MKMapItem(placemark: placemark)
+        let mapItem = MKMapItem(location: CLLocation(latitude: result.latitude, longitude: result.longitude), address: nil)
         mapItem.name = result.name
         mapItem.openInMaps()
     }

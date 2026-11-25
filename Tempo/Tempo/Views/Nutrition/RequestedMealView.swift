@@ -11,6 +11,8 @@ import Combine
 import SwiftData
 import SwiftUI
 
+// MARK: - RequestedMealView
+
 struct RequestedMealView: View {
     let request: MealRequest
 
@@ -18,6 +20,8 @@ struct RequestedMealView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         NavigationStack {
@@ -25,31 +29,48 @@ struct RequestedMealView: View {
                 if let meal = Self.meal(id: request.id, in: modelContext) {
                     MealDetailView(meal: meal, opensMarkEaten: request.action == .markEaten)
                 } else {
-                    VStack(spacing: TempoSpacing.md) {
-                        Image(systemName: "fork.knife")
-                            .font(.tempoTitle2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        Text("That meal isn't on your plan any more.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .multilineTextAlignment(.center)
-                        Text("The plan was rebuilt since this reminder was set.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .padding(TempoSpacing.screenEdge)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.tempoBgPrimary)
-                    .accessibilityIdentifier("requestedMealMissing")
+                    missing
                 }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(mood.accent)
                 }
             }
         }
+        // A sheet is its own page, even when a notification opens it from inside one.
+        .environment(\.tideInsidePage, false)
+    }
+
+    /// The meal is gone: say so, say why, and give one way out.
+    private var missing: some View {
+        VStack(spacing: Tide.s4) {
+            TideStateMark(systemName: "fork.knife", tint: Tide.warn)
+            VStack(spacing: Tide.s2) {
+                Text("That meal isn't on your plan any more.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                Text("The plan was rebuilt since this reminder was set.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: Tide.stateWidth)
+        }
+        .padding(.horizontal, Tide.edge)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The one way out sits under the thumb.
+        .fuelBottomBar {
+            Button("Back to Fuel") { dismiss() }
+                .buttonStyle(.tidePrimary)
+        }
+        .tidePage()
+        .accessibilityIdentifier("requestedMealMissing")
     }
 
     static func meal(id: UUID, in modelContext: ModelContext) -> PlannedMeal? {
@@ -59,7 +80,7 @@ struct RequestedMealView: View {
     }
 }
 
-// MARK: - ContentView hooks
+// MARK: - MealNotificationHooks
 
 private struct MealNotificationHooks: ViewModifier {
     @Binding

@@ -112,10 +112,13 @@ extension DashboardViewModel {
             // A ticked supplement's entry counts its macros, not as a meal.
             let eatenMeals = eaten.filter { !EatenMealRecorder.isSupplementDose($0) }
             totals.mealsLogged = eatenMeals.count
-            totals.calories = Int(eaten.reduce(0.0) { $0 + $1.totalCalories })
-            totals.protein = Int(eaten.reduce(0.0) { $0 + $1.totalProtein })
-            totals.carbs = Int(eaten.reduce(0.0) { $0 + $1.totalCarbs })
-            totals.fat = Int(eaten.reduce(0.0) { $0 + $1.totalFat })
+            // One rounding rule for every surface (Fuel tab, widgets, Today):
+            // sum first, round once, never truncate.
+            let rounded = CanonicalMeals.eatenRoundedTotals(of: plannedMeals)
+            totals.calories = rounded.calories
+            totals.protein = rounded.protein
+            totals.carbs = rounded.carbs
+            totals.fat = rounded.fat
 
             // Last-eaten timestamp from PlannedMeal.actualEatenAt (Mark
             // Eaten + Quick Log both set it).

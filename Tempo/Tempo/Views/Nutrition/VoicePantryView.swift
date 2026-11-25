@@ -26,6 +26,8 @@ struct VoicePantryView: View {
     private var services
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var transcriber = VoiceTranscriber()
     @State private var service: VoicePantryService?
@@ -64,7 +66,7 @@ struct VoicePantryView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: TempoSpacing.xl) {
+            Group {
                 switch phase {
                 case .idle, .recording:
                     micSection
@@ -79,8 +81,8 @@ struct VoicePantryView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(TempoSpacing.screenEdge)
-            .background(Color.tempoBgPrimary)
+            .animation(Tide.snap, value: phase)
+            .kitchenPage()
             .navigationTitle("Add to Pantry by Voice")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -117,48 +119,110 @@ struct VoicePantryView: View {
 
     // MARK: - Mic
 
+    /// The words and the example phrases (or, once talking, what has been
+    /// heard so far) fill the page; the mic sits at the bottom, under the thumb.
     private var micSection: some View {
-        VStack(spacing: TempoSpacing.xl) {
-            Spacer()
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: Tide.s5) {
+                    KitchenStateText(
+                        title: transcriber.isListening ? "Listening…" : "List what's in your pantry",
+                        message: transcriber.isListening
+                            ? "Name everything, then tap stop."
+                            : "Tap the mic and go one after another, the way you'd say it out loud."
+                    )
+                    .padding(.top, Tide.s6)
+                    if transcriber.isListening || !transcriber.transcribedText.isEmpty {
+                        heardCard
+                    } else {
+                        examplesCard
+                    }
+                    if let err = transcriber.error {
+                        KitchenNotice(systemImage: "exclamationmark.triangle.fill", text: err, tint: Tide.danger)
+                    }
+                }
+                .padding(.horizontal, Tide.edge)
+                .frame(maxWidth: Tide.stateWidth)
+                .frame(maxWidth: .infinity)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            micControl
+        }
+        .animation(Tide.snap, value: transcriber.transcribedText.isEmpty)
+    }
 
-            Text(transcriber.isListening
-                ? "Listening… name everything, then tap stop"
-                : "Tap the mic and list what's in your pantry, one after another")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+    /// What has been heard so far, growing as the person talks.
+    private var heardCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("You said").tideLabel(Tide.text3)
+            if transcriber.transcribedText.isEmpty {
+                Text("Go ahead, I'm listening…")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text3)
+            } else {
+                Text(transcriber.transcribedText)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+    }
 
+    /// Three lines to copy the shape of, so the first try works.
+    private var examplesCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Try saying").tideLabel(Tide.text3)
+            example("Two cartons of eggs in the fridge")
+            example("A kilo of basmati rice")
+            example("Olive oil and a jar of peanut butter")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .transition(.opacity)
+    }
+
+    private func example(_ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+            Image(systemName: "quote.opening")
+                .font(Tide.caption)
+                .foregroundStyle(mood.accent)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var micControl: some View {
+        VStack(spacing: Tide.s3) {
             Button {
                 Task { await toggleRecording() }
             } label: {
                 Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(width: 96, height: 96)
-                    .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
-                    .clipShape(Circle())
+                    .font(Tide.largeTitle)
+                    .foregroundStyle(Tide.ink)
+                    .frame(width: Tide.Kitchen.verdictDial, height: Tide.Kitchen.verdictDial)
+                    .glassEffect(
+                        .regular.tint(transcriber.isListening ? Tide.danger : mood.accent).interactive(),
+                        in: .circle
+                    )
+                    .contentTransition(.symbolEffect(.replace))
+                    .background {
+                        KitchenListeningRing(active: transcriber.isListening, tint: Tide.danger)
+                    }
             }
             .buttonStyle(.plain)
-
-            if !transcriber.transcribedText.isEmpty {
-                Text(transcriber.transcribedText)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .multilineTextAlignment(.center)
-                    .padding(TempoSpacing.cardPadding)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            }
-
-            if let err = transcriber.error {
-                Text(err)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
-            }
-
-            Spacer()
+            .sensoryFeedback(.impact, trigger: transcriber.isListening)
+            .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Start listening")
+            Text(transcriber.isListening ? "Tap to stop" : "Tap to start")
+                .tideLabel(Tide.text3)
         }
+        .padding(.top, Tide.s5)
+        .padding(.bottom, Tide.s4)
     }
 
     private func toggleRecording() async {
@@ -185,15 +249,39 @@ struct VoicePantryView: View {
     // MARK: - Thinking
 
     private var thinkingSection: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            ProgressView()
-                .controlSize(.large)
-            Text("Reading your pantry…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Spacer()
+        ScrollView {
+            VStack(spacing: Tide.s5) {
+                KitchenStateHero(
+                    systemImage: "list.bullet.clipboard",
+                    title: "Reading your pantry…",
+                    message: "Turning what you said into items.",
+                    working: true
+                )
+                .padding(.top, Tide.s6)
+                if !transcriber.transcribedText.isEmpty {
+                    Text(transcriber.transcribedText)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.center)
+                }
+                // The shape of what is coming: a confirm card per item.
+                VStack(spacing: Tide.s3) {
+                    ForEach(0 ..< 3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(height: Tide.Kitchen.row + Tide.s6)
+                    }
+                }
+                .shimmer()
+            }
+            .padding(.horizontal, Tide.edge)
+            .frame(maxWidth: Tide.stateWidth)
+            .frame(maxWidth: .infinity)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Reading your pantry")
     }
 
     // MARK: - Resolve → editable confirm card (no clarifying phase)
@@ -241,29 +329,29 @@ struct VoicePantryView: View {
     }
 
     private var confirmationSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("Confirm your pantry")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Edit anything, remove what's wrong, then save.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            ScrollView {
-                VStack(spacing: TempoSpacing.sm) {
-                    // Bind by id so a per-row remove can't desync indices.
-                    ForEach($editable) { $row in
-                        editableRow($row)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "Confirm your pantry", trailing: "\(editable.count) found")
+                Text("Edit anything, remove what's wrong, then save.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                // Bind by id so a per-row remove can't desync indices.
+                ForEach($editable) { $row in
+                    editableRow($row)
                 }
             }
-
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+        }
+        .scrollIndicators(.hidden)
+        .kitchenBottomBar {
             Button {
                 saveEditableItems()
             } label: {
                 Text(editable.isEmpty ? "Nothing to save" : "Save \(editable.count) to Pantry")
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.kitchenBar)
             .disabled(editable.isEmpty)
         }
     }
@@ -271,24 +359,27 @@ struct VoicePantryView: View {
     @ViewBuilder
     private func editableRow(_ row: Binding<EditableItem>) -> some View {
         let item = row.wrappedValue
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack {
-                Text(item.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                if item.isLowConfidence {
-                    Text("Low confidence")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoWarning)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    Text(item.name)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if item.isLowConfidence {
+                        KitchenTag(text: "Low confidence", tint: Tide.Kitchen.warn)
+                    }
                 }
+                Spacer(minLength: Tide.s2)
                 // Per-row remove — drops just this item, never the whole flow.
                 Button {
                     editable.removeAll { $0.id == item.id }
                 } label: {
                     Image(systemName: "trash")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.danger)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(item.name)")
@@ -298,72 +389,39 @@ struct VoicePantryView: View {
             // protein"). Editable so the user can correct or add one. This is
             // shown but not yet persisted — wiring it into the saved row is the
             // merge-key step (so two brands of the same food stay separate).
-            TextField("Brand / description (optional)", text: row.brand)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .textInputAutocapitalization(.words)
-
-            // Component breakdown the AI used to reach the aggregated total.
-            if !item.components.isEmpty {
-                Text(item.components.joined(separator: " + "))
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                TextField("Brand / description (optional)", text: row.brand)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .textInputAutocapitalization(.words)
+                // Component breakdown the AI used to reach the aggregated total.
+                if !item.components.isEmpty {
+                    Text(item.components.joined(separator: " + "))
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
             }
 
-            // Editable quantity + unit.
-            HStack(spacing: TempoSpacing.sm) {
-                TextField("Qty", text: row.quantityText)
-                    .keyboardType(.decimalPad)
-                    .font(.tempoBody)
-                    .frame(maxWidth: 90)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.tempoBorder, lineWidth: 1))
-
-                Picker("Unit", selection: row.unit) {
-                    ForEach(PantryUnit.allCases, id: \.self) { u in
-                        Text(u.displayName).tag(u)
-                    }
+            // Quantity, unit and shelf on one line; stacked when the text is large.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    quantityField(row)
+                    unitPicker(row)
+                    Spacer(minLength: Tide.s2)
+                    storagePicker(row, item: item)
                 }
-                .pickerStyle(.menu)
-
-                Spacer()
-            }
-
-            // Storage location on its own row so it's unmissable — the AI
-            // assigns it from the spoken section ("in the fridge…"); the user
-            // can correct it here. Shown as a labeled menu, not just an icon.
-            HStack(spacing: TempoSpacing.xs) {
-                Image(systemName: storageIcon(item.storage))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text("Location")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Picker("Location", selection: row.storage) {
-                    ForEach(PantryStorageLocation.allCases, id: \.self) { loc in
-                        Text(loc.displayName).tag(loc)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(spacing: Tide.s2) {
+                        quantityField(row)
+                        unitPicker(row)
                     }
+                    storagePicker(row, item: item)
                 }
-                .pickerStyle(.menu)
-                .tint(Color.tempoSignal)
-                Spacer()
             }
 
             // SET shows old → new (destructive overwrite); ADD shows the delta.
             // Reactive to the edited quantity + unit.
-            if item.isSet {
-                let oldText = currentQuantity(name: item.name, unit: item.unit)
-                    .map { "\(formatQuantity($0)) \(item.unit.displayName)" } ?? "—"
-                Text("\(oldText) → \(formatQuantity(item.quantity)) \(item.unit.displayName)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            } else {
-                Text("+\(formatQuantity(item.quantity)) \(item.unit.displayName)")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
+            changeChip(item)
 
             // Per-item SET/ADD toggle. SET hidden for low-confidence items so an
             // uncertain parse can never become a silent destructive overwrite.
@@ -376,10 +434,77 @@ struct VoicePantryView: View {
             .pickerStyle(.segmented)
             .disabled(item.isLowConfidence)
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private func quantityField(_ row: Binding<EditableItem>) -> some View {
+        TextField("Qty", text: row.quantityText)
+            .keyboardType(.decimalPad)
+            .font(Tide.body)
+            .frame(maxWidth: Tide.Kitchen.row + Tide.s5, minHeight: Tide.hit - Tide.s4)
+            .padding(Tide.s2)
+            .background(Tide.fill)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous).stroke(Tide.hairline, lineWidth: 1))
+    }
+
+    private func unitPicker(_ row: Binding<EditableItem>) -> some View {
+        Picker("Unit", selection: row.unit) {
+            ForEach(PantryUnit.allCases, id: \.self) { u in
+                Text(u.displayName).tag(u)
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(mood.accent)
+    }
+
+    /// The AI assigns the shelf from the spoken section ("in the fridge…"); the
+    /// user can correct it here, with its icon beside it.
+    private func storagePicker(_ row: Binding<EditableItem>, item: EditableItem) -> some View {
+        HStack(spacing: Tide.s1) {
+            Image(systemName: storageIcon(item.storage))
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .accessibilityHidden(true)
+            Picker("Location", selection: row.storage) {
+                ForEach(PantryStorageLocation.allCases, id: \.self) { loc in
+                    Text(loc.displayName).tag(loc)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(mood.accent)
+        }
+        .fixedSize()
+    }
+
+    /// What saving does to the pantry, in a pill: a set replaces the total
+    /// (amber, because it overwrites), an add tops it up.
+    private func changeChip(_ item: EditableItem) -> some View {
+        let text: String
+        let tint: Color
+        let icon: String
+        if item.isSet {
+            let oldText = currentQuantity(name: item.name, unit: item.unit)
+                .map { PantryQuantityFormatter.text(quantity: $0, unit: item.unit) } ?? "—"
+            text = "\(oldText) → \(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))"
+            tint = Tide.Kitchen.warn
+            icon = "arrow.triangle.2.circlepath"
+        } else {
+            text = "+\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))"
+            tint = Tide.text2
+            icon = "plus"
+        }
+        return HStack(spacing: Tide.s1) {
+            Image(systemName: icon)
+                .accessibilityHidden(true)
+            Text(text)
+        }
+        .font(Tide.caption)
+        .foregroundStyle(tint)
+        .padding(.horizontal, Tide.s3)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.fill, in: .capsule)
     }
 
     /// Current quantity of the existing pantry row that `setOrCreate` would
@@ -434,31 +559,24 @@ struct VoicePantryView: View {
     // MARK: - Failure
 
     private func blockedSection(_ blocker: AIBlocker, retry: @escaping () -> Void) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
+        KitchenStatePage {
             AIBlockerCard(blocker: blocker, onConsentGranted: retry)
-            Spacer()
         }
     }
 
     private func failureSection(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.tempoWarning)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            Button {
-                // transcriber.start() clears transcribedText itself.
+        // transcriber.start() clears transcribedText itself.
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Try again", systemImage: "mic.fill", role: .primary) {
                 phase = .idle
-            } label: {
-                Text("Try again")
-            }
-            .buttonStyle(.tempoPrimary)
-            Spacer()
+            },
+        ]) {
+            KitchenStateHero(
+                systemImage: "exclamationmark.triangle.fill",
+                tint: Tide.danger,
+                title: "That didn't work",
+                message: message
+            )
         }
     }
 

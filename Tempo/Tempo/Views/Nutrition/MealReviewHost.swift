@@ -13,11 +13,15 @@ import SwiftData
 import SwiftUI
 
 extension Notification.Name {
-    /// Posted after a confirmed meal was saved (or failed to). The Nutrition tab shows the toast.
+    /// Posted after a meal was saved (or failed to), with an Undo when it can be taken back.
+    /// `fuelLogToastHost()` shows it (see FuelLogToast).
     static let tempoMealLogToast = Notification.Name("tempoMealLogToast")
+    /// Posted when the Undo on a "logged" toast took the meal back, so a log screen
+    /// that was waiting to close knows it can stay open.
+    static let tempoFuelLogUndone = Notification.Name("tempoFuelLogUndone")
 }
 
-// MARK: - Request
+// MARK: - MealReviewRequest
 
 /// What the Confirm Meal sheet is asked to review.
 struct MealReviewRequest: Identifiable, Equatable {
@@ -83,7 +87,7 @@ struct MealReviewRequest: Identifiable, Equatable {
     }
 }
 
-// MARK: - Commit
+// MARK: - MealReviewCommitter
 
 /// Saves a confirmed review. Pure of UI so it is unit-testable.
 @MainActor
@@ -151,25 +155,29 @@ enum MealReviewCommitter {
                 modelContext: modelContext,
                 notifications: notifications
             )
-            var message = "\(type.displayName) logged. \(Int(result.logged.calories)) kcal."
+            var message = "\(type.displayName) logged. \(Int(result.logged.calories.rounded())) kcal."
             if resolution == .add, !pantryLines.isEmpty {
                 message += " Off your pantry: " + pantryLines.prefix(3).map(\.displayName).joined(separator: ", ")
                     + (pantryLines.count > 3 ? " +\(pantryLines.count - 3)" : "") + "."
             }
-            return .logged(ToastData(message: message, style: .success))
+            // A few seconds to take it back, exactly as it was written.
+            return .logged(FuelLogToast.logged(message, result: result, modelContext: modelContext, notifications: notifications))
         } catch {
             return .failed(ToastData(message: "Couldn't save: \(error.localizedDescription)", style: .error))
         }
     }
 }
 
-// MARK: - Host
+// MARK: - MealReviewHost
 
 struct MealReviewHost: ViewModifier {
     @Binding
     var request: MealReviewRequest?
     /// Called once a meal was saved (not on cancel): close the screen that started the flow.
     var onLogged: () -> Void = {}
+    /// Where a failed save is told. nil: the Fuel toast host. A screen that sits on top of
+    /// that host (the capture sheet) passes its own toast, which is drawn on the sheet itself.
+    var onFailed: ((ToastData) -> Void)?
 
     @Environment(\.modelContext)
     private var modelContext
@@ -177,6 +185,11 @@ struct MealReviewHost: ViewModifier {
     private var services
     @State
     private var duplicate: Pending?
+    @State
+    private var pendingDuplicate: Pending?
+    /// A save from the repeat question failed: the review comes back once that sheet has left.
+    @State
+    private var reopenReview: MealReviewRequest?
 
     private struct Pending: Identifiable {
         let id = UUID()
@@ -189,7 +202,8 @@ struct MealReviewHost: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .sheet(item: $request) { current in
+            .tideCovered(request != nil || duplicate != nil)
+            .sheet(item: $request, onDismiss: showPendingDuplicate) { current in
                 ParsedFoodReviewSheet(
                     items: current.items,
                     hintedMealType: current.mealType,
@@ -199,65 +213,116 @@ struct MealReviewHost: ViewModifier {
                     },
                     onCancel: {}
                 )
+                // The sheet is its own page, even when it comes up from inside one.
+                .environment(\.tideInsidePage, false)
             }
-            .alert(
-                "Already logged",
-                isPresented: Binding(get: { duplicate != nil }, set: { if !$0 { duplicate = nil } }),
-                presenting: duplicate
-            ) { pending in
-                Button("Add another") {
-                    finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
-                }
-                Button("Edit existing") {
-                    finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: { pending in
-                Text("You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?")
+            // Asked once the review sheet has finished leaving: the review closes
+            // itself on Confirm, so a sheet nested inside it would go with it.
+            .sheet(item: $duplicate, onDismiss: showPendingReview) { pending in
+                FuelDecisionSheet(
+                    icon: "square.on.square",
+                    title: "Already logged",
+                    message: "You already have \(pending.names.joined(separator: ", ")) in this meal. Add another portion, or edit the existing one?",
+                    chips: pending.names,
+                    primaryTitle: "Add another",
+                    primary: {
+                        // A second tap while the sheet is leaving must not log twice.
+                        guard duplicate != nil else {
+                            return
+                        }
+                        finish(pending.items, pending.type, pending.eatenAt, pending.origin, .add)
+                    },
+                    secondaryTitle: "Edit existing",
+                    secondary: {
+                        // A second tap while the sheet is leaving must not log twice.
+                        guard duplicate != nil else {
+                            return
+                        }
+                        finish(pending.items, pending.type, pending.eatenAt, pending.origin, .edit)
+                    },
+                    cancel: { duplicate = nil }
+                )
+                .environment(\.tideInsidePage, false)
             }
     }
 
-    private func confirm(_ items: [ParsedFoodItem], type: MealType, eatenAt: Date, origin: MealOrigin) {
-        let names = MealReviewCommitter.duplicateNames(items: items, type: type, eatenAt: eatenAt, modelContext: modelContext)
-        if names.isEmpty {
-            finish(items, type, eatenAt, origin, .add)
-        } else {
-            duplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
+    /// The review sheet is gone: now the repeat question can come up.
+    private func showPendingDuplicate() {
+        if let pendingDuplicate {
+            duplicate = pendingDuplicate
+            self.pendingDuplicate = nil
         }
     }
 
-    private func finish(
+    /// The repeat question is gone after a failed save: the review comes back with the same foods.
+    private func showPendingReview() {
+        if let reopenReview {
+            request = reopenReview
+            self.reopenReview = nil
+        }
+    }
+
+    /// Returns why the meal could not be saved, so the review sheet can stay open and say so.
+    private func confirm(_ items: [ParsedFoodItem], type: MealType, eatenAt: Date, origin: MealOrigin) -> String? {
+        let names = MealReviewCommitter.duplicateNames(items: items, type: type, eatenAt: eatenAt, modelContext: modelContext)
+        if names.isEmpty {
+            return save(items, type, eatenAt, origin, .add)
+        }
+        // Held until the review sheet (which closes itself next) has left.
+        pendingDuplicate = Pending(items: items, type: type, eatenAt: eatenAt, origin: origin, names: names)
+        return nil
+    }
+
+    /// Saves and posts the "logged" toast. Returns the failure message, nil when saved.
+    private func save(
         _ items: [ParsedFoodItem], _ type: MealType, _ eatenAt: Date, _ origin: MealOrigin?,
         _ resolution: EatenMealRecorder.DuplicateResolution
-    ) {
+    ) -> String? {
         let outcome = MealReviewCommitter.commit(
             items, type: type, eatenAt: eatenAt, origin: origin, resolution: resolution,
             modelContext: modelContext, notifications: services.notifications
         )
         switch outcome {
         case let .logged(toast):
-            Self.post(toast)
+            FuelLogToast.post(toast)
             request = nil
             duplicate = nil
             onLogged()
+            return nil
         case let .failed(toast):
-            Self.post(toast)
+            return toast.message
         case .needsDecision:
-            break
+            return nil
         }
     }
 
-    private static func post(_ toast: ToastData) {
-        NotificationCenter.default.post(
-            name: .tempoMealLogToast, object: nil,
-            userInfo: ["message": toast.message, "error": toast.style == .error]
-        )
+    /// The repeat question's answer. The review sheet has already left, so a failed save is
+    /// told by toast and the review opens again with the same foods.
+    private func finish(
+        _ items: [ParsedFoodItem], _ type: MealType, _ eatenAt: Date, _ origin: MealOrigin?,
+        _ resolution: EatenMealRecorder.DuplicateResolution
+    ) {
+        guard let failure = save(items, type, eatenAt, origin, resolution) else {
+            return
+        }
+        let toast = ToastData(message: failure, style: .error)
+        if let onFailed {
+            onFailed(toast)
+        } else {
+            FuelLogToast.post(toast)
+        }
+        reopenReview = MealReviewRequest(items: items, mealType: type, eatenAt: eatenAt)
+        duplicate = nil
     }
 }
 
 extension View {
     /// Shows the Confirm Meal sheet for `request` on top of this screen and saves what it confirms.
-    func mealReview(_ request: Binding<MealReviewRequest?>, onLogged: @escaping () -> Void = {}) -> some View {
-        modifier(MealReviewHost(request: request, onLogged: onLogged))
+    func mealReview(
+        _ request: Binding<MealReviewRequest?>,
+        onLogged: @escaping () -> Void = {},
+        onFailed: ((ToastData) -> Void)? = nil
+    ) -> some View {
+        modifier(MealReviewHost(request: request, onLogged: onLogged, onFailed: onFailed))
     }
 }

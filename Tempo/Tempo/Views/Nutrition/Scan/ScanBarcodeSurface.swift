@@ -44,6 +44,8 @@ struct ScanBarcodeSurface: View {
     private var showManualEntry = false
     @State
     private var manualBarcode = ""
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         Group {
@@ -51,19 +53,29 @@ struct ScanBarcodeSurface: View {
             case .authorized:
                 scanner
             case .notDetermined:
-                VStack(spacing: TempoSpacing.lg) {
-                    ProgressView().controlSize(.large)
-                    Text("Allow the camera to scan.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Button("Allow camera") { Task { await ask() } }
-                        .buttonStyle(.tempoPrimary)
-                        .padding(.horizontal, TempoSpacing.xxxxl)
+                KitchenStatePage(actions: [
+                    KitchenStateAction(title: "Allow camera", systemImage: "camera.fill", role: .primary) {
+                        Task { await ask() }
+                    },
+                ]) {
+                    KitchenStateHero(
+                        systemImage: "camera.fill",
+                        title: "Allow the camera to scan.",
+                        message: "Tempo reads the barcode with the camera."
+                    )
                 }
             case .denied,
                  .restricted,
                  .unsupported:
                 blocked
+            }
+        }
+        // Without a live camera (denied, off, a simulator) the notice still tells
+        // you that a typed barcode only finds products you have checked before.
+        // With a camera the scanner draws its own, over the picture.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if isOffline, permission != .authorized {
+                offlineBanner
             }
         }
         .task {
@@ -108,60 +120,83 @@ struct ScanBarcodeSurface: View {
         ZStack {
             ScanBarcodeCamera(onBarcode: onBarcode)
                 .ignoresSafeArea()
-
-            VStack {
+                .kitchenScrim()
+            // Same container as the scrim's window, so the brackets sit exactly on it.
+            KitchenFrame()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+            // The prompt hangs right under the window it talks about.
+            Color.clear
+                .frame(width: Tide.Kitchen.viewfinderWidth, height: Tide.Kitchen.viewfinderHeight)
+                .overlay(alignment: .bottom) {
+                    promptPanel
+                        .alignmentGuide(.bottom) { $0[.top] - Tide.s5 }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+            VStack(spacing: 0) {
                 if isOffline {
                     offlineBanner
                 }
                 Spacer()
-                RoundedRectangle(cornerRadius: TempoRadius.xxxxl, style: .continuous)
-                    .strokeBorder(Color.tempoSignal, lineWidth: 3)
-                    .frame(width: 280, height: 180)
-                Spacer()
-                VStack(spacing: TempoSpacing.sm) {
-                    Text(prompt)
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoBone)
-                    if let detail {
-                        Text(detail)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoBone.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                    }
-                    Button("Type the barcode instead") { showManualEntry = true }
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoSignal)
-                        .padding(.top, TempoSpacing.xs)
-                        .accessibilityIdentifier("scanTypeBarcode")
+                // The one control sits in the thumb zone, full width.
+                Button {
+                    showManualEntry = true
+                } label: {
+                    Label("Type the barcode instead", systemImage: "keyboard")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.barButton)
+                        .glassEffect(.regular.tint(Tide.Kitchen.cameraTint).interactive(), in: .capsule)
+                        .contentShape(.capsule)
                 }
-                .padding(.horizontal, TempoSpacing.xxl)
-                .padding(.vertical, TempoSpacing.lg)
-                .background(Color.tempoInk.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                .padding(.horizontal, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxxxl)
+                .buttonStyle(.plain)
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s10)
+                .accessibilityIdentifier("scanTypeBarcode")
             }
         }
     }
 
+    private var promptPanel: some View {
+        VStack(spacing: Tide.s1) {
+            Text(prompt)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.center)
+            if let detail {
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .kitchenCameraPanel(radius: Tide.tileRadius)
+    }
+
     /// Inline, not an alert: it must never cover a product you're reading.
     private var offlineBanner: some View {
-        VStack(spacing: TempoSpacing.xs) {
+        VStack(spacing: Tide.s1) {
             Text("You're offline. Products you've checked before still open from your history.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoBone)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
                 .multilineTextAlignment(.center)
             if let onSearchOffline {
                 Button("Search basic foods", action: onSearchOffline)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+                    .frame(minHeight: Tide.hit)
             }
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoInk.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
-        .padding(.top, TempoSpacing.sm)
+        .frame(maxWidth: .infinity)
+        .padding(Tide.s3)
+        .kitchenCameraPanel(radius: Tide.tileRadius)
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
         .accessibilityIdentifier("scanOfflineBanner")
     }
 
@@ -169,47 +204,32 @@ struct ScanBarcodeSurface: View {
 
     private var blocked: some View {
         let isUnsupported = permission == .unsupported
-        return VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: isUnsupported ? "camera.metering.unknown" : "camera.fill")
-                .font(.tempoScoreDisplay)
-                .foregroundStyle(Color.tempoAsh)
-            Text(Self.title(for: permission))
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(Self.message(for: permission))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                if permission == .denied {
-                    Button("Open Settings") {
-                        if let info = resumeInfo {
-                            ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
-                        }
-                        CameraPermission.openSettings()
-                    }
-                        .buttonStyle(.tempoPrimary)
-                        .accessibilityIdentifier("scanOpenSettings")
+        var actions: [KitchenStateAction] = []
+        if permission == .denied {
+            actions.append(KitchenStateAction(title: "Open Settings", role: .primary, identifier: "scanOpenSettings") {
+                if let info = resumeInfo {
+                    ScanResume.save(kind: info.kind, mode: info.mode, section: info.section)
                 }
-                if permission == .denied {
-                    Button("Type the barcode") { showManualEntry = true }
-                        .buttonStyle(.tempoSecondary)
-                        .accessibilityIdentifier("scanTypeBarcode")
-                } else {
-                    Button("Type the barcode") { showManualEntry = true }
-                        .buttonStyle(.tempoPrimary)
-                        .accessibilityIdentifier("scanTypeBarcode")
-                }
-                ForEach(fallbackActions) { fallback in
-                    Button(fallback.title, action: fallback.action)
-                        .buttonStyle(.tempoGhost)
-                }
-            }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
+                CameraPermission.openSettings()
+            })
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        actions.append(KitchenStateAction(
+            title: "Type the barcode",
+            systemImage: "keyboard",
+            role: permission == .denied ? .secondary : .primary,
+            identifier: "scanTypeBarcode"
+        ) { showManualEntry = true })
+        for fallback in fallbackActions {
+            actions.append(KitchenStateAction(title: fallback.title, role: .secondary, action: fallback.action))
+        }
+        return KitchenStatePage(actions: actions) {
+            KitchenStateHero(
+                systemImage: isUnsupported ? "camera.metering.unknown" : "camera.fill",
+                tint: isUnsupported ? Tide.text3 : Tide.Kitchen.warn,
+                title: Self.title(for: permission),
+                message: Self.message(for: permission)
+            )
+        }
         .accessibilityIdentifier(isUnsupported ? "scanUnsupported" : "scanPermissionBlocked")
     }
 

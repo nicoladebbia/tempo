@@ -54,56 +54,72 @@ struct TrainerFeedbackReviewView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            TrainPlanPage {
                 if matchedEdits.isEmpty, unmatchedEdits.isEmpty {
-                    Section {
-                        Text("No changes found in that message.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
+                    TrainEmptyCard(systemImage: "text.bubble", title: "No changes found in that message.")
+                        .padding(.top, Tide.s4)
                 }
                 if !matchedEdits.isEmpty {
-                    Section("CHANGES") {
-                        ForEach(matchedEdits) { edit in
-                            Toggle(isOn: binding(for: edit.id)) {
-                                Text(edit.summary)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextPrimary)
+                    reviewHero
+                    TrainPlanCard(label: "Changes") {
+                        ForEach(Array(matchedEdits.enumerated()), id: \.element.id) { index, edit in
+                            if index > 0 {
+                                TrainPlanDivider()
                             }
-                            .tint(Color.tempoSignal)
+                            TrainPlanToggleRow(title: edit.summary, isOn: binding(for: edit.id))
                         }
                     }
                 }
                 if !unmatchedEdits.isEmpty {
-                    Section {
-                        ForEach(unmatchedEdits) { edit in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(edit.summary)
-                                    .font(.tempoBody)
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                                Text(edit.matchFailureReason ?? "Couldn't match.")
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoWarning)
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        TrainPlanCard(label: "COULDN'T MATCH") {
+                            ForEach(Array(unmatchedEdits.enumerated()), id: \.element.id) { index, edit in
+                                if index > 0 {
+                                    TrainPlanDivider()
+                                }
+                                VStack(alignment: .leading, spacing: Tide.hair) {
+                                    Text(edit.summary)
+                                        .font(Tide.body)
+                                        .foregroundStyle(Tide.text3)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(edit.matchFailureReason ?? "Couldn't match.")
+                                        .font(Tide.caption)
+                                        .foregroundStyle(TideTrain.caution)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .accessibilityElement(children: .combine)
                             }
                         }
-                    } header: {
-                        Text("COULDN'T MATCH")
-                    } footer: {
                         Text("Fix these yourself on the program's Edit screen if you still want them.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, Tide.s2)
                     }
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .safeAreaBar(edge: .bottom) {
+                // Apply under the thumb, saying how many changes it will make.
+                if !matchedEdits.isEmpty {
+                    Button {
+                        apply()
+                    } label: {
+                        Text(applyTitle)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.tidePrimary)
+                    .disabled(acceptedIDs.isEmpty)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s2)
+                }
+            }
+            .trainSheetRoot()
             .navigationTitle("Review Changes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") { apply() }
-                        .disabled(acceptedIDs.isEmpty)
                 }
             }
             .alert(
@@ -119,7 +135,33 @@ struct TrainerFeedbackReviewView: View {
                 Text(applyError ?? "")
             }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private var applyTitle: String {
+        switch acceptedIDs.count {
+        case 0: "Pick a change to apply"
+        case 1: "Apply 1 change"
+        default: "Apply \(TrainCount.text(acceptedIDs.count, "change"))"
+        }
+    }
+
+    /// How many of the trainer's edits are switched on, as a figure and a tick each.
+    private var reviewHero: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Trainer sent changes").tideLabel()
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber("\(acceptedIDs.count)/\(matchedEdits.count)", size: Tide.numeralM, relativeTo: .title)
+                Text("switched on")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            TrainSetTicks(done: acceptedIDs.count, total: matchedEdits.count, label: "Changes switched on")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Trainer sent changes")
+        .accessibilityValue("\(acceptedIDs.count) of \(matchedEdits.count) switched on")
     }
 
     private func binding(for id: UUID) -> Binding<Bool> {

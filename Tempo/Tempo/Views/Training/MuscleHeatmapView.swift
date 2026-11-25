@@ -7,7 +7,8 @@
 // (MuscleHeatEngine). Tapping a muscle opens a drill-down card: volume,
 // sets, the exercises that trained it, and the trend vs the prior week.
 // All geometry is normalized 0…1 body space drawn with pure SwiftUI paths —
-// no image assets.
+// no image assets. Hosted at the top of the "Body" tab of ProgressChartsView,
+// so it draws its content only (no page, background or title of its own).
 //
 
 import SwiftData
@@ -67,9 +68,55 @@ private struct NeutralRegion {
     }
 }
 
+// MARK: - Limb
+
+/// One round-capped segment of the mannequin under the muscles, in
+/// normalized body space (`width` is a fraction of the figure's width).
+private struct Limb {
+    let from: CGPoint
+    let to: CGPoint
+    let width: CGFloat
+
+    func path(in body: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: body.minX + from.x * body.width, y: body.minY + from.y * body.height))
+        path.addLine(to: CGPoint(x: body.minX + to.x * body.width, y: body.minY + to.y * body.height))
+        return path
+    }
+
+    var mirrored: Limb {
+        Limb(from: CGPoint(x: 1 - from.x, y: from.y), to: CGPoint(x: 1 - to.x, y: to.y), width: width)
+    }
+}
+
 // MARK: - BodyFigure
 
 private enum BodyFigure {
+    /// Width over height of the whole drawing space.
+    static let aspect: CGFloat = 0.62
+    /// The part of the drawing space the figure actually occupies.
+    static let crop = CGRect(x: 0.21, y: 0, width: 0.58, height: 0.88)
+    /// Width over height of that part.
+    static let cropAspect: CGFloat = crop.width * aspect / crop.height
+
+    /// The mannequin both views share: the left side is declared and
+    /// mirrored, the centre pieces stay single.
+    static let limbs: [Limb] = {
+        let side = [
+            Limb(from: CGPoint(x: 0.295, y: 0.205), to: CGPoint(x: 0.285, y: 0.355), width: 0.080), // upper arm
+            Limb(from: CGPoint(x: 0.272, y: 0.385), to: CGPoint(x: 0.265, y: 0.485), width: 0.066), // forearm
+            Limb(from: CGPoint(x: 0.435, y: 0.485), to: CGPoint(x: 0.425, y: 0.675), width: 0.115), // thigh
+            Limb(from: CGPoint(x: 0.430, y: 0.720), to: CGPoint(x: 0.435, y: 0.830), width: 0.090), // shin
+        ]
+        let centre = [
+            Limb(from: CGPoint(x: 0.5, y: 0.130), to: CGPoint(x: 0.5, y: 0.165), width: 0.070), // neck
+            Limb(from: CGPoint(x: 0.31, y: 0.190), to: CGPoint(x: 0.69, y: 0.190), width: 0.075), // shoulder line
+            Limb(from: CGPoint(x: 0.5, y: 0.240), to: CGPoint(x: 0.5, y: 0.380), width: 0.220), // torso
+            Limb(from: CGPoint(x: 0.44, y: 0.455), to: CGPoint(x: 0.56, y: 0.455), width: 0.100), // pelvis
+        ]
+        return centre + side + side.map(\.mirrored)
+    }()
+
     /// Left-side regions are declared; right side mirrors automatically.
     static let front: [MuscleRegion] = expand([
         MuscleRegion(muscle: .shoulders, frame: CGRect(x: 0.255, y: 0.155, width: 0.105, height: 0.075), kind: .ellipse),
@@ -170,41 +217,68 @@ struct MuscleHeatmapView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                Picker("Side", selection: $showBack) {
-                    Text("Front").tag(false)
-                    Text("Back").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
+        VStack(spacing: Tide.s4) {
+            TrainPlanTabs(
+                items: [(tag: false, label: "Front"), (tag: true, label: "Back")],
+                selection: $showBack
+            )
+            .frame(maxWidth: TideTrain.tabsCompact)
 
-                bodyFigure
-                    .frame(maxWidth: 320)
-                    .aspectRatio(0.62, contentMode: .fit)
-                    .padding(.horizontal, TempoSpacing.xl)
-                    .animation(.spring(duration: 0.35), value: showBack)
+            weekHero
 
-                legend
+            figureCard
 
-                if let muscle = selectedMuscle {
-                    drillDown(for: muscle)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else {
-                    Text("Tap a muscle to drill into its week.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
+            if let muscle = selectedMuscle {
+                drillDown(for: muscle)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                Text("Tap a muscle to drill into its week.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .multilineTextAlignment(.center)
             }
-            .padding(.top, TempoSpacing.lg)
-            // The floating tab bar overlaps the scroll content: leave room so
-            // the drill-down panel can scroll fully clear of it.
-            .padding(.bottom, 120)
-            .animation(.spring(duration: 0.3), value: selectedMuscle)
         }
-        .background(Color.tempoBgPrimary)
-        .navigationTitle("Muscle Map")
-        .navigationBarTitleDisplayMode(.inline)
+        .animation(Tide.lively, value: selectedMuscle)
+    }
+
+    // MARK: Week summary
+
+    /// Every muscle the figure draws, front and back, once.
+    private var trackedMuscles: [MuscleGroup] {
+        var seen = Set<MuscleGroup>()
+        return (BodyFigure.front + BodyFigure.back).compactMap { seen.insert($0.muscle).inserted ? $0.muscle : nil }
+    }
+
+    /// The week in one line of numbers, above the picture that shows where.
+    private var weekHero: some View {
+        let tracked = trackedMuscles
+        let trained = tracked.filter { (heat[$0] ?? 0) > 0 }
+        let hottest = trained.max { (heat[$0] ?? 0) < (heat[$1] ?? 0) }
+        let untouched = tracked.filter { (heat[$0] ?? 0) == 0 }
+        return VStack(alignment: .leading, spacing: Tide.s2) {
+            TideLabel("Last 7 days")
+            TideNumber(
+                "\(trained.count)", unit: "of \(tracked.count) muscles trained",
+                size: Tide.numeralL, relativeTo: .largeTitle
+            )
+            .contentTransition(.numericText())
+            if let hottest {
+                Text("Most worked: \(hottest.displayName)")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !untouched.isEmpty {
+                Text("Not hit yet: \(untouched.map(\.displayName).joined(separator: ", "))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5)
+        .accessibilityElement(children: .combine)
+        .animation(Tide.snap, value: trained.count)
     }
 
     // MARK: Figure
@@ -217,33 +291,77 @@ struct MuscleHeatmapView: View {
         showBack ? BodyFigure.backNeutral : BodyFigure.frontNeutral
     }
 
+    private var figureCard: some View {
+        TrainPlanCard {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: Tide.s5) {
+                    bodyFigure
+                    heatScale(vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(spacing: Tide.s4) {
+                    bodyFigure
+                    heatScale(vertical: false)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    /// The drawing space is bigger than the visible window: the figure is
+    /// cropped to its own bounds so it fills the card.
+    private func drawingRect(for size: CGSize) -> CGRect {
+        let crop = BodyFigure.crop
+        let width = size.width / crop.width
+        let height = size.height / crop.height
+        return CGRect(x: -crop.minX * width, y: -crop.minY * height, width: width, height: height)
+    }
+
     private var bodyFigure: some View {
         GeometryReader { geo in
-            let bodyRect = CGRect(origin: .zero, size: geo.size)
-            ZStack {
-                Canvas { context, _ in
+            let bodyRect = drawingRect(for: geo.size)
+            Canvas { context, size in
+                // The mannequin: limbs and filler drawn as ONE layer so the
+                // overlaps never double up.
+                var base = context
+                base.opacity = 0.11
+                base.drawLayer { layer in
+                    for limb in BodyFigure.limbs {
+                        layer.stroke(
+                            limb.path(in: bodyRect),
+                            with: .color(Tide.text),
+                            style: StrokeStyle(lineWidth: limb.width * bodyRect.width, lineCap: .round)
+                        )
+                    }
                     for neutral in neutralRegions {
-                        context.fill(
-                            neutral.path(in: bodyRect),
-                            with: .color(Color.tempoBgSecondary.opacity(0.6))
-                        )
+                        layer.fill(neutral.path(in: bodyRect), with: .color(Tide.text))
                     }
-                    for region in regions {
-                        let value = heat[region.muscle] ?? 0
-                        let path = region.path(in: bodyRect)
-                        context.fill(path, with: .color(heatColor(value)))
-                        let isSelected = region.muscle == selectedMuscle
-                        context.stroke(
-                            path,
-                            with: .color(isSelected ? Color.tempoAccent : Color.tempoTextTertiary.opacity(0.25)),
-                            lineWidth: isSelected ? 2.5 : 1
-                        )
+                }
+
+                for region in regions {
+                    let value = heat[region.muscle] ?? 0
+                    let path = region.path(in: bodyRect)
+                    let color = heatColor(value)
+                    // Hot muscles glow.
+                    if value >= 0.5 {
+                        context.drawLayer { layer in
+                            layer.addFilter(.shadow(color: color.opacity(0.65), radius: size.width * 0.04))
+                            layer.fill(path, with: .color(color))
+                        }
+                    } else {
+                        context.fill(path, with: .color(color))
                     }
+                    let isSelected = region.muscle == selectedMuscle
+                    context.stroke(
+                        path,
+                        with: .color(isSelected ? Tide.text : Tide.text3.opacity(0.3)),
+                        lineWidth: isSelected ? 2 : 1
+                    )
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture { location in
-                let bodyRect = CGRect(origin: .zero, size: geo.size)
                 if let hit = regions.first(where: { $0.path(in: bodyRect).contains(location) }) {
                     selectedMuscle = selectedMuscle == hit.muscle ? nil : hit.muscle
                     HapticManager.selection()
@@ -251,34 +369,109 @@ struct MuscleHeatmapView: View {
                     selectedMuscle = nil
                 }
             }
+            // The canvas is a picture: give VoiceOver one element per muscle.
+            .overlay {
+                ForEach(accessibleMuscles, id: \.muscle) { entry in
+                    let rect = entry.region.path(in: bodyRect).boundingRect
+                    Color.clear
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                        .accessibilityElement()
+                        .accessibilityLabel(entry.muscle.displayName)
+                        .accessibilityValue("heat \(Int(((heat[entry.muscle] ?? 0) * 100).rounded())) percent")
+                        .accessibilityAddTraits(entry.muscle == selectedMuscle ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityAction {
+                            selectedMuscle = selectedMuscle == entry.muscle ? nil : entry.muscle
+                        }
+                }
+            }
+        }
+        .frame(width: TideTrain.figureWidth, height: TideTrain.figureWidth / BodyFigure.cropAspect)
+        .animation(Tide.lively, value: showBack)
+    }
+
+    /// One accessibility target per muscle (the first region that draws it).
+    private var accessibleMuscles: [(muscle: MuscleGroup, region: MuscleRegion)] {
+        var seen = Set<MuscleGroup>()
+        return regions.compactMap { region in
+            seen.insert(region.muscle).inserted ? (region.muscle, region) : nil
         }
     }
 
     /// Cold → hot: base surface through amber to signal red.
     private func heatColor(_ value: Double) -> Color {
         guard value > 0 else {
-            return Color.tempoBgSecondary
+            return Tide.fill
         }
         if value < 0.5 {
-            return Color.tempoAmber.opacity(0.35 + value * 0.9)
+            return TideTrain.caution.opacity(0.35 + value * 0.9)
         }
-        return Color.tempoSignal.opacity(0.45 + (value - 0.5) * 1.1)
+        return Color.accentColor.opacity(0.45 + (value - 0.5) * 1.1)
     }
 
-    private var legend: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Text("Rested")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            LinearGradient(
-                colors: [Color.tempoBgSecondary, Color.tempoAmber, Color.tempoSignal],
-                startPoint: .leading, endPoint: .trailing
-            )
-            .frame(width: 120, height: 8)
-            .clipShape(Capsule())
-            Text("Hammered")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+    /// The heat scale, tappable for what the colours mean.
+    private func heatScale(vertical: Bool) -> some View {
+        heatScaleBody(vertical: vertical)
+            .explains(TrainExplainers.heatScale)
+    }
+
+    /// A heat scale; the picked muscle's reading rides on it as a marker.
+    /// Vertical beside the figure, horizontal under it at large text sizes.
+    @ViewBuilder
+    private func heatScaleBody(vertical: Bool) -> some View {
+        let reading = selectedMuscle.map { heat[$0] ?? 0 }
+        let bar = LinearGradient(
+            colors: [Tide.fill, TideTrain.caution, Color.accentColor],
+            startPoint: vertical ? .bottom : .leading,
+            endPoint: vertical ? .top : .trailing
+        )
+        .clipShape(Capsule())
+        .overlay {
+            GeometryReader { geo in
+                if let reading {
+                    let along = min(max(reading, 0.02), 0.98)
+                    Circle()
+                        .strokeBorder(Tide.text, lineWidth: Tide.focusLine)
+                        .background(Circle().fill(Tide.ink.opacity(0.6)))
+                        .frame(width: Tide.s4, height: Tide.s4)
+                        .position(
+                            x: vertical ? geo.size.width / 2 : geo.size.width * along,
+                            y: vertical ? geo.size.height * (1 - along) : geo.size.height / 2
+                        )
+                        .animation(Tide.snap, value: reading)
+                }
+            }
+        }
+
+        if vertical {
+            VStack(alignment: .center, spacing: Tide.s2) {
+                Text("Hammered")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                bar
+                    .frame(width: TideTrain.dot)
+                Text("Rested")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+            .frame(height: TideTrain.figureWidth / BodyFigure.cropAspect)
+            .accessibilityElement(children: .combine)
+        } else {
+            VStack(spacing: Tide.s2) {
+                bar
+                    .frame(height: TideTrain.dot)
+                HStack(spacing: Tide.s2) {
+                    Text("Rested")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                    Spacer(minLength: Tide.s2)
+                    Text("Hammered")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                }
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
@@ -305,62 +498,79 @@ struct MuscleHeatmapView: View {
         let change = deltas[muscle, default: nil]
         let exercises = contributions(for: muscle)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text(muscle.displayName.uppercased())
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                if let change {
-                    Label(
-                        String(format: "%+.0f%%", change * 100),
-                        systemImage: change >= 0 ? "arrow.up.right" : "arrow.down.right"
-                    )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(change >= 0 ? Color.tempoAccent : Color.tempoAmber)
+        return TrainPlanCard {
+            // The muscle's name keeps its size; the change drops under it
+            // when the two no longer fit side by side.
+            let title = Text(muscle.displayName)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    title
+                        .lineLimit(1)
+                    Spacer(minLength: Tide.s2)
+                    if let change {
+                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.s1) {
+                    title
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let change {
+                        TrainPlanDelta(fraction: change, suffix: "vs last week")
+                    }
                 }
             }
 
-            HStack(spacing: TempoSpacing.xl) {
-                statBlock(value: volumeLabel(volume), caption: "7-day volume")
-                statBlock(value: "\(sets)", caption: "working sets")
-                statBlock(value: "\(exercises.count)", caption: "sessions")
+            TrainStatGrid {
+                TrainStat(
+                    value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS,
+                    explainer: TrainExplainers.heatVolume
+                )
+                TrainStat(
+                    value: "\(sets)", label: "working sets", size: Tide.numeralS,
+                    explainer: TrainExplainers.heatSets
+                )
+                TrainStat(value: "\(exercises.count)", label: TrainCount.noun(exercises.count, "session"), size: Tide.numeralS)
             }
 
             if exercises.isEmpty {
                 Text("Nothing this week — this muscle is fully rested.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
+                TrainPlanDivider()
                 ForEach(exercises.prefix(6), id: \.id) { row in
-                    HStack {
-                        Text(row.exercise?.name ?? "—")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        if let reps = row.bestSetReps, reps > 0 {
-                            Text("\(historySetLoad(row)) × \(reps)")
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                            exerciseName(row)
+                            Spacer(minLength: Tide.s2)
+                            exerciseBest(row)
+                        }
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            exerciseName(row)
+                            exerciseBest(row)
                         }
                     }
                 }
             }
         }
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.screenEdge)
     }
 
-    private func statBlock(value: String, caption: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(caption)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+    private func exerciseName(_ row: ExerciseHistory) -> some View {
+        Text(row.exercise?.name ?? "—")
+            .font(Tide.body)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func exerciseBest(_ row: ExerciseHistory) -> some View {
+        if let reps = row.bestSetReps, reps > 0 {
+            Text("\(historySetLoad(row)) × \(reps)")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
     }
 

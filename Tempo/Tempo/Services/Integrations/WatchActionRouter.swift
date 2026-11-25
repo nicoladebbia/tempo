@@ -207,7 +207,11 @@ final class WatchActionRouter {
     // MARK: - Focus Timer
 
     private func startFocusTimer(durationSeconds: Int?) -> Bool {
-        guard let modelContext, activeFocusViewModel == nil else {
+        // A focus session started on the phone or by Siri is already running: the
+        // watch must not start a second one beside it.
+        guard let modelContext, activeFocusViewModel == nil,
+              !LiveActivityCoordinator.shared.hasLiveSession(.focusTimer)
+        else {
             return false
         }
         let viewModel = AccountabilityViewModel(engine: accountabilityEngine)

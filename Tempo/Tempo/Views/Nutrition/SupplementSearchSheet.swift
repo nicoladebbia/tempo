@@ -50,85 +50,83 @@ struct SupplementSearchSheet: View {
         injectedService ?? LiveSupplementLookupService(apiClient: services.apiClient)
     }
 
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(Color.tempoTextTertiary)
-                        TextField("Brand + product, e.g. Thorne magnesium", text: $query)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                            .submitLabel(.search)
-                            .focused($focused)
-                            .accessibilityIdentifier("supplementSearchField")
-                        if isSearching {
-                            ProgressView()
-                        }
-                    }
-                }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Tide.s5) {
+                    searchField
 
-                if !commonMatches.isEmpty {
-                    Section("Common supplements") {
-                        ForEach(commonMatches) { item in
-                            Button {
-                                onPick(Self.dto(from: item))
-                            } label: {
-                                resultRow(
-                                    icon: item.icon, title: item.name,
-                                    subtitle: [item.dose, item.macroSummary].compactMap { $0 }.joined(separator: " · ")
-                                )
+                    if !commonMatches.isEmpty {
+                        KitchenGroup(title: "Common supplements") {
+                            ForEach(commonMatches) { item in
+                                Button {
+                                    onPick(Self.dto(from: item))
+                                } label: {
+                                    resultRow(
+                                        icon: item.icon, title: item.name,
+                                        subtitle: [item.dose, item.macroSummary].compactMap { $0 }.joined(separator: " · ")
+                                    )
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
                     }
-                }
 
-                if !hits.isEmpty {
-                    Section("Supplements") {
-                        ForEach(hits) { hit in
-                            Button {
-                                open(hit)
-                            } label: {
-                                resultRow(
-                                    icon: (SupplementKind(rawValue: hit.kind) ?? .other).icon,
-                                    title: hit.name,
-                                    subtitle: [hit.brand, hit.netContents].compactMap { $0 }.joined(separator: " · "),
-                                    busy: isOpening == hit.id,
-                                    badge: hit.origin.badge
-                                )
+                    if !hits.isEmpty {
+                        KitchenGroup(title: "Supplements") {
+                            ForEach(hits) { hit in
+                                Button {
+                                    open(hit)
+                                } label: {
+                                    resultRow(
+                                        icon: (SupplementKind(rawValue: hit.kind) ?? .other).icon,
+                                        title: hit.name,
+                                        subtitle: [hit.brand, hit.netContents].compactMap { $0 }.joined(separator: " · "),
+                                        busy: isOpening == hit.id,
+                                        badge: hit.origin.badge
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(isOpening != nil)
                             }
-                            .disabled(isOpening != nil)
                         }
+                    } else if isSearching, commonMatches.isEmpty {
+                        searchingSkeleton
                     }
-                }
 
-                Section {
-                    if let message {
-                        Label(message, systemImage: "info.circle")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    } else if trimmed.count >= 2, !isSearching, hits.isEmpty, commonMatches.isEmpty {
-                        Label("Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label.", systemImage: "magnifyingglass")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    if let onReadLabel {
+                    status
+
+                    // Never a dead end: both ways out are always on screen.
+                    VStack(spacing: Tide.s3) {
+                        if let onReadLabel {
+                            Button {
+                                onReadLabel()
+                            } label: {
+                                Label("Photograph the label", systemImage: "camera.viewfinder")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.tideGlass)
+                            .accessibilityIdentifier("supplementSearchReadLabel")
+                        }
                         Button {
-                            onReadLabel()
+                            onTypeIt()
                         } label: {
-                            Label("Photograph the label", systemImage: "camera.viewfinder")
+                            Label("Can't find it? Type it yourself", systemImage: "square.and.pencil")
+                                .frame(maxWidth: .infinity)
                         }
-                        .accessibilityIdentifier("supplementSearchReadLabel")
+                        .buttonStyle(.tideGlass)
+                        .accessibilityIdentifier("supplementSearchTypeIt")
                     }
-                    Button {
-                        onTypeIt()
-                    } label: {
-                        Label("Can't find it? Type it yourself", systemImage: "square.and.pencil")
-                    }
-                    .accessibilityIdentifier("supplementSearchTypeIt")
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Search supplements")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -141,32 +139,96 @@ struct SupplementSearchSheet: View {
             }
             .onAppear { focused = true }
         }
+        .kitchenSheet()
+    }
+
+    /// The field is the hero: big, on glass, with the spinner inside it.
+    private var searchField: some View {
+        HStack(spacing: Tide.s3) {
+            Image(systemName: "magnifyingglass")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
+            TextField("Brand + product, e.g. Thorne magnesium", text: $query)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .focused($focused)
+                .accessibilityIdentifier("supplementSearchField")
+            if isSearching {
+                ProgressView()
+            } else if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear")
+            }
+        }
+        .padding(.horizontal, Tide.s4)
+        .frame(minHeight: Tide.Kitchen.row)
+        .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .capsule)
+        .animation(Tide.snap, value: isSearching)
+    }
+
+    /// Three rows of grey while the databases answer.
+    private var searchingSkeleton: some View {
+        VStack(spacing: Tide.s3) {
+            ForEach(0 ..< 3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .fill(Tide.fill)
+                    .frame(height: Tide.Kitchen.row)
+            }
+        }
+        .shimmer()
+        .accessibilityLabel("Searching")
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let message {
+            KitchenNotice(systemImage: "info.circle", text: message, tint: Tide.text2)
+        } else if trimmed.count >= 2, !isSearching, hits.isEmpty, commonMatches.isEmpty {
+            KitchenNotice(
+                systemImage: "magnifyingglass",
+                text: "Nothing found for \"\(trimmed)\". Try the brand and the product name, or photograph the label.",
+                tint: Tide.text2
+            )
+        } else if trimmed.count < 2 {
+            Text("Type a brand and a product. Results come from the NIH supplement label database and the common list.")
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Tide.s1)
+        }
     }
 
     private func resultRow(icon: String, title: String, subtitle: String, busy: Bool = false, badge: String? = nil) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             Image(systemName: icon)
-                .foregroundStyle(Color.tempoSignal)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
+                .frame(width: Tide.s6)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(title)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
                     .multilineTextAlignment(.leading)
                 if !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 if let badge {
-                    Text(badge)
-                        .font(.tempoCaption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .padding(.horizontal, TempoSpacing.xs)
-                        .padding(.vertical, 1)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(Capsule())
+                    KitchenTag(text: badge, tint: Tide.text3)
                 }
             }
             Spacer()
@@ -174,10 +236,12 @@ struct SupplementSearchSheet: View {
                 ProgressView()
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
         }
+        .frame(minHeight: Tide.hit)
     }
 
     private func search() async {

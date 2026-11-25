@@ -26,7 +26,7 @@ struct WeeklyMealReviewView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
+            VStack(alignment: .leading, spacing: Tide.s5) {
                 header
                 if meals.isEmpty {
                     emptyState
@@ -36,59 +36,47 @@ struct WeeklyMealReviewView: View {
                     }
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxl)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
+            .padding(.bottom, Tide.s8)
         }
-        .background(Color.tempoBgPrimary)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .tidePage()
         .navigationTitle("Week in Review")
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
         .sheet(item: $selection, onDismiss: load) { meal in
             MealFeedbackSheet(meal: meal, existing: feedbackByMealID[meal.id])
                 .presentationDetents([.medium, .large])
+                .environment(\.tideInsidePage, false)
         }
     }
 
     // MARK: - Sections
 
+    /// How much of the week has a review: a lit ring with the count, and what the notes do.
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text("LAST 7 DAYS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            Text("\(feedbackCount) of \(meals.count) reviewed")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
+        FuelProgressHero(
+            done: feedbackCount,
+            total: meals.count,
+            title: "Last 7 days",
+            caption: "Notes here flow into next week's plan. The model honours specific changes (\"add lemon\", \"100g not 300g\") and patterns across multiple meals."
+        )
+        .tideCard()
+        .accessibilityValue("\(feedbackCount) of \(meals.count) reviewed")
     }
 
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 32))
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text("No meals in the past 7 days yet.")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
-        .tempoCard()
+        FuelEmptyState(
+            icon: "calendar.badge.exclamationmark",
+            title: "No meals in the past 7 days yet.",
+            message: "Mark meals eaten or skipped and they show up here to review."
+        )
     }
 
     private func daySection(_ group: DayGroup) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text(dayLabelFormatter.string(from: group.dayStart).uppercased())
-                .font(.tempoCaption1)
-                .fontWeight(.semibold)
-                .tracking(0.5)
-                .foregroundStyle(Color.tempoTextSecondary)
-
+        FuelRowGroup(title: dayLabelFormatter.string(from: group.dayStart)) {
             ForEach(group.meals, id: \.id) { meal in
                 Button {
                     HapticManager.lightImpact()
@@ -103,67 +91,64 @@ struct WeeklyMealReviewView: View {
 
     private func mealRow(_ meal: PlannedMeal) -> some View {
         let feedback = feedbackByMealID[meal.id]
-        return HStack(spacing: TempoSpacing.md) {
+        return HStack(spacing: Tide.s3) {
             Image(systemName: statusIcon(meal.status))
-                .font(.system(size: 16))
+                .font(Tide.headline)
                 .foregroundStyle(statusColor(meal.status))
-                .frame(width: 22)
+                .frame(width: Tide.icon, alignment: .leading)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(meal.mealName)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
                 Text(meal.scheduledTime)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
                     .monospacedDigit()
             }
 
-            Spacer()
+            Spacer(minLength: Tide.s2)
 
             if let feedback {
                 feedbackBadge(feedback)
             } else if meal.status == .eaten {
-                Text("Review")
-                    .font(.tempoCaption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoAmber)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.tempoAmber.opacity(0.15))
-                    .clipShape(Capsule())
+                FuelPill(text: "Review", color: Tide.warn)
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
             }
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
     }
 
     private func feedbackBadge(_ feedback: MealFeedback) -> some View {
-        HStack(spacing: 4) {
-            if let rating = feedback.rating, rating > 0 {
+        let rating = feedback.rating.flatMap { $0 > 0 ? $0 : nil }
+        return HStack(spacing: Tide.s1) {
+            if let rating {
                 Image(systemName: "star.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color.tempoAmber)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.warn)
                 Text("\(rating)")
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text)
                     .monospacedDigit()
             } else {
                 Image(systemName: "text.bubble.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.tempoSuccess)
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.good)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.tempoSuccess.opacity(0.12))
-        .clipShape(Capsule())
+        .padding(.horizontal, Tide.s2)
+        .padding(.vertical, Tide.s1)
+        .background(Tide.good.opacity(0.16), in: .capsule)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rating.map { "Rated \($0)" } ?? "Has a note")
     }
 
     // MARK: - Data
@@ -189,7 +174,9 @@ struct WeeklyMealReviewView: View {
                 let sortedMeals = group.value.sorted { lhs, rhs in
                     let lhsMin = NutritionTabViewModel.minutesOfDay(from: lhs.scheduledTime) ?? Int.max
                     let rhsMin = NutritionTabViewModel.minutesOfDay(from: rhs.scheduledTime) ?? Int.max
-                    if lhsMin != rhsMin { return lhsMin < rhsMin }
+                    if lhsMin != rhsMin {
+                        return lhsMin < rhsMin
+                    }
                     return lhs.mealNumber < rhs.mealNumber
                 }
                 return DayGroup(dayStart: group.key, meals: sortedMeals)
@@ -265,9 +252,9 @@ struct WeeklyMealReviewView: View {
 
     private func statusColor(_ status: MealStatus) -> Color {
         switch status {
-        case .eaten: .tempoSuccess
-        case .skipped: .tempoError
-        default: .tempoTextTertiary
+        case .eaten: Tide.good
+        case .skipped: Tide.danger
+        default: Tide.text3
         }
     }
 }

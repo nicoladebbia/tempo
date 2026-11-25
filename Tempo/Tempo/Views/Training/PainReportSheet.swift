@@ -23,6 +23,10 @@ struct PainReportSheet: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @FocusState
+    private var noteFocused: Bool
 
     @State
     private var bodyArea: PainBodyArea = .knee
@@ -52,6 +56,7 @@ struct PainReportSheet: View {
                     form
                 }
             }
+            .trainSheetRoot()
             .navigationTitle("This hurts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -65,58 +70,103 @@ struct PainReportSheet: View {
     // MARK: - Step 1: report
 
     private var form: some View {
-        Form {
-            Section("Where") {
-                Picker("Body area", selection: $bodyArea) {
-                    ForEach(PainBodyArea.allCases, id: \.self) { area in
-                        Label(area.displayName, systemImage: area.symbolName).tag(area)
-                    }
-                }
-                .pickerStyle(.navigationLink)
-            }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Tide.s5) {
+                whereSection
+                severityCard
+                noteSection
 
-            Section("How bad, 1–10") {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    HStack {
-                        Text("\(Int(severity))")
-                            .font(.tempoDataMedium)
-                            .foregroundStyle(severityColor)
-                        Spacer()
-                        Text(tierLabel)
-                            .font(.tempoCaption1.weight(.semibold))
-                            .foregroundStyle(severityColor)
-                    }
-                    Slider(value: $severity, in: 1 ... 10, step: 1)
-                        .tint(severityColor)
-                }
-            }
-
-            Section("Note (optional)") {
-                TextField("e.g. sharp on the way down", text: $note, axis: .vertical)
-                    .lineLimit(2 ... 4)
-            }
-
-            Section {
                 Text(disclaimer)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
-        .safeAreaInset(edge: .bottom) {
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaBar(edge: .bottom) {
             Button {
                 submit()
             } label: {
                 Text("Report")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoSignal)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .padding(TempoSpacing.md)
-            .background(.bar)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
+        }
+    }
+
+    /// Six body areas as tiles: one tap, no list to open.
+    private var whereSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Where").tideLabel()
+            LazyVGrid(columns: areaColumns, spacing: Tide.s2) {
+                ForEach(PainBodyArea.allCases, id: \.self) { area in
+                    Button {
+                        bodyArea = area
+                        HapticManager.selection()
+                    } label: {
+                        VStack(spacing: Tide.s1) {
+                            Image(systemName: area.symbolName)
+                                .font(Tide.headline)
+                                .accessibilityHidden(true)
+                            Text(area.displayName)
+                                .font(Tide.bodyStrong)
+                                .lineLimit(1)
+                                .minimumScaleFactor(Tide.labelShrink)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: TideTrain.bigButton)
+                    }
+                    .buttonStyle(.trainChoice(isSelected: bodyArea == area))
+                    .accessibilityLabel(area.displayName)
+                }
+            }
+        }
+    }
+
+    private var areaColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s2),
+            count: typeSize.isAccessibilitySize ? 2 : 3
+        )
+    }
+
+    /// The number is the hero, tinted by how serious it is; the slider moves it.
+    private var severityCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("How bad, 1–10").tideLabel()
+            HStack(alignment: .lastTextBaseline) {
+                TideNumber(
+                    "\(Int(severity))",
+                    size: TideTrainSession.stateFigure,
+                    relativeTo: .largeTitle,
+                    color: severityColor
+                )
+                Spacer(minLength: Tide.s2)
+                Text(tierLabel)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(severityColor)
+            }
+            .animation(Tide.snap, value: Int(severity))
+            Slider(value: $severity, in: 1 ... 10, step: 1)
+                .tint(severityColor)
+                .accessibilityLabel("Pain from 1 to 10")
+                .sensoryFeedback(.selection, trigger: Int(severity))
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private var noteSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text("Note (optional)").tideLabel()
+            TextField("e.g. sharp on the way down", text: $note, axis: .vertical)
+                .lineLimit(2 ... 4)
+                .focused($noteFocused)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface(focused: noteFocused)
         }
     }
 
@@ -130,9 +180,9 @@ struct PainReportSheet: View {
 
     private var severityColor: Color {
         switch tier {
-        case .mild: Color.tempoSuccess
-        case .moderate: Color.tempoAmber
-        case .severe: Color.tempoError
+        case .mild: TideTrain.positive
+        case .moderate: TideTrain.caution
+        case .severe: Tide.danger
         }
     }
 
@@ -170,7 +220,7 @@ struct PainReportSheet: View {
 
     private var mildOutcome: some View {
         outcomeShell(
-            icon: "checkmark.circle.fill", color: .tempoSuccess,
+            icon: "checkmark.circle.fill", color: TideTrain.positive,
             title: "Load reduced 20%",
             message: "This exercise's remaining sets today are lighter. Stop again if it doesn't ease up."
         ) {
@@ -180,15 +230,15 @@ struct PainReportSheet: View {
 
     private func moderateOutcome(_ report: PainReport) -> some View {
         outcomeShell(
-            icon: "arrow.triangle.2.circlepath", color: .tempoAmber,
+            icon: "arrow.triangle.2.circlepath", color: TideTrain.caution,
             title: "Swap it or skip it",
             message: "Moderate pain — pick a pain-free alternative for the same muscle, or skip this exercise for today."
         ) {
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 if let message = swapFailedMessage {
                     Text(message)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
                         .multilineTextAlignment(.center)
                 }
                 if let plannedExercise, !swapChoices.isEmpty {
@@ -200,17 +250,12 @@ struct PainReportSheet: View {
                                 swapFailedMessage = "You've already logged a set on this one — swapping mid-exercise isn't safe. Skip it instead."
                             }
                         } label: {
-                            HStack {
-                                Text(alt.name)
-                                    .font(.tempoBody)
-                                Spacer()
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                            }
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .padding(TempoSpacing.md)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.tempoSurfaceCard)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            TrainRowLabel(
+                                systemImage: "arrow.triangle.2.circlepath",
+                                title: alt.name,
+                                tint: TideTrain.caution
+                            )
+                            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                         }
                         .buttonStyle(.plain)
                     }
@@ -222,11 +267,8 @@ struct PainReportSheet: View {
                     dismiss()
                 } label: {
                     Text("Skip this exercise")
-                        .font(.tempoSubheadline.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tideGlass)
             }
         }
     }
@@ -234,13 +276,13 @@ struct PainReportSheet: View {
     private func severeOutcome(_ report: PainReport) -> some View {
         let canEnd = viewModel.canEndSessionForPain
         return outcomeShell(
-            icon: "exclamationmark.octagon.fill", color: .tempoError,
+            icon: "exclamationmark.octagon.fill", color: Tide.danger,
             title: "Stop this exercise",
             message: canEnd
                 ? "That's a lot of pain to push through. Consider ending the session — and if it doesn't settle down, get it looked at by a professional."
                 : "That's a lot of pain to push through. Skip it today — and if it doesn't settle down, get it looked at by a professional."
         ) {
-            VStack(spacing: TempoSpacing.sm) {
+            VStack(spacing: Tide.s2) {
                 if canEnd {
                     Button(role: .destructive) {
                         dismiss()
@@ -249,12 +291,11 @@ struct PainReportSheet: View {
                         viewModel.endSessionDueToPain(report, plannedExercise: plannedExercise, modelContext: modelContext)
                     } label: {
                         Text("End the session")
-                            .font(.tempoSubheadline.weight(.semibold))
+                            .font(Tide.bodyStrong)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .foregroundStyle(Color.tempoTextInverse)
-                            .background(Color.tempoError)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                            .frame(height: TideTrain.bigButton)
+                            .foregroundStyle(Tide.ink)
+                            .background(Tide.danger, in: .capsule)
                     }
                     .buttonStyle(.plain)
                 }
@@ -266,11 +307,8 @@ struct PainReportSheet: View {
                     dismiss()
                 } label: {
                     Text("Just skip this exercise, keep going")
-                        .font(.tempoSubheadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.tideGlass)
             }
         }
     }
@@ -280,33 +318,16 @@ struct PainReportSheet: View {
             dismiss()
         } label: {
             Text("Done")
-                .font(.tempoSubheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.tideGlass)
     }
 
     private func outcomeShell(
         icon: String, color: Color, title: String, message: String,
         @ViewBuilder actions: () -> some View
     ) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer(minLength: TempoSpacing.xl)
-            Image(systemName: icon)
-                .font(.system(size: 40))
-                .foregroundStyle(color)
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
+        TrainSessionStateView(systemImage: icon, tint: color, title: title, message: message) {
             actions()
-            Spacer()
         }
-        .padding(TempoSpacing.xl)
     }
 }

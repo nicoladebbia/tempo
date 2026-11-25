@@ -8,9 +8,13 @@
 
 import SwiftUI
 
+// MARK: - WizardStepScaffold
+
 struct WizardStepScaffold<Content: View>: View {
     let title: String
     let subtitle: String?
+    /// The line above the title ("Step 2 of 4").
+    let eyebrow: String?
     let progress: Double
     let canGoBack: Bool
     let primaryButtonLabel: String
@@ -21,9 +25,15 @@ struct WizardStepScaffold<Content: View>: View {
     @ViewBuilder
     let content: () -> Content
 
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     init(
         title: String,
         subtitle: String? = nil,
+        eyebrow: String? = nil,
         progress: Double,
         canGoBack: Bool,
         primaryButtonLabel: String = "Next",
@@ -35,6 +45,7 @@ struct WizardStepScaffold<Content: View>: View {
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.eyebrow = eyebrow
         self.progress = progress
         self.canGoBack = canGoBack
         self.primaryButtonLabel = primaryButtonLabel
@@ -49,81 +60,97 @@ struct WizardStepScaffold<Content: View>: View {
         VStack(spacing: 0) {
             header
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                VStack(alignment: .leading, spacing: Tide.s6) {
+                    VStack(alignment: .leading, spacing: Tide.s2) {
+                        if let eyebrow {
+                            Text(eyebrow)
+                                .tideLabel(mood.accent)
+                                .contentTransition(.numericText())
+                        }
                         Text(title)
-                            .font(.tempoTitle2)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.title)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
                         if let subtitle {
                             Text(subtitle)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     content()
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.lg)
-                .padding(.bottom, TempoSpacing.xxl)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s4)
+                .padding(.bottom, Tide.s6)
             }
-            footer
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar { footer }
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .tidePage()
     }
 
     private var header: some View {
-        VStack(spacing: TempoSpacing.sm) {
+        VStack(spacing: Tide.s2) {
             HStack {
                 Button {
                     HapticManager.selection()
                     onCancel()
                 } label: {
                     Text("Cancel")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
                 Spacer()
-                Text("PLAN INTAKE")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                Color.clear.frame(width: 60, height: 1)
+                // At large text the title would crowd Cancel; the eyebrow below says where you are.
+                if !typeSize.isAccessibilitySize {
+                    Text("Plan intake")
+                        .tideLabel()
+                    Spacer()
+                    Color.clear.frame(width: Tide.hit, height: Tide.hair)
+                }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.md)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s1)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.tempoDivider)
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Color.tempoViolet)
-                        .frame(width: max(0, geo.size.width * progress))
-                        .animation(TempoAnimation.springMedium, value: progress)
-                }
-            }
-            .frame(height: 3)
-            .padding(.horizontal, TempoSpacing.screenEdge)
+            TideLevelBar(progress: progress, height: Tide.barSlim)
+                .animation(Tide.settle, value: progress)
+                .padding(.horizontal, Tide.edge)
         }
-        .padding(.bottom, TempoSpacing.sm)
+        .padding(.bottom, Tide.s2)
     }
 
     private var footer: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
             if canGoBack {
                 Button {
                     HapticManager.selection()
                     onBack()
                 } label: {
-                    Text("Back")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    // At accessibility sizes Back shrinks to an arrow so the main
+                    // button keeps room and its label never breaks mid-word.
+                    Group {
+                        if typeSize.isAccessibilitySize {
+                            Image(systemName: "chevron.left")
+                                .font(Tide.bodyStrong)
+                                .frame(width: Tide.hit + Tide.s2)
+                        } else {
+                            Text("Back")
+                                .font(Tide.bodyStrong)
+                                .padding(.horizontal, Tide.s5)
+                        }
+                    }
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit + Tide.s2)
+                    .background(Tide.fill, in: .capsule)
+                    .contentShape(.capsule)
                 }
+                .buttonStyle(FuelPressStyle())
+                .accessibilityLabel("Back")
             }
 
             Button {
@@ -131,18 +158,22 @@ struct WizardStepScaffold<Content: View>: View {
                 onPrimary()
             } label: {
                 Text(primaryButtonLabel)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextInverse)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(primaryButtonEnabled ? Color.tempoSignal : Color.tempoSignal.opacity(0.4))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
             }
+            .buttonStyle(.tidePrimary)
             .disabled(!primaryButtonEnabled)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.top, TempoSpacing.sm)
-        .padding(.bottom, TempoSpacing.bottomSafe)
-        .background(Color.tempoBgPrimary)
+    }
+}
+
+// MARK: - Step caption
+
+extension WizardCoordinator {
+    /// "Step 2 of 4", for the line above each step's title.
+    var stepCaption: String {
+        guard let index = visibleSteps.firstIndex(of: currentStep) else {
+            return ""
+        }
+        return "Step \(index + 1) of \(visibleSteps.count)"
     }
 }

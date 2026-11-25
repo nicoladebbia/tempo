@@ -15,6 +15,11 @@ import UserNotifications
 // Per BUILD_PLAN step 12.5 — Notification settings UI.
 // Per WIREFRAMES.md Screen 58 — NotificationSettingsView layout.
 // Per ONBOARDING_AND_NOTIFICATIONS.md — Intensity, categories, quiet hours.
+//
+// The page leads with the two things most people need: how much Tempo may send
+// (Essential / Balanced / Everything) and when it must stay quiet. The individual
+// switches are all still here, under "Fine tune". A level is a preset over those
+// switches and is read back from them, so it says "Custom" once they match no preset.
 
 struct NotificationSettingsView: View {
     @Environment(ServiceContainer.self)
@@ -23,6 +28,10 @@ struct NotificationSettingsView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @Query
     private var allSettings: [UserSettings]
 
@@ -43,28 +52,11 @@ struct NotificationSettingsView: View {
 
     @State
     private var intensity: Int = 3
+    /// The reminders that are switched on.
     @State
-    private var morningBriefing: Bool = true
+    private var enabled: Set<NotificationTopic> = Set(NotificationTopic.allCases)
     @State
-    private var accountability: Bool = true
-    @State
-    private var recovery: Bool = true
-    @State
-    private var mealReminders: Bool = true
-    @State
-    private var bedtimeReminder: Bool = true
-    @State
-    private var streakWarning: Bool = true
-    @State
-    private var arenaNotifications: Bool = true
-    @State
-    private var weeklyReport: Bool = true
-    @State
-    private var trainingReminder: Bool = true
-    @State
-    private var trainerSessionReminder: Bool = true
-    @State
-    private var weeklyUploadReminder: Bool = true
+    private var fineTuneOpen = false
     @State
     private var soundEnabled: Bool = true
     @State
@@ -74,43 +66,44 @@ struct NotificationSettingsView: View {
     @State
     private var quietHoursEnd: Date = Self.timeFromMinutes(420)
 
-    var body: some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                // MARK: - Permission Gate
+    /// The level the switches add up to, nil for Custom.
+    private var level: NotificationLevel? {
+        NotificationLevel.matching(enabled)
+    }
 
-                if hasCheckedAuth {
-                    switch authorizationStatus {
-                    case .notDetermined:
-                        notificationPermissionCard
-                    case .denied:
-                        notificationDeniedCard
-                    case .authorized,
-                         .provisional,
-                         .ephemeral:
-                        authorizedContent
-                    @unknown default:
-                        authorizedContent
-                    }
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 200)
+    var body: some View {
+        TideSettingsPage {
+            // MARK: - Permission Gate
+
+            if hasCheckedAuth {
+                switch authorizationStatus {
+                case .notDetermined:
+                    notificationPermissionCard
+                case .denied:
+                    notificationDeniedCard
+                case .authorized,
+                     .provisional,
+                     .ephemeral:
+                    authorizedContent
+                @unknown default:
+                    authorizedContent
                 }
+            } else {
+                // The permission check takes a moment: the page's own shape,
+                // breathing, instead of a lone spinner.
+                LoadingStateView(style: .list)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.lg)
         }
-        .background(Color.tempoBgPrimary)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Done") { dismiss() }
-                    .font(.tempoSubheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
+                    .font(Tide.bodyStrong)
             }
         }
+        .sensoryFeedback(.selection, trigger: intensity)
+        .sensoryFeedback(.selection, trigger: enabled)
         .onAppear {
             loadFromSettings()
             checkAuthorizationStatus()
@@ -126,55 +119,40 @@ struct NotificationSettingsView: View {
     // MARK: - Permission Not Determined Card
 
     private var notificationPermissionCard: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            VStack(spacing: TempoSpacing.md) {
-                Image(systemName: "bell.badge.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.tempoSignal)
+        VStack(spacing: Tide.settingsGroupGap) {
+            permissionHeader(
+                icon: "bell.badge.fill",
+                iconTint: mood.accent,
+                title: "Enable Notifications",
+                message: "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind."
+            )
 
-                Text("Enable Notifications")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text(
-                    "Tempo uses notifications to keep you accountable. Get morning briefings, workout reminders, streak warnings, and drill-sergeant escalations when you fall behind."
-                )
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-            }
-
-            VStack(spacing: TempoSpacing.sm) {
+            SettingsGroupCard {
                 notificationFeatureRow(icon: "sunrise.fill", text: "Morning briefing with your daily plan")
                 notificationFeatureRow(icon: "bolt.fill", text: "Accountability escalations")
                 notificationFeatureRow(icon: "flame.fill", text: "Streak warnings before you lose progress")
                 notificationFeatureRow(icon: "moon.fill", text: "Bedtime reminders for recovery")
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
 
-            Button {
-                requestNotificationPermission()
-            } label: {
-                Text("Enable Notifications")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, TempoSpacing.buttonPaddingV)
-                    .background(Color.tempoSignal)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-            }
+            VStack(spacing: Tide.s2) {
+                Button {
+                    requestNotificationPermission()
+                } label: {
+                    Text("Enable Notifications")
+                }
+                .buttonStyle(.tidePrimary)
 
-            Button {
-                // Allow skipping — show settings anyway
-                authorizationStatus = .authorized
-            } label: {
-                Text("Skip for now")
-                    .font(.tempoFootnote)
-                    .fontWeight(.medium)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                Button {
+                    // Allow skipping — show settings anyway
+                    authorizationStatus = .authorized
+                } label: {
+                    Text("Skip for now")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -182,57 +160,86 @@ struct NotificationSettingsView: View {
     // MARK: - Permission Denied Card
 
     private var notificationDeniedCard: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            VStack(spacing: TempoSpacing.md) {
-                Image(systemName: "bell.slash.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Color.tempoTextTertiary)
-
-                Text("Notifications Disabled")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                Text(
-                    "Notifications are turned off in iOS Settings. Tempo needs notifications for accountability reminders, morning briefings, and streak warnings."
-                )
-                .font(.tempoFootnote)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.lg)
-            }
+        VStack(spacing: Tide.settingsGroupGap) {
+            permissionHeader(
+                icon: "bell.slash.fill",
+                iconTint: Tide.text3,
+                title: "Notifications Disabled",
+                message: "Notifications are turned off in iOS Settings. Tempo needs notifications for accountability reminders, morning briefings, and streak warnings."
+            )
 
             Button {
                 openSystemSettings()
             } label: {
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "gear")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Open Settings")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .foregroundStyle(Color.tempoTextInverse)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, TempoSpacing.buttonPaddingV)
-                .background(Color.tempoSignal)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+                Label("Open Settings", systemImage: "gear")
             }
+            .buttonStyle(.tidePrimary)
 
             // Still show the settings toggles below (for when they return)
             authorizedContent
         }
     }
 
-    // MARK: - Authorized Content (normal toggle list)
+    /// The icon, title and explanation at the top of a permission state.
+    private func permissionHeader(icon: String, iconTint: Color, title: String, message: String) -> some View {
+        TideSettingsHero {
+            Image(systemName: icon)
+                .font(Tide.title)
+                .foregroundStyle(iconTint)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text(message)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Authorized Content
 
     private var authorizedContent: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            intensitySection
-            dailyRemindersSection
-            accountabilitySection
-            socialSection
-            soundSection
+        VStack(spacing: Tide.settingsGroupGap) {
+            summaryCard
+            levelSection
             quietHoursSection
+            intensitySection
+            fineTuneSection
         }
+    }
+
+    // MARK: - Summary
+
+    private var remindersOn: Int {
+        enabled.count
+    }
+
+    private var remindersTotal: Int {
+        NotificationTopic.allCases.count
+    }
+
+    private var summaryCard: some View {
+        TideSettingsHero {
+            TideLabel("Reminders on")
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                TideNumber(
+                    "\(remindersOn)", unit: "of \(remindersTotal)",
+                    size: Tide.numeralL, relativeTo: .largeTitle
+                )
+                Spacer(minLength: Tide.s2)
+                Text(level?.title ?? "Custom")
+                    .tideLabel(mood.accent)
+            }
+            TideLevelBar(progress: Double(remindersOn) / Double(remindersTotal), height: Tide.bar)
+                .background(Tide.fill, in: .capsule)
+                .padding(.top, Tide.s1)
+                .accessibilityHidden(true)
+        }
+        .animation(Tide.snap, value: remindersOn)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Permission Helpers
@@ -262,372 +269,362 @@ struct NotificationSettingsView: View {
     }
 
     private func notificationFeatureRow(icon: String, text: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 13))
-                .foregroundStyle(Color.tempoSignal)
-                .frame(width: 20)
+        HStack(spacing: Tide.s3) {
+            SettingsIconTile(systemName: icon, tint: mood.accent)
             Text(text)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: Tide.s2)
+        }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Level Section
+
+    /// How much Tempo may send: three presets over the switches under "Fine tune".
+    private var levelSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSettingsSection(title: "What to send") {
+                ForEach(NotificationLevel.allCases) { option in
+                    Button {
+                        applyLevel(option)
+                    } label: {
+                        choiceRow(
+                            title: option.title, detail: option.summary,
+                            isSelected: level == option, isRecommended: false
+                        )
+                    }
+                    .buttonStyle(.tideSettingsRow)
+                    .accessibilityAddTraits(level == option ? .isSelected : [])
+                    .accessibilityIdentifier("notificationLevel-\(option.rawValue)")
+
+                    if option != NotificationLevel.allCases.last {
+                        TideSettingsHairline(inset: Tide.s4)
+                    }
+                }
+            }
+
+            Text(
+                level == nil
+                    ? "Custom: you turned individual reminders on or off under Fine tune. Pick a level to start over."
+                    : "Each level only changes which reminders are on. You can still change any of them under Fine tune."
+            )
+            .font(Tide.caption)
+            .foregroundStyle(level == nil ? Tide.settingsAttention : Tide.text2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, Tide.s2)
+            .accessibilityIdentifier("notificationLevelNote")
         }
     }
 
     // MARK: - Intensity Section
 
+    /// How hard the accountability reminders push. Tone, not volume: it sits beside the level, not in it.
     private var intensitySection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("INTENSITY")
-
-            VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSettingsSection(title: "How hard it pushes") {
                 // Per UX_COPY_BIBLE.md — onb_notif_intensity_label
                 ForEach(IntensityOption.allCases) { option in
                     Button {
                         intensity = option.rawValue
                         persistIntensity(option.rawValue)
                     } label: {
-                        HStack(spacing: TempoSpacing.md) {
-                            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                                HStack(spacing: TempoSpacing.sm) {
-                                    Text(option.title)
-                                        .font(.tempoCallout)
-                                        .fontWeight(.semibold)
-                                        .foregroundStyle(Color.tempoTextPrimary)
-                                    if option == .drillSergeant {
-                                        Text("REC")
-                                            .font(.tempoModuleTag)
-                                            .fontWeight(.bold)
-                                            .foregroundStyle(Color.tempoBone)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(Color.tempoSignal)
-                                            .clipShape(Capsule())
-                                    }
-                                }
-                                Text(option.description)
-                                    .font(.tempoFootnote)
-                                    .foregroundStyle(Color.tempoTextSecondary)
-                            }
-                            Spacer()
-                            Image(systemName: intensity == option.rawValue ? "checkmark.circle.fill" : "circle")
-                                .font(.tempoTitle2)
-                                .foregroundStyle(intensity == option.rawValue ? Color.tempoSignal : Color.tempoTextTertiary)
-                        }
-                        .padding(.vertical, TempoSpacing.md)
-                        .padding(.horizontal, TempoSpacing.lg)
+                        choiceRow(
+                            title: option.title, detail: option.description,
+                            isSelected: intensity == option.rawValue, isRecommended: option == .drillSergeant
+                        )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tideSettingsRow)
+                    .accessibilityAddTraits(intensity == option.rawValue ? .isSelected : [])
 
                     if option != .savage {
-                        Divider()
-                            .padding(.leading, TempoSpacing.lg)
+                        TideSettingsHairline(inset: Tide.s4)
                     }
                 }
             }
-            .tempoCard()
 
             // Preview text for selected intensity
             Text(IntensityOption(rawValue: intensity)?.preview ?? "")
-                .font(.tempoDataSmall)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.xs)
+                .font(Tide.caption)
+                .foregroundStyle(mood.accent)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Tide.s2)
+                .contentTransition(.opacity)
+                .animation(Tide.snap, value: intensity)
+        }
+    }
+
+    /// One choice in a list of choices: a title, what it means, and a tick.
+    private func choiceRow(title: String, detail: String, isSelected: Bool, isRecommended: Bool) -> some View {
+        let isLarge = typeSize.isAccessibilitySize
+        let indicator = Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+            .font(Tide.headline)
+            .foregroundStyle(isSelected ? mood.accent : Tide.text3)
+            .accessibilityHidden(true)
+        let titleText = Text(title)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+        let recommended = Text("REC")
+            .font(Tide.label)
+            .foregroundStyle(Tide.ink)
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.hair)
+            .background(mood.accent, in: .capsule)
+        let detailText = Text(detail)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+        return Group {
+            if isLarge {
+                // At accessibility sizes the circle moves up beside the name, so the
+                // description gets the whole card width.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                        indicator
+                        titleText
+                    }
+                    if isRecommended {
+                        recommended
+                    }
+                    detailText
+                }
+            } else {
+                HStack(spacing: Tide.s3) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        HStack(spacing: Tide.s2) {
+                            titleText
+                            if isRecommended {
+                                recommended
+                            }
+                        }
+                        detailText
+                    }
+                    Spacer(minLength: Tide.s2)
+                    indicator
+                }
+            }
+        }
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
+        .contentShape(.rect)
+    }
+
+    // MARK: - Fine Tune
+
+    /// Every individual switch, folded away until wanted.
+    private var fineTuneSection: some View {
+        VStack(spacing: Tide.settingsGroupGap) {
+            TideSettingsSection {
+                Button {
+                    withAnimation(Tide.snap) {
+                        fineTuneOpen.toggle()
+                    }
+                } label: {
+                    TideSettingsRowLine {
+                        HStack(spacing: Tide.s3) {
+                            SettingsIconTile(systemName: "slider.horizontal.3", tint: mood.accent)
+                            Text("Fine tune")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    } trailing: {
+                        HStack(spacing: Tide.s2) {
+                            Text(level == nil ? "Custom" : "\(remindersOn) of \(remindersTotal) on")
+                                .font(Tide.caption)
+                                .foregroundStyle(level == nil ? Tide.settingsAttention : Tide.text2)
+                            Image(systemName: "chevron.down")
+                                .font(Tide.label)
+                                .foregroundStyle(Tide.text3)
+                                .rotationEffect(.degrees(fineTuneOpen ? 180 : 0))
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .padding(.horizontal, Tide.s4)
+                    .padding(.vertical, Tide.s3)
+                    .frame(maxWidth: .infinity, minHeight: Tide.settingsRow, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityValue(fineTuneOpen ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("notificationFineTune")
+            }
+
+            if fineTuneOpen {
+                dailyRemindersSection
+                accountabilitySection
+                socialSection
+            }
         }
     }
 
     // MARK: - Daily Reminders Section
 
     private var dailyRemindersSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("DAILY REMINDERS")
-
-            VStack(spacing: 0) {
-                settingsToggle(
-                    "Morning Briefing",
-                    isOn: $morningBriefing,
-                    icon: "sunrise.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.morningBriefingEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("MORNING_BRIEFING")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Recovery Updates",
-                    isOn: $recovery,
-                    icon: "heart.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.recoveryEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("RECOVERY_REPORT")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Meal Reminders",
-                    isOn: $mealReminders,
-                    icon: "fork.knife",
-                    onToggle: { enabled in
-                        persistToggle(\.mealRemindersEnabled, value: enabled)
-                        if enabled {
-                            MealReminderPlanner.reschedule(
-                                modelContext: modelContext, notifications: services.notifications
-                            )
-                        } else {
-                            services.notifications.cancelCategory("MEAL_REMINDER")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Bedtime Reminder",
-                    isOn: $bedtimeReminder,
-                    icon: "moon.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.bedtimeReminderEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("BEDTIME_REMINDER")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Weekly Report",
-                    isOn: $weeklyReport,
-                    icon: "chart.bar.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.weeklyReportEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("WEEKLY_SUMMARY")
-                        }
-                    }
-                )
-            }
-            .tempoCard()
+        SettingsFormCard(title: "Daily reminders") {
+            topicToggle("Morning Briefing", topic: .morningBriefing, icon: "sunrise.fill")
+            SettingsRowDivider()
+            topicToggle("Recovery Updates", topic: .recovery, icon: "heart.fill")
+            SettingsRowDivider()
+            topicToggle("Meal Reminders", topic: .meals, icon: "fork.knife")
+            SettingsRowDivider()
+            topicToggle("Bedtime Reminder", topic: .bedtime, icon: "moon.fill")
+            SettingsRowDivider()
+            topicToggle("Weekly Report", topic: .weeklyReport, icon: "chart.bar.fill")
         }
     }
 
     // MARK: - Accountability Section
 
     private var accountabilitySection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("ACCOUNTABILITY")
-
-            VStack(spacing: 0) {
-                settingsToggle(
-                    "Accountability Reminders",
-                    isOn: $accountability,
-                    icon: "bolt.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.accountabilityEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("ACCOUNTABILITY_GENTLE")
-                            services.notifications.cancelCategory("ACCOUNTABILITY_FIRM")
-                            services.notifications.cancelCategory("ACCOUNTABILITY_URGENT")
-                            services.notifications.cancelCategory("ACCOUNTABILITY_FINAL")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Streak Warnings",
-                    isOn: $streakWarning,
-                    icon: "flame.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.streakWarningEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("STREAK_WARNING")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Training Reminders",
-                    isOn: $trainingReminder,
-                    icon: "dumbbell.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.trainingReminderEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("TRAINING_REMINDER")
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "Trainer Sessions",
-                    isOn: $trainerSessionReminder,
-                    icon: "figure.strengthtraining.traditional",
-                    onToggle: { enabled in
-                        persistToggle(\.trainerSessionReminderEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelTrainerSessionReminders()
-                        } else {
-                            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                        }
-                    }
-                )
-                settingsDivider()
-                settingsToggle(
-                    "New-Week Upload Reminder",
-                    isOn: $weeklyUploadReminder,
-                    icon: "calendar.badge.exclamationmark",
-                    onToggle: { enabled in
-                        persistToggle(\.weeklyUploadReminderEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelWeeklyUploadReminders()
-                        } else {
-                            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
-                        }
-                    }
-                )
-            }
-            .tempoCard()
+        SettingsFormCard(title: "Accountability") {
+            topicToggle("Accountability Reminders", topic: .accountability, icon: "bolt.fill")
+            SettingsRowDivider()
+            topicToggle("Streak Warnings", topic: .streak, icon: "flame.fill")
+            SettingsRowDivider()
+            topicToggle("Training Reminders", topic: .training, icon: "dumbbell.fill")
+            SettingsRowDivider()
+            topicToggle("Trainer Sessions", topic: .trainerSession, icon: "figure.strengthtraining.traditional")
+            SettingsRowDivider()
+            topicToggle("New-Week Upload Reminder", topic: .weeklyUpload, icon: "calendar.badge.exclamationmark")
         }
     }
 
     // MARK: - Social Section
 
     private var socialSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("SOCIAL")
-
-            VStack(spacing: 0) {
-                settingsToggle(
-                    "Arena Notifications",
-                    isOn: $arenaNotifications,
-                    icon: "trophy.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.arenaNotificationsEnabled, value: enabled)
-                        if !enabled {
-                            services.notifications.cancelCategory("ARENA_SOCIAL")
-                        }
+        SettingsFormCard(title: "Social & sound") {
+            topicToggle("Arena Notifications", topic: .arena, icon: "trophy.fill")
+            SettingsRowDivider()
+            SettingsControlRow(label: "Notification Sound", icon: "speaker.wave.2.fill") {
+                Toggle("Notification Sound", isOn: $soundEnabled)
+                    .labelsHidden()
+                    .onChange(of: soundEnabled) { _, newValue in
+                        settings?.soundEnabled = newValue
+                        settings?.updatedAt = Date()
                     }
-                )
             }
-            .tempoCard()
-        }
-    }
-
-    // MARK: - Sound Section
-
-    private var soundSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("SOUND")
-
-            VStack(spacing: 0) {
-                settingsToggle(
-                    "Notification Sound",
-                    isOn: $soundEnabled,
-                    icon: "speaker.wave.2.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.soundEnabled, value: enabled)
-                    }
-                )
-            }
-            .tempoCard()
         }
     }
 
     // MARK: - Quiet Hours Section
 
     private var quietHoursSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionHeader("QUIET HOURS")
-
-            VStack(spacing: 0) {
-                settingsToggle(
-                    "Quiet Hours",
-                    isOn: $quietHoursEnabled,
-                    icon: "moon.zzz.fill",
-                    onToggle: { enabled in
-                        persistToggle(\.quietHoursEnabled, value: enabled)
+        SettingsFormCard(
+            title: "Quiet hours",
+            footnote: "Inside this window, reminders Tempo schedules on this phone are skipped, not delayed. Escalating accountability warnings and defrost reminders still come through. Timers you start yourself are not affected."
+        ) {
+            SettingsControlRow(label: "Quiet Hours", icon: "moon.zzz.fill") {
+                Toggle("Quiet Hours", isOn: $quietHoursEnabled)
+                    .labelsHidden()
+                    .onChange(of: quietHoursEnabled) { _, newValue in
+                        // Loading the page sets this too: only a real change is saved.
+                        guard settings?.quietHoursEnabled != newValue else {
+                            return
+                        }
+                        settings?.quietHoursEnabled = newValue
+                        settings?.updatedAt = Date()
+                        commitPolicy()
                     }
-                )
+                    .sensoryFeedback(.selection, trigger: quietHoursEnabled)
+                    .accessibilityIdentifier("notificationQuietHoursToggle")
+            }
 
-                if quietHoursEnabled {
-                    settingsDivider()
-                    HStack {
-                        Text("From")
-                            .font(.tempoCallout)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        DatePicker("", selection: $quietHoursStart, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .onChange(of: quietHoursStart) { _, newValue in
-                                persistQuietHoursStart(newValue)
-                            }
-                    }
-                    .padding(.vertical, TempoSpacing.md)
-                    .padding(.horizontal, TempoSpacing.lg)
+            if quietHoursEnabled {
+                SettingsRowDivider()
+                SettingsControlRow(label: "From", icon: "sunset.fill") {
+                    DatePicker("From", selection: $quietHoursStart, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .onChange(of: quietHoursStart) { _, newValue in
+                            persistQuietHoursStart(newValue)
+                        }
+                }
 
-                    settingsDivider()
-                    HStack {
-                        Text("Until")
-                            .font(.tempoCallout)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        Spacer()
-                        DatePicker("", selection: $quietHoursEnd, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .onChange(of: quietHoursEnd) { _, newValue in
-                                persistQuietHoursEnd(newValue)
-                            }
-                    }
-                    .padding(.vertical, TempoSpacing.md)
-                    .padding(.horizontal, TempoSpacing.lg)
+                SettingsRowDivider()
+                SettingsControlRow(label: "Until", icon: "sunrise.fill") {
+                    DatePicker("Until", selection: $quietHoursEnd, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .onChange(of: quietHoursEnd) { _, newValue in
+                            persistQuietHoursEnd(newValue)
+                        }
                 }
             }
-            .tempoCard()
-            .animation(.easeInOut(duration: 0.2), value: quietHoursEnabled)
-
-            Text("Time Sensitive notifications (accountability escalations) still break through during quiet hours.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.horizontal, TempoSpacing.xs)
         }
+        .animation(Tide.snap, value: quietHoursEnabled)
     }
 
     // MARK: - Shared Components
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.tempoCaption1)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoTextTertiary)
-            .tracking(TempoTracking.caption1)
-    }
-
-    private func settingsToggle(
-        _ label: String,
-        isOn: Binding<Bool>,
-        icon: String,
-        onToggle: @escaping (Bool) -> Void
-    ) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoSignal)
-                .frame(width: 24)
-            Text(label)
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-            Toggle("", isOn: isOn)
-                .toggleStyle(.tempo)
-                .labelsHidden()
-                .onChange(of: isOn.wrappedValue) { _, newValue in
-                    onToggle(newValue)
-                }
+    /// One switch row. The master look of every toggle on this page.
+    private func topicToggle(_ label: String, topic: NotificationTopic, icon: String) -> some View {
+        SettingsControlRow(label: label, icon: icon) {
+            Toggle(
+                label,
+                isOn: Binding(
+                    get: { enabled.contains(topic) },
+                    set: { setTopic(topic, on: $0) }
+                )
+            )
+            .labelsHidden()
         }
-        .frame(minHeight: 52)
-        .padding(.horizontal, TempoSpacing.lg)
     }
 
-    private func settingsDivider() -> some View {
-        Divider()
-            .padding(.leading, TempoSpacing.lg + 24 + TempoSpacing.md)
+    // MARK: - Changing a switch
+
+    /// Switches one reminder on or off. Off also clears what was already queued; the
+    /// policy then keeps the schedulers from adding it back.
+    private func setTopic(_ topic: NotificationTopic, on: Bool, commit: Bool = true) {
+        guard enabled.contains(topic) != on else {
+            return
+        }
+        if on {
+            enabled.insert(topic)
+        } else {
+            enabled.remove(topic)
+        }
+        settings?.set(topic, on: on)
+        if !on {
+            for category in topic.categoryIDs {
+                services.notifications.cancelCategory(category)
+            }
+            switch topic {
+            case .trainerSession: services.notifications.cancelTrainerSessionReminders()
+            case .weeklyUpload: services.notifications.cancelWeeklyUploadReminders()
+            default: break
+            }
+        }
+        if commit {
+            commitPolicy()
+        }
+    }
+
+    /// Picks a level by setting every switch to match it.
+    private func applyLevel(_ target: NotificationLevel) {
+        for topic in NotificationTopic.allCases {
+            setTopic(topic, on: target.topics.contains(topic), commit: false)
+        }
+        commitPolicy()
+    }
+
+    /// Saves the policy the schedulers read, drops queued reminders it no longer allows, and
+    /// rebuilds the ones it newly allows (quiet hours turned off, a reminder switched on).
+    private func commitPolicy() {
+        NotificationPolicyStore.sync(from: settings)
+        let notifications = services.notifications
+        MealReminderPlanner.reschedule(modelContext: modelContext, notifications: notifications)
+        Task {
+            await notifications.removePendingNotAllowedByPolicy()
+            // ContentView rebuilds trainer, weekly-upload and supplement reminders on this.
+            NotificationCenter.default.post(name: .tempoTrainingSettingsChanged, object: nil)
+        }
     }
 
     // MARK: - Persistence
@@ -637,21 +634,13 @@ struct NotificationSettingsView: View {
             return
         }
         intensity = settings.notificationIntensity
-        morningBriefing = settings.morningBriefingEnabled
-        accountability = settings.accountabilityEnabled
-        recovery = settings.recoveryEnabled
-        mealReminders = settings.mealRemindersEnabled
-        bedtimeReminder = settings.bedtimeReminderEnabled
-        streakWarning = settings.streakWarningEnabled
-        arenaNotifications = settings.arenaNotificationsEnabled
-        weeklyReport = settings.weeklyReportEnabled
-        trainingReminder = settings.trainingReminderEnabled
-        trainerSessionReminder = settings.trainerSessionReminderEnabled
-        weeklyUploadReminder = settings.weeklyUploadReminderEnabled
+        enabled = Set(NotificationTopic.allCases.filter { settings.isOn($0) })
         soundEnabled = settings.soundEnabled
         quietHoursEnabled = settings.quietHoursEnabled
         quietHoursStart = Self.timeFromMinutes(settings.quietHoursStartMinutes)
         quietHoursEnd = Self.timeFromMinutes(settings.quietHoursEndMinutes)
+        // Whatever the page shows is what the schedulers use.
+        NotificationPolicyStore.sync(from: settings)
     }
 
     private func persistIntensity(_ value: Int) {
@@ -659,21 +648,24 @@ struct NotificationSettingsView: View {
         settings?.updatedAt = Date()
     }
 
-    private func persistToggle(_ keyPath: ReferenceWritableKeyPath<UserSettings, Bool>, value: Bool) {
-        settings?[keyPath: keyPath] = value
-        settings?.updatedAt = Date()
-    }
-
     private func persistQuietHoursStart(_ date: Date) {
         let minutes = Self.minutesFromTime(date)
+        guard settings?.quietHoursStartMinutes != minutes else {
+            return
+        }
         settings?.quietHoursStartMinutes = minutes
         settings?.updatedAt = Date()
+        commitPolicy()
     }
 
     private func persistQuietHoursEnd(_ date: Date) {
         let minutes = Self.minutesFromTime(date)
+        guard settings?.quietHoursEndMinutes != minutes else {
+            return
+        }
         settings?.quietHoursEndMinutes = minutes
         settings?.updatedAt = Date()
+        commitPolicy()
     }
 
     // MARK: - Time Helpers

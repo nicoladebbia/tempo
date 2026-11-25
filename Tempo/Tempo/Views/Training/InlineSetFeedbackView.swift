@@ -41,56 +41,48 @@ struct InlineSetFeedbackView: View {
     private var noteFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            Text("HOW WAS THAT SET?")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            Text("How was that set?").tideLabel()
 
-            // RPE
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text("RPE")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                rpeDial
+            // RPE — 6–10 only (below 6 is warmup-easy, not worth logging).
+            // Five large buttons instead of ten cramped/stretched ones.
+            TrainSessionChoiceRow(
+                title: "RPE",
+                options: Array(6 ... 10),
+                selection: rpe,
+                label: { "\($0)" }
+            ) { value in
+                rpe = value
+                viewModel.updateFeedback(rpe: value, modelContext: modelContext)
             }
 
-            // Breathing
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text("Breathing")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                segmentedRow(
-                    options: BreathDifficulty.allCases,
-                    selection: breath,
-                    label: { $0.displayName }
-                ) { value in
-                    breath = value
-                    viewModel.updateFeedback(breath: value, modelContext: modelContext)
-                }
+            TrainSessionChoiceRow(
+                title: "Breathing",
+                options: BreathDifficulty.allCases,
+                selection: breath,
+                height: Tide.hit,
+                label: { $0.displayName }
+            ) { value in
+                breath = value
+                viewModel.updateFeedback(breath: value, modelContext: modelContext)
             }
 
-            // Form
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                Text("Form")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                segmentedRow(
-                    options: FormQuality.allCases,
-                    selection: form,
-                    label: { $0.displayName }
-                ) { value in
-                    form = value
-                    viewModel.updateFeedback(form: value, modelContext: modelContext)
-                }
+            TrainSessionChoiceRow(
+                title: "Form",
+                options: FormQuality.allCases,
+                selection: form,
+                height: Tide.hit,
+                label: { $0.displayName }
+            ) { value in
+                form = value
+                viewModel.updateFeedback(form: value, modelContext: modelContext)
             }
 
             // Optional note (collapsed by default) — write-through on edit.
             if noteExpanded {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     HStack {
-                        Text("Note")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        Text("Note").tideLabel()
                         Spacer()
                         // Always-visible "Done" while editing — the field is
                         // multi-line (Return = newline) and the keyboard toolbar
@@ -101,9 +93,9 @@ struct InlineSetFeedbackView: View {
                                 noteFocused = false
                                 Self.dismissKeyboard()
                             }
-                            .font(.tempoCaption1)
-                            .fontWeight(.bold)
-                            .foregroundStyle(Color.tempoSignal)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(minHeight: Tide.hit)
                         }
                     }
                     TextField(
@@ -113,28 +105,27 @@ struct InlineSetFeedbackView: View {
                     )
                     .lineLimit(2 ... 4)
                     .focused($noteFocused)
-                    .padding(TempoSpacing.cardPadding)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .tideFieldSurface(focused: noteFocused)
                     .onChange(of: note) { _, newValue in
                         viewModel.updateFeedback(note: newValue, modelContext: modelContext)
                     }
                 }
             } else {
                 Button {
-                    withAnimation { noteExpanded = true }
+                    withAnimation(Tide.snap) { noteExpanded = true }
                 } label: {
-                    Text("+ Note")
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoSignal)
+                    Label("Note", systemImage: "plus")
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(minHeight: Tide.hit, alignment: .leading)
+                        .contentShape(.rect)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard.opacity(0.5))
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         .onAppear(perform: seedFromFeedback)
         // Keyboard-accessory "Done" as well (belt-and-suspenders with the visible
         // in-panel Done button above, which is the guaranteed path on device).
@@ -145,8 +136,8 @@ struct InlineSetFeedbackView: View {
                     noteFocused = false
                     Self.dismissKeyboard()
                 }
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.headline)
+                .foregroundStyle(Color.accentColor)
             }
         }
     }
@@ -172,64 +163,5 @@ struct InlineSetFeedbackView: View {
         form = feedback.hasEnteredForm ? feedback.formQuality : nil
         note = feedback.note ?? ""
         noteExpanded = !(feedback.note ?? "").isEmpty
-    }
-
-    // MARK: - RPE Dial
-
-    private var rpeDial: some View {
-        // 6–10 only (below 6 is warmup-easy, not worth logging). Five large
-        // buttons instead of ten cramped/stretched ones.
-        HStack(spacing: TempoSpacing.sm) {
-            ForEach(6 ... 10, id: \.self) { value in
-                Button {
-                    rpe = value
-                    HapticManager.selection()
-                    viewModel.updateFeedback(rpe: value, modelContext: modelContext)
-                } label: {
-                    Text("\(value)")
-                        .font(.tempoTitle3)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(rpe == value ? Color.tempoSignal : Color.tempoSurfaceCard)
-                        .foregroundStyle(rpe == value ? .white : Color.tempoTextPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-            }
-        }
-    }
-
-    // MARK: - Segmented Row
-
-    private func segmentedRow<Option: Hashable>(
-        options: [Option],
-        selection: Option?,
-        label: @escaping (Option) -> String,
-        onSelect: @escaping (Option) -> Void
-    ) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            ForEach(options, id: \.self) { option in
-                Button {
-                    onSelect(option)
-                    HapticManager.selection()
-                } label: {
-                    Text(label(option))
-                        .font(.tempoHeadline)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(
-                            selection == option
-                                ? Color.tempoSignal
-                                : Color.tempoSurfaceCard
-                        )
-                        .foregroundStyle(
-                            selection == option
-                                ? .white
-                                : Color.tempoTextPrimary
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
-                }
-            }
-        }
     }
 }

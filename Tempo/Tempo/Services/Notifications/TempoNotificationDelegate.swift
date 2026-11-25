@@ -18,7 +18,15 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
     @MainActor
     static var services: ServiceContainer?
     @MainActor
-    static var modelContainer: ModelContainer?
+    static var modelContainer: ModelContainer? {
+        // Set once at launch, before any reminder is scheduled: the schedulers read the
+        // user's switches and quiet hours from a saved copy, so seed it from the store.
+        didSet {
+            if let modelContainer {
+                NotificationPolicyStore.sync(from: modelContainer)
+            }
+        }
+    }
 
     private let logger = Logger(subsystem: "app.tempo", category: "NotificationDelegate")
 
@@ -31,7 +39,8 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        NotificationInbox.shared.noteDelivered(notification)
+        return [.banner, .list, .sound]
     }
 
     @MainActor
@@ -47,6 +56,13 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         let title = content.title
         let body = content.body
         logger.info("Notification action \(action, privacy: .public) in \(category, privacy: .public)")
+        if action == NotificationRouter.defaultActionID {
+            // Opened by tapping it: it counts as seen in the in-app list too.
+            NotificationInbox.shared.noteOpened(
+                requestID: response.notification.request.identifier, content: content,
+                deliveredAt: response.notification.date
+            )
+        }
 
         // Buttons that do work in the background; everything else navigates.
         switch (category, action) {
@@ -98,6 +114,13 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
             break
         }
 
+        await route(category: category, action: action, userInfo: userInfo)
+    }
+
+    /// Where a tap goes. The banner and the in-app notification list share this, so a row in the
+    /// list opens exactly what its banner would have.
+    @MainActor
+    func route(category: String, action: String, userInfo: [AnyHashable: Any]) async {
         guard let destination = NotificationRouter.destination(category: category, action: action, userInfo: userInfo) else {
             return
         }
@@ -105,6 +128,12 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         if destination.syncPlans {
             await syncPlans()
         }
+    }
+
+    /// A row in the in-app notification list was tapped.
+    @MainActor
+    func openFromList(_ item: InboxNotification) async {
+        await route(category: item.category, action: NotificationRouter.defaultActionID, userInfo: item.userInfo)
     }
 
     /// Server pushes nest their custom keys under `"data"` (`{"aps":…,"data":{"type":…}}`);
@@ -150,8 +179,10 @@ final class TempoNotificationDelegate: NSObject, @preconcurrency UNUserNotificat
         guard let appState = Self.services?.appState else {
             return
         }
-        appState.activeTab = destination.tab
-        if destination.tab == .nutrition {
+        // Also clears a page left open on Today, so the notification lands
+        // on the screen it names and not under an older one.
+        appState.open(destination.tab, todayRoute: destination.todayRoute)
+        if destination.tab == .fuel {
             let section = destination.kitchenSection != nil ? NutritionSection.kitchen : destination.nutritionSection
             if let section {
                 appState.requestedNutrition = NutritionRoute(section: section, kitchen: destination.kitchenSection)

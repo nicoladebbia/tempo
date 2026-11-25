@@ -18,6 +18,8 @@ struct TemporaryExclusionsStepView: View {
     private var draftInput: String = ""
     @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
     private var profiles: [DietaryProfile]
+    @Environment(\.tideMood)
+    private var mood
 
     /// The permanent "won't eat" list (Edit setup) — always excluded.
     private var permanentExclusions: [String] {
@@ -28,6 +30,7 @@ struct TemporaryExclusionsStepView: View {
         WizardStepScaffold(
             title: "Off the table this week.",
             subtitle: "Not allergies — just things you're not in the mood for. Skip if nothing.",
+            eyebrow: coordinator.stepCaption,
             progress: coordinator.progress,
             canGoBack: coordinator.canGoBack,
             primaryButtonLabel: "Next",
@@ -35,29 +38,15 @@ struct TemporaryExclusionsStepView: View {
             onPrimary: coordinator.advance,
             onCancel: coordinator.cancel
         ) {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                HStack(spacing: TempoSpacing.sm) {
-                    TextField("e.g. broccoli", text: $draftInput)
-                        .font(.tempoBody)
-                        .padding(TempoSpacing.md)
-                        .background(Color.tempoSurfaceElevated)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                        .onSubmit(addCurrent)
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                inputRow
 
-                    Button {
-                        addCurrent()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color.tempoTextInverse)
-                            .frame(width: 44, height: 44)
-                            .background(Color.tempoSignal)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                    }
-                    .disabled(draftInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
-                if !coordinator.intake.temporaryExclusions.isEmpty {
+                if coordinator.intake.temporaryExclusions.isEmpty {
+                    Label("Nothing off the table. Tap Next.", systemImage: "checkmark.circle")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
                     chipGrid
                 }
 
@@ -68,24 +57,55 @@ struct TemporaryExclusionsStepView: View {
         }
     }
 
+    /// One soft row: the field, and a plus button inside it at the end.
+    private var inputRow: some View {
+        let isEmpty = draftInput.trimmingCharacters(in: .whitespaces).isEmpty
+        return HStack(spacing: Tide.s2) {
+            TextField("e.g. broccoli", text: $draftInput)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .submitLabel(.done)
+                .onSubmit(addCurrent)
+            Button {
+                addCurrent()
+            } label: {
+                Image(systemName: "plus")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.ink)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .background(mood.accent, in: .circle)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .disabled(isEmpty)
+            .opacity(isEmpty ? 0.4 : 1)
+            .animation(Tide.snap, value: isEmpty)
+            .accessibilityLabel("Add")
+        }
+        .padding(.leading, Tide.s4)
+        .padding(.trailing, Tide.s1)
+        .frame(minHeight: Tide.hit + Tide.s2)
+        .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+    }
+
     private var permanentSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             Text("Always off — edit in setup")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-            FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
+                .tideLabel()
+            FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
                 ForEach(permanentExclusions, id: \.self) { food in
-                    HStack(spacing: 6) {
+                    HStack(spacing: Tide.s1) {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text3)
+                            .accessibilityHidden(true)
                         Text(food)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                     }
-                    .padding(.horizontal, TempoSpacing.sm)
-                    .padding(.vertical, 6)
-                    .overlay(Capsule().strokeBorder(Color.tempoTextTertiary.opacity(0.4)))
+                    .padding(.horizontal, Tide.s3)
+                    .frame(minHeight: Tide.s8)
+                    .overlay(Capsule().strokeBorder(Tide.hairline))
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(food), always off")
                 }
@@ -94,26 +114,31 @@ struct TemporaryExclusionsStepView: View {
         .accessibilityIdentifier("wizardPermanentExclusions")
     }
 
+    /// Each chip is one button: tap to take it off the list.
     private var chipGrid: some View {
-        FlowLayout(spacing: TempoSpacing.xs, lineSpacing: TempoSpacing.xs) {
+        FlowLayout(spacing: Tide.s2, lineSpacing: Tide.s2) {
             ForEach(coordinator.intake.temporaryExclusions, id: \.self) { food in
-                HStack(spacing: 6) {
-                    Text(food)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Button {
-                        coordinator.intake.temporaryExclusions.removeAll { $0 == food }
-                        HapticManager.selection()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                Button {
+                    coordinator.intake.temporaryExclusions.removeAll { $0 == food }
+                    HapticManager.selection()
+                } label: {
+                    HStack(spacing: Tide.s2) {
+                        Text(food)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                        Image(systemName: "xmark")
+                            .font(Tide.label)
+                            .foregroundStyle(Tide.text2)
+                            .accessibilityHidden(true)
                     }
+                    .padding(.horizontal, Tide.s4)
+                    .frame(minHeight: Tide.hit)
+                    .background(mood.accent.opacity(0.18), in: .capsule)
+                    .overlay(Capsule().strokeBorder(mood.accent.opacity(0.5)))
+                    .contentShape(.capsule)
                 }
-                .padding(.horizontal, TempoSpacing.sm)
-                .padding(.vertical, 6)
-                .background(Color.tempoSurfaceElevated)
-                .clipShape(Capsule())
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(food)")
             }
         }
     }

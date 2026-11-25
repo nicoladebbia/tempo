@@ -28,6 +28,8 @@ struct WeeklyCheckInView: View {
     private var blocker: AIBlocker?
     @State
     private var sent = false
+    @Environment(\.tideMood)
+    private var mood
 
     private let weekStart = WeeklyPlanService.weekStart()
 
@@ -40,53 +42,64 @@ struct WeeklyCheckInView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     if sent {
                         sentState
                     } else {
                         form
                     }
                 }
-                .padding(TempoSpacing.screenEdge)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s3)
+                .padding(.bottom, Tide.s8)
             }
-            .background(Color.tempoBgPrimary)
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .fuelBottomBar {
+                if sent {
+                    Button("Done") { dismiss() }
+                        .buttonStyle(.tidePrimary)
+                        .accessibilityIdentifier("weeklyCheckInDone")
+                } else {
+                    buildButton
+                }
+            }
+            .animation(Tide.snap, value: sent)
+            .animation(Tide.snap, value: errorMessage)
+            .scrollDismissesKeyboard(.interactively)
+            .tidePage()
             .navigationTitle("Next week")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(sent ? "Done" : "Cancel") { dismiss() }
-                        .foregroundStyle(Color.tempoTextSecondary)
+                // Once sent, the Done button under the thumb is the way out.
+                if !sent {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
                 }
             }
         }
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
     }
 
     private var form: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s5) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
                 Text("Anything different next week?")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(
                     "Week of \(weekStart.formatted(.dateTime.month(.wide).day())). Your usual routine is already in. 30 seconds — exams, travel, a dinner out, a new gym time."
                 )
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                ForEach(Self.quickPicks, id: \.self) { pick in
-                    Button {
-                        said = said.isEmpty ? pick : "\(said). \(pick)"
-                    } label: {
-                        Label(pick, systemImage: "plus.circle")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 120)
+            // Say it first: the voice box is the answer, the lines below only fill it in.
+            VoiceTextField(text: $said, placeholder: "Tap the mic and talk — or type.", minHeight: 160)
                 .accessibilityIdentifier("weeklyCheckInSaid")
             if let blocker {
                 AIBlockerCard(blocker: blocker, message: PlanGenerationBlocker(from: blocker).message) {
@@ -94,42 +107,84 @@ struct WeeklyCheckInView: View {
                     send()
                 }
             } else if let errorMessage {
-                Text(errorMessage)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.danger, title: errorMessage)
             }
-            Button {
-                send()
-            } label: {
-                Group {
-                    if isSending {
-                        ProgressView()
-                    } else {
-                        Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
-                    }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.tempoPrimary)
-            .disabled(isSending)
-            .accessibilityIdentifier("weeklyCheckInBuild")
+            quickPickList
         }
     }
 
-    private var sentState: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoSuccess)
-            Text("On it.")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(
-                "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
-            )
-            .font(.tempoBody)
-            .foregroundStyle(Color.tempoTextSecondary)
+    /// The one action, pinned in the thumb zone.
+    private var buildButton: some View {
+        Button {
+            send()
+        } label: {
+            Group {
+                if isSending {
+                    ProgressView()
+                        .tint(Tide.ink)
+                } else {
+                    Text(said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Same as usual — build it" : "Build my week")
+                        .multilineTextAlignment(.center)
+                }
+            }
         }
+        .buttonStyle(.tidePrimary)
+        .disabled(isSending)
+        .accessibilityIdentifier("weeklyCheckInBuild")
+    }
+
+    /// Tap a line to add it to what you say. The lines are long, so each one
+    /// is a full-width row that wraps instead of a chip that cuts.
+    private var quickPickList: some View {
+        FuelRowGroup(title: "Tap to add") {
+            ForEach(Self.quickPicks, id: \.self) { pick in
+                Button {
+                    HapticManager.lightImpact()
+                    said = said.isEmpty ? pick : "\(said). \(pick)"
+                } label: {
+                    HStack(spacing: Tide.s3) {
+                        Image(systemName: "plus.circle")
+                            .font(Tide.headline)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.icon, alignment: .leading)
+                            .accessibilityHidden(true)
+                        Text(pick)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: Tide.hit + Tide.s3)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Sent: say what happens next and that the app can be closed.
+    private var sentState: some View {
+        VStack(spacing: Tide.s4) {
+            TideStateMark(systemName: "checkmark", tint: Tide.good)
+            VStack(spacing: Tide.s2) {
+                Text("On it.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .accessibilityAddTraits(.isHeader)
+                Text(
+                    "Your week is being built — every food checked, every day's macros solved. You'll get a notification when it's ready. You can close the app."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: Tide.stateWidth)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s8)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("weeklyCheckInSent")
     }
 

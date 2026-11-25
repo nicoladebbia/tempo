@@ -75,12 +75,73 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(reminders.first?.fireDate.timeIntervalSince(now) ?? 0, 2 * 3600, accuracy: 1)
     }
 
+    func testUsualMealsHasARealHabitYesterdayAndAFavourite() throws {
+        ScenarioSeed.seed("usual-meals", context: context)
+
+        let entries = UsualMeals.entries(in: context)
+        let breakfasts = UsualMeals.ranked(entries, type: .breakfast)
+        XCTAssertEqual(breakfasts.first?.days, 4)
+        XCTAssertEqual(breakfasts.first?.title, "Oats, banana")
+        let lunches = UsualMeals.ranked(entries, type: .lunch)
+        XCTAssertEqual(lunches.map(\.days), [3], "the one-off tuna lunch is not a habit")
+        XCTAssertEqual(UsualMeals.ranked(entries, type: .dinner).first?.days, 2)
+        XCTAssertEqual(UsualMeals.yesterday(entries, type: .breakfast)?.foods.map(\.name), ["oats", "banana"])
+        let favourite = try XCTUnwrap(context.fetch(FetchDescriptor<MealPreset>()).first)
+        XCTAssertEqual(favourite.name, "Pre-training toast")
+        XCTAssertTrue(favourite.isPinned)
+    }
+
+    func testSpendingSeedsEightWeeksOfReceiptsAgainstABudget() throws {
+        let now = Date()
+        ScenarioSeed.seed("spending", context: context, now: now)
+
+        let receipts = try context.fetch(FetchDescriptor<Receipt>())
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .confirmed }.count, 10)
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .awaitingReview }.count, 1)
+        XCTAssertEqual(receipts.filter { $0.ocrStatus == .failed }.count, 1)
+        XCTAssertTrue(receipts.allSatisfy { $0.purchaseDate <= now }, "no receipt is dated in the future")
+        let settings = try XCTUnwrap(context.fetch(FetchDescriptor<UserSettings>()).first)
+        XCTAssertEqual(settings.groceryBudgetCapUSD, SpendingScenarioSeed.budgetCapUSD)
+
+        // The same numbers the Spending page shows: eight weeks, one of them over the cap.
+        let weeks = GroceryWeeklySpendCalculator.compute(
+            priceEntries: try context.fetch(FetchDescriptor<PantryPriceEntry>()),
+            receipts: receipts, weeks: 8, budgetCapUSD: settings.groceryBudgetCapUSD, now: now
+        )
+        XCTAssertEqual(weeks.count, 8)
+        XCTAssertEqual(weeks.filter(\.isOverBudget).count, 1)
+    }
+
     func testGroceriesAndTrainingReuseTheirUITestSeeds() {
         ScenarioSeed.seed("groceries", context: context)
         XCTAssertGreaterThan(count(GroceryListItem.self), 0)
 
         ScenarioSeed.seed("training", context: context)
         XCTAssertEqual(count(TrainerProgram.self), 1)
+    }
+
+    func testTrainerFullFillsEverySectionOfTheTrainerPage() throws {
+        let now = Date()
+        ScenarioSeed.seed("trainer-full", context: context, now: now)
+
+        let programs = try context.fetch(FetchDescriptor<TrainerProgram>())
+        XCTAssertEqual(programs.count, 4)
+        let active = try XCTUnwrap(programs.first { $0.isActive })
+        XCTAssertEqual(active.changeLog.count, 3)
+        XCTAssertEqual(active.changeLog.flatMap { $0.undoneSummaries ?? [] }.count, 1)
+        XCTAssertEqual(active.skippedSessions.count, 1)
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(active.skippedSessions.first).date, Calendar.current.startOfDay(for: now))
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate != nil }.count, 1)
+        XCTAssertEqual(programs.filter { !$0.isActive && $0.queuedActivationDate == nil }.count, 2)
+
+        // Every program has a believable completion, never 0 and never 100 percent.
+        let plans = try context.fetch(FetchDescriptor<WorkoutPlan>())
+        for program in programs where program.queuedActivationDate == nil {
+            let stats = TrainerProgramHistoryStats.stats(for: program, plans: plans, today: now)
+            XCTAssertGreaterThan(stats.scheduled, 0, program.name)
+            XCTAssertGreaterThan(stats.done, 0, program.name)
+            XCTAssertLessThan(stats.done, stats.scheduled, program.name)
+        }
     }
 
     func testEdgeSeedsExtremeValues() throws {
@@ -196,6 +257,43 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(profile.currentWeightKg, latest.kg, accuracy: 0.001, "Fuel profile weight must match the latest weigh-in")
     }
 
+    func testBodyProgressHasWeighInsWithBodyFatSleepStagesAndThreePhotos() throws {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "scenario-photos-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let photoStore = ProgressPhotoStore(folder: folder)
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+
+        // Weigh-ins: all three readings, one real measurement a day, trending up.
+        let snapshots = fetchAll(BodyComposition.self).map(BodySnapshot.init)
+        let measurements = BodyProgress.measurements(from: snapshots)
+        XCTAssertGreaterThan(measurements.count, 20)
+        XCTAssertTrue(measurements.allSatisfy { $0.weightKg != nil && $0.bodyFatPercent != nil && $0.leanMassKg != nil })
+        let weight = BodyProgress.series(.weight, from: measurements, days: nil, now: Date())
+        let trend = try XCTUnwrap(BodyProgress.trend(of: weight))
+        XCTAssertEqual(trend.weeklyRate ?? 0, 0.25, accuracy: 0.08)
+
+        // The Body page's sleep stages and week of recovery.
+        let recovery = fetchAll(DailyRecovery.self)
+        let todayRow = try XCTUnwrap(recovery.first { cal.isDate($0.date, inSameDayAs: today()) })
+        XCTAssertNotNil(SleepStageMinutes(
+            deep: todayRow.deepSleepMin, rem: todayRow.remSleepMin, light: todayRow.lightSleepMin, awake: todayRow.awakeMin
+        ))
+        XCTAssertGreaterThanOrEqual(
+            RecoveryWindow.select(recovery.map(RecoveryViewModel.reading(from:)), days: 7, endingOn: Date()).count, 6
+        )
+
+        // Photos: three, oldest 8 weeks ago, newest today.
+        let photos = photoStore.photos()
+        XCTAssertEqual(photos.count, 3)
+        XCTAssertTrue(try cal.isDate(XCTUnwrap(photos.first).date, inSameDayAs: today()))
+        let oldest = try XCTUnwrap(photos.last).date
+        XCTAssertEqual(cal.dateComponents([.day], from: oldest, to: Date()).day, 56)
+
+        // Seeding again must not double the photos.
+        ScenarioSeed.seed("body-progress", context: context, photoStore: photoStore)
+        XCTAssertEqual(photoStore.photos().count, 3)
+    }
+
     func testAthleteMealsHitTheirTargetsAndFeedTheAdaptiveEstimate() throws {
         ScenarioSeed.seed("athlete", context: context)
         let yesterday = try XCTUnwrap(cal.date(byAdding: .day, value: -1, to: today()))
@@ -239,7 +337,9 @@ final class ScenarioSeedTests: XCTestCase {
         let days = fetchAll(DailyAccountability.self).filter { $0.date < today() }.sorted { $0.date > $1.date }
         var run = 0
         for day in days {
-            guard day.allComplete else { break }
+            guard day.allComplete else {
+                break
+            }
             run += 1
         }
         let streak = try XCTUnwrap(fetchAll(Streak.self).first { $0.type == .overall })
@@ -327,7 +427,7 @@ final class ScenarioSeedTests: XCTestCase {
         }
         let settings = try XCTUnwrap(fetchAll(UserSettings.self).first)
         XCTAssertTrue(settings.examMode)
-        XCTAssertEqual(daysAgo(try XCTUnwrap(settings.examModeEndDate)), -4)
+        XCTAssertEqual(try daysAgo(XCTUnwrap(settings.examModeEndDate)), -4)
         // The training and overall streaks broke when the workouts stopped; study didn't.
         let streaks = Dictionary(uniqueKeysWithValues: fetchAll(Streak.self).map { ($0.type, $0) })
         XCTAssertEqual(streaks[.overall]?.currentCount, 0)
@@ -337,7 +437,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testInjuredHasSixWeeksThenAPauseAndAKneeReportFourDaysAgo() throws {
         ScenarioSeed.seed("injured", context: context)
         let workouts = fetchAll(WorkoutPlan.self).filter { $0.status == .completed }.sorted { $0.date < $1.date }
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(workouts.first).date), 6 * 7)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(workouts.first).date), 6 * 7)
         XCTAssertGreaterThanOrEqual(workouts.count, 21)
         XCTAssertEqual(workouts.filter { daysAgo($0.date) < 4 }.count, 0, "nothing trained since the injury")
 
@@ -367,7 +467,7 @@ final class ScenarioSeedTests: XCTestCase {
     func testLapsedProHasTenWeeksThatStopThreeWeeksAgo() throws {
         ScenarioSeed.seed("lapsed-pro", context: context)
         func newest(_ dates: [Date], _ what: String) throws -> Int {
-            daysAgo(try XCTUnwrap(dates.max(), "no \(what)"))
+            try daysAgo(XCTUnwrap(dates.max(), "no \(what)"))
         }
         func oldest(_ dates: [Date]) -> Int {
             daysAgo(dates.min() ?? Date())
@@ -398,9 +498,47 @@ final class ScenarioSeedTests: XCTestCase {
         XCTAssertEqual(overall.currentCount, 0)
         XCTAssertGreaterThan(overall.longestCount, 30)
         XCTAssertFalse(overall.isActive)
-        XCTAssertGreaterThanOrEqual(daysAgo(try XCTUnwrap(overall.lastCompletedDate)), 22)
+        XCTAssertGreaterThanOrEqual(try daysAgo(XCTUnwrap(overall.lastCompletedDate)), 22)
         // The fresh food in the pantry went off while they were away.
         XCTAssertTrue(fetchAll(PantryItem.self).contains { ($0.useBy ?? .distantFuture) < Date() })
+    }
+
+    // MARK: - Today scenarios
+
+    func testSetupIncompleteIsOnboardedWithNothingSetUp() throws {
+        ScenarioSeed.seed("setup-incomplete", context: context)
+
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: onboardingKey))
+        XCTAssertEqual(count(UserSettings.self), 1)
+        XCTAssertEqual(count(DietaryProfile.self), 0)
+        XCTAssertEqual(count(NonNegotiable.self), 0)
+        XCTAssertEqual(count(Goal.self), 0)
+        let checklist = SetupChecklist(SetupChecklistLoader.signals(
+            healthAllowed: false, whoopConnected: false, resolved: true, in: context
+        ))
+        XCTAssertTrue(checklist.isVisible(dismissed: false))
+    }
+
+    func testGoalSetHasOneActiveBodyWeightGoalOnTopOfHistory() throws {
+        ScenarioSeed.seed("goal-set", context: context)
+
+        let goals = try context.fetch(FetchDescriptor<Goal>())
+        XCTAssertEqual(goals.count, 1)
+        let goal = try XCTUnwrap(goals.first)
+        XCTAssertEqual(goal.kind, .bodyWeight)
+        XCTAssertTrue(goal.isActive)
+        XCTAssertGreaterThan(goal.targetDate, Date())
+        // The weigh-ins the athlete already has give the goal a current reading.
+        XCTAssertNotNil(GoalReader.current(for: goal, in: context))
+    }
+
+    func testGoalLiftHasABenchGoalWithALoggedBestSet() throws {
+        ScenarioSeed.seed("goal-lift", context: context)
+
+        let goal = try XCTUnwrap(context.fetch(FetchDescriptor<Goal>()).first)
+        XCTAssertEqual(goal.kind, .liftE1RM)
+        XCTAssertEqual(goal.exerciseName, "Barbell Bench Press")
+        XCTAssertNotNil(GoalReader.current(for: goal, in: context))
     }
 
     // MARK: - TestServer

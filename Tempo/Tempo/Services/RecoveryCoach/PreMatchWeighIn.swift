@@ -19,7 +19,7 @@ import os
 import SwiftData
 import UserNotifications
 
-// MARK: - Pure plan
+// MARK: - PreMatchWeighInPlan
 
 enum PreMatchWeighInPlan {
     static let idPrefix = "prematch.weighin."
@@ -34,7 +34,9 @@ enum PreMatchWeighInPlan {
         let kickoff: Date
         let fireDate: Date
 
-        var identifier: String { "\(PreMatchWeighInPlan.idPrefix)\(Int(kickoff.timeIntervalSince1970))" }
+        var identifier: String {
+            "\(PreMatchWeighInPlan.idPrefix)\(Int(kickoff.timeIntervalSince1970))"
+        }
     }
 
     /// Reminders for kickoffs whose reminder time falls in (now, now + 7 days].
@@ -44,13 +46,19 @@ enum PreMatchWeighInPlan {
     static func reminders(kickoffs: [Date], now: Date, lastWeighIn: Date?) -> [Reminder] {
         var unique: [Date] = []
         for kickoff in kickoffs.sorted() {
-            if let last = unique.last, kickoff.timeIntervalSince(last) < sameSessionWithin { continue }
+            if let last = unique.last, kickoff.timeIntervalSince(last) < sameSessionWithin {
+                continue
+            }
             unique.append(kickoff)
         }
         return unique.compactMap { kickoff in
             let fire = kickoff.addingTimeInterval(-leadTime)
-            guard fire > now, fire <= now.addingTimeInterval(horizon) else { return nil }
-            if let lastWeighIn, lastWeighIn >= fire.addingTimeInterval(-alreadyWeighedWithin) { return nil }
+            guard fire > now, fire <= now.addingTimeInterval(horizon) else {
+                return nil
+            }
+            if let lastWeighIn, lastWeighIn >= fire.addingTimeInterval(-alreadyWeighedWithin) {
+                return nil
+            }
             return Reminder(kickoff: kickoff, fireDate: fire)
         }
     }
@@ -66,7 +74,7 @@ enum PreMatchWeighInPlan {
     }
 }
 
-// MARK: - Scheduler
+// MARK: - PreMatchWeighInScheduler
 
 @MainActor
 enum PreMatchWeighInScheduler {
@@ -93,7 +101,9 @@ enum PreMatchWeighInScheduler {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(idPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: pending)
-        guard store.read().preMatchReminderOn else { return }
+        guard store.read().preMatchReminderOn else {
+            return
+        }
 
         let horizon = now.addingTimeInterval(PreMatchWeighInPlan.horizon + PreMatchWeighInPlan.leadTime)
         let kickoffs = PreMatchWeighInPlan.kickoffs(
@@ -101,7 +111,13 @@ enum PreMatchWeighInScheduler {
             footballBlocks: footballBlocks(in: modelContext, from: now, to: horizon)
         )
         let lastWeighIn = await latestWeighIn(healthKit: healthKit, store: store, now: now)
+        // Quiet hours apply here like everywhere else: a reminder that would land inside them is
+        // not scheduled at all (a weigh-in before a match that has started is no use later).
+        let policy = NotificationPolicyStore.current
         for reminder in PreMatchWeighInPlan.reminders(kickoffs: kickoffs, now: now, lastWeighIn: lastWeighIn) {
+            guard policy.decide(category: CoachNotifications.preCategoryID, fireDate: reminder.fireDate).isAllowed else {
+                continue
+            }
             let content = UNMutableNotificationContent()
             content.title = "Weigh yourself now"
             content.body = "Before you drink. It takes a minute and makes your recovery numbers real."
@@ -154,7 +170,9 @@ enum PreMatchWeighInScheduler {
         if let healthKit {
             do {
                 let samples = try await healthKit.fetchBodyMassSamples(from: now.addingTimeInterval(-4 * 3600), to: now)
-                if let health = samples.map(\.time).max(), health > (newest ?? .distantPast) { newest = health }
+                if let health = samples.map(\.time).max(), health > (newest ?? .distantPast) {
+                    newest = health
+                }
             } catch {
                 logger.error("recent weight not read: \(error.localizedDescription, privacy: .public)")
             }

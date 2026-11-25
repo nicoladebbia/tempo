@@ -90,6 +90,8 @@ struct FuelSetupView: View {
     /// The in-flight AI call — cancelled if the sheet goes away mid-thought.
     @State
     private var extraction: Task<Void, Never>?
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
         if embedded {
@@ -106,7 +108,7 @@ struct FuelSetupView: View {
                                     dismiss()
                                 }
                             }
-                                .foregroundStyle(Color.tempoTextSecondary)
+                            .foregroundStyle(Tide.text)
                         }
                     }
             }
@@ -115,35 +117,33 @@ struct FuelSetupView: View {
 
     private var content: some View {
         Group {
-            Group {
-                switch step {
-                case .talk:
-                    talkStep
-                case .thinking:
-                    thinkingStep
-                case let .followUps(questions):
-                    followUpStep(questions)
-                case .review:
-                    FuelSetupOverviewView(
-                        draft: draft,
-                        saved: saved,
-                        locked: healthLocked,
-                        unit: settings.first?.weightUnit ?? .kg,
-                        reviewed: reviewed,
-                        primaryActionTitle: primaryActionTitle,
-                        blockedMessage: onSaveAndGenerate == nil ? nil : draft.requiredMissingMessage,
-                        onOpen: { openSection = $0 },
-                        onFinish: startChain,
-                        onSkip: skipOnCard,
-                        onTalkAgain: { step = .talk },
-                        onSaveAll: save
-                    )
-                }
+            switch step {
+            case .talk:
+                talkStep
+            case .thinking:
+                thinkingStep
+            case let .followUps(questions):
+                followUpStep(questions)
+            case .review:
+                FuelSetupOverviewView(
+                    draft: draft,
+                    saved: saved,
+                    locked: healthLocked,
+                    unit: settings.first?.weightUnit ?? .kg,
+                    reviewed: reviewed,
+                    primaryActionTitle: primaryActionTitle,
+                    blockedMessage: onSaveAndGenerate == nil ? nil : draft.requiredMissingMessage,
+                    onOpen: { openSection = $0 },
+                    onFinish: startChain,
+                    onSkip: skipOnCard,
+                    onTalkAgain: { step = .talk },
+                    onSaveAll: save
+                )
             }
-            .background(Color.tempoBgPrimary)
-            .navigationTitle("Fuel setup")
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .tidePage()
+        .navigationTitle("Fuel setup")
+        .navigationBarTitleDisplayMode(.inline)
         .dismissKeyboardOnTapOutside()
         .interactiveDismissDisabled(!embedded && hasUnsavedSections)
         .confirmationDialog("Discard unsaved changes?", isPresented: $showDiscardConfirm, titleVisibility: .visible) {
@@ -157,27 +157,34 @@ struct FuelSetupView: View {
         } message: {
             Text("Add your weight, height, age, sex and goal. Food and cooking answers stay here until then.")
         }
+        .tideCovered(openSection != nil)
         .fullScreenCover(isPresented: Binding(
             get: { openSection != nil },
-            set: { if !$0 { openSection = nil; chain = [] } }
+            set: {
+                if !$0 {
+                    openSection = nil; chain = []
+                }
+            }
         )) {
             // One presentation for the whole chain: the section swaps inside it.
             if let section = openSection ?? lastOpenSection {
                 NavigationStack {
                     FuelSetupSectionFlow(
-                    section: section,
-                    draft: draft,
-                    locked: healthLocked,
-                    unit: settings.first?.weightUnit ?? .kg,
-                    isChain: !chain.isEmpty,
-                    chainNext: FuelSetupDraft.next(after: section, in: chain),
-                    onSkipSection: { skipInChain(section) },
-                    onSave: { edited in await saveSection(section, edited) },
-                    onClose: { openSection = nil; chain = [] }
-                )
+                        section: section,
+                        draft: draft,
+                        locked: healthLocked,
+                        unit: settings.first?.weightUnit ?? .kg,
+                        isChain: !chain.isEmpty,
+                        chainNext: FuelSetupDraft.next(after: section, in: chain),
+                        onSkipSection: { skipInChain(section) },
+                        onSave: { edited in await saveSection(section, edited) },
+                        onClose: { openSection = nil; chain = [] }
+                    )
                     .id(section)
                     .toolbar(.hidden, for: .navigationBar)
                 }
+                // The presenter sits inside a page; the cover is its own page and needs its own field.
+                .environment(\.tideInsidePage, false)
             }
         }
         .onChange(of: openSection) { _, new in
@@ -212,17 +219,20 @@ struct FuelSetupView: View {
 
     private var talkStep: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
                     Text("Talk me through your week.")
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.title)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
                     Text("Take your time — 2 minutes or 10. The more you tell me, the better your plan.")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                promptList
-                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 180)
+                // The voice box is the hero: it comes first, what to cover sits under it.
+                VoiceTextField(text: $said, placeholder: "Tap the mic and start talking — or type here.", minHeight: 160)
                     .accessibilityIdentifier("fuelSetupSaid")
                 if let blocker {
                     AIBlockerCard(blocker: blocker) {
@@ -230,42 +240,69 @@ struct FuelSetupView: View {
                         extract(said)
                     }
                 } else if let errorMessage {
-                    Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                    FuelBanner(icon: "exclamationmark.triangle.fill", tint: Tide.warn, title: errorMessage)
                 }
+                promptList
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s6)
+        }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .fuelBottomBar {
+            VStack(spacing: Tide.s1) {
                 Button {
                     extract(said)
                 } label: {
                     Text("Build my profile")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .disabled(said.trimmingCharacters(in: .whitespacesAndNewlines).count < 10)
                 .accessibilityIdentifier("fuelSetupBuild")
-                Button("Fill it in myself") {
+                Button {
                     step = .review
+                } label: {
+                    Text("Fill it in myself")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
-                .buttonStyle(.tempoGhost)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("fuelSetupManual")
             }
-            .padding(TempoSpacing.screenEdge)
         }
     }
 
+    /// What worth saying, one idea per line with its own symbol.
     private var promptList: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            ForEach(Self.prompts, id: \.self) { prompt in
-                Label(prompt, systemImage: "checkmark.circle")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Worth mentioning")
+                .padding(.horizontal, Tide.s1)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                ForEach(Array(Self.prompts.enumerated()), id: \.offset) { index, prompt in
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s3) {
+                        Image(systemName: Self.promptIcons[index % Self.promptIcons.count])
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.icon, alignment: .leading)
+                            .accessibilityHidden(true)
+                        Text(prompt)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
-        .padding(TempoSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .tempoCard()
     }
+
+    private static let promptIcons = [
+        "figure.stand", "leaf.fill", "clock.fill", "calendar", "fork.knife", "cart.fill",
+    ]
 
     static let prompts = [
         "Age, height, weight — and your goal",
@@ -279,28 +316,49 @@ struct FuelSetupView: View {
     // MARK: - Thinking
 
     private var thinkingStep: some View {
-        VStack(spacing: TempoSpacing.md) {
-            ProgressView()
-            Text("Building your profile…")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tide.s5) {
+                Text("Building your profile…")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
+                FuelAIState(kind: .working("Reading what you said and filling in the sections."))
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollDisabled(true)
     }
 
     // MARK: - Follow-ups
 
     private func followUpStep(_ questions: [String]) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s5) {
                 Text("A few more things.")
-                    .font(.tempoTitle2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
                 ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
-                    VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("\(index + 1) of \(questions.count)").tideLabel(mood.accent)
+                            Spacer(minLength: Tide.s2)
+                            if !(answers[question] ?? "").isEmpty {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.good)
+                                    .transition(.scale.combined(with: .opacity))
+                                    .accessibilityLabel("Answered")
+                            }
+                        }
+                        .animation(Tide.snap, value: (answers[question] ?? "").isEmpty)
                         Text(question)
-                            .font(.tempoBodyBold)
-                            .foregroundStyle(Color.tempoTextPrimary)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
                         VoiceTextField(
                             text: Binding(get: { answers[question] ?? "" }, set: { answers[question] = $0 }),
                             placeholder: "Answer…",
@@ -308,7 +366,16 @@ struct FuelSetupView: View {
                         )
                         .accessibilityIdentifier("fuelSetupAnswer\(index)")
                     }
+                    .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
                 }
+            }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s6)
+        }
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        .fuelBottomBar {
+            VStack(spacing: Tide.s1) {
                 Button {
                     let text = questions.compactMap { question in
                         answers[question].flatMap { $0.isEmpty ? nil : "Q: \(question)\nA: \($0)" }
@@ -324,15 +391,19 @@ struct FuelSetupView: View {
                     Text("Continue")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
+                .buttonStyle(.tidePrimary)
                 .accessibilityIdentifier("fuelSetupContinue")
-                Button("Skip — I'll check it myself") {
+                Button {
                     step = .review
+                } label: {
+                    Text("Skip — I'll check it myself")
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
-                .buttonStyle(.tempoGhost)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
             }
-            .padding(TempoSpacing.screenEdge)
         }
     }
 
@@ -522,38 +593,49 @@ struct VoiceTextField: View {
     private var transcriber = VoiceTranscriber()
     @State
     private var textBeforeListening = ""
+    @FocusState
+    private var focused: Bool
+    @Environment(\.tideMood)
+    private var mood
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: TempoSpacing.sm) {
+        VStack(alignment: .trailing, spacing: Tide.s2) {
             TextField(placeholder, text: $text, axis: .vertical)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .focused($focused)
                 .lineLimit(3 ... 40)
                 .frame(minHeight: minHeight, alignment: .topLeading)
-                .padding(TempoSpacing.md)
-                .background(Color.tempoBgTertiary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .padding(Tide.s4)
+                .background(Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
+                // The whole box takes a tap, not just the first line.
+                .contentShape(.rect(cornerRadius: Tide.tileRadius))
+                .onTapGesture { focused = true }
                 .disabled(transcriber.isListening)
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 if let error = transcriber.error {
                     Text(error)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
                 if transcriber.isListening {
                     Text("Listening… tap to stop")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
                 }
                 Button(action: toggle) {
                     Image(systemName: transcriber.isListening ? "stop.fill" : "mic.fill")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .frame(width: 48, height: 48)
-                        .background(transcriber.isListening ? Color.tempoError : Color.tempoSignal)
-                        .clipShape(Circle())
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.ink)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: Tide.hit + Tide.s1, height: Tide.hit + Tide.s1)
+                        .background(transcriber.isListening ? Tide.danger : mood.accent, in: .circle)
+                        .contentShape(.circle)
                 }
+                .buttonStyle(.plain)
+                .animation(Tide.snap, value: transcriber.isListening)
                 .accessibilityLabel(transcriber.isListening ? "Stop listening" : "Talk")
             }
         }

@@ -1,6 +1,6 @@
 # Tempo Design System
 
-> **App**: Tempo — iOS (SwiftUI, iOS 17+)
+> **App**: Tempo — iOS (SwiftUI, iOS 26+; iOS 17+ when sections 1–17 were written)
 > **Version**: 3.0 — AS-BUILT
 > **Last Updated**: 2026-05-19
 > **Audience**: iOS developers. This document is an **AS-BUILT description reconciled to the codebase on 2026-05-19**. It describes what the code actually does, not the original aspirational spec. Original spec intent is preserved inline in `> **Divergence from original spec:**` and `> **Status: NOT IMPLEMENTED.**` callouts so nothing is lost. The code is ground truth; if this doc and the code disagree, the code wins and this doc is the bug.
@@ -34,6 +34,7 @@ Primary source files referenced throughout (cited by file + symbol, never line n
 15. [Layout Grid](#15-layout-grid)
 16. [Accessibility](#16-accessibility)
 17. [Dark Mode](#17-dark-mode)
+18. [Tide: the system for rebuilt screens](#18-tide-the-system-for-rebuilt-screens)
 
 ---
 
@@ -280,6 +281,62 @@ Real: Dynamic Type is handled correctly at the **font-token layer** — every di
 Real: Dark mode is delivered per asset colorset (each `.colorset` carries an Any + Dark appearance). `TempoCardModifier` and `TempoElevation` branch on `@Environment(\.colorScheme)` for shadow-vs-border treatment. Literal-RGB colors (§3.5) include explicit dark-component fills.
 
 > **Status: NOT IMPLEMENTED.** §17.2 surface-elevation model, §17.4 dark-mode gradient stops, §17.5 implementation checklist are not central code artifacts — dark values are decentralized in per-colorset JSON, and there is no gradient system (§3.10) to have dark stops.
+
+---
+
+## 18. Tide: the system for rebuilt screens
+
+> **Status: IMPLEMENTED (2026-11-22), in use on the shell, Today and the capture sheet.** Tide is the design system of the UI rework (`docs/UI_REWORK_PLAN.md`). **Every screen that is rebuilt uses Tide and only Tide.** Sections 1–17 describe the older `Tempo*` tokens, which stay valid for screens that have not been rebuilt yet and must not be mixed into a Tide screen. When a screen is rebuilt, its `Tempo*` tokens are replaced, not wrapped.
+
+Source files (all in `Tempo/Tempo/DesignSystem/`): `TideTokens.swift` (`enum Tide`), `TideMood.swift`, `TideComponents.swift`, `TideMotion.swift`, `Tide.metal`, `TideGallery.swift` (debug gallery: launch with `-tideGallery <score>`). Tests: `TempoTests/DesignSystem/TideTests.swift`.
+
+### 18.1 Principles
+
+- **One dark surface, coloured by the day.** The page background is a slow shader field (`TideBackground`) tinted by the mood; content sits on Liquid Glass. There is no light theme.
+- **The mood is the accent.** `TideMood(score:)` turns the day score into a level with a word and an accent colour. The shell publishes it (`\.tideMood` environment, tab bar tint), so there is no user-chosen accent colour any more (the Appearance accent picker was removed with this change).
+- **Numbers are the heroes.** Every figure uses condensed tabular numerals (`Tide.numeral`, `TideNumber`) so values do not jitter as they change.
+- **Live elements are lit by data.** The dial and level bars are shaders driven by the value they show; they move only when the data moves or while the screen is visible.
+- **System first.** Tab bar, sheets, scroll-edge effects, zoom transitions and glass come from iOS 26. Tide does not re-implement them.
+
+### 18.2 Tokens (`enum Tide`)
+
+| Group | Tokens | Notes |
+|-------|--------|-------|
+| Base colour | `ink`, `text`, `text2`, `text3`, `hairline`, `fill` | White text at fixed opacities over ink. `text3` still clears 4.5:1 (tested) |
+| Data colour | `protein`, `carbs`, `fat`, `water`, `streak`, `danger` | Keep their meaning whatever the mood is |
+| Spacing (4 pt grid) | `s1` 4, `s2` 8, `s3` 12, `s4` 16, `s5` 20, `s6` 24, `s8` 32, `s10` 40, `edge` 20, `hit` 44 | `edge` is the page margin, `hit` the smallest tap target |
+| Radius | `cardRadius` 28, `tileRadius` 20, `controlRadius` 14 | |
+| Sizes | `dialHero` 164, `numeralL` 44, `numeralM` 34, `numeralS` 20, `icon` 28, `bar` 6, `barSlim` 4 | Numeral sizes are at the default text size and scale with Dynamic Type |
+| Type | `largeTitle`, `title`, `title2`, `headline`, `body`, `bodyStrong`, `caption`, `label`, `numeral(_:_:)` | All system text styles, so all scale |
+| Motion | `snap` (0.28 s, no bounce), `lively` (0.38 s, bounce 0.22), `settle` (0.9 s) | `snap` for taps and state changes, `lively` for arrivals, `settle` for values |
+
+No literal colours, point sizes, paddings or durations in a Tide screen: add a token instead.
+
+### 18.3 Components
+
+| Component | Use |
+|-----------|-----|
+| `TideBackground` | The page background. One per screen, behind everything |
+| `.tideCard(padding:radius:)` | The glass surface for cards and tiles |
+| `.tideLabel()` / `TideSectionLabel` | Small uppercase labels and card headers |
+| `TideNumber` | Any figure, with an optional unit |
+| `TideDial` | The score ring (shader, ticks and glow) |
+| `TideLevelBar` | Progress towards a target |
+| `.buttonStyle(.tidePrimary)` / `.tideGlass` | The one main action of a card / secondary actions |
+| `TideChip` | Short status or filter chips |
+
+### 18.4 Motion and power
+
+Shaders get their time from `TideClock`. It stops (and the shader draws one still frame) under Reduce Motion, in Low Power Mode, when the app is not active, while the view is off screen (another tab, scrolled away) and while something covers it. SwiftUI still reports a view under a sheet, a full-screen cover or a pushed page as visible, so whoever presents marks what it covers with `.tideCovered(_:)`, placed below the `.sheet`/`.fullScreenCover` so the presented content keeps its own clock. Every new sheet or cover over a Tide screen needs this. Do not drive a shader from your own timer. `TideShaders.prewarm()` compiles the shaders after the first frame so the first screen that uses one does not stall.
+
+### 18.5 Rules for a rebuilt screen
+
+1. `TideBackground` behind a `ScrollView`; content padded by `Tide.edge`; cards separated by `Tide.s4`.
+2. One primary button per card at most. Every tap target is at least `Tide.hit`.
+3. Layouts switch from side-by-side to stacked at accessibility text sizes (see `TodayHero`).
+4. Tiles that sit in a row are the same height.
+5. Let the system fade content under the bars (scroll-edge effect); do not mask or blur by hand.
+6. A screen draws a plain value (see `TodaySnapshot`) and reports taps through closures, so it can be drawn from saved data in the first frame and tested without a simulator.
 
 ---
 

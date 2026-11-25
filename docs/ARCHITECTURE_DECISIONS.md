@@ -94,7 +94,8 @@ Build Tempo as a native iOS app using Swift 6 and SwiftUI. No cross-platform fra
 
 ### Implementation Notes
 
-- Target iOS 17.4+ (enables SwiftData with critical bug fixes, new HealthKit APIs, interactive widgets). Per Technical Feasibility Audit: iOS 17.0-17.3 has significant SwiftData bugs (crashes on complex relationships, silent save failures).
+- **Amended 2026-11-22 (owner decision): the minimum is iOS 26.0.** The UI rework (`docs/UI_REWORK_PLAN.md`) is built on Liquid Glass, the iOS 26 tab bar and zoom transitions, and one design language is not maintainable across two system looks by a solo developer. `project.yml` sets the deployment target to 26.0 for the app, widgets and tests.
+- Original (2026-03-24, superseded): target iOS 17.4+ (enables SwiftData with critical bug fixes, new HealthKit APIs, interactive widgets). Per Technical Feasibility Audit: iOS 17.0-17.3 has significant SwiftData bugs (crashes on complex relationships, silent save failures). The floor has only moved up since, so that finding still holds.
 - Use Swift 6 strict concurrency checking from day one to avoid data race issues.
 - All platform API access goes through service abstractions (HealthKitService, CalendarService, etc.) so the business logic layer is testable without simulators.
 
@@ -108,7 +109,7 @@ Build Tempo as a native iOS app using Swift 6 and SwiftUI. No cross-platform fra
 
 ### Context
 
-Tempo's UI is data-dense (4-quadrant dashboard, charts, workout logging, timers, leaderboards) but does not require custom UIKit-level rendering tricks. The app targets iOS 17+, which means SwiftUI is mature enough for production. The developer has SwiftUI experience from Saife.
+Tempo's UI is data-dense (4-quadrant dashboard, charts, workout logging, timers, leaderboards) but does not require custom UIKit-level rendering tricks. The app targets iOS 26+ (iOS 17+ when this was written; raised on 2026-11-22, see ADR-001), which means SwiftUI is mature enough for production and the system materials (Liquid Glass), tab bar and navigation transitions can be used directly rather than rebuilt. The developer has SwiftUI experience from Saife.
 
 ### Decision
 

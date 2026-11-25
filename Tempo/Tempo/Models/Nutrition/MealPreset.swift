@@ -42,6 +42,11 @@ final class MealPreset {
 
     var createdAt: Date
 
+    /// Pinned presets are the user's favourites: they sit at the top of the
+    /// capture screen, one tap from logging. Defaulted in the declaration so
+    /// the field add is a lightweight migration (existing presets read false).
+    var isPinned: Bool = false
+
     // MARK: - Computed Properties
 
     @Transient
@@ -76,7 +81,8 @@ final class MealPreset {
         mealType: MealType = .snack,
         useCount: Int = 0,
         lastUsedAt: Date? = nil,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        isPinned: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -89,6 +95,7 @@ final class MealPreset {
         self.useCount = useCount
         self.lastUsedAt = lastUsedAt
         self.createdAt = createdAt
+        self.isPinned = isPinned
     }
 
     /// Record a use of this preset.

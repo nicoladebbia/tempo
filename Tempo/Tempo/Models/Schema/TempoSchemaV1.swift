@@ -97,6 +97,8 @@ enum TempoSchemaV1: VersionedSchema {
             CoachConversation.self,
             PendingOutcome.self,
             WaterIntakeLog.self,
+            // Goals (optional target + date; additive)
+            Goal.self,
         ]
     }
 }

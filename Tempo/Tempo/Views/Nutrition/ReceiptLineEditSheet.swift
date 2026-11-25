@@ -38,6 +38,8 @@ struct ReceiptLineEditSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @State
     private var name: String
     @State
@@ -88,99 +90,32 @@ struct ReceiptLineEditSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    HStack(spacing: TempoSpacing.md) {
-                        ProductImageView(
-                            url: ReceiptProductPhoto.url(
-                                imageURL: line.imageURL,
-                                barcode: line.barcode,
-                                matchConfidence: line.matchConfidence,
-                                userPicked: pickedCandidate != nil
-                            ),
-                            fallbackIcon: ReceiptProductPhoto.categoryIcon(
-                                forCanonicalName: line.canonicalFoodName,
-                                isNonFood: line.isNonFood || line.isFee
-                            ),
-                            size: 56
-                        )
-                        TextField("Item name", text: $name)
-                            .font(.tempoBody)
-                    }
-                    Text("On receipt: \(line.rawText)")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+            ScrollView {
+                VStack(spacing: Tide.s4) {
+                    identityCard
+                    candidatesCard
+                    amountCard
+                    locationCard
+                    includeCard
                 }
-
-                if !candidates.isEmpty {
-                    Section("Is it this one?") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: TempoSpacing.md) {
-                                ForEach(Array(candidates.enumerated()), id: \.offset) { _, entry in
-                                    candidateCard(entry.product, score: entry.score)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        Button("Find another product") { showFullPicker = true }
-                            .font(.tempoCaption1)
-                    }
-                } else if isLoadingCandidates {
-                    Section("Is it this one?") { ProgressView() }
-                } else {
-                    Section {
-                        Button("Find exact product") { showFullPicker = true }
-                    }
-                }
-
-                Section("Amount") {
-                    HStack {
-                        TextField("Qty", text: $quantityText)
-                            .keyboardType(.decimalPad)
-                            .frame(maxWidth: 80)
-                        Picker("Unit", selection: $unit) {
-                            ForEach(ReceiptLineUnit.allCases, id: \.self) { value in
-                                Text(value.rawValue.uppercased()).tag(value)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        Spacer()
-                        Text("$").foregroundStyle(Color.tempoTextSecondary)
-                        TextField("Price", text: $priceText)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                            .frame(maxWidth: 80)
-                    }
-                }
-
-                Section("Where does it go?") {
-                    Picker("Storage", selection: $storage) {
-                        ForEach([PantryStorageLocation.fridge, .freezer, .pantry], id: \.self) { location in
-                            Text(location.displayName).tag(location)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Toggle("Set an expiry date", isOn: $hasExpiry.animation())
-                    if hasExpiry {
-                        DatePicker("Use by", selection: $useBy, in: Date()..., displayedComponents: .date)
-                    }
-                }
-
-                Section {
-                    Toggle("Add to pantry", isOn: $included)
-                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
+            .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            // The one action under the thumb.
+            .kitchenBottomBar {
+                Button("Save") { save() }
+                    .buttonStyle(.kitchenBar)
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("receiptLineSave")
+            }
             .navigationTitle("Edit item")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .fontWeight(.semibold)
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -202,8 +137,138 @@ struct ReceiptLineEditSheet: View {
             }
             .task { await loadCandidates() }
         }
+        .kitchenSheet()
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - Cards
+
+    /// What this line is: its picture, the name you can fix, and what the receipt said.
+    private var identityCard: some View {
+        HStack(alignment: .center, spacing: Tide.s4) {
+            ProductImageView(
+                url: ReceiptProductPhoto.url(
+                    imageURL: line.imageURL,
+                    barcode: line.barcode,
+                    matchConfidence: line.matchConfidence,
+                    userPicked: pickedCandidate != nil
+                ),
+                fallbackIcon: ReceiptProductPhoto.categoryIcon(
+                    forCanonicalName: line.canonicalFoodName,
+                    isNonFood: line.isNonFood || line.isFee
+                ),
+                size: Tide.Kitchen.tile + Tide.s6
+            )
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                TextField("Item name", text: $name, axis: .vertical)
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .lineLimit(1 ... 3)
+                    .accessibilityIdentifier("receiptLineName")
+                Text("On receipt: \(line.rawText)")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .tideCard()
+    }
+
+    @ViewBuilder
+    private var candidatesCard: some View {
+        if !candidates.isEmpty {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("Is it this one?").tideLabel()
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Tide.s3) {
+                        ForEach(Array(candidates.enumerated()), id: \.offset) { _, entry in
+                            candidateCard(entry.product, score: entry.score)
+                        }
+                    }
+                    .padding(.vertical, Tide.s1)
+                }
+                Button("Find another product") { showFullPicker = true }
+                    .buttonStyle(.tideGlass)
+            }
+            .tideCard()
+        } else if isLoadingCandidates {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("Is it this one?").tideLabel()
+                HStack(spacing: Tide.s3) {
+                    ForEach(0 ..< 3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                            .fill(Tide.fill)
+                            .frame(width: Tide.Kitchen.suggestion, height: Tide.Kitchen.suggestion)
+                    }
+                }
+                .shimmer()
+                .accessibilityLabel("Looking for matching products")
+            }
+            .tideCard()
+        } else {
+            Button("Find exact product") { showFullPicker = true }
+                .buttonStyle(.tideGlass)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var amountCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Amount").tideLabel()
+            KitchenPair {
+                KitchenNumberField(label: "Quantity", placeholder: "Qty", text: $quantityText)
+            } second: {
+                KitchenNumberField(label: "Price", unit: "USD", placeholder: "Price", text: $priceText)
+            }
+            HStack {
+                Text("Unit")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                Spacer(minLength: Tide.s2)
+                Picker("Unit", selection: $unit) {
+                    ForEach(ReceiptLineUnit.allCases, id: \.self) { value in
+                        Text(value.rawValue).tag(value)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(mood.accent)
+            }
+            .frame(minHeight: Tide.hit)
+        }
+        .tideCard()
+    }
+
+    private var locationCard: some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            Text("Where does it go?").tideLabel()
+            KitchenSegmented(
+                options: [PantryStorageLocation.fridge, .freezer, .pantry],
+                selection: $storage
+            ) { $0.displayName }
+            Toggle("Set an expiry date", isOn: $hasExpiry.animation(Tide.snap))
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .tint(mood.accent)
+                .frame(minHeight: Tide.hit)
+            if hasExpiry {
+                DatePicker("Use by", selection: $useBy, in: Date()..., displayedComponents: .date)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .tideCard()
+    }
+
+    private var includeCard: some View {
+        Toggle("Add to pantry", isOn: $included)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.text)
+            .tint(mood.accent)
+            .frame(minHeight: Tide.hit)
+            .tideCard(padding: Tide.s4)
     }
 
     private var pickedCandidate: ReceiptProductPickerCandidate? {
@@ -220,25 +285,25 @@ struct ReceiptLineEditSheet: View {
             name = item.displayName
             HapticManager.selection()
         } label: {
-            VStack(spacing: 6) {
-                ProductImageView(url: item.imageURL, fallbackIcon: "bag.fill", size: 72)
+            VStack(spacing: Tide.s2) {
+                ProductImageView(url: item.imageURL, fallbackIcon: "bag.fill", size: Tide.Kitchen.suggestionWide)
                 Text(item.displayName)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
-                    .frame(width: 92)
+                    .frame(width: Tide.Kitchen.suggestion)
                 if let brand = item.brand, !brand.isEmpty {
                     Text(brand)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
                         .lineLimit(1)
                 }
             }
-            .padding(6)
+            .padding(Tide.s2)
             .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .strokeBorder(isPicked ? Color.tempoSignal : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
+                    .strokeBorder(isPicked ? mood.accent : Color.clear, lineWidth: Tide.hair)
             )
         }
         .buttonStyle(.plain)

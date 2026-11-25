@@ -67,6 +67,10 @@ struct ReceiptProductPickerView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var query: String
     @State
@@ -96,41 +100,59 @@ struct ReceiptProductPickerView: View {
             VStack(spacing: 0) {
                 searchField
                 if isSearching {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Rows the size of the results that are coming.
+                    VStack(spacing: Tide.s2) {
+                        ForEach(0 ..< 5, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                                .fill(Tide.fill)
+                                .frame(height: Tide.Kitchen.row + Tide.s4)
+                        }
+                    }
+                    .shimmer()
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Searching")
                 } else if let searchError {
-                    Text(searchError)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    KitchenFailure(
+                        title: "Search didn't work",
+                        message: searchError,
+                        retryTitle: "Try again",
+                        retry: { Task { await search() } }
+                    )
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if results.isEmpty {
-                    Text("No matching products found. You can keep the name as typed below.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(TempoSpacing.lg)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    KitchenStateHero(
+                        systemImage: "magnifyingglass",
+                        title: "No match",
+                        message: "No matching products found. You can keep the name as typed below."
+                    )
+                    .padding(Tide.edge)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: TempoSpacing.sm) {
-                            ForEach(Array(results.enumerated()), id: \.offset) { _, entry in
-                                candidateRow(entry.product, score: entry.score)
+                        LazyVStack(spacing: Tide.s2) {
+                            ForEach(Array(results.enumerated()), id: \.offset) { index, entry in
+                                candidateRow(entry.product, score: entry.score, isBest: index == 0)
                             }
                         }
-                        .padding(TempoSpacing.screenEdge)
+                        .padding(Tide.edge)
                     }
                 }
-
+            }
+            .kitchenSheet()
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 Button {
                     onPick(.keepAsTyped, true)
                 } label: {
                     Text("Keep \"\(line.displayName.isEmpty ? line.rawText : line.displayName)\" as typed")
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
-                .padding(TempoSpacing.screenEdge)
+                .buttonStyle(.tideGlass)
+                .padding(Tide.edge)
             }
-            .background(Color.tempoBgPrimary)
             .navigationTitle("Find Product")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -145,11 +167,12 @@ struct ReceiptProductPickerView: View {
     }
 
     private var searchField: some View {
-        HStack {
+        HStack(spacing: Tide.s2) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(Color.tempoTextTertiary)
+                .foregroundStyle(Tide.text3)
+                .accessibilityHidden(true)
             TextField("Search food or brand", text: $query)
-                .font(.tempoBody)
+                .font(Tide.body)
                 .onSubmit {
                     Task { await search() }
                 }
@@ -158,53 +181,76 @@ struct ReceiptProductPickerView: View {
                     Task { await search() }
                 } label: {
                     Text("Search")
-                        .font(.tempoCaption1.weight(.semibold))
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(mood.accent)
+                        .frame(minWidth: Tide.hit, minHeight: Tide.hit)
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
+        .padding(.horizontal, Tide.s4)
+        .frame(minHeight: Tide.hit)
+        .glassEffect(.regular.tint(Tide.glassControl), in: .rect(cornerRadius: Tide.tileRadius))
+        .padding(.horizontal, Tide.edge)
+        .padding(.top, Tide.s2)
     }
 
-    private func candidateRow(_ product: FoodProduct, score: Double?) -> some View {
+    private func candidateRow(_ product: FoodProduct, score: Double?, isBest: Bool) -> some View {
         Button {
             onPick(.from(product, matchScore: score), false)
         } label: {
-            HStack(spacing: TempoSpacing.sm) {
+            HStack(spacing: Tide.s2) {
                 candidateThumbnail(product)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text(product.displayName)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.headline)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(2)
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         if let brand = product.brand, !brand.isEmpty {
                             Text(brand)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                         if let size = product.quantityLabel {
                             Text(size)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text3)
                         }
                     }
+                    if typeSize.isAccessibilitySize, let score {
+                        Text("\(Int(score * 100))% match")
+                            .font(Tide.caption.monospacedDigit())
+                            .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
+                    }
                 }
-                Spacer()
-                if let score {
-                    Text("\(Int(score * 100))%")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(score >= 0.6 ? Color.tempoSuccess : Color.tempoTextTertiary)
+                Spacer(minLength: Tide.s2)
+                // At the accessibility sizes the match goes under the name so
+                // the name keeps the whole row.
+                if !typeSize.isAccessibilitySize {
+                    matchColumn(score: score, isBest: isBest)
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+            .frame(minHeight: Tide.hit)
+            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
         }
         .buttonStyle(.plain)
     }
 
+    private func matchColumn(score: Double?, isBest: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: Tide.s1) {
+            if let score {
+                Text("\(Int(score * 100))%")
+                    .font(Tide.caption.monospacedDigit())
+                    .foregroundStyle(score >= 0.6 ? Tide.Kitchen.good : Tide.text3)
+            }
+            if isBest, let score, score >= 0.6 {
+                KitchenTag(text: "Best match", tint: Tide.Kitchen.good)
+            }
+        }
+    }
+
     private func candidateThumbnail(_ product: FoodProduct) -> some View {
-        let shape = RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Tide.controlRadius, style: .continuous)
         return Group {
             if let url = product.imageURL {
                 AsyncImage(url: url) { phase in
@@ -212,16 +258,16 @@ struct ReceiptProductPickerView: View {
                     case let .success(image):
                         image.resizable().scaledToFill()
                     default:
-                        Color.tempoBgSecondary
+                        Tide.fill
                     }
                 }
             } else {
-                Color.tempoBgSecondary
+                Tide.fill
             }
         }
-        .frame(width: 52, height: 52)
+        .frame(width: Tide.Kitchen.thumb, height: Tide.Kitchen.thumb)
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.tempoBorder, lineWidth: 1))
+        .overlay(shape.strokeBorder(Tide.hairline, lineWidth: 1))
     }
 
     private func search() async {

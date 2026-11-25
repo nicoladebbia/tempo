@@ -36,6 +36,8 @@ struct UniversalScanView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State
     private var catalog: FoodCatalog?
@@ -65,28 +67,35 @@ struct UniversalScanView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
                 content
                     .id(mode)
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
+            .kitchenPage()
+            // A bar, not an inset: whatever scrolls under it (a product page)
+            // fades out behind the modes instead of showing through them.
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .safeAreaBar(edge: .top, spacing: 0) {
+                VStack(spacing: Tide.s2) {
                     if allowedModes.count > 1 {
-                        modeChips
+                        modeBar
                     }
                     if mode != .barcode, permission.isBlockedByUser {
                         permissionBanner
                     }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+                .background { barBacking }
             }
             .environment(\.scanResumeInfo, ScanResumeInfo(kind: context.kind, mode: mode, section: resumeSection))
+            .firstTip("fuel.scan", "Pick what you are scanning at the top, then point the camera.")
             .navigationTitle("Scan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(context.kind.dismissTitle) { dismiss() }
-                        .font(.tempoCallout)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                         .accessibilityIdentifier("scanDismiss")
                 }
             }
@@ -110,56 +119,64 @@ struct UniversalScanView: View {
                 permission = CameraPermission.current(needsLiveScanner: false)
             }
         }
+        // The scanner is a cover: it draws its own field and its pushed pages
+        // do too, whatever page presented it.
+        .environment(\.tideInsidePage, false)
     }
 
-    // MARK: - Mode chips
+    // MARK: - Mode bar
 
-    private var modeChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TempoSpacing.sm) {
-                ForEach(allowedModes) { candidate in
-                    let selected = candidate == mode
-                    Button {
-                        HapticManager.lightImpact()
-                        mode = candidate
-                    } label: {
-                        Label(candidate.title, systemImage: candidate.icon)
-                            .font(.tempoCallout)
-                            .padding(.horizontal, TempoSpacing.md)
-                            .padding(.vertical, TempoSpacing.sm)
-                            .foregroundStyle(selected ? Color.tempoInk : Color.tempoTextPrimary)
-                            .background(selected ? Color.tempoSignal : Color.tempoSurfaceCard)
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                    .accessibilityIdentifier("scanMode-\(candidate.rawValue)")
-                }
-            }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.sm)
-        }
-        .background(Color.tempoBgPrimary)
+    /// Ink under the bar that fades out just below it, so a product page
+    /// scrolling up never shows through the modes.
+    private var barBacking: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Tide.ink.opacity(Tide.Kitchen.barBacking), location: 0),
+                .init(color: Tide.ink.opacity(Tide.Kitchen.barBacking), location: 0.7),
+                .init(color: Tide.ink.opacity(0), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .padding(.bottom, -Tide.s6)
+        .ignoresSafeArea(edges: .top)
+        .allowsHitTesting(false)
+    }
+
+    private var modeBar: some View {
+        KitchenModeBar(
+            options: allowedModes,
+            selection: $mode,
+            title: \.title,
+            icon: \.icon,
+            identifier: { "scanMode-\($0.rawValue)" }
+        )
     }
 
     /// Photo modes still work from the library; only the camera is blocked.
     private var permissionBanner: some View {
-        HStack(spacing: TempoSpacing.md) {
+        HStack(spacing: Tide.s3) {
+            Image(systemName: "camera.fill")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.Kitchen.warn)
+                .accessibilityHidden(true)
             Text("Camera is off for Tempo. You can still pick photos from your library.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Button("Open Settings") {
                 ScanResume.save(kind: context.kind, mode: mode, section: resumeSection)
                 CameraPermission.openSettings()
             }
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoSignal)
-                .accessibilityIdentifier("scanOpenSettings")
+            .font(Tide.bodyStrong)
+            .foregroundStyle(mood.accent)
+            .frame(minHeight: Tide.hit)
+            .accessibilityIdentifier("scanOpenSettings")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
+        .padding(.horizontal, Tide.s4)
+        .padding(.vertical, Tide.s2)
+        .kitchenCameraPanel(radius: Tide.tileRadius)
         .accessibilityIdentifier("scanPermissionBanner")
     }
 
@@ -278,6 +295,17 @@ struct UniversalScanView: View {
     }
 
     private func unavailable(_ message: String) -> some View {
-        EmptyStateView(icon: "camera.fill", title: "Scan unavailable", message: message)
+        KitchenStatePage(actions: allowedModes.contains(.barcode) && mode != .barcode ? [
+            KitchenStateAction(title: "Back to barcode", systemImage: "barcode.viewfinder", role: .primary) {
+                mode = .barcode
+            },
+        ] : []) {
+            KitchenStateHero(
+                systemImage: "camera.fill",
+                tint: Tide.Kitchen.warn,
+                title: "Scan unavailable",
+                message: message
+            )
+        }
     }
 }

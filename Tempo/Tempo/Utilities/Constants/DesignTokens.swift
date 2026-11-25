@@ -147,19 +147,19 @@ enum TempoRadius {
     static let md: CGFloat = 8
 
     /// 10pt — search bar, ghost button.
-    static let lg: CGFloat = 10
+    static let lg: CGFloat = 12
 
     /// 12pt — text fields, stat cards, icon buttons, exercise cards.
-    static let xl: CGFloat = 12
+    static let xl: CGFloat = 14
 
     /// 14pt — primary/secondary buttons, toast.
-    static let xxl: CGFloat = 14
+    static let xxl: CGFloat = 16
 
     /// 16pt — standard cards, workout cards, prescription cards.
-    static let xxxl: CGFloat = 16
+    static let xxxl: CGFloat = 24
 
     /// 20pt — bottom sheets, modal alerts.
-    static let xxxxl: CGFloat = 20
+    static let xxxxl: CGFloat = 28
 
     /// 9999pt — pill badges (half-height).
     static let pill: CGFloat = 9999

@@ -13,16 +13,23 @@ import SwiftUI
 
 // Per STATE_MACHINES.md Section 10 — Display name, username. REQUIRED.
 // Per BUILD_PLAN step 16.1 — Name, weight, height.
+//
+// Who you are, drawn live: a profile card at the top fills in as you type, so
+// the two fields below it read as building something, not filling a form.
 
 struct ProfileSetupView: View {
     @Bindable
     var viewModel: OnboardingViewModel
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.tideMood)
+    private var mood
     @FocusState
     private var focusedField: Field?
     @State
     private var usernameError: String?
+    @ScaledMetric(relativeTo: .title)
+    private var avatarSize: CGFloat = Tide.tileLarge + Tide.s2
 
     enum Field {
         case displayName
@@ -30,18 +37,7 @@ struct ProfileSetupView: View {
     }
 
     private var isUsernameValid: Bool {
-        let username = viewModel.username.trimmingCharacters(in: .whitespaces)
-        guard !username.isEmpty else {
-            return false
-        }
-        if username.count < 3 {
-            return false
-        }
-        if username.count > 30 {
-            return false
-        }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
-        return username.unicodeScalars.allSatisfy { allowed.contains($0) }
+        OnboardingViewModel.isValidUsername(viewModel.username)
     }
 
     private func checkUsernameAvailability() {
@@ -73,97 +69,172 @@ struct ProfileSetupView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(alignment: .leading, spacing: 0) {
-                Spacer()
-                    .frame(height: geometry.size.height * 0.12)
+        OnboardingScaffold(
+            title: "ABOUT YOU.",
+            primaryTitle: "CONTINUE",
+            primaryEnabled: viewModel.canContinue && usernameError == nil,
+            primaryAction: { viewModel.advance() }
+        ) {
+            profileCard
 
-                Text("WHO ARE YOU?")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, TempoSpacing.xl)
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Display Name")
 
-                Spacer()
-                    .frame(height: geometry.size.height * 0.08)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                    Text("Display Name")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    TextField("Your name", text: $viewModel.displayName)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white)
-                        .padding(TempoSpacing.md)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-                        .focused($focusedField, equals: .displayName)
-                }
-                .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-                    .frame(height: geometry.size.height * 0.04)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("Username")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.6))
-
-                    TextField("@username", text: $viewModel.username)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .padding(TempoSpacing.md)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(
-                                    usernameError != nil ? Color.tempoError.opacity(0.6) : Color.white.opacity(0.15),
-                                    lineWidth: 1
-                                )
-                        )
-                        .focused($focusedField, equals: .username)
-                        .onChange(of: viewModel.username) { _, _ in
-                            checkUsernameAvailability()
-                        }
-
-                    if let usernameError {
-                        Text(usernameError)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoError)
-                    } else if isUsernameValid {
-                        Text("Available")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Color.tempoSuccess)
-                    }
-                }
-                .padding(.horizontal, TempoSpacing.xl)
-
-                Spacer()
-
-                OnboardingPrimaryButton(
-                    title: "CONTINUE",
-                    enabled: viewModel.canContinue && isUsernameValid && usernameError == nil
-                ) {
-                    viewModel.advance()
-                }
-
-                Spacer()
-                    .frame(height: max(geometry.safeAreaInsets.bottom + 20, 40))
+                TextField("", text: $viewModel.displayName, prompt: Text("Your name").foregroundStyle(Tide.text3))
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text)
+                    .focused($focusedField, equals: .displayName)
+                    .textContentType(.name)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .username }
+                    .tideFieldSurface(focused: focusedField == .displayName)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
+
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                OnboardingSectionLabel("Username")
+
+                TextField("", text: usernameBinding, prompt: Text("@username").foregroundStyle(Tide.text3))
+                    .font(Tide.headline.weight(.regular))
+                    .foregroundStyle(Tide.text)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focusedField, equals: .username)
+                    .submitLabel(.done)
+                    .onChange(of: viewModel.username) { _, _ in
+                        checkUsernameAvailability()
+                    }
+                    .tideFieldSurface(focused: focusedField == .username, invalid: usernameError != nil)
+
+                if let usernameError {
+                    Label(usernameError, systemImage: "exclamationmark.circle.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.danger)
+                } else if isUsernameValid {
+                    Label("Available", systemImage: "checkmark.circle.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.good)
+                }
+            }
+            .animation(Tide.snap, value: usernameError)
+
+            identityMenu
         }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                focusedField = .displayName
+            if viewModel.displayName.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    focusedField = .displayName
+                }
+            }
+            checkUsernameAvailability()
+        }
+    }
+
+    /// Typing in the handle makes it the person's own: it stops following the name.
+    private var usernameBinding: Binding<String> {
+        Binding(
+            get: { viewModel.username },
+            set: { newValue in
+                if newValue != viewModel.username {
+                    viewModel.usernameEdited = true
+                    viewModel.username = newValue
+                }
+            }
+        )
+    }
+
+    // MARK: - Identity
+
+    /// "What best describes you?" as one menu: 20 options do not need a page of their own.
+    private var identityMenu: some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            OnboardingSectionLabel("What best describes you?")
+            Menu {
+                Picker("What best describes you?", selection: $viewModel.identityLabel) {
+                    ForEach(OnboardingViewModel.identityLabels, id: \.self) { label in
+                        Text(label).tag(label)
+                    }
+                }
+            } label: {
+                HStack(spacing: Tide.s2) {
+                    Text(viewModel.identityLabel)
+                        .font(Tide.headline.weight(.regular))
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: Tide.s2)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
+                }
+                .tideFieldSurface(focused: false)
+                .contentShape(.rect)
+            }
+            .accessibilityIdentifier("onboardingIdentityMenu")
+            .accessibilityLabel("What best describes you")
+            .accessibilityValue(viewModel.identityLabel)
+        }
+    }
+
+    // MARK: - Profile card
+
+    private var trimmedName: String {
+        viewModel.displayName.trimmingCharacters(in: .whitespaces)
+    }
+
+    private var trimmedUsername: String {
+        viewModel.username.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The card that fills in as you type: your initial, your name, your handle.
+    private var profileCard: some View {
+        HStack(spacing: Tide.s4) {
+            avatar
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(trimmedName.isEmpty ? "Your name" : trimmedName)
+                    .font(Tide.title2)
+                    .foregroundStyle(trimmedName.isEmpty ? Tide.text3 : Tide.text)
+                    .lineLimit(2)
+                    .minimumScaleFactor(Tide.labelShrink)
+                    .contentTransition(.interpolate)
+                Text(trimmedUsername.isEmpty ? "@username" : "@\(trimmedUsername)")
+                    .font(Tide.body)
+                    .foregroundStyle(trimmedUsername.isEmpty ? Tide.text3 : Tide.text2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Tide.labelShrink)
+            }
+            Spacer(minLength: 0)
+        }
+        .tideCard(padding: Tide.s4, radius: Tide.cardRadius)
+        .animation(Tide.snap, value: trimmedName.isEmpty)
+        .animation(Tide.snap, value: trimmedUsername.isEmpty)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Profile preview")
+        .accessibilityValue(
+            "\(trimmedName.isEmpty ? "No name yet" : trimmedName), \(trimmedUsername.isEmpty ? "no username yet" : "@\(trimmedUsername)")"
+        )
+    }
+
+    private var avatar: some View {
+        let initial = trimmedName.first.map { String($0).uppercased() }
+        return ZStack {
+            Circle()
+                .fill(mood.accent.opacity(initial == nil ? 0.12 : 0.9))
+                .shadow(color: mood.accent.opacity(initial == nil ? 0 : 0.5), radius: Tide.s3)
+            if let initial {
+                Text(initial)
+                    .font(Tide.numeral(avatarSize * 0.5, .heavy))
+                    .foregroundStyle(Tide.ink)
+                    .contentTransition(.numericText())
+            } else {
+                Image(systemName: "person.fill")
+                    .font(.system(size: avatarSize * 0.42, weight: .semibold))
+                    .foregroundStyle(mood.accent)
             }
         }
+        .frame(width: avatarSize, height: avatarSize)
+        .animation(Tide.snap, value: initial)
+        .accessibilityHidden(true)
     }
 }
 
@@ -172,8 +243,7 @@ struct ProfileSetupView: View {
     var vm = OnboardingViewModel()
 
     ProfileSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }
 
 #Preview("Filled") {
@@ -186,6 +256,5 @@ struct ProfileSetupView: View {
     }()
 
     ProfileSetupView(viewModel: vm)
-        .background(Color.black)
-        .preferredColorScheme(.dark)
+        .tidePage(energy: 1)
 }

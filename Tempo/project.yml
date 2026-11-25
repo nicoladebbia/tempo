@@ -2,7 +2,7 @@ name: Tempo
 options:
   bundleIdPrefix: app.tempo
   deploymentTarget:
-    iOS: "17.4"
+    iOS: "26.0"
     watchOS: "10.0"
   xcodeVersion: "27.0"
   generateEmptyDirectories: true
@@ -38,9 +38,6 @@ packages:
   FirebaseSDK:
     url: https://github.com/firebase/firebase-ios-sdk
     majorVersion: 11.0.0
-  Lottie:
-    url: https://github.com/airbnb/lottie-ios
-    majorVersion: 4.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     majorVersion: 1.0.0
@@ -65,12 +62,15 @@ targets:
       # Shared with the TempoWatch target — WatchSnapshotBuilder (§22)
       # builds one directly and pushes it via PhoneWatchConnectivityService.
       - path: Shared/WatchWire/WatchSnapshot.swift
+      # Shared with the TempoWidget target — the widgets' data contract, and the
+      # queue the widget's water button fills when it runs inside the extension.
+      - path: Shared/Widget/WidgetSnapshot.swift
+      - path: Shared/Widget/PendingWaterQueue.swift
     dependencies:
       - target: TempoWidget
       - package: PostHog
       - package: FirebaseSDK
         product: FirebaseCrashlytics
-      - package: Lottie
       - package: Inject
       - sdk: WeatherKit.framework
     settings:
@@ -132,12 +132,11 @@ targets:
               - tempo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIRequiresFullScreen: true
         UIUserInterfaceStyle: Dark
         UILaunchScreen:
           UIColorName: tempo-bg-primary
         NSSupportsLiveActivities: true
-        NSCameraUsageDescription: Tempo uses the camera to scan food barcodes, photograph products and nutrition labels, scan grocery receipts for your pantry, and photograph your trainer's workout program.
+        NSCameraUsageDescription: Tempo uses the camera to scan food barcodes, photograph products and nutrition labels, scan grocery receipts for your pantry, photograph your trainer's workout program, and take progress photos that stay on your phone.
         NSPhotoLibraryUsageDescription: Tempo reads product and nutrition-label photos, receipts and your trainer's workout programs from your photo library to import them.
         NSRemindersFullAccessUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
         NSRemindersUsageDescription: Tempo can save your weekly grocery list to Reminders so you can check items off while shopping.
@@ -265,6 +264,17 @@ targets:
       # TempoWatch below as the wire payload for the wrist mirror.
       - path: Tempo/Services/LiveActivity/GuidedRunActivitySnapshot.swift
       - path: Tempo/Services/LiveActivity/GuidedRunActivityAttributes.swift
+      # Widgets and Live Activities in the Tide look: the app's own tokens
+      # (they depend only on SwiftUI), so a colour changes in one place.
+      - path: Tempo/DesignSystem/TideTokens.swift
+      - path: Tempo/DesignSystem/TideMood.swift
+      # What the widgets read from the app group, and the queue their water
+      # button fills when it runs in the extension.
+      - path: Shared/Widget/WidgetSnapshot.swift
+      - path: Shared/Widget/PendingWaterQueue.swift
+      # The +250 ml button's intent. The work it calls (`WaterLogging`) is the
+      # extension's own, `TempoWidget/WidgetWaterLogging.swift`.
+      - path: Tempo/Intents/LogWaterIntent.swift
     dependencies: []
     info:
       path: TempoWidget/Info.plist

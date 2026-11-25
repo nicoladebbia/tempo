@@ -18,6 +18,8 @@
 import SwiftData
 import SwiftUI
 
+// MARK: - GuidedRunSummaryView
+
 struct GuidedRunSummaryView: View {
     let plan: GuidedRunPlan
     let results: [UUID: GuidedRunBlockRecord]
@@ -43,11 +45,15 @@ struct GuidedRunSummaryView: View {
     private var isSaving = false
     @State
     private var showDiscardConfirm = false
+    @FocusState
+    private var notesFocused: Bool
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.xxl) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     header
                     ForEach(plan.blocks) { block in
                         blockSummary(block)
@@ -55,29 +61,23 @@ struct GuidedRunSummaryView: View {
                     rpeSection
                     notesSection
                 }
-                .padding(TempoSpacing.screenEdge)
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
             }
-            .background(Color.tempoBgPrimary)
+            .scrollDismissesKeyboard(.interactively)
+            .scrollBounceBehavior(.basedOnSize)
+            .safeAreaBar(edge: .bottom) {
+                saveButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.bottom, Tide.s3)
+            }
+            .trainSheetRoot()
             .navigationTitle("Session Summary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Discard") { showDiscardConfirm = true }
-                        .foregroundStyle(Color.tempoError)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        save()
-                    } label: {
-                        if isSaving {
-                            ProgressView()
-                        } else {
-                            Text("Save")
-                        }
-                    }
-                    .fontWeight(.bold)
-                    .disabled(isSaving || loggableInputs.isEmpty)
-                    .accessibilityIdentifier("guidedRunSaveButton")
+                        .foregroundStyle(Tide.danger)
                 }
             }
             .confirmationDialog(
@@ -91,53 +91,74 @@ struct GuidedRunSummaryView: View {
                 Text("Nothing will be logged — reps, times and distance are lost.")
             }
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-            Text("SESSION COMPLETE")
-                .font(.tempoDrillLabel)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoSignal)
-            Text("Here's what you put in.")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
+        // The whole session at a glance: how long (or how many blocks when no
+        // time was kept), then the blocks and the distance.
+        let blocksDone = "\(results.count)/\(plan.blocks.count)"
+        let timed: String? = {
+            if let startedAt, let endedAt, endedAt > startedAt {
+                return GuidedRunFormatting.clock(endedAt.timeIntervalSince(startedAt))
+            }
+            return nil
+        }()
+        var stats: [TrainDayHero<EmptyView, Text>.Stat] = []
+        if timed != nil {
+            stats.append(.init(value: blocksDone, label: "Blocks"))
         }
+        if totalDistance > 0 {
+            stats.append(.init(value: GuidedRunFormatting.distance(meters: totalDistance, useMiles: useMiles), label: "Distance"))
+        }
+        return TrainDayHero(
+            label: "Session complete",
+            figure: timed ?? blocksDone,
+            unit: timed == nil ? "blocks" : nil,
+            stats: stats
+        ) {
+            EmptyView()
+        } footer: {
+            Text("Here's what you put in.")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+        }
+    }
+
+    private var totalDistance: Double {
+        results.values.compactMap(\.distanceMeters).reduce(0, +)
     }
 
     // MARK: - Per-block summary
 
     private func blockSummary(_ block: GuidedRunBlock) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
             HStack(alignment: .firstTextBaseline) {
                 Text(block.name)
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Spacer(minLength: Tide.s2)
                 if let met = targetMet(block) {
                     Image(systemName: met ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(met ? Color.tempoRecoveryGreen : Color.tempoError)
+                        .foregroundStyle(met ? TideTrain.positive : Tide.danger)
+                        .accessibilityLabel(met ? "Target met" : "Target missed")
                 }
             }
             Text(block.trainerText)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
 
             if let record = results[block.id] {
                 blockDetail(block, record: record)
             } else {
                 Text("Skipped — not started")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .padding(TempoSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
     @ViewBuilder
@@ -145,28 +166,28 @@ struct GuidedRunSummaryView: View {
         if !record.repTimesSeconds.isEmpty {
             repTimesGrid(block, record: record)
         } else if record.roundsCompleted > 0 {
-            Text("\(record.roundsCompleted) rounds completed")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
+            Text("\(TrainCount.text(record.roundsCompleted, "round")) completed")
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
         } else if record.durationSeconds != nil || record.distanceMeters != nil {
             continuousSummary(record)
         }
         if record.skippedCount > 0 {
             Text("\(record.skippedCount) skipped")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         }
         if let avg = record.avgHeartRateBPM {
-            HStack(spacing: TempoSpacing.xs) {
+            HStack(spacing: Tide.s1) {
                 Image(systemName: "heart.fill")
-                    .foregroundStyle(Color.tempoError)
+                    .foregroundStyle(Tide.danger)
                 Text("Avg \(Int(avg.rounded())) bpm")
                 if let max = record.maxHeartRateBPM {
                     Text("· Max \(Int(max.rounded())) bpm")
                 }
             }
-            .font(.tempoCaption2)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
         }
     }
 
@@ -178,24 +199,24 @@ struct GuidedRunSummaryView: View {
             return nil
         }()
         let checks = record.repChecks(capSeconds: capSeconds)
-        return VStack(alignment: .leading, spacing: TempoSpacing.xs) {
+        return VStack(alignment: .leading, spacing: Tide.s1) {
             ForEach(Array(record.repTimesSeconds.enumerated()), id: \.offset) { index, time in
                 HStack {
                     Text("Rep \(index + 1)")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
                     Spacer()
                     Text(GuidedRunFormatting.repTime(time))
-                        .font(.tempoDataMedium)
+                        .font(TideTrain.figure(.headline))
                         .monospacedDigit()
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .foregroundStyle(Tide.text)
                     if let check = checks[index] {
                         Image(systemName: check ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(check ? Color.tempoRecoveryGreen : Color.tempoError)
+                            .foregroundStyle(check ? TideTrain.positive : Tide.danger)
                     }
                 }
             }
-            HStack(spacing: TempoSpacing.md) {
+            FlowLayout(spacing: Tide.s3, lineSpacing: Tide.hair) {
                 if let best = record.bestRepSeconds {
                     Text("Best \(GuidedRunFormatting.repTime(best))")
                 }
@@ -203,9 +224,9 @@ struct GuidedRunSummaryView: View {
                     Text("Avg \(GuidedRunFormatting.repTime(avg))")
                 }
             }
-            .font(.tempoCaption1)
+            .font(Tide.caption)
             .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoTextTertiary)
+            .foregroundStyle(Tide.text2)
         }
     }
 
@@ -214,7 +235,7 @@ struct GuidedRunSummaryView: View {
     }
 
     private func continuousSummary(_ record: GuidedRunBlockRecord) -> some View {
-        HStack(spacing: TempoSpacing.md) {
+        FlowLayout(spacing: Tide.s3, lineSpacing: Tide.hair) {
             if let duration = record.durationSeconds {
                 Text(GuidedRunFormatting.clock(duration))
             }
@@ -225,8 +246,8 @@ struct GuidedRunSummaryView: View {
                 }
             }
         }
-        .font(.tempoDataMedium)
-        .foregroundStyle(Color.tempoTextPrimary)
+        .font(TideTrain.figure(.headline))
+        .foregroundStyle(Tide.text)
     }
 
     private func targetMet(_ block: GuidedRunBlock) -> Bool? {
@@ -245,46 +266,60 @@ struct GuidedRunSummaryView: View {
     // MARK: - RPE + notes
 
     private var rpeSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("EFFORT (RPE)")
-            HStack(spacing: TempoSpacing.xs) {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionLabel("Effort (RPE)")
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: typeSize.isAccessibilitySize ? 3 : 5),
+                spacing: Tide.s2
+            ) {
                 ForEach(1 ... 10, id: \.self) { value in
                     Button {
                         HapticManager.selection()
                         rpe = value
                     } label: {
                         Text("\(value)")
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .monospacedDigit()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 36)
-                            .background(rpe == value ? Color.tempoSignal : Color.tempoBgSecondary)
-                            .foregroundStyle(rpe == value ? Color.tempoBone : Color.tempoTextPrimary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                            .font(TideTrain.figure(.title3, weight: .semibold))
                     }
+                    .buttonStyle(.trainChoice(isSelected: rpe == value))
                 }
             }
         }
     }
 
     private var notesSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("NOTES")
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            sectionLabel("Notes")
             TextField("How did it feel?", text: $notes, axis: .vertical)
-                .font(.tempoBody)
+                .font(Tide.body)
                 .lineLimit(2 ... 4)
-                .padding(TempoSpacing.inputHorizontal)
-                .background(Color.tempoBgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
+                .focused($notesFocused)
+                .foregroundStyle(Tide.text)
+                .tideFieldSurface(focused: notesFocused)
         }
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .fontWeight(.bold)
-            .foregroundStyle(Color.tempoTextTertiary)
+        Text(text).tideLabel()
+    }
+
+    /// Save sits at the bottom, under the thumb. Disabled until there is
+    /// something to log.
+    private var saveButton: some View {
+        Button {
+            save()
+        } label: {
+            Group {
+                if isSaving {
+                    ProgressView()
+                } else {
+                    Text("Save")
+                }
+            }
+            .frame(minHeight: TideTrain.bigButton - Tide.s2)
+        }
+        .buttonStyle(.tidePrimary)
+        .disabled(isSaving || loggableInputs.isEmpty)
+        .accessibilityIdentifier("guidedRunSaveButton")
     }
 
     // MARK: - Save

@@ -33,6 +33,8 @@ extension Notification.Name {
     static let tempoMealWillBeRemoved = Notification.Name("tempo.meal.willBeRemoved")
 }
 
+// MARK: - MealOutcomeService
+
 @MainActor
 enum MealOutcomeService {
     private static let logger = Logger(subsystem: "app.tempo", category: "MealOutcome")
@@ -45,10 +47,12 @@ enum MealOutcomeService {
 
     enum OutcomeError: LocalizedError {
         case mealGone
+        case mealNotEaten
 
         var errorDescription: String? {
             switch self {
             case .mealGone: "Couldn't restore. That meal no longer exists."
+            case .mealNotEaten: "Couldn't put that food back. The meal is no longer marked eaten."
             }
         }
     }
@@ -165,7 +169,10 @@ enum MealOutcomeService {
     ) throws {
         let ctx = env.modelContext
         let mealID = meal.id
-        logger.info("[Diag.Eat] \(meal.mealName, privacy: .private) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories), privacy: .private)kcal pantryDecremented=\(meal.didDecrementPantry)")
+        logger
+            .info(
+                "[Diag.Eat] \(meal.mealName, privacy: .private) eaten at \(eatenAt.formatted(date: .omitted, time: .shortened), privacy: .public) — \(Int(meal.totalCalories), privacy: .private)kcal pantryDecremented=\(meal.didDecrementPantry)"
+            )
 
         if meal.status == .eaten, foods == nil {
             meal.actualEatenAt = eatenAt
@@ -200,7 +207,11 @@ enum MealOutcomeService {
         if pantry != .none, !meal.didDecrementPantry {
             let results = pantry == .plannedMeal
                 ? PantryDecrementService.decrement(for: meal, modelContext: ctx)
-                : PantryDecrementService.decrement(foods: EatenMealRecorder.pantryFoods(meal.foods, origin: meal.origin == .mixed ? .mixed : .kitchen), label: meal.mealName, modelContext: ctx)
+                : PantryDecrementService.decrement(
+                    foods: EatenMealRecorder.pantryFoods(meal.foods, origin: meal.origin == .mixed ? .mixed : .kitchen),
+                    label: meal.mealName,
+                    modelContext: ctx
+                )
             // Record the (possibly empty) exact detail so undo never falls
             // back to the approximate credit for a decrement we know about.
             deducted = results.flatMap(\.details)
@@ -377,7 +388,10 @@ enum MealOutcomeService {
         )
         snapshot.origin = meal.origin
         snapshot.decrementDetails = meal.didDecrementPantry && meal.decrementDetailJSON != nil ? meal.decrementDetail : nil
-        logger.info("[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)")
+        logger
+            .info(
+                "[Diag.Undo] \(meal.mealName, privacy: .private) \(meal.status.rawValue, privacy: .public) → \(removing ? "removed" : "planned", privacy: .public)"
+            )
 
         // Credit the pantry back BEFORE foods are restored: the approximate
         // fallback derives from the foods that were eaten.
@@ -578,16 +592,58 @@ enum MealOutcomeService {
         return false
     }
 
+    /// Puts back a food `removeFood` took out of a log, at its old place, with its line in the
+    /// linked meal log. This is what Undo does after removing one food of several.
+    static func restoreFood(_ food: PlannedFood, at index: Int, to meal: PlannedMeal, env: Env) throws {
+        guard meal.status == .eaten else {
+            throw OutcomeError.mealNotEaten
+        }
+        var foods = meal.foods
+        foods.insert(food, at: min(max(index, 0), foods.count))
+        meal.foods = foods
+        meal.recalculateTotals()
+        if let logID = meal.linkedMealLogID {
+            var descriptor = FetchDescriptor<MealLog>(predicate: #Predicate<MealLog> { $0.id == logID })
+            descriptor.fetchLimit = 1
+            if let log = fetchLog(descriptor, in: env.modelContext) {
+                log.items.insert(MealFoodItem(from: EatenMealRecorder.input(from: food)), at: min(max(index, 0), log.items.count))
+                log.recalculateTotals()
+            }
+        }
+        if Calendar.current.isDateInToday(meal.dayDate) {
+            applyMacroRebalance(env: env)
+        }
+        try save(env.modelContext)
+        NotificationCenter.default.post(name: .tempoNutritionLogged, object: nil)
+    }
+
     // MARK: - Presets
 
-    /// Saves a logged meal's foods as a preset for the Log tab grid.
+    /// Saves a logged meal's foods as a saved meal for the capture screen;
+    /// `isPinned` makes it a favourite, shown first.
     @discardableResult
     static func savePreset(
         name: String,
         foods: [PlannedFood],
         mealType: MealType,
+        isPinned: Bool = false,
         modelContext: ModelContext
     ) throws -> MealPreset {
+        // The same name and the same foods is the same saved meal: saving it again
+        // keeps one row (and pins it if asked) instead of stacking a copy.
+        let signature = UsualMeals.signature(of: foods)
+        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let saved = (try? modelContext.fetch(FetchDescriptor<MealPreset>())) ?? []
+        if let existing = saved.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == wanted
+                && UsualMeals.signature(of: $0.foodItems.map { EatenMealRecorder.plannedFood(from: $0) }) == signature
+        }) {
+            if isPinned, !existing.isPinned {
+                existing.isPinned = true
+                try save(modelContext)
+            }
+            return existing
+        }
         let preset = MealPreset(
             name: name,
             foodItems: foods.map(EatenMealRecorder.input(from:)),
@@ -595,11 +651,31 @@ enum MealOutcomeService {
             totalProtein: foods.reduce(0) { $0 + $1.proteinG },
             totalCarbs: foods.reduce(0) { $0 + $1.carbsG },
             totalFat: foods.reduce(0) { $0 + $1.fatG },
-            mealType: mealType
+            mealType: mealType,
+            isPinned: isPinned
         )
         modelContext.insert(preset)
         try save(modelContext)
         return preset
+    }
+
+    /// Pins or unpins a saved meal (a favourite sits at the top of the capture screen).
+    /// A failed save puts the star back where it was and throws.
+    static func setPinned(_ preset: MealPreset, to pinned: Bool, modelContext: ModelContext) throws {
+        let before = preset.isPinned
+        preset.isPinned = pinned
+        do {
+            try save(modelContext)
+        } catch {
+            preset.isPinned = before
+            throw error
+        }
+    }
+
+    /// Removes a saved meal. Meals already logged from it stay as they are.
+    static func deletePreset(_ preset: MealPreset, modelContext: ModelContext) throws {
+        modelContext.delete(preset)
+        try save(modelContext)
     }
 
     // MARK: - Shared helpers

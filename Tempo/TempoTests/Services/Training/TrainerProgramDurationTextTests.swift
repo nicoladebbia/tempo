@@ -3,7 +3,7 @@
 // Tempo
 //
 // Pins the exact duration copy shown on TrainerProgramView's active card and
-// TrainerProgramHistoryView's rows for a block (mid-run, finished, repeating)
+// the Trainer page past-program rows for a block (mid-run, finished, repeating)
 // and a weekly program.
 //
 

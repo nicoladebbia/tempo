@@ -33,7 +33,7 @@ final class TrainerProgramFlowTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()

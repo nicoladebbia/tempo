@@ -32,89 +32,6 @@ final class DashboardViewModel {
     private(set) var mind: MindQuadrantData = .empty
     private(set) var move: MoveQuadrantData = .empty
 
-    // MARK: - Quick Actions
-
-    // Context-aware action buttons shown below the quadrant grid.
-    // Maximum 2 visible at a time. Priority-ordered by what's most actionable now.
-
-    struct QuickAction: Identifiable {
-        let id = UUID()
-        let title: String
-        let icon: String
-        let targetTab: Tab
-        let color: Color
-    }
-
-    /// "Resume" for a session that was started and not finished, else "Start".
-    static func workoutActionTitle(name: String, inProgress: Bool) -> String {
-        "\(inProgress ? "Resume" : "Start") \(name) Workout"
-    }
-
-    var quickActions: [QuickAction] {
-        var actions: [QuickAction] = []
-
-        // Workout planned but not done
-        if move.workoutStatus == .planned, let name = move.workoutName {
-            actions.append(QuickAction(
-                title: Self.workoutActionTitle(name: name, inProgress: move.workoutInProgress),
-                icon: "dumbbell.fill",
-                targetTab: .training,
-                color: .tempoAmber
-            ))
-        }
-
-        // Study target not met
-        if mind.studyMinutesToday < mind.studyTargetMinutes, mind.studyTargetMinutes > 0 {
-            let remaining = mind.studyTargetMinutes - mind.studyMinutesToday
-            actions.append(QuickAction(
-                title: "Start Study Timer (\(remaining)m left)",
-                icon: "timer",
-                targetTab: .lockdown,
-                color: .tempoElectric
-            ))
-        }
-
-        // No meals logged
-        if let logged = fuel.mealsLogged, logged == 0, fuel.isConnected {
-            actions.append(QuickAction(
-                title: "Log a Meal",
-                icon: "fork.knife",
-                targetTab: .dashboard,
-                color: .tempoViolet
-            ))
-        } else if !fuel.isConnected {
-            actions.append(QuickAction(
-                title: "Log a Meal",
-                icon: "fork.knife",
-                targetTab: .dashboard,
-                color: .tempoViolet
-            ))
-        }
-
-        // Non-negotiables incomplete
-        if nonNegotiablesDone < nonNegotiablesTotal, nonNegotiablesTotal > 0 {
-            let remaining = nonNegotiablesTotal - nonNegotiablesDone
-            actions.append(QuickAction(
-                title: "\(remaining) Non-Negotiable\(remaining > 1 ? "s" : "") Left",
-                icon: "lock.fill",
-                targetTab: .lockdown,
-                color: .tempoSignal
-            ))
-        }
-
-        // Recovery check when low
-        if let recovery = body.recoveryScore, recovery < 40 {
-            actions.append(QuickAction(
-                title: "View Recovery Plan",
-                icon: "heart.fill",
-                targetTab: .recovery,
-                color: .tempoRecoveryRed
-            ))
-        }
-
-        return Array(actions.prefix(2))
-    }
-
     // MARK: - Weather Data
 
     // Lightweight weather info for hydration/workout recommendations.
@@ -757,7 +674,6 @@ final class DashboardViewModel {
         loadState = .loaded
         updateScoreTrend()
         refreshInsights()
-        pushWidgetSnapshot()
     }
 
     /// Carry today's in-memory Fuel state across refreshBody's rebuild
@@ -859,28 +775,9 @@ final class DashboardViewModel {
             return
         }
 
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return
-        }
-        let descriptor = FetchDescriptor<BodyComposition>(
-            predicate: #Predicate<BodyComposition> { $0.date >= today && $0.date < tomorrow }
-        )
-        if let existing = (try? context.fetch(descriptor))?.first {
-            existing.weightKg = data.weightKg
-            existing.bodyFatPercent = data.bodyFatPercent
-            existing.leanMassKg = data.leanMassKg
-            existing.measurementDate = data.measurementDate
-            existing.capturedAt = Date()
-        } else {
-            context.insert(BodyComposition(
-                date: today,
-                weightKg: data.weightKg,
-                bodyFatPercent: data.bodyFatPercent,
-                leanMassKg: data.leanMassKg,
-                measurementDate: data.measurementDate
-            ))
-        }
-        try? context.save()
+        // The one writer of the day's body row (Body progress uses it too): a reading Health
+        // did not give this time never blanks the one already stored.
+        BodyCompositionRefresh.store(data, on: today, in: context)
         UserDefaults.standard.set(today, forKey: guardKey)
         #if DEBUG
             print(
@@ -895,7 +792,6 @@ final class DashboardViewModel {
     // Shows workout type and completion from SwiftData WorkoutPlan.
 
     func refreshTrainingStatus(modelContext: ModelContext) {
-        defer { pushWidgetSnapshot() }
         #if DEBUG
             let started = Date()
             defer {
@@ -985,7 +881,6 @@ final class DashboardViewModel {
     // Per BUILD_PLAN step 10.8 — Connect accountability data to Dashboard.
 
     func refreshAccountability(modelContext: ModelContext) {
-        defer { pushWidgetSnapshot() }
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
 
@@ -1034,16 +929,13 @@ final class DashboardViewModel {
         })
         let studyTarget = Int(studyProgress?.targetValue ?? 120)
 
-        // Fetch streak
-        let streakDescriptor = FetchDescriptor<Streak>(
-            predicate: #Predicate { s in s.typeRaw == "overall" }
-        )
-        let streak = try? modelContext.fetch(streakDescriptor).first
+        // The overall streak, read the one way every screen reads it.
+        let streakDays = ArenaXPLedger.streakDays(in: modelContext)
 
         mind = MindQuadrantData(
             studyMinutesToday: studyMinutes,
             studyTargetMinutes: studyTarget,
-            currentStreakDays: streak?.currentCount ?? 0,
+            currentStreakDays: streakDays,
             exams: mind.exams // Preserve existing exam data
         )
 
@@ -1115,6 +1007,8 @@ final class DashboardViewModel {
             return
         }
         fuel.hydrationMl = WaterStore.total(on: Date(), in: context)
+        // The one water target every screen shows (Fuel water card, Recovery, coach).
+        fuel.canonicalHydrationTargetMl = DailyNutritionTargets.todayWaterTargetMl(in: context)
     }
 
     // MARK: - Meal Timing Refresh
@@ -1174,6 +1068,21 @@ final class DashboardViewModel {
 
     // Generates all applicable insights based on current data.
     // Insights are ordered by priority — urgent warnings first, patterns second, celebrations last.
+
+    /// True on the day the profile was created.
+    nonisolated static func isFirstDay(createdAt: Date?, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let createdAt else {
+            return false
+        }
+        return calendar.isDate(createdAt, inSameDayAs: now)
+    }
+
+    private func isFirstDay() -> Bool {
+        let profile = try? fuelContext?.fetch(FetchDescriptor<UserProfile>(
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
+        )).first
+        return Self.isFirstDay(createdAt: profile?.createdAt)
+    }
 
     private func generateAllInsights() -> [DashboardInsight] {
         var result: [DashboardInsight] = []
@@ -1259,8 +1168,20 @@ final class DashboardViewModel {
             ))
         }
 
-        // 7. Nutrition deficit warning
-        if let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
+        // 7. Nutrition deficit warning. Not on a person's first day: with
+        // nothing logged yet, "Only 0 of 2,040 kcal" is a scolding for not
+        // having started, so day one gets a way in instead.
+        let firstDay = isFirstDay()
+        if firstDay, (fuel.caloriesConsumed ?? 0) == 0 {
+            result.append(DashboardInsight(
+                text: "Day one. Log your first meal and your numbers start filling in.",
+                icon: "sparkles",
+                detailTitle: "Getting Started",
+                detailFinding: "Nothing is logged yet, so there is nothing to judge. Your score, targets and insights build from what you log and what your tracker measures.",
+                detailRecommendation: "Log your next meal, then set up training and your daily tasks. Tomorrow this page will have something to say."
+            ))
+        }
+        if !firstDay, let consumed = fuel.caloriesConsumed, let target = fuel.calorieTarget, target > 0 {
             let ratio = Double(consumed) / Double(target)
             let hour = Calendar.current.component(.hour, from: Date())
             if ratio < 0.4, hour >= 16 {
@@ -1275,7 +1196,7 @@ final class DashboardViewModel {
         }
 
         // 8. Protein behind target
-        if let protein = fuel.proteinGrams, let target = fuel.proteinTarget, target > 0 {
+        if !firstDay, let protein = fuel.proteinGrams, let target = fuel.proteinTarget, target > 0 {
             let remaining = target - protein
             if remaining > 40 {
                 let hour = Calendar.current.component(.hour, from: Date())

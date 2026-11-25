@@ -33,37 +33,78 @@ struct MealOriginPicker: View {
     private var home: HomeLocation? = HomeLocationStore().home
     @State
     private var showHomeSetting = false
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    private var tileLayout: AnyLayout {
+        typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Picker("Where from", selection: Binding(
-                get: { origin },
-                set: { origin = $0; pickedByHand = true }
-            )) {
-                Text("Kitchen").tag(MealOrigin.kitchen)
-                Text("Ate out").tag(MealOrigin.out)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // Side by side; stacked at accessibility sizes so neither name shrinks.
+            tileLayout {
+                tile(.kitchen, title: "Kitchen", icon: "refrigerator.fill")
+                tile(.out, title: "Ate out", icon: "takeoutbag.and.cup.and.straw.fill")
             }
-            .pickerStyle(.segmented)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Where from")
             .accessibilityIdentifier("mealOrigin")
-            if let headline {
-                Text(headline)
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .accessibilityIdentifier("mealOriginHeadline")
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                if let headline {
+                    Text(headline)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("mealOriginHeadline")
+                }
+                Text(detail)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("mealOriginDetail")
             }
-            Text(detail)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("mealOriginDetail")
-            Button(home == nil ? "Set home" : "Change home") { showHomeSetting = true }
-                .font(.tempoCaption1)
-                .accessibilityIdentifier("mealOriginSetHome")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(Tide.snap, value: origin)
+            Button {
+                showHomeSetting = true
+            } label: {
+                Label(home == nil ? "Set home" : "Change home", systemImage: "house")
+                    .font(Tide.caption)
+                    .foregroundStyle(mood.accent)
+                    .frame(minHeight: Tide.hit, alignment: .leading)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("mealOriginSetHome")
         }
         .task { await refresh() }
         .sheet(isPresented: $showHomeSetting, onDismiss: { Task { await refresh() } }) {
             HomeLocationSettingView()
         }
+    }
+
+    /// One of the two answers: soft fill, accent ring when it is the one picked.
+    private func tile(_ value: MealOrigin, title: String, icon: String) -> some View {
+        let selected = origin == value
+        return Button {
+            HapticManager.selection()
+            origin = value
+            pickedByHand = true
+        } label: {
+            Label(title, systemImage: icon)
+                .font(Tide.bodyStrong)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(maxWidth: .infinity)
+                .fuelChoice(selected: selected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var headline: String? {

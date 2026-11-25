@@ -21,12 +21,24 @@ struct WorkoutSummaryView: View {
     private var modelContext
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(ServiceContainer.self)
+    private var services
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// §8.2 completion ring animation state.
     @State
     private var ringProgress: Double = 0
-    @State
-    private var checkScale: Double = 0.3
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var scaledRing = TideTrainSession.summaryRing
+
+    /// The ring grows with the text inside it, up to half as big again.
+    private var ringSize: CGFloat {
+        min(scaledRing, TideTrainSession.summaryRing * 1.5)
+    }
+
     /// Fix #8 — "send report to trainer" entry point (TrainerReportSheet.swift, new file).
     @State
     private var showTrainerReport = false
@@ -48,9 +60,31 @@ struct WorkoutSummaryView: View {
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
+            VStack(spacing: Tide.s5) {
                 // Header
                 headerSection
+
+                // PR badges (if any): the best news comes first.
+                if !viewModel.detectedPRs.isEmpty {
+                    prSection
+                }
+
+                // Stats
+                statsCard
+
+                // A picture of the session to send to a friend.
+                shareWorkoutButton
+
+                // What to do next: saves the session, closes this page, then goes there.
+                NextStepBar(place: .workoutSummary) { step in
+                    Task {
+                        await viewModel.saveWorkout(modelContext: modelContext)
+                        if viewModel.saveErrorMessage == nil {
+                            dismiss()
+                            NextStepRouter.perform(step.action, appState: services.appState)
+                        }
+                    }
+                }
 
                 // Last-set feedback — the final working set goes straight to the
                 // summary (no rest, no cooldown screen), so its RPE/note is
@@ -59,30 +93,16 @@ struct WorkoutSummaryView: View {
                     InlineSetFeedbackView(viewModel: viewModel)
                 }
 
-                // PR badges (if any)
-                if !viewModel.detectedPRs.isEmpty {
-                    prSection
-                }
-
                 // trainer-feedback-tests — "New max: Squat 120 kg — your
                 // trainer's 75% is now 90 kg." / "New best: 30m in 4.30″".
                 if !viewModel.testResultMessages.isEmpty {
                     testResultSection
                 }
 
-                // Stats grid
-                statsGrid
-
                 // Warm-up marker (the guided mobility block logs no sets).
                 if viewModel.todayPlan?.warmupCompleted == true {
-                    HStack(spacing: TempoSpacing.xs) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundStyle(Color.tempoRecoveryGreen)
-                        Text("Warm-up completed")
-                            .font(.tempoSubheadline)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                    .frame(maxWidth: .infinity)
+                    TrainTag(text: "Warm-up completed", systemImage: "checkmark.seal.fill", color: TideTrain.positive)
+                        .frame(maxWidth: .infinity)
                 }
 
                 // §4 — trainer-program exercises Tempo adjusted (recovery/pain
@@ -96,14 +116,19 @@ struct WorkoutSummaryView: View {
                 if let plan = viewModel.todayPlan {
                     SessionNotesField(plan: plan)
                 }
-
-                // Save button
-                saveButton
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s6)
         }
-        .background(Color.tempoBgPrimary)
+        .scrollEdgeEffectStyle(.soft, for: .all)
+        // The summary is a cover opened from a page: draw its own field.
+        .trainSheetRoot(energy: 0.8)
+        .safeAreaBar(edge: .bottom) {
+            saveButton
+                .padding(.horizontal, Tide.edge)
+                .padding(.bottom, Tide.s2)
+        }
         .navigationBarBackButtonHidden()
         .toolbar {
             if viewModel.todayPlan?.programSessionKey != nil {
@@ -130,46 +155,56 @@ struct WorkoutSummaryView: View {
     // MARK: - Header
 
     private var headerSection: some View {
-        VStack(spacing: TempoSpacing.md) {
+        VStack(spacing: Tide.s4) {
             // §8.2 — completion RING (was a static checkmark): sweeps to the
             // fraction of working sets actually completed, so a cut-short
             // session visibly reads as partial, not falsely "done".
-            ZStack {
-                Circle()
-                    .stroke(Color.tempoSurfaceCard, lineWidth: 8)
-                Circle()
-                    .trim(from: 0, to: ringProgress)
-                    .stroke(
-                        Color.tempoRecoveryGreen,
-                        style: StrokeStyle(lineWidth: 8, lineCap: .round)
+            TrainRing(
+                progress: ringProgress,
+                tint: completionFraction >= 1 ? TideTrain.positive : TideTrain.caution,
+                diameter: ringSize
+            ) {
+                VStack(spacing: Tide.hair) {
+                    TideNumber(
+                        "\(Int((completionFraction * 100).rounded()))",
+                        unit: "%",
+                        size: TideTrainSession.ringClock,
+                        relativeTo: .largeTitle
                     )
-                    .rotationEffect(.degrees(-90))
-                Image(systemName: "checkmark")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.tempoRecoveryGreen)
-                    .scaleEffect(checkScale)
+                    Text("Sets done").tideLabel()
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                }
             }
-            .frame(width: 96, height: 96)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Sets done")
+            .accessibilityValue("\(Int((completionFraction * 100).rounded())) percent")
+            .explains(TrainExplainers.setsDone.showing("\(Int((completionFraction * 100).rounded())) percent"))
             .onAppear {
-                withAnimation(.easeOut(duration: 0.8)) {
+                if reduceMotion {
                     ringProgress = completionFraction
-                }
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.5)) {
-                    checkScale = 1
+                } else {
+                    withAnimation(Tide.settle) {
+                        ringProgress = completionFraction
+                    }
                 }
             }
 
-            Text("WORKOUT COMPLETE")
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
+            VStack(spacing: Tide.s1) {
+                Text("Workout complete")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
 
-            if let plan = viewModel.todayPlan {
-                Text(plan.type.displayName.uppercased())
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                if let plan = viewModel.todayPlan {
+                    Text(plan.type.displayName).tideLabel()
+                }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
         }
-        .padding(.top, TempoSpacing.xxl)
+        .frame(maxWidth: .infinity)
+        .padding(.top, Tide.s4)
     }
 
     // MARK: - PR Section
@@ -177,120 +212,148 @@ struct WorkoutSummaryView: View {
     // Per MODULE_TRAINING.md Section 8 — Gold badge for PRs
 
     private var prSection: some View {
-        VStack(spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s2) {
                 Image(systemName: "trophy.fill")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoPRGold) // gold
+                    .font(Tide.headline)
+                    .foregroundStyle(TideTrain.record) // gold
+                    .accessibilityHidden(true)
 
                 Text("\(viewModel.detectedPRs.count) Personal Record\(viewModel.detectedPRs.count > 1 ? "s" : "")!")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.headline)
+                    .foregroundStyle(Tide.text)
+                Spacer(minLength: 0)
             }
+            .explains(TrainExplainers.personalRecord)
 
-            ForEach(viewModel.detectedPRs, id: \.id) { pr in
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "star.fill")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoPRGold)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(pr.exercise?.name ?? "Exercise")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-
-                        // §15 fix — `pr.context` is a kg-only, unit-unaware
-                        // string from TrainingEngine ("82kg x 5 reps" even
-                        // for an lbs user). PRDisplay never renders that
-                        // embedded weight; the number on the right already
-                        // shows pr.value converted to the user's unit.
-                        Text(PRDisplay.subtitle(pr))
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-
-                    Spacer()
-
-                    Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
+            ForEach(Array(viewModel.detectedPRs.enumerated()), id: \.element.id) { index, pr in
+                if index > 0 {
+                    TrainSessionRule()
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoPRGold.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                HStack(spacing: Tide.s3) {
+                    HStack(spacing: Tide.s3) {
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(pr.exercise?.name ?? "Exercise")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+
+                            // §15 fix — `pr.context` is a kg-only, unit-unaware
+                            // string from TrainingEngine ("82kg x 5 reps" even
+                            // for an lbs user). PRDisplay never renders that
+                            // embedded weight; the number on the right already
+                            // shows pr.value converted to the user's unit.
+                            Text(PRDisplay.subtitle(pr))
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+
+                        Spacer(minLength: Tide.s2)
+
+                        Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
+                            .font(TideTrain.figure(.title3))
+                            .foregroundStyle(TideTrain.record)
+                    }
+                    .accessibilityElement(children: .combine)
+
+                    Button {
+                        shareRecord(pr)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel("Share this record")
+                    .accessibilityIdentifier("summary.shareRecord")
+                }
             }
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .trainSessionOutline(TideTrain.record)
     }
 
     // MARK: - Test Result Section (trainer-feedback-tests)
 
     private var testResultSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            ForEach(Array(viewModel.testResultMessages.enumerated()), id: \.offset) { _, message in
-                HStack(spacing: TempoSpacing.sm) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoSignal)
-                    Text(message)
-                        .font(.tempoSubheadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            ForEach(Array(viewModel.testResultMessages.enumerated()), id: \.offset) { index, message in
+                if index > 0 {
+                    TrainSessionRule()
                 }
-                .padding(TempoSpacing.md)
-                .background(Color.tempoSignal.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(Tide.body)
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityHidden(true)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
             }
         }
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 
-    // MARK: - Stats Grid
+    // MARK: - Stats
 
-    private var statsGrid: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: TempoSpacing.sm),
-            GridItem(.flexible(), spacing: TempoSpacing.sm),
-        ], spacing: TempoSpacing.sm) {
-            statCell(
-                icon: "timer",
-                label: "Duration",
-                value: viewModel.formattedElapsedTime
-            )
-            statCell(
-                icon: "scalemass",
-                label: "Volume",
-                value: viewModel.formattedVolume
-            )
-            statCell(
-                icon: "checkmark.circle",
-                label: "Sets",
-                value: "\(viewModel.completedSets)"
-            )
-            statCell(
-                icon: "flame",
-                label: "Exercises",
-                value: "\(viewModel.performedExercises)"
-            )
+    private var statsCard: some View {
+        // Time and volume lead, big; sets and exercises sit under them. Two
+        // across; one column at the accessibility sizes so a long volume
+        // ("12,480 kg") never squeezes its neighbour.
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s4, alignment: .topLeading),
+            count: typeSize.isAccessibilitySize ? 1 : 2
+        )
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
+                TrainStat(value: viewModel.formattedElapsedTime, label: "Duration", size: Tide.numeralM)
+                TrainStat(
+                    value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM,
+                    explainer: TrainExplainers.volume
+                )
+            }
+            TrainSessionRule()
+            LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
+                TrainStat(value: "\(viewModel.completedSets)", label: "Sets")
+                TrainStat(value: "\(viewModel.performedExercises)", label: "Exercises")
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s5, radius: Tide.tileRadius)
     }
 
-    private func statCell(icon: String, label: String, value: String) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Image(systemName: icon)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+    // MARK: - Share
 
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-
-            Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+    private var shareWorkoutButton: some View {
+        Button {
+            ShareCard.present(
+                TrainShare.workoutCard(
+                    title: viewModel.todayPlan.map { "\($0.type.displayName) day" } ?? "Workout",
+                    elapsedSeconds: viewModel.elapsedSeconds,
+                    exercises: viewModel.performedExercises,
+                    sets: viewModel.completedSets,
+                    volumeKg: viewModel.totalVolume
+                )
+            )
+        } label: {
+            Label("Share workout", systemImage: "square.and.arrow.up")
         }
+        .buttonStyle(.tideGlass)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        .accessibilityIdentifier("summary.shareWorkout")
+    }
+
+    private func shareRecord(_ record: PersonalRecord) {
+        ShareCard.present(
+            TrainShare.recordCard(
+                record,
+                unit: viewModel.weightUnit,
+                before: TrainShare.previousBest(of: record)
+            )
+        )
     }
 
     // MARK: - Trainer Adjustments (§4)
@@ -307,33 +370,36 @@ struct WorkoutSummaryView: View {
     @ViewBuilder
     private var trainerAdjustmentsSection: some View {
         if !trainerAdjustedExercises.isEmpty {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("Trainer Adjustments")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "Trainer adjustments")
 
-                ForEach(trainerAdjustedExercises, id: \.id) { plannedEx in
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(plannedEx.displayName)
-                                .font(.tempoBody)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Text(
-                                plannedEx.trainerOverrideApplied
-                                    ? "Used the trainer's own weight"
-                                    : (plannedEx.loadAdjustmentNote ?? "Adjusted")
-                            )
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(Array(trainerAdjustedExercises.enumerated()), id: \.element.id) { index, plannedEx in
+                        if index > 0 {
+                            TrainSessionRule()
                         }
-                        Spacer()
-                        Image(systemName: plannedEx.trainerOverrideApplied ? "arrow.uturn.backward.circle" : "slider.horizontal.3")
-                            .foregroundStyle(Color.tempoWarning)
+                        HStack(alignment: .top, spacing: Tide.s3) {
+                            VStack(alignment: .leading, spacing: Tide.hair) {
+                                Text(plannedEx.displayName)
+                                    .font(Tide.bodyStrong)
+                                    .foregroundStyle(Tide.text)
+                                Text(
+                                    plannedEx.trainerOverrideApplied
+                                        ? "Used the trainer's own weight"
+                                        : (plannedEx.loadAdjustmentNote ?? "Adjusted")
+                                )
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: Tide.s2)
+                            Image(systemName: plannedEx.trainerOverrideApplied ? "arrow.uturn.backward.circle" : "slider.horizontal.3")
+                                .foregroundStyle(TideTrain.caution)
+                                .accessibilityHidden(true)
+                        }
                     }
-                    .padding(TempoSpacing.md)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
         }
     }
@@ -341,25 +407,34 @@ struct WorkoutSummaryView: View {
     // MARK: - Per-Exercise Summary
 
     private var exerciseSummary: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("Exercise Summary")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            TideSectionLabel(title: "Exercise summary")
 
             if let plan = viewModel.todayPlan {
-                ForEach(plan.orderedExercises, id: \.id) { plannedEx in
-                    exerciseSummaryRow(plannedEx)
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    ForEach(Array(plan.orderedExercises.enumerated()), id: \.element.id) { index, plannedEx in
+                        if index > 0 {
+                            TrainSessionRule()
+                        }
+                        exerciseSummaryRow(plannedEx)
+                    }
                 }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
             }
         }
     }
 
     private func exerciseSummaryRow(_ plannedEx: PlannedExercise) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
+        let row = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s2))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        let working = plannedEx.orderedSets.filter { !$0.isWarmup }
+        return row {
+            VStack(alignment: .leading, spacing: Tide.hair) {
                 Text(plannedEx.exercise?.name ?? "Exercise")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // Best set
                 if let best = plannedEx.bestSet,
@@ -376,31 +451,37 @@ struct WorkoutSummaryView: View {
                         kg: weight, addedKg: best.addedLoadKg, bodyweight: isBodyweight, unit: viewModel.weightUnit
                     )
                     Text("Best: \(loadText) × \(repsText)")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                }
+
+                // One tick per working set: a cut-short exercise shows its gap.
+                if !working.isEmpty {
+                    TrainSetTicks(done: working.filter(\.completed).count, total: working.count)
+                        .padding(.top, Tide.s1)
                 }
             }
 
-            Spacer()
+            if !typeSize.isAccessibilitySize {
+                Spacer(minLength: Tide.s2)
+            }
 
             // Volume for this exercise
             let vol = plannedEx.totalVolume
             if vol > 0 {
                 Text(WeightFormat.volumeText(kg: vol, unit: viewModel.weightUnit))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(TideTrain.figure(.footnote))
+                    .foregroundStyle(Tide.text2)
             }
 
             // Completion indicator
             Image(systemName: plannedEx.isComplete ? "checkmark.circle.fill" : "circle")
-                .font(.tempoBody)
+                .font(Tide.headline)
                 .foregroundStyle(
-                    plannedEx.isComplete ? Color.tempoRecoveryGreen : Color.tempoTextTertiary
+                    plannedEx.isComplete ? TideTrain.positive : Tide.text3
                 )
+                .accessibilityLabel(plannedEx.isComplete ? "Done" : "Not finished")
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
     }
 
     // MARK: - Save Button
@@ -421,13 +502,9 @@ struct WorkoutSummaryView: View {
                 }
             }
         } label: {
-            Text("SAVE & CLOSE")
-                .font(.tempoHeadline)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(Color.tempoSignal)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxl, style: .continuous))
+            Text("Save & close")
         }
+        .buttonStyle(.tidePrimary)
+        .sensoryFeedback(.success, trigger: viewModel.completedSets)
     }
 }

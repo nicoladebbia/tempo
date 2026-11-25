@@ -32,44 +32,45 @@ struct HomeLocationSettingView: View {
 
     private let store = HomeLocationStore()
 
+    /// How far from the pin still counts as home, in metres (the line under the map says "about 150 m").
+    private static let homeRadius: Double = 150
+
+    @Environment(\.tideMood)
+    private var mood
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+                VStack(alignment: .leading, spacing: Tide.s5) {
                     currentCard
-                    Button {
-                        Task { await setHomeHere() }
-                    } label: {
-                        HStack {
-                            Image(systemName: "location.fill")
-                            Text(isWorking ? "Locating…" : "I'm home now")
-                                .fontWeight(.semibold)
-                        }
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoInk)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, TempoSpacing.md)
-                        .background(Color.tempoSignal)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isWorking)
-                    .accessibilityIdentifier("homeSetHere")
-
                     if let message {
-                        Text(message)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                        FuelBanner(icon: "location.slash.fill", tint: Tide.warn, title: message)
                     }
                     searchSection
-                    Text("Home stays on this phone. It is never uploaded or shared with the AI.")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                    Label("Home stays on this phone. It is never uploaded or shared with the AI.", systemImage: "lock.fill")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.lg)
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s6)
             }
-            .background(Color.tempoBgPrimary)
+            .scrollEdgeEffectStyle(.soft, for: .top)
+            .scrollDismissesKeyboard(.interactively)
+            .fuelBottomBar {
+                Button {
+                    Task { await setHomeHere() }
+                } label: {
+                    Label(isWorking ? "Locating…" : "I'm home now", systemImage: "location.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.tidePrimary)
+                .disabled(isWorking)
+                .accessibilityIdentifier("homeSetHere")
+            }
+            .animation(Tide.snap, value: message)
+            .tidePage()
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -79,73 +80,123 @@ struct HomeLocationSettingView: View {
                 }
             }
         }
+        // A sheet is its own page, even when it comes up from inside one.
+        .environment(\.tideInsidePage, false)
     }
 
+    /// The map is the hero: the pin and the 150 m that count as home. Without
+    /// a home it says what setting one does.
+    @ViewBuilder
     private var currentCard: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(home == nil ? "No home set" : (home?.label ?? "Home set"))
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text(home == nil
-                    ? "Set it so Tempo knows when you eat in."
-                    : "Within about 150 m counts as home.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            Spacer()
-            if home != nil {
-                Button("Clear", role: .destructive) {
-                    store.clearHome()
-                    home = nil
-                    results = []
-                    onChange()
+        if let home {
+            let center = CLLocationCoordinate2D(latitude: home.latitude, longitude: home.longitude)
+            VStack(spacing: 0) {
+                Map(
+                    position: .constant(.region(MKCoordinateRegion(
+                        center: center, latitudinalMeters: Self.homeRadius * 6, longitudinalMeters: Self.homeRadius * 6
+                    ))),
+                    interactionModes: []
+                ) {
+                    MapCircle(center: center, radius: Self.homeRadius)
+                        .foregroundStyle(mood.accent.opacity(0.22))
+                        .stroke(mood.accent, lineWidth: 2)
+                    Marker("Home", systemImage: "house.fill", coordinate: center)
+                        .tint(mood.accent)
                 }
-                .font(.tempoCaption1)
-                .accessibilityIdentifier("homeClear")
+                .frame(height: Tide.fuelPhoto * 0.75)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                HStack(spacing: Tide.s3) {
+                    VStack(alignment: .leading, spacing: Tide.hair) {
+                        Text(home.label ?? "Home set")
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Within about 150 m counts as home.")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Button(role: .destructive) {
+                        store.clearHome()
+                        self.home = nil
+                        results = []
+                        onChange()
+                    } label: {
+                        Text("Clear")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.danger)
+                            .padding(.horizontal, Tide.s2)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("homeClear")
+                }
+                .padding(Tide.s4)
             }
+            .frame(maxWidth: .infinity)
+            .glassEffect(.regular.tint(Tide.glassCard), in: .rect(cornerRadius: Tide.tileRadius))
+            .clipShape(.rect(cornerRadius: Tide.tileRadius))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("homeCurrent")
+        } else {
+            FuelEmptyState(icon: "house", title: "No home set", message: "Set it so Tempo knows when you eat in.")
+                .accessibilityIdentifier("homeCurrent")
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoBgSecondary)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-        .accessibilityIdentifier("homeCurrent")
     }
 
     private var searchSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            Text("OR SEARCH AN ADDRESS")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-            TextField("Street, city", text: $query)
-                .font(.tempoBody)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.search)
-                .padding(TempoSpacing.sm)
-                .background(Color.tempoBgSecondary)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-                .onSubmit { Task { await search() } }
-                .accessibilityIdentifier("homeSearchField")
-            ForEach(results, id: \.self) { item in
-                Button {
-                    choose(item)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name ?? "Address")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                        if let title = item.placemark.title {
-                            Text(title)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            TideSectionLabel(title: "Or search an address")
+                .padding(.horizontal, Tide.s1)
+            HStack(spacing: Tide.s2) {
+                Image(systemName: "magnifyingglass")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text3)
+                    .accessibilityHidden(true)
+                TextField("Street, city", text: $query)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .textInputAutocapitalization(.words)
+                    .submitLabel(.search)
+                    .onSubmit { Task { await search() } }
+                    .accessibilityIdentifier("homeSearchField")
+            }
+            .fuelField(radius: Tide.tileRadius)
+            if !results.isEmpty {
+                FuelRowGroup {
+                    ForEach(results, id: \.self) { item in
+                        Button {
+                            choose(item)
+                        } label: {
+                            HStack(spacing: Tide.s3) {
+                                VStack(alignment: .leading, spacing: Tide.hair) {
+                                    Text(item.name ?? "Address")
+                                        .font(Tide.bodyStrong)
+                                        .foregroundStyle(Tide.text)
+                                        .multilineTextAlignment(.leading)
+                                    if let title = item.address?.fullAddress {
+                                        Text(title)
+                                            .font(Tide.caption)
+                                            .foregroundStyle(Tide.text2)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                }
+                                .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                                Image(systemName: "mappin.circle")
+                                    .font(Tide.headline)
+                                    .foregroundStyle(mood.accent)
+                                    .accessibilityHidden(true)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+                            .contentShape(.rect)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(TempoSpacing.sm)
-                    .background(Color.tempoBgSecondary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -178,12 +229,12 @@ struct HomeLocationSettingView: View {
         }
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = text
-        results = Array(((try? await MKLocalSearch(request: request).start().mapItems) ?? []).prefix(5))
+        results = await Array(((try? MKLocalSearch(request: request).start().mapItems) ?? []).prefix(5))
         message = results.isEmpty ? "No match. Try a fuller address." : nil
     }
 
     private func choose(_ item: MKMapItem) {
-        save(item.placemark.coordinate, label: item.placemark.title ?? item.name)
+        save(item.location.coordinate, label: item.address?.fullAddress ?? item.name)
         results = []
     }
 

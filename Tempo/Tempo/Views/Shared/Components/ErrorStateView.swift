@@ -10,63 +10,86 @@ import SwiftUI
 
 // MARK: - Error State View
 
-// Per DESIGN_SYSTEM.md Section 12.5 — Full-Screen Error:
-// Centered layout, exclamationmark icon 48pt Fail Red, retry + go back buttons.
+// Same calm glass card as the empty state, with a danger-tinted symbol. Retry
+// is the main action; going back, when offered, is quieter. Both are optional:
+// with no retry action there is no Retry button, and the title of the main
+// action can be changed ("Try again", "Reconnect").
 
 struct ErrorStateView: View {
     let title: String
     let message: String
-    let retryAction: () -> Void
+    let retryAction: (() -> Void)?
     let backAction: (() -> Void)?
+    let retryTitle: String
 
     init(
         title: String = "Something went wrong.",
         message: String = "Check your connection and try again.",
-        retryAction: @escaping () -> Void,
-        backAction: (() -> Void)? = nil
+        retryAction: (() -> Void)? = nil,
+        backAction: (() -> Void)? = nil,
+        retryTitle: String = "Retry"
     ) {
         self.title = title
         self.message = message
         self.retryAction = retryAction
         self.backAction = backAction
+        self.retryTitle = retryTitle
     }
+
+    @State
+    private var retries = 0
 
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
 
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Color.tempoError)
+            VStack(spacing: Tide.s4) {
+                TideStateMark(systemName: "exclamationmark.triangle.fill", tint: Tide.danger)
 
-            Text(title)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.top, TempoSpacing.lg)
+                VStack(spacing: Tide.s2) {
+                    Text(title)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
 
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 280)
-                .padding(.top, TempoSpacing.sm)
-
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Retry", action: retryAction)
-                    .buttonStyle(.tempoSecondary)
-
-                if let backAction {
-                    Button("Go Back", action: backAction)
-                        .buttonStyle(.tempoGhost)
+                    Text(message)
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                VStack(spacing: Tide.s2) {
+                    if let retryAction {
+                        Button(retryTitle) {
+                            retries += 1
+                            retryAction()
+                        }
+                        .buttonStyle(.tidePrimary)
+                    }
+
+                    if let backAction {
+                        Button("Go Back", action: backAction)
+                            .buttonStyle(.tideGlass)
+                    }
+                }
+                .padding(.top, Tide.s2)
             }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            .padding(.top, TempoSpacing.xxl)
+            .frame(maxWidth: .infinity)
+            .tideCard(padding: Tide.s6)
+            .frame(maxWidth: Tide.stateWidth)
+            .sensoryFeedback(.impact(weight: .light), trigger: retries)
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        .padding(.horizontal, Tide.edge)
     }
+}
+
+#Preview {
+    ErrorStateView(retryAction: {}, backAction: {})
+        .tidePage()
 }

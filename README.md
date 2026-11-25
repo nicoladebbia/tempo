@@ -116,7 +116,7 @@ The tradeoff is explicit: watch/widget data can be slightly stale in exchange fo
 
 ## Tech stack
 
-**iOS app** — Swift 6 (strict/complete concurrency), SwiftUI, SwiftData, iOS 17.4+. HealthKit · WeatherKit · EventKit · Speech · WidgetKit + Live Activities (ActivityKit) · App Intents. Companion **watchOS 10** app (WCSession + complications) and a home/Lock-Screen **widget** (App-Group `UserDefaults`). 3rd-party SPM: PostHog, Firebase Crashlytics, Lottie, Inject (debug hot-reload), swift-snapshot-testing. ~111k LOC / ~410 Swift files; XcodeGen-managed, six targets.
+**iOS app** — Swift 6 (strict/complete concurrency), SwiftUI, SwiftData, iOS 26.0+. HealthKit · WeatherKit · EventKit · Speech · WidgetKit + Live Activities (ActivityKit) · App Intents. Companion **watchOS 10** app (WCSession + complications) and a home/Lock-Screen **widget** (App-Group `UserDefaults`). 3rd-party SPM: PostHog, Firebase Crashlytics, Lottie, Inject (debug hot-reload), swift-snapshot-testing. ~111k LOC / ~410 Swift files; XcodeGen-managed, six targets.
 
 **Backend** (`tempo-backend/`) — Vapor 4 on Swift 6, Fluent + PostgreSQL, Redis, Vapor Queues. JWT auth, APNs, App Store Server Notification verification, Whoop OAuth + webhooks, actor-based AI spend metering & response cache. ~15k LOC / ~107 Swift files, ~26 migrations.
 

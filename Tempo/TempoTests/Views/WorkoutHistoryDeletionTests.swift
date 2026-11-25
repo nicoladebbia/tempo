@@ -119,4 +119,11 @@ final class WorkoutHistoryDeletionTests: XCTestCase {
         plan.exercises = [slot]
         XCTAssertTrue(WorkoutHistoryView.deleteConfirmationMessage(plan).contains("its 2 logged sets"))
     }
+
+    func testDeleteConfirmationSaysUndoIsAvailable() {
+        let plan = WorkoutPlan(date: .now, type: .upper, status: .completed)
+        let message = WorkoutHistoryView.deleteConfirmationMessage(plan)
+        XCTAssertTrue(message.contains("undo for a few seconds"))
+        XCTAssertFalse(message.contains("can't be undone"))
+    }
 }

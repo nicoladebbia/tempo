@@ -467,16 +467,19 @@ extension NutritionTabViewModel {
 
     /// User-added "oh, also" item. Refreshes the latest list so the UI
     /// reflects the new row immediately.
-    func addGroceryItem(name: String, quantity: Double, unit: PantryUnit) {
+    @discardableResult
+    func addGroceryItem(name: String, quantity: Double, unit: PantryUnit) -> GroceryListItem? {
         guard let service = groceryService else {
-            return
+            return nil
         }
         do {
-            _ = try service.addItem(name: name, quantity: quantity, unit: unit, category: "pantry")
+            let item = try service.addItem(name: name, quantity: quantity, unit: unit, category: "pantry")
             groceryState.latest = try service.fetchLatest()
             groceryState.lastError = nil
+            return item
         } catch {
             groceryState.lastError = error.localizedDescription
+            return nil
         }
     }
 

@@ -47,6 +47,10 @@ protocol GroceryListServiceProtocol: Sendable {
     /// access. Marks the list as exported on success.
     func exportToReminders(_ list: GroceryList) async throws
 
+    /// Puts back the Reminders entry of a row that Undo restored after a delete
+    /// removed it. Does nothing without Reminders access.
+    func restoreReminder(for item: GroceryListItem) async
+
     func delete(_ list: GroceryList) throws
 
     /// "Done shopping" confirmed these items into the pantry (BUILD item 3).

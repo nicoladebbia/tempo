@@ -16,6 +16,8 @@ import SwiftUI
 
 struct MorningCheckInCard: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.tideMood) private var mood
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     /// Default body-part list covering the lift + soccer groups. Item-agnostic
     /// storage (JSON) means this list can change with zero schema cost.
@@ -24,6 +26,10 @@ struct MorningCheckInCard: View {
     @State private var checkIn: MorningCheckIn?
     @State private var dismissed = false
     @State private var expandedSoreness = false
+    /// A check-in that was already logged when the page opened folds to one
+    /// line; Edit opens it again. While answering, the card stays open.
+    @State private var editing = true
+    @State private var explainer: Explainer?
 
     var body: some View {
         // The task MUST host on an always-present concrete view. A `Group` whose
@@ -32,30 +38,96 @@ struct MorningCheckInCard: View {
         // sibling RecoveryAIInsightView, which roots its body in a real VStack.)
         VStack(spacing: 0) {
             if !dismissed, let checkIn {
-                card(for: checkIn)
+                if checkIn.mood != nil, checkIn.stress != nil, !editing {
+                    loggedRow(for: checkIn)
+                } else {
+                    card(for: checkIn)
+                }
             }
         }
         .task { loadOrCreate() }
+        .explainerSheet($explainer)
+    }
+
+    // MARK: - Logged
+
+    /// Both answers are in: the card folds to what was logged, so the day's
+    /// numbers come back above the fold. Edit opens it again.
+    private func loggedRow(for checkIn: MorningCheckIn) -> some View {
+        Button {
+            withAnimation(Tide.snap) { editing = true }
+        } label: {
+            HStack(spacing: Tide.s3) {
+                TideAreaIconTile(systemName: "checkmark", tint: TideTone.mint)
+
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text("Morning check-in").tideLabel(Tide.text3)
+                    Text(loggedSummary(checkIn))
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Tide.s2)
+
+                Text("Edit")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(mood.accent)
+            }
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .contentShape(.rect(cornerRadius: Tide.tileRadius))
+        }
+        .buttonStyle(TideCardPressStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Morning check-in logged. \(loggedSummary(checkIn))")
+        .accessibilityHint("Opens it to change your answers")
+    }
+
+    private func loggedSummary(_ checkIn: MorningCheckIn) -> String {
+        let energy = checkIn.mood.map { "Energy \($0)/5" } ?? ""
+        let stress = checkIn.stress.map { "Stress \($0)/10" } ?? ""
+        return [energy, stress].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     // MARK: - Card
 
-    @ViewBuilder
     private func card(for checkIn: MorningCheckIn) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        VStack(alignment: .leading, spacing: Tide.s4) {
             HStack {
-                Text("MORNING CHECK-IN")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Spacer()
+                Text("Morning check-in").tideLabel()
+                if checkIn.mood != nil, checkIn.stress != nil {
+                    TideStatusPill(text: "Logged", tint: TideTone.mint, systemImage: "checkmark")
+                        .transition(.opacity)
+                }
                 Button {
-                    dismissed = true
+                    explainer = .morningCheckIn
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("About the morning check-in")
+                .accessibilityIdentifier("explain.recovery-check-in")
+                // The info target is 44pt; the row stays slim.
+                .padding(.vertical, -Tide.s3)
+                Spacer(minLength: Tide.s2)
+                Button {
+                    withAnimation(Tide.snap) { dismissed = true }
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss check-in")
+                // The close target is 44pt; the row stays slim.
+                .padding(.vertical, -Tide.s3)
+                .padding(.trailing, -Tide.s3)
             }
 
             // Mood 1–5
@@ -72,98 +144,142 @@ struct MorningCheckInCard: View {
 
             // Soreness (expandable — keeps the card 5-second by default)
             Button {
-                withAnimation { expandedSoreness.toggle() }
+                withAnimation(Tide.snap) { expandedSoreness.toggle() }
             } label: {
                 HStack {
                     Text(sorenessSummary(checkIn))
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Spacer()
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: Tide.s2)
                     Image(systemName: expandedSoreness ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        .font(Tide.label)
+                        .foregroundStyle(Tide.text3)
+                        .accessibilityHidden(true)
                 }
+                .frame(minHeight: Tide.hit)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .accessibilityHint(expandedSoreness ? "Hides body parts" : "Shows body parts")
 
             if expandedSoreness {
-                ForEach(Self.bodyParts, id: \.self) { part in
-                    sorenessRow(part: part, checkIn: checkIn)
+                VStack(spacing: Tide.s2) {
+                    ForEach(Self.bodyParts, id: \.self) { part in
+                        sorenessRow(part: part, checkIn: checkIn)
+                    }
                 }
+                .transition(.opacity)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard()
     }
 
     // MARK: - Rows
 
     @ViewBuilder
     private func scaleRow(title: String, value: Int?, range: ClosedRange<Int>, onSet: @escaping (Int) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text(title)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-            HStack(spacing: TempoSpacing.xs) {
-                ForEach(range, id: \.self) { i in
+        let columns = Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s1),
+            // Five to a row at most, so every button is a full 44 pt target.
+            count: min(range.count, 5)
+        )
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                Spacer(minLength: Tide.s2)
+                // The chosen value, read out as it changes.
+                Text(value.map { "\($0) / \(range.upperBound)" } ?? "Tap to set")
+                    .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                    .foregroundStyle(value == nil ? Tide.text3 : mood.accent)
+                    .contentTransition(.numericText())
+                    .animation(Tide.snap, value: value)
+                    .accessibilityHidden(true)
+            }
+            LazyVGrid(columns: columns, spacing: Tide.s1) {
+                ForEach(Array(range), id: \.self) { i in
+                    let selected = value == i
                     Button {
                         onSet(i)
                     } label: {
                         Text("\(i)")
-                            .font(.tempoCaption1)
-                            .frame(width: 28, height: 28)
-                            .background(value == i ? Color.tempoRecoveryGreen : Color.tempoSurfaceCard)
-                            .foregroundStyle(value == i ? Color.tempoBgPrimary : Color.tempoTextSecondary)
-                            .overlay(
-                                Circle().stroke(Color.tempoTextTertiary.opacity(0.3), lineWidth: value == i ? 0 : 1)
+                            .font(Tide.numeral(Tide.numeralS - Tide.s1, .semibold))
+                            .foregroundStyle(selected ? Tide.ink : Tide.text2)
+                            .frame(maxWidth: .infinity, minHeight: Tide.hit)
+                            .background(
+                                selected ? mood.accent : Tide.fill,
+                                in: .rect(cornerRadius: Tide.controlRadius)
                             )
-                            .clipShape(Circle())
+                            .contentShape(.rect(cornerRadius: Tide.controlRadius))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(title) \(i)")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
             }
+            .animation(Tide.snap, value: value)
+            .sensoryFeedback(.selection, trigger: value)
         }
     }
 
     @ViewBuilder
     private func sorenessRow(part: String, checkIn: MorningCheckIn) -> some View {
         let current = checkIn.soreness[part]
-        HStack {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        layout {
             Text(part)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(width: 90, alignment: .leading)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .frame(width: typeSize.isAccessibilitySize ? nil : Tide.s10 * 2.25, alignment: .leading)
             // 1–10 stepper-lite: tap level. 8+ = pain flag (red).
-            HStack(spacing: 2) {
+            HStack(spacing: Tide.hair) {
                 ForEach(1 ... 10, id: \.self) { level in
                     Button {
                         var s = checkIn.soreness
-                        if current == level { s[part] = nil } else { s[part] = level }
+                        if current == level {
+                            s[part] = nil
+                        } else {
+                            s[part] = level
+                        }
                         checkIn.soreness = s
                         persist()
                     } label: {
-                        RoundedRectangle(cornerRadius: 2)
+                        RoundedRectangle(cornerRadius: Tide.hair, style: .continuous)
                             .fill(fillFor(level: level, current: current))
-                            .frame(height: 14)
+                            .frame(height: Tide.s4)
+                            .frame(minHeight: Tide.hit)
+                            .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(part) soreness \(level)")
                 }
             }
         }
+        .accessibilityElement(children: .contain)
     }
 
     private func fillFor(level: Int, current: Int?) -> Color {
-        guard let current, level <= current else { return Color.tempoTextTertiary.opacity(0.15) }
-        return current >= 8 ? Color.tempoRecoveryRed : Color.tempoRecoveryYellow
+        guard let current, level <= current else {
+            return Tide.fill
+        }
+        return current >= 8 ? Tide.danger : TideTone.amber
     }
 
     private func sorenessSummary(_ checkIn: MorningCheckIn) -> String {
         let sore = checkIn.soreness
-        if sore.isEmpty { return "Any soreness? Tap to add" }
+        if sore.isEmpty {
+            return "Any soreness? Tap to add"
+        }
         let flags = checkIn.snapshot.painFlags
-        if !flags.isEmpty { return "Sore: \(flags.joined(separator: ", ")) (pain)" }
+        if !flags.isEmpty {
+            return "Sore: \(flags.joined(separator: ", ")) (pain)"
+        }
         return "Soreness logged (\(sore.count))"
     }
 
@@ -171,12 +287,15 @@ struct MorningCheckInCard: View {
 
     private func loadOrCreate() {
         let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else { return }
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            return
+        }
         let descriptor = FetchDescriptor<MorningCheckIn>(
             predicate: #Predicate<MorningCheckIn> { $0.date >= today && $0.date < tomorrow }
         )
         if let existing = (try? modelContext.fetch(descriptor))?.first {
             checkIn = existing
+            editing = existing.mood == nil || existing.stress == nil
         } else {
             let fresh = MorningCheckIn(date: today)
             modelContext.insert(fresh)

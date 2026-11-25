@@ -33,7 +33,7 @@ final class TrainerProgramFix9FlowTests: XCTestCase {
         app.launchForTesting()
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 30))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         app.buttons["More"].tap()
@@ -64,7 +64,7 @@ final class TrainerProgramFix9FlowTests: XCTestCase {
         app.navigationBars["Review Program"].buttons["Save"].tap()
         XCTAssertTrue(app.navigationBars["Trainer Program"].waitForExistence(timeout: 15))
 
-        app.tabBars.buttons["Training"].tap()
+        app.tabBars.buttons["Train"].tap()
         XCTAssertTrue(app.navigationBars["Training"].waitForExistence(timeout: 10))
 
         let legPress = app.staticTexts["LEG PRESS"]

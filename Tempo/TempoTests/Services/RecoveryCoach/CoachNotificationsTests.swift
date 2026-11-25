@@ -10,8 +10,10 @@ import XCTest
 final class CoachNotificationsTests: XCTestCase {
     private let id = "00000000-0000-0000-0000-000000000001"
     private var pushInfo: [AnyHashable: Any] {
-        ["aps": ["category": "POST_WORKOUT_WEIGHIN"],
-         "data": ["type": "post_workout_weighin", "session_id": id, "session_start": "2026-01-01T00:00:00.000Z"]]
+        [
+            "aps": ["category": "POST_WORKOUT_WEIGHIN"],
+            "data": ["type": "post_workout_weighin", "session_id": id, "session_start": "2026-01-01T00:00:00.000Z"],
+        ]
     }
 
     private func store() -> RecoveryCoachStore {
@@ -25,6 +27,14 @@ final class CoachNotificationsTests: XCTestCase {
         XCTAssertTrue(CoachNotifications.categories().contains { $0.identifier == "PRE_MATCH_WEIGHIN" })
     }
 
+    func testDefaultTapOpensTheCoachSectionOfFuel() {
+        let tap = NotificationRouter.destination(
+            category: "POST_WORKOUT_WEIGHIN", action: NotificationRouter.defaultActionID, userInfo: pushInfo
+        )
+        XCTAssertEqual(tap?.tab, .fuel)
+        XCTAssertEqual(tap?.nutritionSection, .coach)
+    }
+
     func testQuickAnswersAreQuietAndDefaultTapOpensCoach() {
         for action in CoachQuickAnswerAction.allCases {
             XCTAssertNil(NotificationRouter.destination(category: "POST_WORKOUT_WEIGHIN", action: action.rawValue, userInfo: pushInfo))
@@ -32,7 +42,7 @@ final class CoachNotificationsTests: XCTestCase {
         let tap = NotificationRouter.destination(
             category: "POST_WORKOUT_WEIGHIN", action: NotificationRouter.defaultActionID, userInfo: pushInfo
         )
-        XCTAssertEqual(tap?.tab, .nutrition)
+        XCTAssertEqual(tap?.tab, .fuel)
         XCTAssertEqual(tap?.coachSessionID, id)
     }
 
@@ -43,7 +53,7 @@ final class CoachNotificationsTests: XCTestCase {
 
     func testPreMatchTapOpensNutritionToday() {
         let tap = NotificationRouter.destination(category: "PRE_MATCH_WEIGHIN", action: NotificationRouter.defaultActionID, userInfo: [:])
-        XCTAssertEqual(tap?.tab, .nutrition)
+        XCTAssertEqual(tap?.tab, .fuel)
         XCTAssertEqual(tap?.nutritionSection, .today)
         XCTAssertNil(tap?.coachSessionID)
     }
@@ -58,7 +68,11 @@ final class CoachNotificationsTests: XCTestCase {
 
     func testHandlerStoresNothingWithoutSessionIDOrForOtherActions() {
         let s = store()
-        XCTAssertNil(CoachNotifications.handleQuickAnswer(action: "COACH_DRANK_ONE", userInfo: ["data": ["type": "post_workout_weighin"]], store: s))
+        XCTAssertNil(CoachNotifications.handleQuickAnswer(
+            action: "COACH_DRANK_ONE",
+            userInfo: ["data": ["type": "post_workout_weighin"]],
+            store: s
+        ))
         XCTAssertNil(CoachNotifications.handleQuickAnswer(action: "DONE", userInfo: pushInfo, store: s))
         XCTAssertTrue(s.read().quickAnswers.isEmpty)
     }

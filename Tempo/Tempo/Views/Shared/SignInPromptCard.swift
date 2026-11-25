@@ -3,9 +3,9 @@
 // Tempo
 //
 // One Sign in with Apple surface for every signed-out entry point: Settings
-// → Account and the Dashboard nudge. Apple's own button (black in light
-// mode, white in dark — App Review wants the official look) as a full-width
-// pill inside a Tempo card, with a one-line reason to sign in. Same SIWA
+// → Account and the Dashboard nudge. Apple's own button (the white one,
+// since the app is dark — App Review wants the official look) as a
+// full-width pill inside a Tide glass card, with a one-line reason to sign in. Same SIWA
 // flow as onboarding: nonce set in onRequest, token exchanged through
 // AuthService.
 //
@@ -14,13 +14,24 @@ import AuthenticationServices
 import SwiftUI
 
 struct SignInPromptCard: View {
-    /// Dashboard passes a dismiss action ("Not now"); Settings doesn't.
+    /// Which screen the card is drawn for: `tempo` for the screens not
+    /// rebuilt yet (Settings), `tide` for rebuilt ones (Today). Both are drawn
+    /// in Tide; the only difference is the identifier Today's tests look for.
+    enum Style {
+        case tempo
+        case tide
+    }
+
+    var style: Style = .tempo
+    /// Today passes a dismiss action ("Not now"); Settings doesn't.
     var onDismiss: (() -> Void)?
 
     @Environment(ServiceContainer.self)
     private var services
-    @Environment(\.colorScheme)
-    private var colorScheme
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
     @State
     private var isSigningIn = false
     @State
@@ -28,79 +39,107 @@ struct SignInPromptCard: View {
     @State
     private var pendingNonce: String?
 
+    private static let title = "Sign in to unlock your AI coach"
+    private static let detail =
+        "Trainer imports, meal ideas and coaching need an account. Everything on this phone stays put."
+
     var body: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(alignment: .top, spacing: TempoSpacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoSignal)
-                    .frame(width: 36, height: 36)
-                    .background(Color.tempoSignal.opacity(TempoOpacity.o15))
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
+        switch style {
+        case .tempo: card
+        case .tide: card.accessibilityIdentifier("today.signin")
+        }
+    }
 
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text("Sign in to unlock your AI coach")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Trainer imports, meal ideas and coaching need an account. Everything on this phone stays put.")
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+    // MARK: Card
 
-                Spacer(minLength: 0)
-
-                if let onDismiss {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.tempoCaption1.weight(.semibold))
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .frame(width: 28, height: 28)
+    private var card: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            if typeSize.isAccessibilitySize {
+                // The words get the full card width; the icon and the close
+                // button share the row above them.
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    HStack(alignment: .top, spacing: Tide.s3) {
+                        TideIconTile(systemName: "sparkles", tint: mood.accent)
+                        Spacer(minLength: 0)
+                        dismissButton
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Not now")
+                    copy
+                }
+            } else {
+                HStack(alignment: .top, spacing: Tide.s3) {
+                    TideIconTile(systemName: "sparkles", tint: mood.accent)
+                    copy
+                    Spacer(minLength: 0)
+                    dismissButton
                 }
             }
-
-            ZStack {
-                SignInWithAppleButton(.signIn) { request in
-                    let nonce = services.authService.makeNonce()
-                    pendingNonce = nonce.raw
-                    request.requestedScopes = [.fullName, .email]
-                    request.nonce = nonce.hashed
-                } onCompletion: { result in
-                    Task { await handleAppleResult(result) }
-                }
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                // Re-create on scheme change: the style is read once at init.
-                .id(colorScheme)
-                .frame(height: 50)
-                .clipShape(Capsule())
-                .opacity(isSigningIn ? 0 : 1)
-                .disabled(isSigningIn)
-                .accessibilityLabel("Sign in with Apple")
-
-                if isSigningIn {
-                    ProgressView()
-                        .tint(Color.tempoTextSecondary)
-                }
-            }
-            .frame(height: 50)
-
+            // Always the white button: Tide is a dark surface.
+            appleButton(.white)
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.circle")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoError)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.danger)
             }
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous)
-                .strokeBorder(Color.tempoSignal.opacity(TempoOpacity.o15), lineWidth: 1)
-        )
+        .tideCard()
+    }
+
+    private var copy: some View {
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Text(Self.title)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(Self.detail)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var dismissButton: some View {
+        if let onDismiss {
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(Tide.label)
+                    .foregroundStyle(Tide.text2)
+                    .frame(width: Tide.hit, height: Tide.hit)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Not now")
+        }
+    }
+
+    // MARK: Shared
+
+    /// Apple's button at Apple's size (their guidelines set the height).
+    private static let appleButtonHeight: CGFloat = 50
+
+    private func appleButton(_ buttonStyle: SignInWithAppleButton.Style) -> some View {
+        ZStack {
+            SignInWithAppleButton(.signIn) { request in
+                let nonce = services.authService.makeNonce()
+                pendingNonce = nonce.raw
+                request.requestedScopes = [.fullName, .email]
+                request.nonce = nonce.hashed
+            } onCompletion: { result in
+                Task { await handleAppleResult(result) }
+            }
+            .signInWithAppleButtonStyle(buttonStyle)
+            .frame(height: Self.appleButtonHeight)
+            .clipShape(Capsule())
+            .opacity(isSigningIn ? 0 : 1)
+            .disabled(isSigningIn)
+            .accessibilityLabel("Sign in with Apple")
+
+            if isSigningIn {
+                ProgressView()
+                    .tint(Tide.text)
+            }
+        }
+        .frame(height: Self.appleButtonHeight)
     }
 
     private func handleAppleResult(_ result: Result<ASAuthorization, Error>) async {

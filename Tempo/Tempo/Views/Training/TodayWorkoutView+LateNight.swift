@@ -58,54 +58,65 @@ extension TodayWorkoutView {
         let sessionName = trainerDay?.title ?? plan?.type.displayName ?? "Training"
         let blockCount = trainerDay?.exercises.count ?? plan?.orderedExercises.count ?? 0
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(spacing: TempoSpacing.sm) {
-                Image(systemName: "moon.zzz.fill")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoViolet)
-                    .frame(width: 40, height: 40)
-                    .background(Color.tempoViolet.opacity(TempoOpacity.o15))
-                    .clipShape(Circle())
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                    Text("It's past midnight. Get to bed.")
-                        .font(.tempoHeadline)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text("Sleep is part of the plan. The session waits for the morning.")
-                        .font(.tempoFootnote)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+        let unit = trainerDay?.isStrength == false ? "blocks" : "exercises"
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            TrainBedtimeHead()
 
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text("TOMORROW MORNING")
-                    .font(.tempoCaption2.weight(.semibold))
-                    .foregroundStyle(Color.tempoTextTertiary)
+            // What the morning holds, with its size as a figure like the day hero.
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Tomorrow morning").tideLabel(Tide.text3)
                 Text(sessionName)
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(2)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
                 if blockCount > 0 {
-                    Text(trainerDay?.isStrength == false ? "\(blockCount) blocks" : "\(blockCount) exercises")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s1) {
+                        TideNumber("\(blockCount)", size: Tide.numeralS, relativeTo: .title3)
+                        Text(unit)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(TempoSpacing.md)
-            .background(Color.tempoSurfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+            .padding(Tide.s3)
+            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
 
             Button(action: onSkipForTonight) {
                 Text("Skip for tonight")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.tempoSecondary)
+            .buttonStyle(.tideGlass)
         }
-        .padding(TempoSpacing.lg)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .padding(.horizontal, TempoSpacing.lg)
+        .tideCard(padding: Tide.s4)
+    }
+}
+
+// MARK: - TrainBedtimeHead
+
+/// The bedtime card's opening: tile beside the words, stacked above them at big text sizes.
+private struct TrainBedtimeHead: View {
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
+    var body: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
+        layout {
+            TideIconTile(systemName: "moon.zzz.fill", tint: TideTrain.violet, size: TideTrain.askTile)
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text("Late night").tideLabel(TideTrain.violet)
+                Text("It's past midnight. Get to bed.")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Sleep is part of the plan. The session waits for the morning.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

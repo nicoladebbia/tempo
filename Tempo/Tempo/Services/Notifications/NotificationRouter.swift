@@ -11,31 +11,42 @@
 import Foundation
 import UserNotifications
 
+// MARK: - NotificationDestination
+
 /// Where a notification wants the app to land.
 struct NotificationDestination: Equatable {
-    var tab: Tab
-    /// Nutrition tab section to show (only with `tab == .nutrition`).
+    var tab: AppTab
+    /// A page to open on top of Today (only with `tab == .today`).
+    var todayRoute: TodayRoute?
+    /// Fuel tab section to show (only with `tab == .fuel`).
     var nutritionSection: NutritionSection?
     /// Kitchen sub-section (implies the Kitchen section).
     var kitchenSection: KitchenSection?
     var meal: MealRequest?
-    /// Open the Recovery Coach for this WHOOP session (id is a UUID string).
+    /// Open Fuel > Coach for this WHOOP session (id is a UUID string).
     var coachSessionID: String?
     /// Open the weekly check-in sheet.
     var weeklyCheckIn = false
     /// Pull the server-built plan (the "week is ready" push).
     var syncPlans = false
 
-    static func tab(_ tab: Tab) -> NotificationDestination {
+    static func tab(_ tab: AppTab) -> NotificationDestination {
         NotificationDestination(tab: tab)
+    }
+
+    /// Today, with Recovery or Lockdown opened on top of it.
+    static func today(_ route: TodayRoute) -> NotificationDestination {
+        NotificationDestination(tab: .today, todayRoute: route)
     }
 
     static func nutrition(
         _ section: NutritionSection? = nil, kitchen: KitchenSection? = nil, meal: MealRequest? = nil
     ) -> NotificationDestination {
-        NotificationDestination(tab: .nutrition, nutritionSection: section, kitchenSection: kitchen, meal: meal)
+        NotificationDestination(tab: .fuel, nutritionSection: section, kitchenSection: kitchen, meal: meal)
     }
 }
+
+// MARK: - NotificationRouter
 
 enum NotificationRouter {
     static let defaultActionID = UNNotificationDefaultActionIdentifier
@@ -63,7 +74,10 @@ enum NotificationRouter {
             var destination = NotificationDestination.nutrition(.plan)
             destination.weeklyCheckIn = action == WeeklyPlanReminder.checkInActionID || action == defaultActionID
             return destination
-        case "MEAL_REMINDER", "OVERDUE_MEAL_REMINDER", "DEFROST_REMINDER", "PREP_START_REMINDER":
+        case "MEAL_REMINDER",
+             "OVERDUE_MEAL_REMINDER",
+             "DEFROST_REMINDER",
+             "PREP_START_REMINDER":
             let request = TempoNotificationDelegate.mealRequest(category: category, action: action, mealID: mealID)
             return request.map { .nutrition(.today, meal: $0) } ?? .nutrition(.today)
         case CoachNotifications.postCategoryID:
@@ -77,24 +91,33 @@ enum NotificationRouter {
         case "USE_IT_UP":
             return .nutrition(kitchen: .pantry)
         case "TRAINING_REMINDER":
-            return .tab(.training)
+            return .tab(.train)
         case "RECOVERY_REPORT":
-            return .tab(action == "VIEW_WORKOUT" ? .training : .recovery)
+            return action == "VIEW_WORKOUT" ? .tab(.train) : .today(.recovery)
         case "BEDTIME_REMINDER":
-            return .tab(.recovery)
-        case "MORNING_BRIEFING", "WEEKLY_SUMMARY", "ARENA_SOCIAL":
-            return .tab(.dashboard)
-        case "STREAK_WARNING", "ACCOUNTABILITY", "ACCOUNTABILITY_GENTLE", "ACCOUNTABILITY_FIRM",
-             "ACCOUNTABILITY_URGENT", "ACCOUNTABILITY_FINAL", "ACCOUNTABILITY_CLEAR":
-            return .tab(.lockdown)
+            return .today(.recovery)
+        case "MORNING_BRIEFING":
+            return .tab(.today)
+        case "WEEKLY_SUMMARY":
+            return .today(.weekReview)
+        case "ARENA_SOCIAL":
+            return .tab(.arena)
+        case "STREAK_WARNING",
+             "ACCOUNTABILITY",
+             "ACCOUNTABILITY_GENTLE",
+             "ACCOUNTABILITY_FIRM",
+             "ACCOUNTABILITY_URGENT",
+             "ACCOUNTABILITY_FINAL",
+             "ACCOUNTABILITY_CLEAR":
+            return .today(.lockdown)
         default:
             return destination(forPushType: type, mealID: mealID, userInfo: userInfo)
         }
     }
 
-    /// "Session done. Weigh in now.": the Nutrition tab, with the coach screen for that session.
+    /// "Session done. Weigh in now.": Fuel > Coach, where that session sits at the top of the page.
     static func coach(userInfo: [AnyHashable: Any]) -> NotificationDestination {
-        var destination = NotificationDestination.nutrition(.today)
+        var destination = NotificationDestination.nutrition(.coach)
         destination.coachSessionID = CoachNotifications.sessionID(from: userInfo)
         return destination
     }
@@ -117,15 +140,24 @@ enum NotificationRouter {
         case CoachNotifications.pushType:
             return coach(userInfo: userInfo)
         case "training_reminder":
-            return .tab(.training)
+            return .tab(.train)
         case "recovery_morning":
-            return .tab(.recovery)
+            return .today(.recovery)
         case "bedtime_reminder":
-            return .tab(.recovery)
-        case "streak_warning", "accountability_tier1", "accountability_tier2", "accountability_tier3", "accountability_tier4":
-            return .tab(.lockdown)
-        case "weekly_summary", "leaderboard_change", "challenge_invite", "challenge_update", "achievement_unlock":
-            return .tab(.dashboard)
+            return .today(.recovery)
+        case "streak_warning",
+             "accountability_tier1",
+             "accountability_tier2",
+             "accountability_tier3",
+             "accountability_tier4":
+            return .today(.lockdown)
+        case "weekly_summary":
+            return .today(.weekReview)
+        case "leaderboard_change",
+             "challenge_invite",
+             "challenge_update",
+             "achievement_unlock":
+            return .tab(.arena)
         default:
             return nil
         }

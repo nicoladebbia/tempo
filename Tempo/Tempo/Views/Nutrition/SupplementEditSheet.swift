@@ -100,48 +100,31 @@ struct SupplementEditSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+
     var body: some View {
         NavigationStack {
-            Form {
+            KitchenForm {
+                identity
                 if let prefill, existing == nil, let line = Self.sourceLine(prefill) {
                     Section {
                         Label(line, systemImage: "sparkles")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                         if prefill.source == "tempo", let catalogID = prefill.catalogID {
                             SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
                         }
                     }
                 }
-                Section("Supplement") {
-                    TextField("Name (e.g. Whey Isolate)", text: $name)
-                    TextField("Brand (optional)", text: $brand)
-                    Picker("Type", selection: $kind) {
-                        ForEach(SupplementKind.allCases, id: \.rawValue) { k in
-                            Text(k.displayName).tag(k)
-                        }
-                    }
-                }
-                Section {
-                    SupplementFieldRow(label: "Calories", unit: "kcal", placeholder: "0", text: $caloriesPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Protein", unit: "g", placeholder: "0", text: $proteinPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Carbs", unit: "g", placeholder: "0", text: $carbsPerServingText, keyboard: .decimalPad)
-                    SupplementFieldRow(label: "Fat", unit: "g", placeholder: "0", text: $fatPerServingText, keyboard: .decimalPad)
-                } header: {
-                    Text("Macros per serving")
-                } footer: {
-                    Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
-                }
-                Section {
+                macros
+                KitchenFormSection(
+                    "Details (optional)",
+                    footer: "Your plan decides each day whether to take this and when. You don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
+                ) {
                     SupplementFieldRow(label: "Dose per serving", unit: nil, placeholder: "e.g. 25 g, 1000 mg", text: $dose, keyboard: .default)
                     SupplementFieldRow(label: "Servings left", unit: nil, placeholder: "optional", text: $servingsText, keyboard: .numberPad)
                     SupplementFieldRow(label: "Servings/container", unit: nil, placeholder: "optional", text: $servingsPerContainerText, keyboard: .numberPad)
-                } header: {
-                    Text("Details (optional)")
-                } footer: {
-                    Text(
-                        "Your plan decides each day whether to take this and when — you don't have to schedule it. These facts just help it (servings per container is what a restock resets servings-left to)."
-                    )
                 }
                 if let existing {
                     SupplementTimingSection(supplement: existing)
@@ -153,17 +136,25 @@ struct SupplementEditSheet: View {
                         }
                     }
                 }
-                Section("Notes (optional)") {
+                KitchenFormSection("Notes (optional)") {
                     TextField("e.g. I get bloated with two scoops", text: $notes, axis: .vertical)
                 }
                 if SupplementCatalogSubmitter.willShare(isNew: existing == nil, prefill: prefill, prefillUPC: prefillUPC) {
                     Section {
                         Label(SupplementCatalogSubmitter.disclosure, systemImage: "person.2")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
                             .accessibilityIdentifier("supplementShareDisclosure")
                     }
                 }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            // The one action sits under the thumb, not in the corner of the bar.
+            .kitchenBottomBar {
+                Button(existing == nil ? "Add to shelf" : "Save") { save() }
+                    .buttonStyle(.kitchenBar)
+                    .disabled(!canSave)
+                    .accessibilityIdentifier("supplementSave")
             }
             .navigationTitle(existing == nil ? (prefill == nil ? "Add Supplement" : "Check & add") : "Edit Supplement")
             .navigationBarTitleDisplayMode(.inline)
@@ -171,12 +162,77 @@ struct SupplementEditSheet: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(existing == nil ? "Add to shelf" : "Save") { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
+            }
+        }
+        .kitchenSheet()
+    }
+
+    // MARK: - Identity
+
+    /// Who this is: its type as an icon, the name big, the brand under it,
+    /// and the type chips that decide how the plan treats it.
+    private var identity: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                let layout = typeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                    : AnyLayout(HStackLayout(spacing: Tide.s3))
+                layout {
+                    KitchenIconTile(systemName: kind.icon, size: Tide.Kitchen.tile + Tide.s4)
+                        .contentTransition(.symbolEffect(.replace))
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        TextField("Name (e.g. Whey Isolate)", text: $name)
+                            .font(Tide.title2)
+                            .foregroundStyle(Tide.text)
+                            .accessibilityIdentifier("supplementName")
+                        TextField("Brand (optional)", text: $brand)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    Text("Type").tideLabel()
+                    KitchenChoiceChips(
+                        options: SupplementKind.allCases,
+                        selection: $kind,
+                        title: \.displayName,
+                        icon: \.icon
+                    )
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard()
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        }
+    }
+
+    // MARK: - Macros
+
+    /// What a serving counts for in the day: four figures on tiles, in the colours of Today's macro rings.
+    private var macros: some View {
+        Section {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                Text("Macros per serving").tideLabel()
+                KitchenPair {
+                    KitchenNumberField(label: "Calories", unit: "kcal", tint: Tide.streak, text: $caloriesPerServingText)
+                } second: {
+                    KitchenNumberField(label: "Protein", unit: "g", tint: Tide.protein, text: $proteinPerServingText)
+                }
+                KitchenPair {
+                    KitchenNumberField(label: "Carbs", unit: "g", tint: Tide.carbs, text: $carbsPerServingText)
+                } second: {
+                    KitchenNumberField(label: "Fat", unit: "g", tint: Tide.fat, text: $fatPerServingText)
+                }
+                Text("Tick a dose and these count in today's calories and macros. Leave empty for creatine, vitamins and anything with no calories.")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tideCard()
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
         }
     }
 
@@ -248,18 +304,18 @@ struct SupplementFieldRow: View {
     let keyboard: UIKeyboardType
 
     var body: some View {
-        HStack(spacing: TempoSpacing.sm) {
+        HStack(spacing: Tide.s2) {
             Text(label)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer(minLength: TempoSpacing.sm)
+                .foregroundStyle(Tide.text)
+            Spacer(minLength: Tide.s2)
             TextField(placeholder, text: $text)
                 .keyboardType(keyboard)
                 .multilineTextAlignment(.trailing)
                 .accessibilityLabel(unit.map { "\(label) (\($0))" } ?? label)
             if let unit {
                 Text(unit)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(minWidth: 28, alignment: .leading)
+                    .foregroundStyle(Tide.text2)
+                    .frame(minWidth: Tide.icon, alignment: .leading)
             }
         }
     }
@@ -276,17 +332,17 @@ struct SupplementReportButton: View {
     var body: some View {
         if sent {
             Text(SupplementCatalogSubmitter.reportThanks)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
         } else {
             Button {
                 sent = true
                 Task { try? await service.reportCatalogEntry(id: catalogID) }
             } label: {
                 Text("Report wrong info")
-                    .font(.tempoCaption2)
+                    .font(Tide.caption)
                     .underline()
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .foregroundStyle(Tide.text3)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("supplementReportButton")

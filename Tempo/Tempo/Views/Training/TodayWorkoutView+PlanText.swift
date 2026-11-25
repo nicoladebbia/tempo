@@ -13,12 +13,12 @@ extension TodayWorkoutView {
     func recoveryDotColor(plan: WorkoutPlan) -> Color {
         let adj = plan.recoveryAdjustment
         if adj >= 1.0 {
-            return Color.tempoRecoveryGreen
+            return TideTrain.positive
         }
         if adj >= 0.6 {
-            return Color.tempoRecoveryYellow
+            return TideTrain.caution
         }
-        return Color.tempoRecoveryRed
+        return Tide.danger
     }
 
     func recoveryText(plan: WorkoutPlan) -> String {

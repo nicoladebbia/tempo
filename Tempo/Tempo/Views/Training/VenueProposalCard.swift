@@ -49,90 +49,83 @@ struct VenueProposalCard: View {
     // MARK: - Card
 
     private func card(pattern: VenuePattern, venue: TrainingVenue) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack {
-                Text("VENUE CHECK")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Spacer()
-                Button {
-                    dismissed = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-                .accessibilityLabel("Dismiss venue check")
-            }
-
-            Text(proposalText(pattern: pattern, venue: venue))
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextPrimary)
-
+        // The ask is about a place and a time, so the card opens on both: the
+        // venue over its usual clock time (or "Today" while it is still a guess).
+        let asserted = pattern.sampleCount >= VenuePatternMath.minSamplesToAssertTime
+        return TrainAskCard(
+            label: "Venue check",
+            title: proposalText(pattern: pattern, venue: venue)
+        ) {
+            TrainFigureTile(
+                label: venue.displayName,
+                figure: asserted ? pattern.medianStartMin.map(VenuePatternMath.clockLabel) ?? "Today" : "Today",
+                tint: Color.accentColor
+            )
+        } actions: {
             if changing {
                 changePickers
             } else {
-                HStack(spacing: TempoSpacing.md) {
-                    Button {
-                        confirm(venue: venue, startMin: pattern.medianStartMin)
-                    } label: {
-                        Text("Yes")
-                            .font(.tempoSubheadline)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.tempoSignal)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    confirm(venue: venue, startMin: pattern.medianStartMin)
+                } label: {
+                    Text("Yes")
+                }
+                .buttonStyle(.trainBanner())
 
-                    Button {
-                        pickedVenue = venue
-                        pickedTime = timeFromMinutes(pattern.medianStartMin)
-                        withAnimation { changing = true }
-                    } label: {
-                        Text("Change")
-                            .font(.tempoSubheadline)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 40)
-                            .background(Color.tempoBgSecondary)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
+                // Two quiet answers side by side, stacked once they no longer fit.
+                let change = Button {
+                    pickedVenue = venue
+                    pickedTime = timeFromMinutes(pattern.medianStartMin)
+                    withAnimation(Tide.snap) { changing = true }
+                } label: {
+                    Text("Change")
+                }
+                .buttonStyle(.trainQuiet)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        change
+                        notNow
                     }
-                    .buttonStyle(.plain)
+                    VStack(spacing: Tide.s1) {
+                        change
+                        notNow
+                    }
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    /// Puts the question away for today. Reachable while picking a change too,
+    /// as the corner X was before.
+    private var notNow: some View {
+        Button {
+            dismissed = true
+        } label: {
+            Text("Not now")
+        }
+        .buttonStyle(.trainQuiet)
+        .accessibilityInputLabels(["Not now", "Dismiss venue check"])
+        .accessibilityHint("Dismisses the venue check")
     }
 
     private var changePickers: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            HStack {
-                Text("Venue")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            LabeledContent("Venue") {
                 Picker("Venue", selection: $pickedVenue) {
                     ForEach(TrainingVenue.allCases, id: \.self) { venue in
                         Text(venue.displayName).tag(venue)
                     }
                 }
-                .tint(Color.tempoTextPrimary)
+                .tint(Tide.text)
             }
-            HStack {
-                Text("Time")
-                    .font(.tempoSubheadline)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Spacer()
-                DatePicker("", selection: $pickedTime, displayedComponents: .hourAndMinute)
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
+            LabeledContent("Time") {
+                DatePicker("Time", selection: $pickedTime, displayedComponents: .hourAndMinute)
                     .labelsHidden()
             }
+            .font(Tide.body)
+            .foregroundStyle(Tide.text2)
             Button {
                 confirm(
                     venue: pickedVenue,
@@ -140,15 +133,9 @@ struct VenueProposalCard: View {
                 )
             } label: {
                 Text("Confirm")
-                    .font(.tempoSubheadline)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .background(Color.tempoSignal)
-                    .foregroundStyle(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.trainBanner())
+            notNow
         }
     }
 

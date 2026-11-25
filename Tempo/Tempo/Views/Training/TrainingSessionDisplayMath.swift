@@ -76,6 +76,6 @@ enum PRDisplay {
     /// The record's headline number: a weight in `unit`, or reps for a
     /// bodyweight most-reps record (whose `value` is a count, not kg).
     static func valueLabel(_ pr: PersonalRecord, unit: WeightUnit) -> String {
-        pr.type == .mostReps ? "\(Int(pr.value)) reps" : weightLabel(pr, unit: unit)
+        pr.type == .mostReps ? TrainCount.text(Int(pr.value), "rep") : weightLabel(pr, unit: unit)
     }
 }

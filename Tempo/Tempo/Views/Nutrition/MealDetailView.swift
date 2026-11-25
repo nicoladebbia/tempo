@@ -23,6 +23,8 @@ struct MealDetailView: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
     @Environment(\.modelContext)
     private var modelContext
     @Environment(ServiceContainer.self)
@@ -58,12 +60,6 @@ struct MealDetailView: View {
     @State
     private var presentEatTimeEditor: Bool = false
 
-    /// Drives the "Undo — not eaten" confirmation sheet in the `.eaten`
-    /// status branch.
-    @State
-    private var presentUndoConfirm: Bool = false
-    @State
-    private var undoConfirmed: Bool = false
     @State
     private var eatTimeEdit: Date = .now
     /// When true, the Mark-Eaten sheet opens straight into the "Ate something
@@ -150,8 +146,8 @@ struct MealDetailView: View {
 
     private var detail: some View {
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.xl) {
-                header
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                heroCard
                 scheduleSection
                 if !prepChecklistItems.isEmpty {
                     prepChecklistSection
@@ -165,18 +161,21 @@ struct MealDetailView: View {
                 if shouldRenderActualFoods {
                     noRecipeFallback
                 } else if let recipe = meal.recipe {
-                    macrosSummarySection(recipe: recipe)
                     ingredientsSection(recipe: recipe)
                     stepsSection(recipe: recipe)
                 } else {
                     noRecipeFallback
                 }
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s6)
         }
-        .background(Color.tempoBgPrimary)
+        .scrollEdgeEffectStyle(.soft, for: .top)
+        // The one thing left to do with a meal sits under the thumb.
+        .fuelBottomBar(isShown: needsAnswer) { mealActions }
+        .animation(Tide.snap, value: needsAnswer)
+        .tidePage()
         .navigationTitle(meal.mealName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadWakeSignal() }
@@ -202,38 +201,23 @@ struct MealDetailView: View {
         }
         .sheet(isPresented: $presentEatTimeEditor) {
             eatTimeEditorSheet
-                .presentationDetents([.height(280)])
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $presentUndoConfirm, onDismiss: {
-            // Undo runs once the sheet is gone: it may pop this screen.
-            if undoConfirmed {
-                undoConfirmed = false
-                undoEaten()
-            }
-        }) {
-            UndoMealSheet(
-                mealName: meal.mealName,
-                kcal: Int(meal.totalCalories.rounded()),
-                isLog: isUnplannedLog,
-                onConfirm: {
-                    undoConfirmed = true
-                    presentUndoConfirm = false
-                },
-                onCancel: { presentUndoConfirm = false }
-            )
-            .presentationDetents([.height(440), .large])
-            .presentationDragIndicator(.visible)
-        }
-        .alert("Save as preset", isPresented: $presentPresetAlert) {
-            TextField("Preset name", text: $presetNameDraft)
+        .alert("Save as favourite", isPresented: $presentPresetAlert) {
+            TextField("Name", text: $presetNameDraft)
             Button("Save") { savePreset() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Log this meal again in one tap from the Log tab.")
+            Text("It sits at the top of Log a meal, one tap to log again.")
         }
         .alert(
             "Something went wrong",
-            isPresented: Binding(get: { actionError != nil }, set: { if !$0 { actionError = nil } })
+            isPresented: Binding(get: { actionError != nil }, set: {
+                if !$0 {
+                    actionError = nil
+                }
+            })
         ) {
             Button("OK", role: .cancel) { actionError = nil }
         } message: {
@@ -267,19 +251,16 @@ struct MealDetailView: View {
     /// is happening — keep it on top of the scroll content.
     private var substituteResolvingOverlay: some View {
         ZStack {
-            Color.tempoBgPrimary.opacity(0.7)
+            Tide.ink.opacity(0.7)
                 .ignoresSafeArea()
-            VStack(spacing: TempoSpacing.md) {
+            VStack(spacing: Tide.s3) {
                 ProgressView()
-                    .tint(Color.tempoSignal)
+                    .tint(mood.accent)
                 Text("Logging what you ate…")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
             }
-            .padding(TempoSpacing.lg)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
+            .tideCard(padding: Tide.s4, radius: Tide.cardRadius)
         }
     }
 
@@ -291,10 +272,10 @@ struct MealDetailView: View {
     /// Fuel "last meal" line and Coach context stay coherent.
     private var eatTimeEditorSheet: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
                 Text("Set the time you actually ate \(meal.mealName.lowercased()).")
-                    .font(.tempoCallout)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
                 DatePicker(
                     "Eaten at",
                     selection: $eatTimeEdit,
@@ -310,20 +291,13 @@ struct MealDetailView: View {
                     HapticManager.notification(.success)
                 } label: {
                     Text("Save")
-                        .font(.tempoCallout)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .foregroundStyle(Color.tempoTextInverse)
-                        .background(Color.tempoSignal)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tidePrimary)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.md)
-            .background(Color.tempoBgPrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s4)
+            .padding(.bottom, Tide.s4)
+            .tidePage()
             .navigationTitle("Edit eat time")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -401,20 +375,83 @@ struct MealDetailView: View {
         meal.linkedMealLogID != nil && !meal.foods.isEmpty
     }
 
-    // MARK: - Header
+    // MARK: - Hero
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            Text(meal.mealName)
-                .font(.tempoTitle1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            if let recipe = meal.recipe, let description = recipe.recipeDescription {
-                Text(description)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .lineLimit(3)
+    /// Calories and macros of what this page shows: the foods the user
+    /// actually logged, else the recipe, else the plan's own totals.
+    private var heroTotals: (kcal: Int, protein: Int, carbs: Int, fat: Int) {
+        let foods = meal.foods
+        if shouldRenderActualFoods || (meal.recipe == nil && !foods.isEmpty) {
+            return (
+                Int(foods.reduce(0.0) { $0 + $1.calories }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.proteinG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.carbsG }.rounded()),
+                Int(foods.reduce(0.0) { $0 + $1.fatG }.rounded())
+            )
+        }
+        if let recipe = meal.recipe {
+            return (
+                Int(recipe.totalCalories.rounded()), Int(recipe.totalProteinGrams.rounded()),
+                Int(recipe.totalCarbsGrams.rounded()), Int(recipe.totalFatGrams.rounded())
+            )
+        }
+        return (
+            Int(meal.totalCalories.rounded()),
+            Int(meal.totalProtein.rounded()),
+            Int(meal.totalCarbs.rounded()),
+            Int(meal.totalFat.rounded())
+        )
+    }
+
+    /// A meal that is not eaten or skipped yet, on a day that has begun: the
+    /// answer (Mark Eaten, swap, skip) sits in the bar under the thumb. Also
+    /// open before the meal's time, for someone who ate early.
+    private var needsAnswer: Bool {
+        meal.status != .eaten && meal.status != .skipped && !isFutureDay
+    }
+
+    /// One hero: the meal, its state, the calories as the figure, the macros
+    /// as three lit rings.
+    private var heroCard: some View {
+        let totals = heroTotals
+        let tone = FuelMealStyle.tone(for: meal.status, accent: mood.accent)
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            HStack(alignment: .top, spacing: Tide.s3) {
+                TideIconTile(systemName: FuelMealStyle.icon(forName: meal.mealName), tint: tone)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(meal.mealName)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let description = meal.recipe?.recipeDescription {
+                        Text(description)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(3)
+                    }
+                }
+                Spacer(minLength: Tide.s2)
+                FuelPill(text: meal.status.displayName, color: tone)
+            }
+            TideNumber("\(totals.kcal)", unit: "kcal", size: Tide.numeralL, relativeTo: .largeTitle)
+            FuelMacroRings(protein: totals.protein, carbs: totals.carbs, fat: totals.fat)
+                .explains(.fuelMacroShare)
+            if let recipe = meal.recipe, !shouldRenderActualFoods {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s4) { recipeMetrics(recipe) }
+                    VStack(alignment: .leading, spacing: Tide.s2) { recipeMetrics(recipe) }
+                }
             }
         }
+        .tideCard()
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private func recipeMetrics(_ recipe: Recipe) -> some View {
+        inlineMetric(icon: "clock", text: "\(recipe.totalMinutes) min")
+        inlineMetric(icon: "person.2", text: "\(recipe.servings) serving\(recipe.servings == 1 ? "" : "s")")
+        inlineMetric(icon: "flame", text: recipe.difficulty.rawValue.capitalized)
     }
 
     // MARK: - Schedule
@@ -427,9 +464,9 @@ struct MealDetailView: View {
 
     private var scheduleSection: some View {
         let display = scheduleDisplay
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
+        return VStack(alignment: .leading, spacing: Tide.s3) {
             HStack(alignment: .firstTextBaseline) {
-                sectionLabel("SCHEDULE")
+                sectionLabel("Schedule")
                 Spacer()
                 if display.hasShift {
                     shiftChip(minutes: display.shiftMinutes)
@@ -439,7 +476,7 @@ struct MealDetailView: View {
             TimelineView(.everyMinute) { context in
                 let now = context.date
                 let phase = SchedulePhase(meal: meal, now: now, display: display)
-                VStack(alignment: .leading, spacing: TempoSpacing.md) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
                     statusLine(phase: phase, now: now, display: display)
                     // The Prep / Eat / Finish ladder describes future
                     // steps — for an already-eaten or skipped meal those
@@ -448,20 +485,13 @@ struct MealDetailView: View {
                     if !phase.isResolved {
                         timelineTrack(now: now, display: display, phase: phase)
                     }
-                    // Action row (Mark Eaten / Skip / Ate something else) for
-                    // ANY not-yet-resolved meal — not just overdue. Lets you
-                    // record what you ate (or a swap) even before the meal's
-                    // scheduled time, e.g. you ate breakfast early.
-                    if !phase.isResolved, !isFutureDay {
-                        mealActions
-                    }
+                    // Mark Eaten / swap / Skip for ANY not-yet-resolved meal
+                    // (not just overdue, so breakfast eaten early can be
+                    // recorded) live in the bar under the thumb: `needsAnswer`.
                 }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .tideCard()
     }
 
     // MARK: - Schedule sub-components
@@ -475,129 +505,79 @@ struct MealDetailView: View {
         case .beforePrep:
             let minutes = max(0, Int(display.prepStart.timeIntervalSince(now) / 60))
             Text("Start prepping in \(formatDuration(minutes: minutes)).")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
         case .prepping:
             Text("Prep now — eat at \(Self.clockFormatter.string(from: display.mealTime)).")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoSignal)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(mood.accent)
         case .eating:
             let minutes = max(0, Int(display.eatFinish.timeIntervalSince(now) / 60))
             Text("Eat now — \(formatDuration(minutes: minutes)) left.")
-                .font(.tempoBody)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoSuccess)
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.good)
         case .overdue:
             let minutes = max(1, Int(now.timeIntervalSince(display.eatFinish) / 60))
             Text(
                 "Past \(Self.clockFormatter.string(from: display.eatFinish)) — did you eat it? (\(formatDuration(minutes: minutes)) overdue)"
             )
-            .font(.tempoBody)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoAmber)
+            .font(Tide.bodyStrong)
+            .foregroundStyle(Tide.warn)
         case let .eaten(at):
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                HStack(spacing: TempoSpacing.sm) {
-                    if let at {
-                        Text("Eaten at \(Self.clockFormatter.string(from: at)).")
-                            .font(.tempoBody)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoSuccess)
-                    } else {
-                        Text("Eaten.")
-                            .font(.tempoBody)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoSuccess)
-                    }
-                    Spacer(minLength: 0)
-                    Button {
-                        eatTimeEdit = at ?? Date()
-                        presentEatTimeEditor = true
-                        HapticManager.lightImpact()
-                    } label: {
-                        Label("Edit time", systemImage: "clock.arrow.circlepath")
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoSignal)
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Edit eat time")
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(at.map { "Eaten at \(Self.clockFormatter.string(from: $0))." } ?? "Eaten.")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.good)
+                Divider().overlay(Tide.hairline)
+                FuelActionRow(icon: "clock.arrow.circlepath", title: "Edit time") {
+                    eatTimeEdit = at ?? Date()
+                    presentEatTimeEditor = true
+                    HapticManager.lightImpact()
                 }
+                .accessibilityLabel("Edit eat time")
                 // Correct what was eaten after the fact — re-opens the swap
                 // sheet so "actually I ate something else" works even once the
                 // meal is already marked eaten. commitMarkEaten re-records it.
-                Button {
+                FuelActionRow(icon: "arrow.triangle.swap", title: "Change what I ate") {
                     resolveAsSubstitute()
-                } label: {
-                    Label("Change what I ate", systemImage: "arrow.triangle.swap")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.plain)
                 .accessibilityLabel("Change what I ate")
-
-                // Undo — take the meal back to planned so a wrong log (e.g.
-                // logged to the wrong slot) can be fixed. Confirmed because it
-                // clears the eaten state, deletes feedback, and re-credits any
-                // pantry stock this meal pulled.
-                Button(role: .destructive) {
-                    presentUndoConfirm = true
-                    HapticManager.lightImpact()
-                } label: {
-                    Label(
-                        isUnplannedLog ? "Delete log" : "Undo — not eaten",
-                        systemImage: isUnplannedLog ? "trash" : "arrow.uturn.backward"
-                    )
-                    .font(.tempoCaption1)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoError)
-                    .labelStyle(.titleAndIcon)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isUnplannedLog ? "Delete this log" : "Undo, mark as not eaten")
-
                 if !meal.foods.isEmpty {
-                    Button {
+                    FuelActionRow(icon: "star", title: "Save as favourite") {
                         presetNameDraft = meal.foods.count == 1 ? meal.foods[0].name : meal.mealName
                         presentPresetAlert = true
                         HapticManager.lightImpact()
-                    } label: {
-                        Label("Save as preset", systemImage: "bookmark")
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Color.tempoSignal)
-                            .labelStyle(.titleAndIcon)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Save this meal as a preset")
+                    .accessibilityLabel("Save this meal as a favourite")
                 }
+                // Undo — take the meal back to planned so a wrong log (e.g.
+                // logged to the wrong slot) can be fixed. It happens at once and
+                // the toast offers Undo for a few seconds: the snapshot puts the
+                // eaten state, feedback and pantry stock back exactly.
+                FuelActionRow(
+                    icon: isUnplannedLog ? "trash" : "arrow.uturn.backward",
+                    title: isUnplannedLog ? "Delete log" : "Undo — not eaten",
+                    isDestructive: true
+                ) {
+                    undoEaten()
+                    HapticManager.lightImpact()
+                }
+                .accessibilityLabel(isUnplannedLog ? "Delete this log" : "Undo, mark as not eaten")
             }
         case .skipped:
-            VStack(alignment: .leading, spacing: TempoSpacing.sm) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
                 Text(skipRedistributionNote.map { "Skipped. \($0)" } ?? "Skipped.")
-                    .font(.tempoBody)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text2)
+                Divider().overlay(Tide.hairline)
                 // Un-skip: put the meal back to planned so it counts again.
                 // The shared undo also re-balances the other meals, so macros
                 // that were moved onto them when this was skipped move back.
-                Button {
+                FuelActionRow(icon: "arrow.uturn.backward", title: "Undo skip — back to planned") {
                     skipRedistributionNote = nil
                     runAction { try MealOutcomeService.undo(meal, env: outcomeEnv) }
                     HapticManager.lightImpact()
-                } label: {
-                    Label("Undo skip — back to planned", systemImage: "arrow.uturn.backward")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoSignal)
-                        .labelStyle(.titleAndIcon)
                 }
-                .buttonStyle(.plain)
                 .accessibilityLabel("Undo skip, back to planned")
             }
         }
@@ -606,52 +586,53 @@ struct MealDetailView: View {
     /// Inline Eat / Skip buttons shown only in the `.overdue` phase. Both go
     /// through `MealOutcomeService`, the same path as the Today list.
     private var mealActions: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            HStack(spacing: TempoSpacing.sm) {
-                Button {
-                    resolveAsEaten()
-                } label: {
-                    Label("Mark Eaten", systemImage: "checkmark.circle.fill")
-                        .font(.tempoCallout)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.tempoSuccess.opacity(0.18))
-                        .foregroundStyle(Color.tempoSuccess)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                Button {
-                    resolveAsSkipped()
-                } label: {
-                    Label("Skip", systemImage: "xmark.circle.fill")
-                        .font(.tempoCallout)
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.tempoError.opacity(0.15))
-                        .foregroundStyle(Color.tempoError)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            // "Ate something else" — surfaces the substitute lane directly
-            // instead of burying it inside the Mark-Eaten sheet. Opens the
-            // same sheet pre-expanded to the swap section.
+        VStack(spacing: Tide.s2) {
             Button {
-                resolveAsSubstitute()
+                resolveAsEaten()
             } label: {
-                Label("Ate something else", systemImage: "arrow.triangle.swap")
-                    .font(.tempoCallout)
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                Label("Mark Eaten", systemImage: "checkmark.circle.fill")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tidePrimary)
+            GlassEffectContainer(spacing: Tide.s2) {
+                // Side by side while both labels fit on one line, stacked at
+                // large text sizes.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Tide.s2) {
+                        substituteButton
+                        skipButton(fill: false)
+                    }
+                    VStack(spacing: Tide.s2) {
+                        substituteButton
+                        skipButton(fill: true)
+                    }
+                }
+            }
         }
+    }
+
+    /// "Ate something else" — surfaces the substitute lane directly
+    /// instead of burying it inside the Mark-Eaten sheet. Opens the
+    /// same sheet pre-expanded to the swap section.
+    private var substituteButton: some View {
+        Button {
+            resolveAsSubstitute()
+        } label: {
+            Label("Ate something else", systemImage: "arrow.triangle.swap")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+    }
+
+    private func skipButton(fill: Bool) -> some View {
+        Button {
+            resolveAsSkipped()
+        } label: {
+            Label("Skip", systemImage: "xmark.circle.fill")
+                .lineLimit(1)
+                .frame(maxWidth: fill ? .infinity : nil)
+        }
+        .buttonStyle(.tideGlass)
     }
 
     /// Triggers the MarkEatenSheet rather than committing immediately.
@@ -683,24 +664,62 @@ struct MealDetailView: View {
 
     /// Undo this meal. A plan slot reverts to planned (original dish back); a
     /// log added on top of the plan is DELETED (the screen blanks itself first,
-    /// so nothing renders the deleted model).
+    /// so nothing renders the deleted model). Either way a toast offers a few
+    /// seconds to put it back exactly (`MealOutcomeService.restore`).
     private func undoEaten() {
         let env = outcomeEnv
         let target = meal
-        if target.isUnplannedLog, target.status == .eaten {
+        let name = target.mealName
+        let deletesLog = target.isUnplannedLog && target.status == .eaten
+        let snapshot: MealOutcomeService.LogSnapshot
+        do {
             // Delete first so a failure shows here. The screen blanks in the
             // same synchronous turn, before SwiftUI re-reads the deleted row.
-            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
-                isRemoved = true
-                HapticManager.notification(.success)
+            snapshot = try MealOutcomeService.undo(target, env: env)
+        } catch {
+            actionError = error.localizedDescription
+            if !deletesLog {
                 dismiss()
             }
-        } else {
-            if runAction({ try MealOutcomeService.undo(target, env: env) }) {
-                HapticManager.notification(.success)
-            }
-            dismiss()
+            return
         }
+        if deletesLog {
+            isRemoved = true
+        }
+        HapticManager.notification(.success)
+        let message = snapshot.kind == .removed ? "\(name) log deleted." : "\(name) is back on the plan."
+        FuelLogToast.post(ToastData(message: message, style: .info, actionTitle: "Undo") {
+            do {
+                try MealOutcomeService.restore(snapshot, env: env)
+            } catch {
+                FuelLogToast.post(ToastData(message: "Couldn't restore \(name).", style: .error))
+            }
+        })
+        dismiss()
+    }
+
+    /// A few seconds to take back a mark-eaten or a skip. Undo goes through
+    /// `MealOutcomeService.undo` (slot back to planned, pantry credited back,
+    /// reminders re-armed, the substitute's planned dish restored).
+    private func offerTakeBack(_ message: String) {
+        let env = outcomeEnv
+        let mealID = meal.id
+        let name = meal.mealName
+        FuelLogToast.post(ToastData(message: message, style: .success, actionTitle: "Undo") {
+            if let target = Self.fetchMeal(mealID, in: env.modelContext),
+               (try? MealOutcomeService.undo(target, env: env)) != nil
+            {
+                FuelLogToast.post(ToastData(message: "\(name) is back on the plan.", style: .info))
+            } else {
+                FuelLogToast.post(ToastData(message: "Couldn't undo \(name).", style: .error))
+            }
+        })
+    }
+
+    private static func fetchMeal(_ id: UUID, in context: ModelContext) -> PlannedMeal? {
+        var descriptor = FetchDescriptor<PlannedMeal>(predicate: #Predicate<PlannedMeal> { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
     }
 
     private func savePreset() {
@@ -714,11 +733,13 @@ struct MealDetailView: View {
                 name: name,
                 foods: meal.foods,
                 mealType: MealType.inferred(fromName: meal.mealName) ?? .snack,
+                isPinned: true,
                 modelContext: modelContext
             )
         }
         if saved {
             HapticManager.notification(.success)
+            FuelLogToast.post(ToastData(message: "Saved as a favourite.", style: .success))
         }
     }
 
@@ -743,6 +764,7 @@ struct MealDetailView: View {
             }
             if done {
                 HapticManager.notification(.success)
+                offerTakeBack("\(meal.mealName) marked eaten.")
             }
             return
         }
@@ -750,7 +772,8 @@ struct MealDetailView: View {
         // via the NL pipeline, then REPLACE the meal's foods/macros so the
         // detail screen shows what was actually eaten. The planned dish is
         // remembered so Undo brings it back. One Haiku call.
-        Task { await resolveSubstitute(at: eatTime, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety) }
+        Task { await resolveSubstitute(at: eatTime, note: substitute.note, usedPantry: substitute.usedPantry, feel: feel, satiety: satiety)
+        }
     }
 
     @MainActor
@@ -791,6 +814,7 @@ struct MealDetailView: View {
                 env: outcomeEnv
             )
             HapticManager.notification(.success)
+            offerTakeBack("\(meal.mealName) marked eaten.")
         } catch {
             if let blocker = AIBlocker(error) {
                 substituteBlocker = blocker
@@ -810,6 +834,7 @@ struct MealDetailView: View {
             return
         }
         HapticManager.lightImpact()
+        offerTakeBack("\(target.mealName) skipped.")
         Task { @MainActor in
             // Same inputs as the Today card: today's Whoop recovery + sleep.
             let whoop = services.whoop
@@ -830,117 +855,41 @@ struct MealDetailView: View {
         }
     }
 
-    /// Horizontal track laid out via HStack so end-node labels can't clip
-    /// off-screen. Prep / Eat / Finish anchor to leading / centre /
-    /// trailing of the container. The progress fill grows from leading
-    /// using `GeometryReader` for the width only — never for absolute
-    /// node positioning. Track colour adapts to phase: amber when
-    /// overdue, dimmed when resolved.
+    /// Prep / Eat / Finish on one lit track. The bar fills as the window
+    /// passes; its colour follows the phase (amber when overdue).
     private func timelineTrack(now: Date, display: MealScheduleDisplay, phase: SchedulePhase) -> some View {
-        let progress = markerProgress(now: now, display: display, phase: phase)
-        let trackColor = trackColorFor(phase: phase)
-        return VStack(spacing: 8) {
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.tempoBorder)
-                    .frame(height: 4)
-                GeometryReader { geo in
-                    Capsule()
-                        .fill(trackColor)
-                        .frame(width: geo.size.width * progress, height: 4)
-                        .overlay(alignment: .trailing) {
-                            Circle()
-                                .fill(Color.tempoTextPrimary)
-                                .frame(width: 12, height: 12)
-                                .overlay(Circle().stroke(Color.tempoSurfaceCard, lineWidth: 3))
-                                .offset(x: 6)
-                                .opacity(progress > 0 && progress < 1 ? 1 : 0)
-                        }
-                }
-                .frame(height: 12)
-
-                HStack(spacing: 0) {
-                    ForEach(timelinePoints(display: display)) { point in
-                        timelineNode(point: point, phase: phase)
-                            .frame(maxWidth: .infinity, alignment: alignmentFor(point: point))
-                    }
-                }
-            }
-            .frame(height: 12)
-
-            HStack(spacing: 0) {
-                ForEach(timelinePoints(display: display)) { point in
-                    timelineNodeLabel(point: point, phase: phase)
-                        .frame(maxWidth: .infinity, alignment: alignmentFor(point: point))
-                }
-            }
-        }
-        .padding(.top, TempoSpacing.xs)
-    }
-
-    private func timelineNode(point: TimelinePoint, phase: SchedulePhase) -> some View {
-        let isNext = point.id == phase.nextPointID
-        let size: CGFloat = isNext ? 14 : 10
-        let dotColor: Color = {
-            if case .overdue = phase, point.id == .finish {
-                return Color.tempoAmber
-            }
-            return isNext ? Color.tempoSignal : Color.tempoTextTertiary
-        }()
-        return Circle()
-            .fill(dotColor)
-            .frame(width: size, height: size)
-            .overlay(Circle().stroke(Color.tempoSurfaceCard, lineWidth: 2))
-    }
-
-    private func timelineNodeLabel(point: TimelinePoint, phase: SchedulePhase) -> some View {
-        let isNext = point.id == phase.nextPointID
-        return VStack(spacing: 1) {
-            Text(point.label.uppercased())
-                .font(.system(size: 9, weight: .bold))
-                .tracking(0.4)
-                .foregroundStyle(isNext ? Color.tempoTextPrimary : Color.tempoTextTertiary)
-            Text(Self.clockFormatter.string(from: point.date))
-                .font(isNext ? .tempoCallout : .tempoCaption2)
-                .fontWeight(isNext ? .semibold : .medium)
-                .foregroundStyle(isNext ? Color.tempoTextPrimary : Color.tempoTextSecondary)
-                .monospacedDigit()
-        }
-        .fixedSize(horizontal: true, vertical: true)
-    }
-
-    private func alignmentFor(point: TimelinePoint) -> Alignment {
-        switch point.id {
-        case .prep: .leading
-        case .eat: .center
-        case .finish: .trailing
-        }
+        FuelTimelineTrack(
+            stops: timelinePoints(display: display).map { point in
+                FuelTimelineTrack.Stop(
+                    id: point.label,
+                    label: point.label,
+                    time: Self.clockFormatter.string(from: point.date),
+                    isNext: point.id == phase.nextPointID
+                )
+            },
+            progress: Double(markerProgress(now: now, display: display, phase: phase)),
+            tone: trackColorFor(phase: phase)
+        )
     }
 
     private func trackColorFor(phase: SchedulePhase) -> Color {
         switch phase {
-        case .overdue: Color.tempoAmber
-        case .skipped: Color.tempoTextTertiary
-        case .eaten: Color.tempoSuccess
-        default: Color.tempoSignal
+        case .overdue: Tide.warn
+        case .skipped: Tide.text3
+        case .eaten: Tide.good
+        default: mood.accent
         }
     }
 
     private func shiftChip(minutes: Int) -> some View {
         let sign = minutes > 0 ? "+" : "−"
-        return HStack(spacing: 4) {
-            Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 10, weight: .semibold))
-            Text("\(sign)\(formatDuration(minutes: abs(minutes))) wake shift")
-                .font(.tempoCaption2)
-                .fontWeight(.semibold)
-        }
-        .foregroundStyle(Color.tempoElectric)
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, 4)
-        .background(Color.tempoElectric.opacity(0.12))
-        .clipShape(Capsule())
-        .accessibilityLabel("Schedule shifted by \(abs(minutes)) minutes due to wake time")
+        return Label("\(sign)\(formatDuration(minutes: abs(minutes))) wake shift", systemImage: "moon.zzz.fill")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.water)
+            .padding(.horizontal, Tide.s2)
+            .padding(.vertical, Tide.s1)
+            .background(Tide.water.opacity(0.12), in: Capsule())
+            .accessibilityLabel("Schedule shifted by \(abs(minutes)) minutes due to wake time")
     }
 
     // MARK: - Schedule helpers
@@ -1004,118 +953,66 @@ struct MealDetailView: View {
     }
 
     private var prepChecklistSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("PREP CHECKLIST")
+        FuelSection(title: "Prep checklist") {
             ForEach(prepChecklistItems) { item in
-                checklistRow(
-                    id: item.id,
+                FuelCheckRow(
                     title: item.title,
-                    subtitle: item.detail,
-                    iconName: "snowflake",
-                    isChecked: checkedPrepItems.contains(item.id),
-                    toggle: { togglePrep(item.id) }
-                )
+                    detail: item.detail,
+                    icon: "snowflake",
+                    isOn: checkedPrepItems.contains(item.id)
+                ) {
+                    togglePrep(item.id)
+                    HapticManager.lightImpact()
+                }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    // MARK: - Macros
-
-    private func macrosSummarySection(recipe: Recipe) -> some View {
-        let totalMinutes = recipe.totalMinutes
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("MACROS PER SERVING")
-            HStack(spacing: TempoSpacing.md) {
-                macroPill(label: "CAL", value: "\(Int(recipe.totalCalories))")
-                macroPill(label: "P", value: "\(Int(recipe.totalProteinGrams))g")
-                macroPill(label: "C", value: "\(Int(recipe.totalCarbsGrams))g")
-                macroPill(label: "F", value: "\(Int(recipe.totalFatGrams))g")
-            }
-            HStack(spacing: TempoSpacing.md) {
-                inlineMetric(icon: "clock", text: "\(totalMinutes) min")
-                inlineMetric(icon: "person.2", text: "\(recipe.servings) serving\(recipe.servings == 1 ? "" : "s")")
-                inlineMetric(icon: "flame", text: recipe.difficulty.rawValue.capitalized)
-            }
-        }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    private func macroPill(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(.system(size: 9, weight: .bold))
-                .tracking(0.5)
-                .foregroundStyle(Color.tempoTextTertiary)
-            Text(value)
-                .font(.tempoCallout)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.tempoTextPrimary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func inlineMetric(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: Tide.s1) {
             Image(systemName: icon)
-                .font(.system(size: 11))
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
             Text(text)
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
         }
     }
 
     // MARK: - Ingredients
 
     private func ingredientsSection(recipe: Recipe) -> some View {
-        let groups = groupIngredients(recipe.orderedIngredients)
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("INGREDIENTS")
+        let ingredients = recipe.orderedIngredients
+        let groups = groupIngredients(ingredients)
+        let collected = ingredients.filter(\.isCollected).count
+        return FuelSection(title: "Ingredients", trailing: ingredients.isEmpty ? nil : "\(collected)/\(ingredients.count)") {
             if groups.isEmpty {
                 Text("No ingredients listed.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
                 ForEach(groups, id: \.title) { group in
                     ingredientGroup(group)
                 }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
     private func ingredientGroup(_ group: IngredientGroup) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-            HStack(spacing: 6) {
-                Image(systemName: group.icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextSecondary)
-                Text(group.title.uppercased())
-                    .font(.system(size: 10, weight: .bold))
-                    .tracking(0.5)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            .padding(.top, 4)
+        VStack(alignment: .leading, spacing: Tide.s1) {
+            Label(group.title, systemImage: group.icon)
+                .tideLabel()
+                .padding(.top, Tide.s1)
 
             ForEach(group.items) { ingredient in
-                checklistRow(
-                    id: ingredient.id,
+                FuelCheckRow(
                     title: ingredient.displayName,
-                    subtitle: ingredientSubtitle(ingredient),
-                    iconName: nil,
-                    isChecked: ingredient.isCollected,
-                    toggle: { toggleIngredient(ingredient) }
-                )
+                    detail: ingredientSubtitle(ingredient),
+                    isOn: ingredient.isCollected
+                ) {
+                    toggleIngredient(ingredient)
+                    HapticManager.lightImpact()
+                }
             }
         }
     }
@@ -1148,22 +1045,19 @@ struct MealDetailView: View {
     // MARK: - Steps
 
     private func stepsSection(recipe: Recipe) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            sectionLabel("STEPS")
-            if recipe.orderedSteps.isEmpty {
+        let steps = recipe.orderedSteps
+        let done = steps.filter(\.isComplete).count
+        return FuelSection(title: "Steps", trailing: steps.isEmpty ? nil : "\(done)/\(steps.count)") {
+            if steps.isEmpty {
                 Text("No steps were generated for this meal.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             } else {
-                ForEach(recipe.orderedSteps) { step in
+                ForEach(steps) { step in
                     stepRow(step)
                 }
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
     private func stepRow(_ step: RecipeStep) -> some View {
@@ -1172,45 +1066,31 @@ struct MealDetailView: View {
             toggleStep(step)
             HapticManager.lightImpact()
         } label: {
-            HStack(alignment: .top, spacing: TempoSpacing.md) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.tempoBorder, lineWidth: 1.5)
-                        .frame(width: 26, height: 26)
-                    if checked {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.tempoSuccess)
-                    } else {
-                        Text("\(step.orderIndex + 1)")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color.tempoTextSecondary)
-                    }
-                }
+            HStack(alignment: .top, spacing: Tide.s3) {
+                FuelCheckMark(isOn: checked, number: step.orderIndex + 1)
+                    .padding(.top, Tide.hair)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Tide.s1) {
                     Text(step.instruction)
-                        .font(.tempoBody)
-                        .foregroundStyle(checked ? Color.tempoTextTertiary : Color.tempoTextPrimary)
-                        .strikethrough(checked, color: Color.tempoTextTertiary)
+                        .font(Tide.body)
+                        .foregroundStyle(checked ? Tide.text3 : Tide.text)
+                        .strikethrough(checked, color: Tide.text3)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let duration = step.durationMinutes, duration > 0 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "timer")
-                                .font(.system(size: 10))
-                            Text("\(duration) min")
-                                .font(.tempoCaption2)
-                        }
-                        .foregroundStyle(Color.tempoTextTertiary)
+                        Label("\(duration) min", systemImage: "timer")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: 0)
             }
-            .contentShape(Rectangle())
+            .frame(minHeight: Tide.hit, alignment: .top)
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 4)
+        .accessibilityAddTraits(checked ? .isSelected : [])
     }
 
     // MARK: - Fallback
@@ -1223,50 +1103,15 @@ struct MealDetailView: View {
             // generated Recipe but DO have a PlannedFood array. Render
             // them per-food with macros so the detail view actually
             // tells the user what they ate, not just a static
-            // "regenerate" message.
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                foodsTotalsCard(foods: foods)
-                foodsListCard(foods: foods)
-            }
+            // "regenerate" message. The hero above carries the totals.
+            foodsListCard(foods: foods)
         } else {
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                sectionLabel("RECIPE")
+            FuelSection(title: "Recipe") {
                 Text("AI couldn't generate a recipe for this meal. Regenerate the weekly plan to retry.")
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            .padding(TempoSpacing.buttonPaddingV)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .tempoShadow(.card)
-        }
-    }
-
-    /// Summary card: total calories + P/C/F across the foods array.
-    /// Mirrors recipe `macrosSummarySection` shape so a user can't tell
-    /// they're on the no-recipe path unless they look.
-    private func foodsTotalsCard(foods: [PlannedFood]) -> some View {
-        let totalKcal = foods.reduce(0.0) { $0 + $1.calories }
-        let totalP = foods.reduce(0.0) { $0 + $1.proteinG }
-        let totalC = foods.reduce(0.0) { $0 + $1.carbsG }
-        let totalF = foods.reduce(0.0) { $0 + $1.fatG }
-        return VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("TOTALS")
-            HStack(spacing: TempoSpacing.md) {
-                Text("\(Int(totalKcal)) kcal")
-                    .font(.tempoTitle3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoViolet)
-                Spacer()
-                macroBadge("P", value: Int(totalP), color: Color.tempoMacroProtein)
-                macroBadge("C", value: Int(totalC), color: Color.tempoMacroCarbs)
-                macroBadge("F", value: Int(totalF), color: Color.tempoMacroFat)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
     }
 
     /// Foods can be removed one by one from a log the user entered (an
@@ -1279,116 +1124,87 @@ struct MealDetailView: View {
     private func removeFood(at index: Int) {
         let env = outcomeEnv
         let target = meal
-        if target.foods.count == 1, target.isUnplannedLog {
+        if target.foods.count == 1, target.isUnplannedLog || target.replacedPlan != nil {
             undoEaten()
             return
         }
-        runAction { try MealOutcomeService.removeFood(at: index, from: target, env: env) }
+        let removed = target.foods.indices.contains(index) ? target.foods[index] : nil
+        let mealID = target.id
+        guard runAction({ try MealOutcomeService.removeFood(at: index, from: target, env: env) }), let removed else {
+            return
+        }
         HapticManager.lightImpact()
+        FuelLogToast.post(ToastData(message: "\(removed.name) removed.", style: .info, actionTitle: "Undo") {
+            guard let back = Self.fetchMeal(mealID, in: env.modelContext),
+                  (try? MealOutcomeService.restoreFood(removed, at: index, to: back, env: env)) != nil
+            else {
+                FuelLogToast.post(ToastData(message: "Couldn't put \(removed.name) back.", style: .error))
+                return
+            }
+        })
     }
 
+    /// What was eaten, food by food, each with its share of the meal's
+    /// calories as a quiet bar.
     private func foodsListCard(foods: [PlannedFood]) -> some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-            sectionLabel("WHAT YOU ATE")
+        let totalKcal = foods.reduce(0.0) { $0 + $1.calories }
+        return FuelSection(title: "What you ate", trailing: "\(foods.count)") {
             ForEach(Array(foods.enumerated()), id: \.offset) { index, food in
-                HStack(spacing: TempoSpacing.sm) {
-                    Circle()
-                        .fill(Color.tempoViolet.opacity(0.4))
-                        .frame(width: 6, height: 6)
-                    Text(food.name)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Spacer()
-                    if food.quantityGrams >= 1 {
-                        Text("\(Int(food.quantityGrams))g")
-                            .font(.system(size: 12, weight: .medium, design: .monospaced))
-                            .foregroundStyle(Color.tempoTextTertiary)
+                HStack(spacing: Tide.s2) {
+                    VStack(alignment: .leading, spacing: Tide.s1) {
+                        let name = Text(food.name)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        let figures = HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                            if food.quantityGrams >= 1 {
+                                Text("\(Int(food.quantityGrams))g")
+                                    .font(Tide.caption).monospacedDigit()
+                                    .foregroundStyle(Tide.text3)
+                            }
+                            Text("\(Int(food.calories.rounded())) kcal")
+                                .font(Tide.bodyStrong).monospacedDigit()
+                                .foregroundStyle(Tide.text)
+                        }
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        // One line while it fits; at large text sizes the figures
+                        // drop under the name so nothing is cut or hyphenated.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                                name
+                                Spacer(minLength: Tide.s2)
+                                figures
+                            }
+                            VStack(alignment: .leading, spacing: Tide.s1) {
+                                name
+                                figures
+                            }
+                        }
+                        FuelShareBar(progress: totalKcal > 0 ? food.calories / totalKcal : 0)
                     }
-                    Text("\(Int(food.calories)) kcal")
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.tempoTextSecondary)
                     if canRemoveFoods {
                         Button {
                             removeFood(at: index)
                         } label: {
                             Image(systemName: "minus.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(Color.tempoError)
-                                .frame(minWidth: 32, minHeight: 32)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.danger)
+                                .frame(minWidth: Tide.hit, minHeight: Tide.hit)
+                                .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Remove \(food.name) from this log")
                     }
                 }
-                .padding(.vertical, 2)
             }
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    private func macroBadge(_ label: String, value: Int, color: Color) -> some View {
-        Text("\(label): \(value)g")
-            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.12))
-            .clipShape(Capsule())
     }
 
     // MARK: - Shared row + label
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoModuleTag)
-            .tracking(TempoTracking.drillLabel)
-            .foregroundStyle(Color.tempoTextSecondary)
-    }
-
-    private func checklistRow(
-        id _: UUID,
-        title: String,
-        subtitle: String?,
-        iconName: String?,
-        isChecked: Bool,
-        toggle: @escaping () -> Void
-    ) -> some View {
-        Button(action: {
-            toggle()
-            HapticManager.lightImpact()
-        }) {
-            HStack(alignment: .top, spacing: TempoSpacing.md) {
-                Image(systemName: isChecked ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 18))
-                    .foregroundStyle(isChecked ? Color.tempoSuccess : Color.tempoTextTertiary)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        if let iconName {
-                            Image(systemName: iconName)
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.tempoElectric)
-                        }
-                        Text(title)
-                            .font(.tempoBody)
-                            .foregroundStyle(isChecked ? Color.tempoTextTertiary : Color.tempoTextPrimary)
-                            .strikethrough(isChecked, color: Color.tempoTextTertiary)
-                    }
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-                Spacer()
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.vertical, 4)
+        Text(text).tideLabel()
     }
 
     // MARK: - Mutation helpers

@@ -14,7 +14,7 @@ import SwiftUI
 
 // MARK: - Content View
 
-// Per BUILD_PLAN step 3.10 — 5-tab TabView wired to AppState.activeTab.
+// The tab shell lives in Views/Shell/TempoShell.swift (4 tabs + capture), wired to AppState.activeTab.
 // Conditionally shows onboarding if !isOnboardingComplete.
 
 struct ContentView: View {
@@ -25,12 +25,6 @@ struct ContentView: View {
     /// Hot reload (dev only, no-op in Release). Edit a SwiftUI view body and
     /// save → InjectionIII pushes it into the running sim in ~1s, no rebuild.
     @ObserveInjection var inject
-
-    /// Drives the app-wide accent tint. Observing the AppStorage key here (not
-    /// reading Color.tempoAccent statically) is what makes the Appearance
-    /// accent picker actually re-tint the app live when the choice changes.
-    @AppStorage("accentColorChoice")
-    private var accentColorChoice: String = "signal_red"
 
     /// The Nutrition tab's view model, owned here so plan-input changes are
     /// handled even when the Nutrition tab was never opened (see
@@ -46,14 +40,6 @@ struct ContentView: View {
     /// already does them, and two rebuilds at once can cancel each other's reminders.
     @State
     private var coldLaunch = ColdLaunchActivation()
-
-    private var accentColor: Color {
-        switch accentColorChoice {
-        case "electric_blue": .tempoElectric
-        case "success_green": .tempoSuccess
-        default: .tempoSignal
-        }
-    }
 
     var body: some View {
         Group {
@@ -94,13 +80,21 @@ struct ContentView: View {
     private func ensureUserProfile() {
         // Runs every launch (cheap when there's nothing to heal).
         dedupeUserSettings()
-        let descriptor = FetchDescriptor<UserProfile>()
-        guard (try? modelContext.fetchCount(descriptor)) == 0 else {
-            return
-        }
-
+        // Onboarding leaves its answers for this function to read; they are
+        // not needed once the profile exists.
+        defer { UserDefaults.standard.removeObject(forKey: "tempo.onboarding.data") }
         // Read onboarding data from UserDefaults (persisted during onboarding)
         let data = UserDefaults.standard.dictionary(forKey: "tempo.onboarding.data")
+        let chosenGoal = PrimaryGoal(saved: data?["primaryGoal"] as? String)
+        let descriptor = FetchDescriptor<UserProfile>()
+        guard (try? modelContext.fetchCount(descriptor)) == 0 else {
+            // Onboarding run again on a phone that already has its profile: the goal just chosen wins.
+            if let chosenGoal, let existing = try? modelContext.fetch(FetchDescriptor<UserSettings>()).first {
+                existing.primaryGoal = chosenGoal
+                try? modelContext.save()
+            }
+            return
+        }
         let name = data?["displayName"] as? String ?? "Athlete"
         let user = data?["username"] as? String ?? "athlete"
         let identity = data?["identityLabel"] as? String ?? "Athlete"
@@ -134,7 +128,11 @@ struct ContentView: View {
             } else if let days = data?["daysPerWeek"] as? Int {
                 settings.trainingSplit = TrainingSplit.forDaysPerWeek(days)
             }
+            settings.primaryGoal = chosenGoal
             modelContext.insert(settings)
+        } else if let chosenGoal, let existing = try? modelContext.fetch(settingsDescriptor).first {
+            // Settings were created before the profile (another screen got there first).
+            existing.primaryGoal = chosenGoal
         }
 
         try? modelContext.save()
@@ -170,44 +168,16 @@ struct ContentView: View {
             modelContext.delete(dupe)
         }
         try? modelContext.save()
+        // The launch sync may have read a row that was just deleted.
+        NotificationPolicyStore.sync(from: survivor)
         Logger.sync.info("[Settings] deduped UserSettings: \(all.count) rows → 1")
     }
 
     private var mainTabView: some View {
         @Bindable
         var appState = services.appState
-        return TabView(selection: $appState.activeTab) {
-            DashboardView()
-                .tabItem {
-                    Label(Tab.dashboard.title, systemImage: Tab.dashboard.icon)
-                }
-                .tag(Tab.dashboard)
-
-            RecoveryTabView()
-                .tabItem {
-                    Label(Tab.recovery.title, systemImage: Tab.recovery.icon)
-                }
-                .tag(Tab.recovery)
-
-            TrainingTabView()
-                .tabItem {
-                    Label(Tab.training.title, systemImage: Tab.training.icon)
-                }
-                .tag(Tab.training)
-
-            NutritionTabView(viewModel: nutritionViewModel)
-                .tabItem {
-                    Label(Tab.nutrition.title, systemImage: Tab.nutrition.icon)
-                }
-                .tag(Tab.nutrition)
-
-            LockdownTabView()
-                .tabItem {
-                    Label(Tab.lockdown.title, systemImage: Tab.lockdown.icon)
-                }
-                .tag(Tab.lockdown)
-        }
-        .tint(accentColor)
+        // The shell tints itself with the day's mood colour.
+        return TempoShell(nutritionViewModel: nutritionViewModel)
         .toolbarBackground(.hidden, for: .tabBar)
         .onChange(of: appState.activeTab) { _, _ in
             HapticManager.selection()
@@ -241,7 +211,7 @@ struct ContentView: View {
             }
             hasCheckedScanResume = true
             if let resume = ScanResume.consume() {
-                appState.activeTab = .nutrition
+                appState.activeTab = .fuel
                 nutritionViewModel.apply(NutritionRoute(section: resume.nutritionSection, kitchen: nil))
                 nutritionViewModel.scanResume = resume
             }

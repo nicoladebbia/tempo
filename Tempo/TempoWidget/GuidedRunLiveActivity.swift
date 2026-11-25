@@ -2,11 +2,10 @@
 // GuidedRunLiveActivity.swift
 // TempoWidget
 //
-// Guided run mode — lock-screen + Dynamic Island for a live guided run.
-// `context.state` is a `GuidedRunActivitySnapshot`: work steps count UP from
-// `timerAnchor` (open-ended — no cap to hit zero against), rest counts DOWN
-// to it. Both use `Text(timerInterval:)` so the system ticks the digits with
-// no per-second push from the app. Mirrors WorkoutLiveActivity's structure.
+// Lock-screen + Dynamic Island presentation for a guided run (shuttles,
+// fartlek, intervals), in the Tide look. The clock is system timer text
+// (counting down for a countdown or rest, up for an open step), so nothing is
+// pushed once a second; a paused run freezes on the app's own text.
 //
 
 import ActivityKit
@@ -16,56 +15,56 @@ import WidgetKit
 // MARK: - GuidedRunLiveActivity
 
 struct GuidedRunLiveActivity: Widget {
+    private let tone = ActivityTone.run
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GuidedRunActivityAttributes.self) { context in
             GuidedRunLockScreenView(runTitle: context.attributes.runTitle, state: context.state)
         } dynamicIsland: { context in
-            DynamicIsland {
+            let state = context.state
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "figure.run")
-                            .foregroundStyle(.orange)
-                        Text(context.state.isRest ? "REST" : "RUN")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: Tide.s1) {
+                        Image(systemName: state.isRest ? "hourglass" : "figure.run")
+                            .foregroundStyle(tone)
+                        WidgetLabel(state.isRest ? "Rest" : "Run", color: tone)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    GuidedRunTimerText(state: context.state)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .monospacedDigit()
-                        .frame(width: 70)
+                    GuidedRunReadout(state: state)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.stepTitle)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    Text(state.stepTitle)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    GuidedRunDetailRow(state: context.state)
+                    // The island's bottom corners are round: keep the line off them.
+                    GuidedRunDetailRow(state: state)
+                        .padding(.horizontal, Tide.s2)
                 }
             } compactLeading: {
-                Image(systemName: "figure.run")
-                    .foregroundStyle(.orange)
+                Image(systemName: state.isRest ? "hourglass" : "figure.run")
+                    .foregroundStyle(tone)
             } compactTrailing: {
-                GuidedRunTimerText(state: context.state)
+                GuidedRunTimerText(state: state)
+                    .font(Tide.numeral(Tide.numeralS * 0.8))
                     .monospacedDigit()
-                    .frame(width: 44)
+                    .foregroundStyle(tone)
+                    .frame(maxWidth: WidgetMetrics.compactClock, alignment: .trailing)
             } minimal: {
-                Image(systemName: "figure.run")
-                    .foregroundStyle(.orange)
+                Image(systemName: state.isRest ? "hourglass" : "figure.run")
+                    .foregroundStyle(tone)
             }
+            .keylineTint(tone)
         }
     }
 }
 
 // MARK: - GuidedRunTimerText
 
-/// Renders the shared timer rule: paused freezes on `frozenText`; otherwise a
-/// date-based `Text(timerInterval:)` counts up (work) or down (rest/countdown).
 private struct GuidedRunTimerText: View {
     let state: GuidedRunActivitySnapshot
 
@@ -79,10 +78,34 @@ private struct GuidedRunTimerText: View {
             // ActivityKit propagation delay), "now" can already be past a
             // very-short-lived anchor. Guard rather than trust the source
             // never produces this: a stale "0:00" for one frame beats a crash.
-            Text(timerInterval: SafeTimerRange.countdown(to: state.timerAnchor), countsDown: true)
+            Text.countdown(to: state.timerAnchor)
         } else {
             Text(timerInterval: state.timerAnchor ... Date.distantFuture, countsDown: false)
         }
+    }
+}
+
+// MARK: - GuidedRunReadout
+
+private struct GuidedRunReadout: View {
+    let state: GuidedRunActivitySnapshot
+
+    var body: some View {
+        ActivityReadout(label: label, tone: state.isPaused ? Tide.text2 : ActivityTone.run) {
+            GuidedRunTimerText(state: state)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: WidgetMetrics.readoutClock, alignment: .trailing)
+        }
+    }
+
+    private var label: String {
+        if state.isPaused {
+            return "Paused"
+        }
+        if state.isRest {
+            return "Rest"
+        }
+        return state.countsDown ? "Left" : "Time"
     }
 }
 
@@ -92,11 +115,9 @@ private struct GuidedRunDetailRow: View {
     let state: GuidedRunActivitySnapshot
 
     var body: some View {
-        HStack(spacing: 10) {
-            if state.isPaused {
-                Text("PAUSED")
-                    .fontWeight(.bold)
-            } else if let next = state.nextStepText {
+        HStack(spacing: Tide.s3) {
+            // The readout beside it already says "Paused".
+            if let next = state.nextStepText {
                 Text(next)
             } else if let detail = state.detailText {
                 Text(detail)
@@ -107,15 +128,17 @@ private struct GuidedRunDetailRow: View {
             if let pace = state.paceText {
                 Text(pace)
             }
-            Spacer()
+            Spacer(minLength: Tide.s2)
             if let hr = state.heartRateText {
                 Label(hr, systemImage: "heart.fill")
                     .labelStyle(.titleAndIcon)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Tide.danger)
             }
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(Tide.caption)
+        .foregroundStyle(Tide.text2)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 }
 
@@ -124,34 +147,45 @@ private struct GuidedRunDetailRow: View {
 private struct GuidedRunLockScreenView: View {
     let runTitle: String
     let state: GuidedRunActivitySnapshot
+    private let tone = ActivityTone.run
+
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: state.isRest ? "hourglass" : "figure.run")
-                .font(.title2)
-                .foregroundStyle(.orange)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(runTitle.uppercased())
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.secondary)
-                Text(state.stepTitle)
-                    .font(.headline)
-                    .lineLimit(1)
-                GuidedRunDetailRow(state: state)
+        Group {
+            if typeSize.isAccessibilitySize {
+                // A fixed-height banner: stack the row and drop the detail
+                // line at the largest text sizes so nothing is cut off.
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    heading
+                    GuidedRunReadout(state: state)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(spacing: Tide.s3) {
+                        ActivityTile(symbol: state.isRest ? "hourglass" : "figure.run", tone: tone)
+                        heading
+                        Spacer(minLength: Tide.s2)
+                        GuidedRunReadout(state: state)
+                    }
+                    GuidedRunDetailRow(state: state)
+                }
             }
-
-            Spacer()
-
-            GuidedRunTimerText(state: state)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.white)
-                .frame(minWidth: 70, alignment: .trailing)
         }
-        .padding(14)
-        .activityBackgroundTint(Color.black.opacity(0.6))
-        .activitySystemActionForegroundColor(.orange)
+        .padding(Tide.s4)
+        .tideActivityField(tone)
+    }
+
+    private var heading: some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            WidgetLabel(runTitle, color: tone)
+            Text(state.stepTitle)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
     }
 }

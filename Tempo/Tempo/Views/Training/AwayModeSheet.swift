@@ -36,56 +36,80 @@ struct AwayModeSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if let activePause {
-                    Section("Currently paused") {
-                        statusRow(
-                            icon: "leaf.fill", color: .tempoSuccess,
-                            title: activePause.reason.reportLabel,
-                            subtitle: activePause.plannedEndDate.map {
-                                "Until \($0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))"
-                            } ?? "Until you resume"
-                        )
-                        Button("Resume now") {
-                            viewModel.resumePauseNow(activePause, modelContext: modelContext)
-                            dismiss()
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: Tide.s5) {
+                    if let activePause {
+                        VStack(alignment: .leading, spacing: Tide.s3) {
+                            Text("Currently paused")
+                                .tideLabel()
+                                .accessibilityLabel("Currently paused")
+                                .accessibilityIdentifier("Currently paused")
+                            statusCard(
+                                icon: "leaf.fill", color: TideTrain.positive,
+                                title: activePause.reason.reportLabel,
+                                subtitle: activePause.plannedEndDate.map {
+                                    "Until \($0.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))"
+                                } ?? "Until you resume",
+                                actionTitle: "Resume now"
+                            ) {
+                                viewModel.resumePauseNow(activePause, modelContext: modelContext)
+                                dismiss()
+                            }
                         }
-                    }
-                } else {
-                    Section {
+                    } else {
                         NavigationLink {
                             StartPauseView(viewModel: viewModel, onDone: { dismiss() })
                         } label: {
-                            Label("I'm sick / taking a break", systemImage: "leaf.fill")
+                            TrainRowLabel(
+                                systemImage: "leaf.fill",
+                                title: "I'm sick / taking a break",
+                                tint: TideTrain.positive
+                            )
+                            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                         }
+                        .buttonStyle(.plain)
                     }
-                }
 
-                if let activeTravel {
-                    Section("Limited equipment") {
-                        statusRow(
-                            icon: "bag.fill", color: .tempoElectric,
-                            title: activeTravel.scope.displayName,
-                            subtitle: activeTravel.availableEquipment
-                                .map(\.travelDisplayName).sorted().joined(separator: ", ")
-                        )
-                        Button("End early") {
-                            viewModel.endTravelEquipmentPeriod(activeTravel, modelContext: modelContext)
-                            dismiss()
+                    if let activeTravel {
+                        VStack(alignment: .leading, spacing: Tide.s3) {
+                            Text("Limited equipment").tideLabel().accessibilityLabel("Limited equipment")
+                            statusCard(
+                                icon: "bag.fill", color: Tide.water,
+                                title: activeTravel.scope.displayName,
+                                subtitle: activeTravel.availableEquipment
+                                    .map(\.travelDisplayName).sorted().joined(separator: ", "),
+                                actionTitle: "End early"
+                            ) {
+                                viewModel.endTravelEquipmentPeriod(activeTravel, modelContext: modelContext)
+                                dismiss()
+                            }
                         }
-                    }
-                } else {
-                    Section {
+                    } else {
                         NavigationLink {
                             StartTravelEquipmentView(viewModel: viewModel, onDone: { dismiss() })
                         } label: {
-                            Label("Limited equipment (travel)", systemImage: "bag.fill")
+                            TrainRowLabel(
+                                systemImage: "bag.fill",
+                                title: "Limited equipment (travel)",
+                                tint: Tide.water
+                            )
+                            .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, Tide.edge)
+                .padding(.vertical, Tide.s3)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .trainSheetRoot()
             .navigationTitle("Away from the gym")
             .navigationBarTitleDisplayMode(.inline)
+            .firstTip(
+                "train.away",
+                "Sick, travelling or taking a break? Pick one here and Tempo plans your training around it.",
+                systemImage: "airplane"
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -94,15 +118,33 @@ struct AwayModeSheet: View {
         }
     }
 
-    private func statusRow(icon: String, color: Color, title: String, subtitle: String) -> some View {
-        HStack(spacing: TempoSpacing.md) {
-            Image(systemName: icon)
-                .foregroundStyle(color)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.tempoBodyBold)
-                Text(subtitle).font(.tempoCaption1).foregroundStyle(Color.tempoTextSecondary)
+    private func statusCard(
+        icon: String, color: Color, title: String, subtitle: String,
+        actionTitle: String, action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            HStack(spacing: Tide.s3) {
+                TideIconTile(systemName: icon, tint: color)
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    Text(title)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(subtitle)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
+            Button(action: action) {
+                Text(actionTitle)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tideGlass)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
     }
 }
 
@@ -123,33 +165,55 @@ private struct StartPauseView: View {
     private var untilResume = false
     @State
     private var days: Double = 3
+    @FocusState
+    private var otherFocused: Bool
 
     var body: some View {
-        Form {
-            Section("Why") {
-                Picker("Reason", selection: $reason) {
-                    ForEach(PauseReason.allCases, id: \.self) { Text($0.displayName).tag($0) }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("Why").tideLabel()
+                    Picker("Reason", selection: $reason) {
+                        ForEach(PauseReason.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    if reason == .other {
+                        TextField("What's up?", text: $otherText)
+                            .focused($otherFocused)
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .tideFieldSurface(focused: otherFocused)
+                    }
                 }
-                .pickerStyle(.segmented)
-                if reason == .other {
-                    TextField("What's up?", text: $otherText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("How long").tideLabel()
+                    Toggle("Until I resume", isOn: $untilResume)
+                    if !untilResume {
+                        TrainSessionRule()
+                        Stepper("\(Int(days)) day\(Int(days) == 1 ? "" : "s")", value: $days, in: 1 ... 14)
+                    }
                 }
-            }
-            Section("How long") {
-                Toggle("Until I resume", isOn: $untilResume)
-                if !untilResume {
-                    Stepper("\(Int(days)) day\(Int(days) == 1 ? "" : "s")", value: $days, in: 1 ... 14)
-                }
-            }
-            Section {
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .animation(Tide.snap, value: untilResume)
+
                 Text("No trainer sessions, no reminders, and Nutrition switches to rest days while you're paused.")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .scrollBounceBehavior(.basedOnSize)
+        .tidePage()
         .navigationTitle("Take a break")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startPause(
                     reason: reason,
@@ -160,16 +224,11 @@ private struct StartPauseView: View {
                 onDone()
             } label: {
                 Text("Start")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoSignal)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .frame(minHeight: TideTrain.bigButton - Tide.s2)
             }
-            .buttonStyle(.plain)
-            .padding(TempoSpacing.md)
-            .background(.bar)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s3)
         }
     }
 }
@@ -182,6 +241,8 @@ private struct StartTravelEquipmentView: View {
     var onDone: () -> Void
     @Environment(\.modelContext)
     private var modelContext
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     @State
     private var scope: TravelEquipmentScope = .today
@@ -202,64 +263,86 @@ private struct StartTravelEquipmentView: View {
         .machine,
     ]
 
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: Tide.s2),
+            count: typeSize.isAccessibilitySize ? 1 : 2
+        )
+    }
+
     var body: some View {
-        Form {
-            Section("Scope") {
-                Picker("Scope", selection: $scope) {
-                    ForEach(TravelEquipmentScope.allCases, id: \.self) { Text($0.displayName).tag($0) }
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Tide.s5) {
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("Scope").tideLabel()
+                    Picker("Scope", selection: $scope) {
+                        ForEach(TravelEquipmentScope.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
-            }
-            Section("What do you actually have?") {
-                ForEach(Self.pickable, id: \.self) { equipment in
-                    Button {
-                        if selected.contains(equipment) {
-                            selected.remove(equipment)
-                        } else {
-                            selected.insert(equipment)
-                        }
-                    } label: {
-                        HStack {
-                            Text(equipment.travelDisplayName)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                            Spacer()
-                            if selected.contains(equipment) {
-                                Image(systemName: "checkmark").foregroundStyle(Color.tempoSignal)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+
+                VStack(alignment: .leading, spacing: Tide.s3) {
+                    Text("What do you actually have?").tideLabel()
+                    LazyVGrid(columns: columns, spacing: Tide.s2) {
+                        ForEach(Self.pickable, id: \.self) { equipment in
+                            let isOn = selected.contains(equipment)
+                            Button {
+                                if isOn {
+                                    selected.remove(equipment)
+                                } else {
+                                    selected.insert(equipment)
+                                }
+                            } label: {
+                                HStack(spacing: Tide.s2) {
+                                    if isOn {
+                                        Image(systemName: "checkmark")
+                                            .font(Tide.label)
+                                            .accessibilityHidden(true)
+                                    }
+                                    Text(equipment.travelDisplayName)
+                                        .font(Tide.bodyStrong)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(Tide.labelShrink)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: TideTrainSession.choiceHeight)
                             }
+                            .buttonStyle(.trainChoice(isSelected: isOn))
                         }
                     }
+                    Button("Full gym (no swaps needed)") {
+                        selected = Set(Equipment.allCases)
+                    }
+                    .buttonStyle(.tideGlass)
                 }
-                Button("Full gym (no swaps needed)") {
-                    selected = Set(Equipment.allCases)
-                }
-                .font(.tempoCaption1)
-            }
-            Section {
+                .frame(maxWidth: .infinity, alignment: .leading)
+
                 Text(
                     "Trainer exercises that need gear you don't have get swapped to the closest match on what you DO have — same sets and reps, labeled \"Hotel swap\"."
                 )
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s3)
         }
+        .scrollBounceBehavior(.basedOnSize)
+        .tidePage()
         .navigationTitle("Limited equipment")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
+        .safeAreaBar(edge: .bottom) {
             Button {
                 viewModel.startTravelEquipmentPeriod(scope: scope, availableEquipment: selected, modelContext: modelContext)
                 onDone()
             } label: {
                 Text("Start")
-                    .font(.tempoSubheadline.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .background(Color.tempoElectric)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
+                    .frame(minHeight: TideTrain.bigButton - Tide.s2)
             }
-            .buttonStyle(.plain)
-            .padding(TempoSpacing.md)
-            .background(.bar)
+            .buttonStyle(.tidePrimary)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s3)
             .disabled(selected.isEmpty)
         }
     }

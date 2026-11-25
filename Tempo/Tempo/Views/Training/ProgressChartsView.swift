@@ -12,8 +12,11 @@ import SwiftUI
 
 // MARK: - Progress Charts View
 
-// Per MODULE_TRAINING.md Section 11 — Three tabs: Per Exercise, Muscle Groups, Overview.
-// Per WIREFRAMES.md Screen 21 — Progress chart per exercise.
+// The one Progress page in Train. Five tabs: Overview (the week, load, totals,
+// frequency, muscle split, other training), Lifts (the Strength Lab and every
+// lift with history), Records (personal records), Body (the muscle map, volume
+// by muscle and push/pull balance) and History (every logged workout, with CSV
+// import and export). Per MODULE_TRAINING.md Section 11 and WIREFRAMES.md Screen 21.
 
 struct ProgressChartsView: View {
     /// modelContext intentionally removed — this view is now read-only. The
@@ -30,6 +33,8 @@ struct ProgressChartsView: View {
     private var activitySessions: [ActivitySession]
     @Query
     private var userSettings: [UserSettings]
+    @Query(filter: #Predicate<Goal> { $0.isActive == true })
+    private var activeGoals: [Goal]
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -39,11 +44,11 @@ struct ProgressChartsView: View {
     private var selectedTab: ProgressTab = .overview
 
     enum ProgressTab: String, CaseIterable {
-        case lab = "Lab"
         case overview = "Overview"
-        case exercises = "Exercises"
-        case muscles = "Muscles"
-        case activity = "Activity"
+        case lifts = "Lifts"
+        case records = "Records"
+        case body = "Body"
+        case history = "History"
     }
 
     private var hasAnyData: Bool {
@@ -52,45 +57,38 @@ struct ProgressChartsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if !hasAnyData {
-                EmptyStateView(
-                    icon: "chart.line.uptrend.xyaxis",
-                    title: "No Progress Yet",
-                    message: "Complete your first workout to start tracking progress."
-                )
-            } else {
-                // Segmented picker
-                // Per MODULE_TRAINING.md Section 11.1 — segmented control at top
-                Picker("View", selection: $selectedTab) {
-                    ForEach(ProgressTab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.sm)
+            // Per MODULE_TRAINING.md Section 11.1 — segmented control at top.
+            // Always shown: History is where workouts are imported from
+            // another app, so it must be reachable before the first workout.
+            TrainPlanTabs(
+                items: ProgressTab.allCases.map { (tag: $0, label: $0.rawValue) },
+                selection: $selectedTab
+            )
+            .padding(.horizontal, Tide.edge)
+            .padding(.vertical, Tide.s2)
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    switch selectedTab {
-                    case .lab:
-                        // §11.2 — the interactive Strength Lab (scrubbable
-                        // e1RM curve, PR stars, compare lift, volume bars).
-                        StrengthProgressLabView()
-                    case .overview:
-                        overviewTab
-                    case .exercises:
-                        exercisesTab
-                    case .muscles:
-                        muscleGroupsTab
-                    case .activity:
-                        activityTab
+            if selectedTab == .history {
+                // Its own scrolling list, import overlay and toolbar buttons.
+                WorkoutHistoryView()
+            } else {
+                TrainPlanPage {
+                    if hasAnyData {
+                        tabContent
+                    } else {
+                        noProgressCard
                     }
                 }
+                .id(selectedTab)
             }
         }
-        .background(Color.tempoBgPrimary)
+        .tidePage()
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
+        .firstTip(
+            "train.progress",
+            "Switch tabs for your lifts, records, body and history, and tap a score or number to see how it is worked out.",
+            systemImage: "chart.line.uptrend.xyaxis"
+        )
         // NOTE: there is deliberately NO orphan-purge on appearance. A prior
         // purgeOrphanedHistory() ran here and DELETED valid ExerciseHistory on
         // every Progress open whenever the matching WorkoutPlan wasn't marked
@@ -101,12 +99,56 @@ struct ProgressChartsView: View {
         // deletion in WorkoutHistoryView.deleteWorkout(), keyed by workoutPlanID.
     }
 
+    /// The tab's content (History has its own list and is not in here).
+    @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .overview:
+            overviewTab
+        case .lifts:
+            liftsTab
+        case .records:
+            ProgressRecordsView()
+        case .body:
+            bodyTab
+        case .history:
+            EmptyView()
+        }
+    }
+
+    /// Before the first workout every tab but History is empty: say so, and
+    /// where an earlier history can be brought in.
+    private var noProgressCard: some View {
+        VStack(spacing: Tide.s3) {
+            TrainEmptyCard(
+                systemImage: "chart.line.uptrend.xyaxis",
+                title: "No progress yet",
+                message: "Complete your first workout to start tracking progress."
+            )
+            Button {
+                withAnimation(Tide.snap) {
+                    selectedTab = .history
+                }
+            } label: {
+                Label("Import history from another app", systemImage: "square.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.trainPlanSecondary)
+        }
+        .padding(.top, Tide.s4)
+    }
+
     // MARK: - Overview Tab
 
     // Per MODULE_TRAINING.md Section 11.4
 
     private var overviewTab: some View {
-        VStack(spacing: TempoSpacing.xl) {
+        VStack(spacing: Tide.s4) {
+            // The lift or run target, when there is one.
+            if activeGoals.hasActive(of: [.liftE1RM, .runTime]) {
+                GoalProgressChip(kinds: [.liftE1RM, .runTime])
+            }
+
             // §11.8 — the week-in-motion hero: this week's volume, delta vs
             // last week, 8-week trend, streak + fresh PRs.
             thisWeekHero
@@ -122,9 +164,35 @@ struct ProgressChartsView: View {
 
             // Body part split
             bodyPartSplitCard
+
+            // Football, sprints and conditioning (only once there are any).
+            if !activitySessions.isEmpty {
+                otherTrainingCards
+            }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+    }
+
+    // MARK: - Lifts Tab
+
+    /// The Strength Lab on top, then every lift that has history.
+    private var liftsTab: some View {
+        VStack(spacing: Tide.s4) {
+            // §11.2 — the interactive Strength Lab (scrubbable e1RM curve, PR
+            // stars, compare lift, volume bars).
+            StrengthProgressLabView()
+            exercisesList
+        }
+    }
+
+    // MARK: - Body Tab
+
+    /// The muscle map, then volume by muscle and the push/pull balance.
+    private var bodyTab: some View {
+        VStack(spacing: Tide.s4) {
+            MuscleHeatmapView()
+            muscleVolumeCard
+            balanceAnalysis
+        }
     }
 
     // MARK: - This Week Hero (§11.8)
@@ -212,68 +280,64 @@ struct ProgressChartsView: View {
         let previous = weeks.dropLast().last?.volume ?? 0
         let delta = previous > 0 ? (current - previous) / previous : nil
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("THIS WEEK")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text(formatVolume(current))
-                        .font(.tempoTitle2)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                        .monospacedDigit()
-                }
-                Spacer()
-                if let delta {
-                    HStack(spacing: 2) {
-                        Image(systemName: delta >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("\(abs(Int((delta * 100).rounded())))% vs last week")
-                            .font(.tempoCaption1)
-                            .fontWeight(.semibold)
+        return TrainPlanCard {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    heroFigure(current)
+                    Spacer(minLength: Tide.s2)
+                    if let delta {
+                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
                     }
-                    .foregroundStyle(delta >= 0 ? Color.tempoRecoveryGreen : Color.tempoAmber)
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    heroFigure(current)
+                    if let delta {
+                        TrainPlanDelta(fraction: delta, suffix: "vs last week")
+                    }
                 }
             }
 
             if weeks.contains(where: { $0.volume > 0 }) {
-                Chart(weeks, id: \.weekStart) { week in
-                    AreaMark(
-                        x: .value("Week", week.weekStart),
-                        y: .value("Volume", week.volume)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.tempoAccent.opacity(0.3), .clear],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.monotone)
-                    LineMark(
-                        x: .value("Week", week.weekStart),
-                        y: .value("Volume", week.volume)
-                    )
-                    .foregroundStyle(Color.tempoAccent)
-                    .lineStyle(StrokeStyle(lineWidth: 2))
-                    .interpolationMethod(.monotone)
-                }
-                .chartXAxis(.hidden)
-                .chartYAxis(.hidden)
-                .frame(height: 56)
+                TrainPlanSpark(values: weeks.map(\.volume))
             }
 
-            HStack(spacing: TempoSpacing.lg) {
-                Label("\(weekStreak)-week streak", systemImage: "flame.fill")
-                    .foregroundStyle(weekStreak > 0 ? Color.tempoAmber : Color.tempoTextTertiary)
-                Label("\(prCount30d) PRs this month", systemImage: "star.fill")
-                    .foregroundStyle(prCount30d > 0 ? Color.tempoAccent : Color.tempoTextTertiary)
-                Spacer()
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    streakTags
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    streakTags
+                }
             }
-            .font(.tempoCaption1)
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+    }
+
+    private func heroFigure(_ volume: Double) -> some View {
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            Text("This week").tideLabel(Tide.text3)
+                .lineLimit(1)
+            Text(formatVolume(volume))
+                .trainNumeral(Tide.numeralL, relativeTo: .largeTitle)
+                .foregroundStyle(Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+                .contentTransition(.numericText())
+        }
+    }
+
+    @ViewBuilder
+    private var streakTags: some View {
+        TrainTag(
+            text: "\(weekStreak)-week streak",
+            systemImage: "flame.fill",
+            color: weekStreak > 0 ? TideTrain.caution : Tide.text3
+        )
+        TrainTag(
+            text: "\(TrainCount.text(prCount30d, "PR")) this month",
+            systemImage: "star.fill",
+            color: prCount30d > 0 ? Color.accentColor : Tide.text3
+        )
     }
 
     private var allTimeStats: some View {
@@ -283,36 +347,15 @@ struct ProgressChartsView: View {
             .filter { $0.status == .completed }
             .reduce(0) { $0 + $1.completedSets }
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("ALL-TIME")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-                GridItem(.flexible(), spacing: TempoSpacing.sm),
-            ], spacing: TempoSpacing.sm) {
-                overviewStatCell(label: "Workouts", value: "\(totalWorkouts)")
-                overviewStatCell(label: "Volume (\(weightUnit.abbreviation))", value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit))
-                overviewStatCell(label: "Sets", value: "\(totalSets)")
+        return TrainPlanCard(label: "All-time") {
+            TrainStatGrid {
+                TrainStat(value: "\(totalWorkouts)", label: TrainCount.noun(totalWorkouts, "Workout"))
+                TrainStat(
+                    value: WeightFormat.compactVolume(kg: totalVolume, unit: weightUnit),
+                    label: "Volume (\(weightUnit.abbreviation))"
+                )
+                TrainStat(value: "\(totalSets)", label: TrainCount.noun(totalSets, "Set"))
             }
-        }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-    }
-
-    private func overviewStatCell(label: String, value: String) -> some View {
-        VStack(spacing: TempoSpacing.xxs) {
-            Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
         }
     }
 
@@ -324,233 +367,136 @@ struct ProgressChartsView: View {
             ? 0
             : Double(recentWeeks.reduce(0) { $0 + $1.count }) / Double(recentWeeks.count)
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("WORKOUT FREQUENCY")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                if average > 0 {
-                    Text(String(format: "avg %.1f/wk", average))
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
-                }
-            }
-
+        return TrainPlanCard(
+            label: "Workout frequency",
+            trailing: average > 0 ? String(format: "avg %.1f/wk", average) : nil
+        ) {
             if recentWeeks.isEmpty {
-                Text("No workouts yet")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
+                emptyLine("No workouts yet", height: TideTrain.barsHeight)
             } else {
-                Chart {
-                    ForEach(Array(recentWeeks.enumerated()), id: \.element.weekLabel) { idx, item in
-                        BarMark(
-                            x: .value("Week", item.weekLabel),
-                            y: .value("Count", item.count)
-                        )
-                        .foregroundStyle(
-                            idx == recentWeeks.count - 1
-                                ? Color.tempoAccent
-                                : Color.tempoSignal.opacity(0.7)
-                        )
-                        .cornerRadius(TempoRadius.xs)
-                    }
-                    if average > 0 {
-                        RuleMark(y: .value("Average", average))
-                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.5))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks { _ in
-                        AxisGridLine()
-                            .foregroundStyle(Color.tempoTextTertiary.opacity(0.2))
-                        AxisValueLabel()
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks { _ in
-                        AxisValueLabel()
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                }
-                .frame(height: 120)
+                TrainPlanBarChart(
+                    bars: recentWeeks.map {
+                        TrainPlanBarChart.Bar(id: $0.weekLabel, label: $0.weekLabel, value: Double($0.count))
+                    },
+                    average: average
+                )
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     /// Per MODULE_TRAINING.md Section 11.4 — Body part split donut chart
     private var bodyPartSplitCard: some View {
         let distribution = muscleGroupDistribution
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("MUSCLE GROUP DISTRIBUTION")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-
+        return TrainPlanCard(label: "Muscle group distribution", trailing: "30 days") {
             if distribution.isEmpty {
-                Text("No data yet")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 120)
+                emptyLine("No data yet", height: TideTrain.barsHeight)
             } else {
                 ForEach(distribution, id: \.group) { item in
-                    HStack(spacing: TempoSpacing.sm) {
-                        Text(item.group.displayName)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .frame(width: 80, alignment: .leading)
-
-                        GeometryReader { geo in
-                            RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                                .fill(Color.tempoSignal)
-                                .frame(width: max(4, geo.size.width * item.percentage))
-                        }
-                        .frame(height: 12)
-
-                        Text("\(Int(item.percentage * 100))%")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .frame(width: 36, alignment: .trailing)
-                    }
+                    TrainPlanMeterRow(
+                        label: item.group.displayName,
+                        value: "\(Int(item.percentage * 100))%",
+                        fraction: item.percentage
+                    )
                 }
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    // MARK: - Exercises Tab
+    private func emptyLine(_ text: String, height: CGFloat) -> some View {
+        Text(text)
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .frame(maxWidth: .infinity, minHeight: height)
+    }
+
+    // MARK: - Lifts list
 
     // Per MODULE_TRAINING.md Section 11.2
 
-    private var exercisesTab: some View {
+    /// Every lift with history, each opening its exercise page. (When there
+    /// are none, the Strength Lab above already says so.)
+    @ViewBuilder
+    private var exercisesList: some View {
         let exercisesWithHistory = exercises.filter { ($0.history?.isEmpty ?? true) == false }
-
-        return LazyVStack(spacing: TempoSpacing.sm) {
-            if exercisesWithHistory.isEmpty {
-                VStack(spacing: TempoSpacing.md) {
-                    Spacer().frame(height: 80)
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.tempoTextTertiary)
-                    Text("Complete workouts to see progress")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
-            } else {
-                ForEach(exercisesWithHistory, id: \.id) { exercise in
-                    NavigationLink {
-                        ExerciseDetailView(exercise: exercise)
-                    } label: {
-                        exerciseProgressRow(exercise)
+        if !exercisesWithHistory.isEmpty {
+            VStack(alignment: .leading, spacing: Tide.s3) {
+                TideSectionLabel(title: "All lifts", trailing: TrainCount.text(exercisesWithHistory.count, "lift"))
+                    .padding(.top, Tide.s2)
+                LazyVStack(spacing: Tide.s2) {
+                    ForEach(exercisesWithHistory, id: \.id) { exercise in
+                        NavigationLink {
+                            ExerciseDetailView(exercise: exercise)
+                        } label: {
+                            exerciseProgressRow(exercise)
+                        }
+                        .buttonStyle(.trainCard)
                     }
                 }
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
     }
 
     private func exerciseProgressRow(_ exercise: Exercise) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: TempoSpacing.xxs) {
-                Text(exercise.name.uppercased())
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .lineLimit(1)
+        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(exercise.name)
+                .font(Tide.headline)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.leading)
 
-                if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
-                    Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                }
+            if let e1rm = exercise.currentEstimated1RM, e1rm > 0 {
+                Text("e1RM: \(WeightFormat.text(kg: e1rm, unit: weightUnit))")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
             }
-
-            Spacer()
-
-            Text(exercise.muscleGroup.displayName)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .padding(.horizontal, TempoSpacing.xs)
-                .padding(.vertical, 2)
-                .background(Color.tempoSurfaceElevated)
-                .clipShape(Capsule())
-
-            Image(systemName: "chevron.right")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextTertiary)
         }
-        .padding(TempoSpacing.md)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        let chevron = Image(systemName: "chevron.right")
+            .font(Tide.label)
+            .foregroundStyle(Tide.text3)
+            .accessibilityHidden(true)
+        // The muscle tag goes under the name once the row runs out of width.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                info
+                Spacer(minLength: Tide.s2)
+                TrainTag(text: exercise.muscleGroup.displayName)
+                chevron
+            }
+            HStack(alignment: .top, spacing: Tide.s3) {
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    info
+                    TrainTag(text: exercise.muscleGroup.displayName)
+                }
+                Spacer(minLength: Tide.s2)
+                chevron
+            }
+        }
+        .frame(minHeight: Tide.hit)
+        .contentShape(.rect)
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
     }
 
-    // MARK: - Muscle Groups Tab
+    // MARK: - Muscle volume
 
     // Per MODULE_TRAINING.md Section 11.3
 
-    private var muscleGroupsTab: some View {
+    /// Volume per muscle group over the last 30 days (the distribution's own window).
+    private var muscleVolumeCard: some View {
         let distribution = muscleGroupDistribution
-
-        return VStack(spacing: TempoSpacing.xl) {
-            // Weekly volume by muscle group
-            VStack(alignment: .leading, spacing: TempoSpacing.md) {
-                Text("WEEKLY VOLUME BY MUSCLE GROUP")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-
-                if distribution.isEmpty {
-                    Text("No data yet")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
-                } else {
-                    ForEach(distribution, id: \.group) { item in
-                        HStack(spacing: TempoSpacing.sm) {
-                            Text(item.group.displayName)
-                                .font(.tempoCaption1)
-                                .foregroundStyle(Color.tempoTextPrimary)
-                                .frame(width: 80, alignment: .leading)
-
-                            GeometryReader { geo in
-                                RoundedRectangle(cornerRadius: TempoRadius.xs, style: .continuous)
-                                    .fill(Color.tempoSignal)
-                                    .frame(width: max(4, geo.size.width * item.percentage))
-                            }
-                            .frame(height: 16)
-
-                            Text(formatVolume(item.volume))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                                .frame(width: 60, alignment: .trailing)
-                        }
-                    }
+        return TrainPlanCard(label: "Volume by muscle group", trailing: "30 days") {
+            if distribution.isEmpty {
+                emptyLine("No data yet", height: TideTrain.barsHeight)
+            } else {
+                ForEach(distribution, id: \.group) { item in
+                    TrainPlanMeterRow(
+                        label: item.group.displayName,
+                        value: formatVolume(item.volume),
+                        fraction: item.percentage
+                    )
                 }
             }
-            .padding(TempoSpacing.cardPadding)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-
-            // Balance analysis
-            // Per MODULE_TRAINING.md Section 11.3 — Push/Pull ratio
-            balanceAnalysis
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
     }
 
     private var balanceAnalysis: some View {
@@ -560,101 +506,95 @@ struct ProgressChartsView: View {
         let pullVolume = dist.filter { [.back, .biceps].contains($0.group) }
             .reduce(0.0) { $0 + $1.volume }
         let ratio = pullVolume > 0 ? pushVolume / pullVolume : 0
+        let isBalanced = ratio >= 0.8 && ratio <= 1.3
 
-        return VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("BALANCE ANALYSIS")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
+        return TrainPlanCard(label: "Balance analysis") {
+            HStack(spacing: Tide.s3) {
+                TideIconTile(
+                    systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                    tint: isBalanced ? TideTrain.positive : TideTrain.caution
+                )
 
-            HStack(spacing: TempoSpacing.sm) {
-                let isBalanced = ratio >= 0.8 && ratio <= 1.3
-                Image(systemName: isBalanced ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .font(.tempoBody)
-                    .foregroundStyle(isBalanced ? Color.tempoRecoveryGreen : Color.tempoRecoveryYellow)
-
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: Tide.hair) {
                     Text("Push/Pull Ratio")
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextPrimary)
+                        .font(Tide.bodyStrong)
+                        .foregroundStyle(Tide.text)
 
                     Text(ratio > 0 ? String(format: "%.1f:1 (ideal: 1:1)", ratio) : "Not enough data")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .explains(TrainExplainers.pushPull)
         }
-        .padding(TempoSpacing.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
-    // MARK: - Activity Tab (non-gym: football / sprint / conditioning)
+    // MARK: - Other training (non-gym: football / sprint / conditioning)
 
-    private var activityTab: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            if activitySessions.isEmpty {
-                EmptyStateView(
-                    icon: "figure.run",
-                    title: "No Activity Yet",
-                    message: "Log a football, run, or conditioning session to track it here."
-                )
-                .padding(.top, TempoSpacing.xxxl)
-            } else {
-                // All-time totals
-                HStack(spacing: 0) {
-                    activityTotal("\(activitySessions.count)", "Sessions")
-                    activityTotal("\(Int(totalActiveMinutes))m", "Active")
-                    activityTotal(String(format: "%.0f", totalActivityStrain), "Total Strain")
+    /// The all-time totals and the recent sessions of everything that is not a
+    /// gym workout. Shown on Overview only when there is at least one.
+    private var otherTrainingCards: some View {
+        VStack(spacing: Tide.s4) {
+            TrainPlanCard(label: "Football, runs and conditioning") {
+                TrainStatGrid {
+                    TrainStat(value: "\(activitySessions.count)", label: TrainCount.noun(activitySessions.count, "Session"))
+                    TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
+                    TrainStat(
+                        value: String(format: "%.0f", totalActivityStrain), label: "Total strain",
+                        explainer: TrainExplainers.strain
+                    )
                 }
-                .padding(TempoSpacing.cardPadding)
-                .frame(maxWidth: .infinity)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+            }
 
-                // Recent sessions
-                VStack(alignment: .leading, spacing: TempoSpacing.sm) {
-                    Text("RECENT SESSIONS")
-                        .font(.tempoCaption1)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.tempoTextTertiary)
-
-                    ForEach(activitySessions.prefix(20), id: \.id) { session in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(activityTypeLabel(session))
-                                    .font(.tempoBody)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(Color.tempoTextPrimary)
-                                Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
-                                    .font(.tempoCaption2)
-                                    .foregroundStyle(Color.tempoTextTertiary)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 2) {
-                                if let strain = session.strain {
-                                    Text(String(format: "%.1f strain", strain))
-                                        .font(.tempoCaption1)
-                                        .foregroundStyle(Color.tempoTextSecondary)
-                                }
-                                if let mins = session.durationMinutes {
-                                    Text("\(Int(mins)) min")
-                                        .font(.tempoCaption2)
-                                        .foregroundStyle(Color.tempoTextTertiary)
-                                }
-                            }
-                        }
-                        .padding(.vertical, TempoSpacing.xs)
+            TrainPlanCard(label: "Recent sessions") {
+                let recent = Array(activitySessions.prefix(20))
+                ForEach(Array(recent.enumerated()), id: \.element.id) { index, session in
+                    if index > 0 {
+                        TrainPlanDivider()
                     }
+                    activityRow(session)
                 }
-                .padding(TempoSpacing.cardPadding)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
             }
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.xxxl)
+    }
+
+    /// One logged activity: what and when on the left, strain and minutes on
+    /// the right, stacked once the row runs out of width.
+    private func activityRow(_ session: ActivitySession) -> some View {
+        let info = VStack(alignment: .leading, spacing: Tide.hair) {
+            Text(activityTypeLabel(session))
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(session.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day())
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+        }
+        let figures = VStack(alignment: .trailing, spacing: Tide.hair) {
+            if let strain = session.strain {
+                Text(String(format: "%.1f strain", strain))
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+            }
+            if let mins = session.durationMinutes {
+                Text("\(Int(mins)) min")
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
+            }
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                info
+                Spacer(minLength: Tide.s2)
+                figures
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                info
+                figures
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var totalActiveMinutes: Double {
@@ -663,18 +603,6 @@ struct ProgressChartsView: View {
 
     private var totalActivityStrain: Double {
         activitySessions.compactMap(\.strain).reduce(0, +)
-    }
-
-    private func activityTotal(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func activityTypeLabel(_ session: ActivitySession) -> String {

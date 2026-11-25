@@ -31,6 +31,8 @@ struct SupplementsView: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
     /// Live shelf — non-archived only, sorted by name.
     @Query(
@@ -65,37 +67,42 @@ struct SupplementsView: View {
         }
     }
 
+    /// Something is presented over the page: its shaders stop.
+    private var isCovered: Bool {
+        activeSheet != nil || reorderTarget != nil || showBarcodeScan
+    }
+
     var body: some View {
         let logs = fetchRecentLogs()
         let sections = shelfSections(logs: logs)
-        VStack(spacing: 0) {
-            topBar(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
-            if let catalogNote {
-                Label(catalogNote, systemImage: "checkmark.circle")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.xs)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("supplementCatalogNote")
-            }
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: TempoSpacing.lg) {
-                    SupplementReorderBanner()
-                    if supplements.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(sections) { section in
-                            sectionCard(section)
-                        }
+        return ScrollView(.vertical) {
+            VStack(spacing: Tide.s5) {
+                if !supplements.isEmpty {
+                    shelfHeader(lowCount: sections.flatMap(\.rows).filter(\.needsReorder).count)
+                }
+                if let catalogNote {
+                    KitchenNotice(systemImage: "checkmark.circle.fill", text: catalogNote, tint: Tide.Kitchen.good)
+                        .accessibilityIdentifier("supplementCatalogNote")
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                SupplementReorderBanner()
+                if supplements.isEmpty {
+                    emptyState
+                } else {
+                    ForEach(sections) { section in
+                        sectionCard(section)
                     }
                 }
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.top, TempoSpacing.sm)
-                .padding(.bottom, TempoSpacing.bottomSafe)
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s2)
+            .padding(.bottom, Tide.s8)
         }
-        .background(Color.tempoBgPrimary.ignoresSafeArea())
+        .scrollIndicators(.hidden)
+        .scrollEdgeEffectStyle(.soft, for: .all)
+        .tidePage()
+        .tideCovered(isCovered)
+        .animation(Tide.snap, value: catalogNote)
         .navigationDestination(item: $detailTarget) { supplement in
             SupplementDetailView(supplement: supplement)
         }
@@ -221,39 +228,48 @@ struct SupplementsView: View {
         return SupplementShelfBoard.build(supplements: supplements, doses: doses, recentLogs: logs)
     }
 
-    // MARK: - Top bar
+    // MARK: - Header
 
-    private func topBar(lowCount: Int) -> some View {
-        HStack(alignment: .center, spacing: TempoSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("YOUR SHELF")
-                    .font(.tempoModuleTag)
-                    .tracking(TempoTracking.drillLabel)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                Text("\(supplements.count) supplement\(supplements.count == 1 ? "" : "s")" + (lowCount > 0 ? " · \(lowCount) to reorder" : ""))
-                    .font(.tempoBodyBold)
-                    .foregroundStyle(Color.tempoTextPrimary)
+    private func shelfHeader(lowCount: Int) -> some View {
+        let total = supplements.count
+        return VStack(alignment: .leading, spacing: Tide.s4) {
+            let statLayout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s3))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s4))
+            statLayout {
+                KitchenStat(value: "\(total)", label: total == 1 ? "Supplement" : "Supplements")
+                if lowCount > 0 {
+                    KitchenStat(value: "\(lowCount)", label: "To reorder", color: Tide.Kitchen.warn)
+                        .explains(.fuelSupplementDaysLeft)
+                }
             }
-            Spacer(minLength: TempoSpacing.sm)
+            if lowCount > 0 {
+                KitchenShelfBar(parts: [
+                    .init(id: "stocked", value: Double(max(total - lowCount, 0)), color: mood.accent),
+                    .init(id: "low", value: Double(lowCount), color: Tide.Kitchen.warn),
+                ])
+            }
             Menu {
-                addMenuItems
+                addMenuItems()
             } label: {
                 Label("Add", systemImage: "plus")
-                    .fixedSize()
             }
-            .buttonStyle(.tempoPrimary)
+            .buttonStyle(.tidePrimary)
             .accessibilityIdentifier("supplementAddMenu")
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.vertical, TempoSpacing.sm)
+        .tideCard()
     }
 
+    /// Every way onto the shelf. The empty page puts Scan out front as its own
+    /// button, so its menu leaves that one out.
     @ViewBuilder
-    private var addMenuItems: some View {
-        Button {
-            showBarcodeScan = true
-        } label: {
-            Label("Scan barcode", systemImage: "barcode.viewfinder")
+    private func addMenuItems(includingScan: Bool = true) -> some View {
+        if includingScan {
+            Button {
+                showBarcodeScan = true
+            } label: {
+                Label("Scan barcode", systemImage: "barcode.viewfinder")
+            }
         }
         Button {
             activeSheet = .search
@@ -280,148 +296,134 @@ struct SupplementsView: View {
 
     // MARK: - Empty state
 
+    @Environment(\.tideMood)
+    private var mood
+
+    /// Nothing owned yet: one thing to do (scan), and the other ways in one tap away.
     private var emptyState: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Image(systemName: "pills")
-                .font(.system(size: 40, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-            Text("No supplements yet")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text(
-                "Add what you own — whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
-            )
-            .font(.tempoCaption1)
-            .foregroundStyle(Color.tempoTextSecondary)
-            .multilineTextAlignment(.center)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
+        VStack(spacing: Tide.s5) {
+            KitchenHeroDisc(systemImage: "pills")
+            VStack(spacing: Tide.s2) {
+                Text("No supplements yet")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                Text(
+                    "Add what you own: whey, creatine, omega-3. Your plan decides each day whether to take or skip them. Tick a dose and its calories and macros count in your day."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(spacing: Tide.s3) {
                 Button {
                     showBarcodeScan = true
                 } label: {
                     Label("Scan barcode", systemImage: "barcode.viewfinder")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoPrimary)
-                Button {
-                    activeSheet = .search
+                .buttonStyle(.tidePrimary)
+                // The same menu the full shelf has on top, so the add flow
+                // starts from the same control whether the shelf is empty or not.
+                Menu {
+                    addMenuItems(includingScan: false)
                 } label: {
-                    Label("Search by name", systemImage: "magnifyingglass")
+                    Label("More ways to add", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .readLabel
-                } label: {
-                    Label("Read a label", systemImage: "camera.viewfinder")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .quickAdd
-                } label: {
-                    Label("Quick add common", systemImage: "square.grid.2x2")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-                Button {
-                    activeSheet = .typeIt
-                } label: {
-                    Label("Type it", systemImage: "square.and.pencil")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoGhost)
+                .buttonStyle(.tideGlass)
+                .accessibilityIdentifier("supplementAddMenu")
             }
-            .padding(.top, TempoSpacing.md)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, TempoSpacing.xxxl)
+        .tideCard(padding: Tide.s6)
     }
 
     // MARK: - Shelf
 
     private func sectionCard(_ section: SupplementShelfSection) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Label(section.period.title.uppercased(), systemImage: section.period.icon)
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.bottom, TempoSpacing.xs)
-            ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 {
-                    Divider().overlay(Color.tempoDivider)
-                }
+        KitchenGroup(title: section.period.title, systemImage: section.period.icon) {
+            ForEach(section.rows) { row in
                 shelfRow(row)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
     }
 
     private func shelfRow(_ row: SupplementShelfRow) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
+        // At the accessibility sizes the icon goes and the stock line joins the text, so the words get the width.
+        let stacked = typeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 0) {
             Button {
                 detailTarget = row.supplement
             } label: {
-                HStack(spacing: TempoSpacing.md) {
-                    Image(systemName: row.supplement.kind.icon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.tempoSignal)
-                        .frame(width: 36, height: 36)
-                        .background(Color.tempoBgTertiary)
-                        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: Tide.s3) {
+                    if !stacked {
+                        Image(systemName: row.supplement.kind.icon)
+                            .font(Tide.bodyStrong)
+                            .foregroundStyle(mood.accent)
+                            .frame(width: Tide.Kitchen.tile, height: Tide.Kitchen.tile)
+                            .background(Tide.fill, in: .rect(cornerRadius: Tide.controlRadius))
+                            .accessibilityHidden(true)
+                    }
+                    VStack(alignment: .leading, spacing: Tide.hair) {
                         Text(row.supplement.name)
-                            .font(.tempoBodyBold)
-                            .foregroundStyle(Color.tempoTextPrimary)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .font(Tide.headline)
+                            .foregroundStyle(Tide.text)
+                            .lineLimit(stacked ? 3 : 2)
                         Text(row.brandDoseLine)
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                            .lineLimit(1)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .lineLimit(stacked ? 2 : 1)
                         Label(row.statusLine, systemImage: "clock")
-                            .font(.tempoCaption2)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .lineLimit(1)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .lineLimit(stacked ? 2 : 1)
+                        if stacked, let stock = row.stockLine, !row.needsReorder {
+                            Text(stock)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
                     }
                     Spacer(minLength: 0)
-                    VStack(alignment: .trailing, spacing: TempoSpacing.xs) {
-                        if let stock = row.stockLine, !row.needsReorder {
+                    VStack(alignment: .trailing, spacing: Tide.s1) {
+                        if !stacked, let stock = row.stockLine, !row.needsReorder {
                             Text(stock)
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextSecondary)
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
                         }
                         Image(systemName: "chevron.right")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextTertiary)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
                     }
                 }
-                .contentShape(Rectangle())
+                .padding(.top, Tide.s1)
+                .contentShape(.rect)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(row.supplement.name), \(row.brandDoseLine), \(row.statusLine). Open details")
             .accessibilityIdentifier("supplementRow.\(row.supplement.name)")
 
+            // Running low gets its own line under the text, so the name keeps the full width.
             if row.needsReorder {
                 Button {
                     reorderTarget = row.supplement
                 } label: {
+                    let tone = row.daysLeft == 0 ? Tide.danger : Tide.Kitchen.warn
                     Label(row.stockLine ?? "Low", systemImage: "cart")
-                        .font(.tempoCaption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber)
-                        .padding(.horizontal, TempoSpacing.sm)
-                        .padding(.vertical, TempoSpacing.xs)
-                        .background((row.daysLeft == 0 ? Color.tempoError : Color.tempoAmber).opacity(TempoOpacity.o15))
-                        .clipShape(Capsule())
+                        .font(Tide.label)
+                        .foregroundStyle(tone)
+                        .padding(.horizontal, Tide.s3)
+                        .padding(.vertical, Tide.s1)
+                        .background(tone.opacity(0.14), in: .capsule)
+                        .frame(minHeight: Tide.hit)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .padding(.leading, stacked ? 0 : Tide.Kitchen.tile + Tide.s3)
                 .accessibilityLabel("\(row.supplement.name) running low, reorder")
                 .accessibilityIdentifier("supplementReorderChip.\(row.supplement.name)")
             }
         }
-        .padding(.vertical, TempoSpacing.sm)
     }
 }

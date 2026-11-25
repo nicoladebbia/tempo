@@ -93,7 +93,7 @@ enum SupplementNearbyStores {
                         guard let name = item.name else {
                             return nil
                         }
-                        let coordinate = item.placemark.coordinate
+                        let coordinate = item.location.coordinate
                         let distance = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
                             .distance(from: origin)
                         return NearbyStoreResult(

@@ -53,7 +53,7 @@ struct ExerciseImageView: View {
 
     var body: some View {
         ZStack {
-            Color.tempoSurfaceElevated
+            Tide.fill
             if let uiImage {
                 Image(uiImage: uiImage)
                     .resizable()
@@ -64,8 +64,8 @@ struct ExerciseImageView: View {
             }
         }
         .frame(
-            width: style == .thumbnail ? 44 : nil,
-            height: style == .thumbnail ? 44 : nil
+            width: style == .thumbnail ? Tide.hit : nil,
+            height: style == .thumbnail ? Tide.hit : nil
         )
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -84,16 +84,13 @@ struct ExerciseImageView: View {
 
     private var placeholder: some View {
         Image(systemName: equipmentSymbol)
-            .font(.system(size: symbolSize))
-            .foregroundStyle(Color.tempoTextTertiary)
+            .font(style == .hero ? Tide.title : Tide.headline)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(Tide.text3)
     }
 
     private var cornerRadius: CGFloat {
-        style == .hero ? TempoRadius.xl : TempoRadius.md
-    }
-
-    private var symbolSize: CGFloat {
-        style == .hero ? 40 : 16
+        style == .hero ? Tide.tileRadius : Tide.controlRadius
     }
 
     /// Mirrors TodayWorkoutView+Equipment.equipmentIcon's mapping (kept as

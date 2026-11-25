@@ -22,6 +22,15 @@ extension TrainingViewModel {
 
     static let restTimerNotificationID = "tempo.rest.timer"
 
+    /// When the running rest began: its end minus its length. The Live Activity
+    /// drains its rest bar between this and `restEndDate`. nil outside a rest.
+    var restStartDate: Date? {
+        guard let end = restEndDate, restTimerTotal > 0 else {
+            return nil
+        }
+        return end.addingTimeInterval(-restTimerTotal)
+    }
+
     func startRestTimer(duration: TimeInterval, nextAction: RestNextAction) {
         stopRestTimer()
         restTimerTotal = duration

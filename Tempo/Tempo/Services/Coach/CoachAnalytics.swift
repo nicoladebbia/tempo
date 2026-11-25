@@ -119,20 +119,7 @@ enum CoachAnalytics {
         )
     }
 
-    static func preferenceCorrectedByUser(
-        prefID: UUID,
-        action: CorrectionAction
-    ) {
-        AnalyticsService.shared.track(
-            "coach.preference_corrected_by_user",
-            properties: [
-                "pref_id": prefID.uuidString,
-                "action": action.rawValue,
-            ]
-        )
-    }
-
-    // MARK: Outcomes / self-grade
+    // MARK: Outcomes
 
     static func outcomeGraded(
         actionToolName: String,
@@ -146,34 +133,6 @@ enum CoachAnalytics {
                 "outcome": outcome,
                 "days_from_decision": daysFromDecision,
             ]
-        )
-    }
-
-    static func selfGradeDismissed(weekISO: String) {
-        AnalyticsService.shared.track(
-            "coach.self_grade_dismissed",
-            properties: ["week_iso": weekISO]
-        )
-    }
-
-    // MARK: Interview
-
-    static func interviewCompleted(skipped: Bool, questionsAnswered: Int) {
-        AnalyticsService.shared.track(
-            "coach.interview_completed",
-            properties: [
-                "skipped": skipped,
-                "questions_answered": questionsAnswered,
-            ]
-        )
-    }
-
-    // MARK: Inline pills
-
-    static func inlinePillTapped(source: CoachInlinePillSource) {
-        AnalyticsService.shared.track(
-            "coach.inline_pill_tapped",
-            properties: ["source": source.rawValue]
         )
     }
 }
@@ -190,11 +149,5 @@ extension CoachAnalytics {
         case turns
         case toolCalls = "tool_calls"
         case budget
-    }
-
-    enum CorrectionAction: String, Sendable {
-        case edit
-        case delete
-        case verify
     }
 }

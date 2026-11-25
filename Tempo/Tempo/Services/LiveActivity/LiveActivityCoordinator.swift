@@ -106,6 +106,14 @@ final class LiveActivityCoordinator {
         participants[kind] = participant
     }
 
+    /// Whether a session of `kind` is running right now, wherever its screen
+    /// is (its Activity may be suspended for a higher-priority one). Lets a
+    /// caller that did not start the session, like the Siri "Start focus"
+    /// intent, avoid starting a second one.
+    func hasLiveSession(_ kind: LiveActivityKind) -> Bool {
+        participants[kind]?.hasActiveLiveSession ?? false
+    }
+
     /// Removes a participant, e.g. in tests between cases. Production
     /// code never needs this — `register` overwriting a stale entry is
     /// enough, since a stale participant's `hasActiveLiveSession` will read

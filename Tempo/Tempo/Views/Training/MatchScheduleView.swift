@@ -36,6 +36,9 @@ struct MatchScheduleView: View {
 
     @State
     private var showingAdd = false
+    /// The Undo toast after a match is deleted.
+    @State
+    private var toast: ToastData?
 
     private var upcoming: [Match] {
         let cutoff = Calendar.current.startOfDay(for: Date())
@@ -45,49 +48,44 @@ struct MatchScheduleView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    Text(
-                        "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
-                    )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                }
-                .listRowBackground(Color.clear)
+                Text(
+                    "Log your fixtures. Tempo periodizes the surrounding days — no heavy legs the day before, and the daily coach knows a match is coming."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
+                .trainPlanListRow()
 
                 if upcoming.isEmpty {
-                    Section {
-                        Text("No matches scheduled.")
-                            .font(.tempoBody)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, TempoSpacing.md)
-                    }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    TrainEmptyCard(systemImage: "soccerball", title: "No matches scheduled.")
+                        .trainPlanListRow()
                 } else {
-                    Section("Upcoming") {
-                        ForEach(upcoming) { match in
-                            matchRow(match)
-                        }
-                        .onDelete(perform: deleteUpcoming)
+                    TideSectionLabel(title: "Upcoming")
+                        .trainPlanListRow()
+                    ForEach(upcoming) { match in
+                        matchRow(match)
+                            .trainPlanListRow()
                     }
-                    .listRowBackground(Color.tempoSurfaceCard)
+                    .onDelete(perform: deleteUpcoming)
                 }
             }
+            .listStyle(.plain)
             .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .contentMargins(.bottom, Tide.s6, for: .scrollContent)
+            .trainSheetRoot()
             .navigationTitle("Matches")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(Color.tempoSignal)
+                        .foregroundStyle(Color.accentColor)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showingAdd = true
                     } label: {
                         Label("Add", systemImage: "plus")
-                            .foregroundStyle(Color.tempoSignal)
+                            .foregroundStyle(Color.accentColor)
                     }
                 }
             }
@@ -96,27 +94,48 @@ struct MatchScheduleView: View {
                     addMatch(kickoff: kickoff, opponent: opponent, competitive: competitive)
                 }
             }
+            .tempoToast($toast, placement: .bottom)
         }
     }
 
     private func matchRow(_ match: Match) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(match.opponent.map { "vs \($0)" } ?? "Match")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                if !match.isCompetitive {
-                    Text("Friendly")
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+        VStack(alignment: .leading, spacing: Tide.hair) {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                    matchTitle(match)
+                    Spacer(minLength: Tide.s2)
+                    if !match.isCompetitive {
+                        friendlyTag
+                    }
+                }
+                VStack(alignment: .leading, spacing: Tide.hair) {
+                    matchTitle(match)
+                    if !match.isCompetitive {
+                        friendlyTag
+                    }
                 }
             }
             Text(match.kickoff.formatted(date: .abbreviated, time: .shortened))
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, TempoSpacing.xxs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: Tide.hit)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+    }
+
+    private func matchTitle(_ match: Match) -> some View {
+        Text(match.opponent.map { "vs \($0)" } ?? "Match")
+            .font(Tide.title2)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var friendlyTag: some View {
+        Text("Friendly")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text3)
     }
 
     // MARK: - Mutations (each re-periodizes the week deterministically)
@@ -127,11 +146,24 @@ struct MatchScheduleView: View {
         persistAndReplan()
     }
 
+    /// Deletes the matches and offers Undo for a few seconds. They are copied
+    /// first and put back with their old ids by Undo.
     private func deleteUpcoming(at offsets: IndexSet) {
-        for index in offsets {
+        let snapshots = offsets.filter { upcoming.indices.contains($0) }.sorted().map { MatchSnapshot(upcoming[$0]) }
+        for index in offsets where upcoming.indices.contains(index) {
             modelContext.delete(upcoming[index])
         }
         persistAndReplan()
+        guard let first = snapshots.first else {
+            return
+        }
+        let message = snapshots.count == 1 ? first.message : "Deleted \(TrainCount.text(snapshots.count, "match"))"
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            for snapshot in snapshots {
+                snapshot.restore(in: modelContext)
+            }
+            persistAndReplan()
+        }
     }
 
     private func persistAndReplan() {
@@ -167,39 +199,39 @@ private struct MatchEntrySheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("When") {
+            TrainPlanPage {
+                TrainPlanCard(label: "When") {
                     DatePicker(
                         "Kickoff",
                         selection: $kickoff,
                         in: Calendar.current.startOfDay(for: Date())...,
                         displayedComponents: [.date, .hourAndMinute]
                     )
+                    .font(Tide.bodyStrong)
+                    .frame(minHeight: Tide.hit)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
 
-                Section("Opponent (optional)") {
+                TrainPlanField(label: "Opponent (optional)") {
                     TextField("e.g. Inter Miami", text: $opponent)
                         .textInputAutocapitalization(.words)
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
 
-                Section {
-                    Toggle("Competitive fixture", isOn: $competitive)
-                } footer: {
-                    Text("Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.")
-                        .font(.tempoCaption2)
+                TrainPlanCard {
+                    TrainPlanToggleRow(
+                        title: "Competitive fixture",
+                        detail: "Competitive matches get the full taper — no heavy legs the day before. Turn off for a casual scrimmage.",
+                        isOn: $competitive
+                    )
                 }
-                .listRowBackground(Color.tempoSurfaceCard)
             }
-            .scrollContentBackground(.hidden)
-            .background(Color.tempoBgPrimary)
+            .scrollDismissesKeyboard(.interactively)
+            .trainSheetRoot()
             .navigationTitle("Add Match")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(Color.tempoTextSecondary)
+                        .foregroundStyle(Tide.text2)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Save") {
@@ -208,7 +240,7 @@ private struct MatchEntrySheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .foregroundStyle(Color.tempoSignal)
+                    .foregroundStyle(Color.accentColor)
                 }
             }
         }

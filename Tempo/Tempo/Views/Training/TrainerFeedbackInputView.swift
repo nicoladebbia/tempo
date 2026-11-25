@@ -44,6 +44,8 @@ struct TrainerFeedbackInputView: View {
     private var errorMessage: String?
     @State
     private var reviewPayload: ReviewPayload?
+    @FocusState
+    private var textFocused: Bool
 
     struct ReviewPayload: Identifiable {
         let id = UUID()
@@ -58,7 +60,6 @@ struct TrainerFeedbackInputView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.tempoBgPrimary.ignoresSafeArea()
                 if isProcessing {
                     processingOverlay
                 } else {
@@ -73,7 +74,7 @@ struct TrainerFeedbackInputView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .trainSheetRoot(energy: 0.8)
         .onAppear {
             if feedbackService == nil {
                 feedbackService = TrainerFeedbackService(apiClient: services.apiClient)
@@ -98,95 +99,131 @@ struct TrainerFeedbackInputView: View {
     // MARK: - Form
 
     private var formContent: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: TempoSpacing.lg) {
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("Paste what your trainer sent")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
-                    Text(
-                        "\"RDL +5kg\", \"skip the sprints Thursday, knee\", \"togli gli sprint giovedì\" — Tempo turns it into changes you review before anything's applied."
-                    )
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                }
-
-                TextEditor(text: $text)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .scrollContentBackground(.hidden)
-                    .padding(TempoSpacing.sm)
-                    .frame(minHeight: 140)
-                    .background(Color.tempoInputBgDark.opacity(TempoOpacity.o40))
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: TempoRadius.xl)
-                            .stroke(Color.tempoBorder, lineWidth: 1)
-                    )
-
-                PhotosPicker(selection: $photosSelection, matching: .images) {
-                    Label("Add a Screenshot Instead", systemImage: "photo.on.rectangle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoSecondary)
-
-                if let screenshot {
-                    HStack(spacing: TempoSpacing.sm) {
-                        Image(uiImage: screenshot)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.sm))
-                        Text("Screenshot added — its text will be read on-device.")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoTextSecondary)
-                        Spacer()
-                        Button {
-                            self.screenshot = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoError)
-                }
-
-                Button {
-                    Task { await submit() }
-                } label: {
-                    Text("Read Changes")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.tempoPrimary)
-                .disabled(!canSubmit)
-
-                #if DEBUG
-                    Button("Load Sample Changes (DEBUG)") {
-                        loadSampleReview()
-                    }
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.md)
-                #endif
+        TrainPlanPage(spacing: Tide.s4) {
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                Text("Paste what your trainer sent")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "\"RDL +5kg\", \"skip the sprints Thursday, knee\", \"togli gli sprint giovedì\" — Tempo turns it into changes you review before anything's applied."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.top, TempoSpacing.lg)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, Tide.s2)
+
+            TextEditor(text: $text)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text)
+                .scrollContentBackground(.hidden)
+                .focused($textFocused)
+                .padding(.vertical, Tide.s2)
+                .frame(minHeight: TideTrain.textArea)
+                .tideFieldSurface(focused: textFocused)
+
+            PhotosPicker(selection: $photosSelection, matching: .images) {
+                Label("Add a Screenshot Instead", systemImage: "photo.on.rectangle")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.trainPlanSecondary)
+
+            if let screenshot {
+                screenshotRow(screenshot)
+            }
+
+            if let errorMessage {
+                TrainBanner(
+                    systemImage: "exclamationmark.triangle.fill",
+                    label: "Couldn't read it",
+                    tint: Tide.danger,
+                    message: errorMessage
+                ) {}
+            }
+
+            #if DEBUG
+                Button("Load Sample Changes (DEBUG)") {
+                    loadSampleReview()
+                }
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
+                .frame(minHeight: Tide.hit)
+            #endif
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaBar(edge: .bottom) {
+            // Reading the changes is the one action here, so it sits under the thumb.
+            Button {
+                Task { await submit() }
+            } label: {
+                Text("Read Changes")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.tidePrimary)
+            .disabled(!canSubmit)
+            .padding(.horizontal, Tide.edge)
+            .padding(.bottom, Tide.s2)
         }
     }
 
-    private var processingOverlay: some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().scaleEffect(1.4)
-            Text(processingLabel)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+    /// The screenshot that will be read: its picture, a line saying so, and a
+    /// way to take it back. The three stack at large text sizes.
+    private func screenshotRow(_ screenshot: UIImage) -> some View {
+        let picture = Image(uiImage: screenshot)
+            .resizable()
+            .scaledToFill()
+            .frame(width: TideTrain.rowThumb, height: TideTrain.rowThumb)
+            .clipShape(RoundedRectangle(cornerRadius: Tide.controlRadius))
+            .accessibilityHidden(true)
+        let note = Text("Screenshot added — its text will be read on-device.")
+            .font(Tide.caption)
+            .foregroundStyle(Tide.text2)
+            .fixedSize(horizontal: false, vertical: true)
+        let remove = Button {
+            self.screenshot = nil
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(Tide.title2)
+                .foregroundStyle(Tide.text3)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .contentShape(.rect)
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove screenshot")
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s3) {
+                picture
+                note
+                Spacer(minLength: Tide.s2)
+                remove
+            }
+            VStack(alignment: .leading, spacing: Tide.s2) {
+                HStack {
+                    picture
+                    Spacer(minLength: Tide.s2)
+                    remove
+                }
+                note
+            }
+        }
+        .tideCard(padding: Tide.s3, radius: Tide.tileRadius)
+    }
+
+    private var processingOverlay: some View {
+        VStack(spacing: Tide.s4) {
+            ProgressView().controlSize(.large)
+            Text(processingLabel)
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Tide.s6)
+        .tideCard(padding: Tide.s5, radius: Tide.cardRadius)
+        .padding(.horizontal, Tide.edge)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Screenshot OCR
@@ -230,7 +267,12 @@ struct TrainerFeedbackInputView: View {
         do {
             let rawEdits = try await feedbackService.structureFeedback(from: combinedText)
             let weekIndex = program.weekIndex(on: Date()) ?? 0
-            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex, scheduleMode: program.scheduleMode)
+            let resolved = TrainerFeedbackApplier.resolve(
+                edits: rawEdits,
+                weeks: program.weeks,
+                weekIndex: weekIndex,
+                scheduleMode: program.scheduleMode
+            )
             reviewPayload = ReviewPayload(sourceText: combinedText, edits: resolved)
         } catch {
             errorMessage = message(for: error)
@@ -270,7 +312,12 @@ struct TrainerFeedbackInputView: View {
                     moveToWeekday: nil, reason: nil
                 ),
             ]
-            let resolved = TrainerFeedbackApplier.resolve(edits: rawEdits, weeks: program.weeks, weekIndex: weekIndex, scheduleMode: program.scheduleMode)
+            let resolved = TrainerFeedbackApplier.resolve(
+                edits: rawEdits,
+                weeks: program.weeks,
+                weekIndex: weekIndex,
+                scheduleMode: program.scheduleMode
+            )
             reviewPayload = ReviewPayload(sourceText: sampleText, edits: resolved)
         }
     #endif

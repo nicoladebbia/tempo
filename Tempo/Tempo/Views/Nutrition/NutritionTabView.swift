@@ -31,12 +31,6 @@ struct NutritionTabView: View {
     private var resumedScan: ScanResumeRecord?
     @State
     private var showMealLogging = false
-    /// Today's Quick Log sheet (type, Confirm Meal opens on top of it).
-    @State
-    private var showQuickLog = false
-    /// "Breakfast logged. 420 kcal." after a meal was confirmed anywhere in Nutrition.
-    @State
-    private var mealLogToast: ToastData?
 
     /// Surfaces a plan-generation failure as a toast at the Nutrition root
     /// regardless of which sub-tab the user is on. Previously the only
@@ -52,38 +46,69 @@ struct NutritionTabView: View {
     /// Same, for Coach meal ideas.
     @State
     private var mealIdeasBlocker: AIBlocker?
+    @State
+    private var showSettings = false
+    /// Segment taps, for the selection haptic.
+    @State
+    private var sectionTaps = 0
+
+    /// Something of Fuel's own is presented over the page: the field stops.
+    private var isCovered: Bool {
+        showMealLogging || showScan || showSettings
+    }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.tempoBgPrimary
-                    .ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    // Segmented control
-                    sectionPicker
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.vertical, TempoSpacing.sm)
-
-                    // Content
-                    switch viewModel.loadState {
-                    case .loading:
-                        Spacer()
-                        ProgressView()
-                            .tint(Color.tempoSignal)
-                        Spacer()
-
-                    case let .error(message):
-                        errorState(message)
-
-                    case .loaded:
-                        sectionContent
+            // The date, the page name and the section switcher stay put; the
+            // sections scroll underneath them with a soft edge.
+            VStack(spacing: 0) {
+                switch viewModel.loadState {
+                case .loading:
+                    // The shape of the page that is coming, not a lone spinner.
+                    VStack(spacing: Tide.s4) {
+                        FuelSkeletonRows(count: 3).tideCard()
+                        FuelSkeletonRows(count: 2).tideCard()
                     }
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                case let .error(message):
+                    errorState(message)
+
+                case .loaded:
+                    sectionContent
                 }
             }
-            .navigationTitle("FUEL")
-            .navigationBarTitleDisplayMode(.inline)
-            .tempoSettingsToolbar()
+            .safeAreaBar(edge: .top, spacing: 0) {
+                VStack(spacing: Tide.s3) {
+                    header
+                    sectionPicker
+                }
+                .padding(.horizontal, Tide.edge)
+                .padding(.top, Tide.s2)
+                .padding(.bottom, Tide.s3)
+                .background(alignment: .top) {
+                    // Ink that fades out under the switcher, so the cards
+                    // scrolling beneath never read through the title.
+                    LinearGradient(
+                        stops: [
+                            .init(color: Tide.ink.opacity(0.97), location: 0),
+                            .init(color: Tide.ink.opacity(0.95), location: 0.85),
+                            .init(color: Tide.ink.opacity(0), location: 1),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .padding(.bottom, -Tide.s3)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
+                }
+            }
+            .tidePage(energy: 1)
+            .toolbar(.hidden, for: .navigationBar)
+            .tempoSettingsToolbar(isPresented: $showSettings)
+            .tideCovered(isCovered)
             // A meal was changed or deleted from another screen (meal detail,
             // Watch, Log tab): drop a row about to be deleted BEFORE the model
             // goes away, then re-read today's meals + presets.
@@ -123,18 +148,7 @@ struct NutritionTabView: View {
                     style: .error
                 )
             }
-            .tempoToast($planErrorToast)
-            .tempoToast($mealLogToast)
-            .onReceive(NotificationCenter.default.publisher(for: .tempoMealLogToast)) { note in
-                guard let message = note.userInfo?["message"] as? String else {
-                    return
-                }
-                let isError = note.userInfo?["error"] as? Bool ?? false
-                mealLogToast = ToastData(message: message, style: isError ? .error : .success)
-            }
-            .sheet(isPresented: $showQuickLog) {
-                QuickLogSheet()
-            }
+            .fuelToast($planErrorToast)
             .onChange(of: viewModel.mealSuggestionBlocker) { _, blocker in
                 if let blocker {
                     mealIdeasBlocker = blocker
@@ -178,38 +192,62 @@ struct NutritionTabView: View {
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
                 showScan = true
             }
-            // Pantry-gap alert (Phase D) — same surface used by NutritionWeeklyPlanView,
+            // Pantry-gap question (Phase D) — same surface used by NutritionWeeklyPlanView,
             // wired here so generation triggered from profile setup also surfaces gaps.
-            .alert(
-                "Shopping Gap",
-                isPresented: Binding(
-                    get: { viewModel.pantryGapAlert != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            viewModel.pantryGapAlert = nil
-                        }
-                    }
-                ),
-                presenting: viewModel.pantryGapAlert
-            ) { _ in
-                // Missing ingredients are things to BUY → the grocery list,
-                // which lives in Kitchen. (Was incorrectly routing to the
-                // Pantry, where you'd only add things you already have.)
-                Button("Open Grocery List") {
-                    viewModel.pantryGapAlert = nil
-                    viewModel.openKitchen(.groceries)
-                }
-                Button("Dismiss", role: .cancel) {
-                    viewModel.pantryGapAlert = nil
-                }
-            } message: { alert in
-                Text(alert.summary)
+            // A page of its own instead of a system alert: the answer sits under the thumb.
+            .sheet(item: Binding(
+                get: { viewModel.pantryGapAlert },
+                set: { viewModel.pantryGapAlert = $0 }
+            )) { gap in
+                FuelDecisionSheet(
+                    icon: "cart.badge.plus",
+                    title: "Shopping gap",
+                    message: gap.summary,
+                    primaryTitle: "Open Grocery List",
+                    // Missing ingredients are things to BUY → the grocery list,
+                    // which lives in Kitchen. (Was incorrectly routing to the
+                    // Pantry, where you'd only add things you already have.)
+                    primary: {
+                        viewModel.pantryGapAlert = nil
+                        viewModel.openKitchen(.groceries)
+                    },
+                    cancelTitle: "Dismiss",
+                    cancel: { viewModel.pantryGapAlert = nil }
+                )
+                .environment(\.tideInsidePage, false)
             }
         }
+        // "Lunch logged. 640 kcal." with Undo, after a meal was saved anywhere in
+        // Fuel. Outermost, so the sheets above the page (the capture screen) know a
+        // host is below them and close at once.
+        .fuelLogToastHost()
     }
 
     // MARK: - Section Picker
 
+    /// The date and the page name, with Settings. Calm: nothing here competes
+    /// with the numbers below.
+    private var header: some View {
+        HStack(alignment: .center, spacing: Tide.s2) {
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
+                    .tideLabel()
+                Text("Fuel")
+                    .font(Tide.title)
+                    .foregroundStyle(Tide.text)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Tide.s2)
+            FuelIconButton(systemImage: "gearshape.fill", label: "Settings") {
+                HapticManager.lightImpact()
+                showSettings = true
+            }
+            .accessibilityIdentifier("fuel.settings")
+        }
+    }
+
+    /// Today, Plan, Log, Kitchen, Coach: the system's glass segmented control.
     private var sectionPicker: some View {
         Picker("Section", selection: $viewModel.selectedTab) {
             ForEach(NutritionSection.allCases) { section in
@@ -218,8 +256,9 @@ struct NutritionTabView: View {
         }
         .pickerStyle(.segmented)
         .onChange(of: viewModel.selectedTab) { _, _ in
-            HapticManager.selection()
+            sectionTaps += 1
         }
+        .sensoryFeedback(.selection, trigger: sectionTaps)
     }
 
     // MARK: - Section Content
@@ -228,17 +267,19 @@ struct NutritionTabView: View {
     private var sectionContent: some View {
         switch viewModel.selectedTab {
         case .today:
-            NutritionTodayView(viewModel: viewModel, onQuickLog: { showQuickLog = true }, onScan: {
+            NutritionTodayView(viewModel: viewModel, onLogMeal: { showMealLogging = true }, onScan: {
                 // Receipt mode needs the Kitchen services; attaching is idempotent.
                 viewModel.attachPhase7Services(modelContext: modelContext, services: services)
                 resumedScan = nil
                 showScan = true
             })
+            .firstTip("fuel.today", "Tap any number to see how it is worked out.")
         case .plan:
             VStack(spacing: 0) {
                 planQuickLinks
                 NutritionWeeklyPlanView(viewModel: viewModel)
             }
+            .firstTip("fuel.plan", "Tap a meal to see its recipe or mark it eaten.")
         case .log:
             NutritionLogView(viewModel: viewModel, showMealLogging: $showMealLogging)
         case .coach:
@@ -252,64 +293,52 @@ struct NutritionTabView: View {
     /// recipe suggestions and the weekly review. These are short workflows
     /// that don't need their own segmented-control slots.
     private var planQuickLinks: some View {
-        HStack(spacing: TempoSpacing.sm) {
-            NavigationLink {
-                RecipeSuggestionsView(viewModel: viewModel)
-            } label: {
-                Label("Recipes", systemImage: "fork.knife.circle.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            NavigationLink {
-                WeeklyMealReviewView()
-            } label: {
-                Label("Review", systemImage: "text.bubble.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.tempoSurfaceCard)
-                    .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-            }
-            .buttonStyle(.plain)
+        let recipes = NavigationLink {
+            RecipeSuggestionsView(viewModel: viewModel)
+        } label: {
+            Label("Recipes", systemImage: "fork.knife.circle.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, TempoSpacing.screenEdge)
-        .padding(.bottom, TempoSpacing.sm)
+        .buttonStyle(.tideGlass)
+        let review = NavigationLink {
+            WeeklyMealReviewView()
+        } label: {
+            Label("Review", systemImage: "text.bubble.fill")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.tideGlass)
+
+        // Side by side while they fit, stacked at large text sizes.
+        return GlassEffectContainer(spacing: Tide.s2) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Tide.s2) {
+                    recipes
+                    review
+                }
+                VStack(spacing: Tide.s2) {
+                    recipes
+                    review
+                }
+            }
+        }
+        .padding(.horizontal, Tide.edge)
+        .padding(.bottom, Tide.s3)
     }
 
     // MARK: - Error State
 
     private func errorState(_ message: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
+        VStack(spacing: Tide.s4) {
             Spacer()
-
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.tempoWarning)
-
-            Text("Failed to Load")
-                .font(.tempoTitle2)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text(message)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xl)
-
-            Button {
-                viewModel.loadToday(modelContext: modelContext)
-            } label: {
-                Text("Retry")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.tempoTextInverse)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.tempoSignal)
-                    .clipShape(Capsule())
+            FuelEmptyState(icon: "exclamationmark.triangle.fill", title: "Fuel did not load", message: message) {
+                Button("Retry") {
+                    viewModel.loadToday(modelContext: modelContext)
+                }
+                .buttonStyle(.tidePrimary)
             }
-
+            .padding(.horizontal, Tide.edge)
             Spacer()
         }
     }

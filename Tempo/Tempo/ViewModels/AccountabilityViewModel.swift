@@ -236,10 +236,12 @@ final class AccountabilityViewModel {
 
     // Per MODULE_ACCOUNTABILITY.md — manual completion flow.
 
+    @discardableResult
     func completeItem(
         _ progress: NonNegotiableProgress,
         modelContext: ModelContext
-    ) {
+    ) -> NonNegotiableUndo {
+        let undo = makeUndo(for: progress)
         engine.updateProgress(
             progress: progress,
             newValue: progress.targetValue,
@@ -254,13 +256,16 @@ final class AccountabilityViewModel {
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        return undo
     }
 
+    @discardableResult
     func updateItemProgress(
         _ progress: NonNegotiableProgress,
         value: Double,
         modelContext: ModelContext
-    ) {
+    ) -> NonNegotiableUndo {
+        let undo = makeUndo(for: progress)
         let wasCompleted = progress.isCompleted
 
         engine.updateProgress(
@@ -277,16 +282,38 @@ final class AccountabilityViewModel {
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        return undo
     }
 
+    @discardableResult
     func skipItem(
         _ progress: NonNegotiableProgress,
         modelContext: ModelContext
-    ) {
+    ) -> NonNegotiableUndo {
+        let undo = makeUndo(for: progress)
         engine.skipNonNegotiable(progress: progress, modelContext: modelContext)
 
         refreshProgressItems()
         checkForUnlock(modelContext: modelContext)
+        NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
+        return undo
+    }
+
+    // MARK: - Undo
+
+    /// Reads what completing or skipping `progress` is about to change.
+    private func makeUndo(for progress: NonNegotiableProgress) -> NonNegotiableUndo {
+        NonNegotiableUndo(
+            progress: progress,
+            accountability: accountability,
+            habitStreak: progress.nonNegotiable.flatMap { habitStreaks[$0.type] }
+        )
+    }
+
+    /// Takes back a completion or a skip, and anything it set off (the unlock, the streak).
+    func undo(_ undo: NonNegotiableUndo, modelContext: ModelContext) {
+        undo.apply(modelContext: modelContext)
+        refreshProgressItems()
         NotificationCenter.default.post(name: .tempoNonNegotiableChanged, object: nil)
     }
 
@@ -447,19 +474,32 @@ final class AccountabilityViewModel {
         syncFocusTimerLiveSurfaces()
     }
 
-    func cancelFocus(modelContext: ModelContext) {
+    /// Stops the timer. The default keeps a session that ran more than 5 minutes
+    /// (STATE_MACHINES.md Section 2: any active state to cancelled saves the partial),
+    /// which is what the Watch's Stop does. `keepingPartial: false` is the user's own
+    /// "Stop & Discard": the session that is running goes, unless a pomodoro of it is
+    /// already finished, which was saved and counted when it ended and stays.
+    func cancelFocus(modelContext: ModelContext, keepingPartial: Bool = true, now: Date = Date()) {
         focusTimerTask?.cancel()
 
-        // Save partial if > 5 min
-        // Per STATE_MACHINES.md Section 2: Any active → cancelled (save partial if > 5 min)
         if let session = currentStudySession, let start = focusStartDate {
-            let elapsed = Date().timeIntervalSince(start)
-            if elapsed > 5 * 60 {
-                session.endTime = Date()
-                session.durationMinutes = Int(elapsed / 60)
-                session.distractions = distractionCount
-                try? modelContext.save()
-            } else {
+            let elapsed = now.timeIntervalSince(start)
+            if keepingPartial {
+                if elapsed > 5 * 60 {
+                    session.endTime = now
+                    // A pomodoro that already finished saved its own minutes (the ones counted
+                    // toward today); a break or a half-done next one must not stretch them.
+                    if session.completedPomodoros == 0 {
+                        session.durationMinutes = Int(elapsed / 60)
+                    }
+                    session.distractions = distractionCount
+                    session.focusScore = computeFocusScore(for: session)
+                    try? modelContext.save()
+                } else if session.completedPomodoros == 0 {
+                    modelContext.delete(session)
+                    try? modelContext.save()
+                }
+            } else if session.completedPomodoros == 0 {
                 modelContext.delete(session)
                 try? modelContext.save()
             }

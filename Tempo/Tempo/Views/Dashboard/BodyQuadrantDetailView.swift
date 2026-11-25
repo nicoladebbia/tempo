@@ -7,13 +7,17 @@
 //
 
 import Charts
+import SwiftData
 import SwiftUI
 
 // MARK: - BodyQuadrantDetailView
 
 // Per MODULE_DASHBOARD.md Section 4.2 — Body Expanded View.
-// Recovery hero, metric cards, 7-day trend chart, sleep breakdown,
-// strain gauge, historical comparison.
+// Today's recovery and vitals, the last 7 days, last night's sleep stages, strain,
+// and how today compares. Every number comes from Whoop or Health: today's from
+// the live read, the history from the days stored on the phone. Where there is
+// none yet, the page says so instead of showing a stand-in. Body progress
+// (weight, body fat, lean mass, photos) opens from here.
 
 struct BodyQuadrantDetailView: View {
     // MARK: Internal
@@ -21,130 +25,117 @@ struct BodyQuadrantDetailView: View {
     let data: BodyQuadrantData
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: TempoSpacing.xl) {
-                if data.isConnected {
-                    // Recovery Hero
-                    recoveryHeroSection
-
-                    // Metric Cards
-                    metricCardsSection
-
-                    // Recovery Trend Chart
-                    recoveryTrendSection
-
-                    // Sleep Breakdown
-                    sleepBreakdownSection
-
-                    // Strain Breakdown
-                    strainBreakdownSection
-
-                    // Historical Comparison
-                    historicalComparisonSection
-                } else {
-                    EmptyStateView(
-                        icon: "sensor.tag.radiowaves.forward.fill",
-                        title: "No Whoop Connected",
-                        message: "Connect your Whoop to see recovery, HRV, sleep, and strain data.",
-                        actionTitle: "Connect Whoop",
-                        action: { showWhoopConnect = true }
-                    )
+        TideScrollPage {
+            if showsRecovery {
+                heroSection
+                if typeSize.isAccessibilitySize, !data.isConnected {
+                    connectButton
                 }
+                vitalsSection
+            } else {
+                noDataSection
             }
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.bottom, TempoSpacing.bottomSafe + TempoSpacing.xxxxxl)
+
+            BodyProgressLinkCard()
+
+            if showsRecovery {
+                trendSection
+                sleepSection
+                strainSection
+                comparisonSection
+            }
         }
-        .background(Color.tempoBgPrimary)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // The one action while nothing is connected, under the thumb.
+            if !data.isConnected, !typeSize.isAccessibilitySize {
+                connectButton
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s3)
+                    .padding(.bottom, Tide.s2)
+                    .pinnedBarScrim()
+            }
+        }
+        // The page the Sleep card opens: there is no separate sleep screen.
+        .firstTip(
+            "recovery.sleep",
+            "Tap any number to see how it is worked out.",
+            systemImage: "moon.zzz"
+        )
         .navigationTitle("Body")
         .navigationBarTitleDisplayMode(.inline)
+        .tideCovered(showWhoopConnect)
         .sheet(isPresented: $showWhoopConnect) {
             NavigationStack {
                 WhoopConnectionView()
             }
         }
+        .accessibilityIdentifier("body-page")
     }
 
     // MARK: Private
 
-    private struct ComparisonMetric: Hashable {
-        let label: String
-        let delta: String
-        let color: Color
+    /// One line of the comparison card: a period and what changed in it.
+    private struct ComparisonLine: Identifiable {
+        struct Cell: Identifiable {
+            let label: String
+            let value: String
+            let color: Color
+            var id: String {
+                label
+            }
+        }
+
+        let title: String
+        let cells: [Cell]
+        var id: String {
+            title
+        }
     }
 
+    @Query(bodyRecentDescriptor())
+    private var recent: [DailyRecovery]
     @State
     private var showWhoopConnect = false
-    @State
-    private var selectedTrendDate: Date?
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
 
-    /// Stub 7-day trend data
-    private let trendData: [RecoveryTrendPoint] = {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        return (-6 ... 0).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
-            let scores: [Double] = [58, 65, 72, 55, 78, 68, 72]
-            return RecoveryTrendPoint(date: date, score: scores[offset + 6])
-        }
-    }()
+    // MARK: Data
 
-    // Stub sleep data
-    private let deepSleepMin = 75
-    private let remSleepMin = 88
-    private let lightSleepMin = 195
-    private let awakeSleepMin = 22
-
-    // Stub 7-day averages
-    private let avgRecovery: Double = 65
-    private let avgHRV: Double = 52
-    private let avgRHR: Double = 60
-    private let avgSleep: Double = 7.0
-
-    /// Bare digit strings keep all four cards visually identical — units
-    /// live in the label below so the value glyph width is consistent.
-    private var hrvDigits: String {
-        data.hrv.map { String(format: "%.0f", $0) } ?? "--"
+    /// The stored days as plain readings, newest first.
+    private var readings: [RecoveryDayReading] {
+        recent.map(RecoveryViewModel.reading(from:))
     }
 
-    private var rhrDigits: String {
-        data.rhr.map { "\(Int($0))" } ?? "--"
+    /// The last 7 calendar days that have readings, oldest first.
+    private var week: [RecoveryDayReading] {
+        RecoveryWindow.select(readings, days: 7, endingOn: Date())
     }
 
-    private var sleepDigits: String {
-        data.sleepHours.map { String(format: "%.1f", $0) } ?? "--"
+    private var baseline: BodyHistory.Baseline {
+        BodyHistory.baseline(readings, today: Date())
     }
 
-    private var spo2Digits: String {
-        data.spo2.map { "\(Int($0))" } ?? "--"
+    private var todayReading: RecoveryDayReading? {
+        BodyHistory.reading(on: Date(), in: readings)
     }
 
-    // MARK: - Helpers
-
-    private var zoneColor: Color {
-        data.recoveryZone?.color ?? Color.tempoTextTertiary
-    }
-
-    /// Score digits without the "%" suffix, so the 64pt display font
-    /// fits the 120pt ring on a single line. The "%" is implied by the
-    /// "RECOVERY" caption beneath.
-    private var scoreDigits: String {
-        guard let score = data.recoveryScore else {
-            return "--"
-        }
-        return "\(Int(score))"
-    }
-
-    /// Resolves the trend chart's current X-selection to the nearest data point.
-    /// `chartXSelection` snaps to whatever value the user dragged to (typically
-    /// not exactly on a sample), so we map back to the closest sample by day.
-    private var selectedTrendPoint: RecoveryTrendPoint? {
-        guard let selectedTrendDate else {
+    /// Last night's stage minutes, from today's stored day.
+    private var stages: SleepStageMinutes? {
+        guard let row = recent.first(where: { Calendar.current.isDateInToday($0.date) }) else {
             return nil
         }
-        return trendData.min(by: { lhs, rhs in
-            abs(lhs.date.timeIntervalSince(selectedTrendDate))
-                < abs(rhs.date.timeIntervalSince(selectedTrendDate))
-        })
+        return SleepStageMinutes(
+            deep: row.deepSleepMin, rem: row.remSleepMin, light: row.lightSleepMin, awake: row.awakeMin
+        )
+    }
+
+    /// Something to show: a live read, or days already stored on the phone.
+    private var showsRecovery: Bool {
+        data.isConnected || !week.isEmpty
+    }
+
+    private var zoneColor: Color {
+        data.recoveryZone?.tideColor ?? Tide.text3
     }
 
     private var recoveryQuip: String {
@@ -160,563 +151,440 @@ struct BodyQuadrantDetailView: View {
         }
     }
 
-    private var strainZoneLabel: String {
-        guard let strain = data.strain else {
-            return "--"
+    private var connectButton: some View {
+        Button {
+            showWhoopConnect = true
+        } label: {
+            Text("Connect WHOOP")
+                .frame(maxWidth: .infinity)
         }
-        switch strain {
-        case 0 ..< 10: return "Low"
-        case 10 ..< 14: return "Moderate"
-        case 14 ..< 18: return "High"
-        default: return "Overreaching"
-        }
+        .buttonStyle(.tidePrimary)
+        .accessibilityIdentifier("body-connect-whoop")
     }
 
-    private var strainRecommendation: String {
-        guard let recovery = data.recoveryScore else {
-            return "--"
-        }
-        if recovery >= 80 {
-            return "Push it"
-        }
-        if recovery >= 50 {
-            return "Moderate"
-        }
-        return "Take it easy"
+    // MARK: - Nothing yet
+
+    // Neither a live read nor a stored day: the one thing to do is connect.
+
+    private var noDataSection: some View {
+        TideEmptyPanel(
+            systemImage: "sensor.tag.radiowaves.forward.fill",
+            title: "No Whoop connected",
+            message: "Connect your Whoop to see recovery, HRV, sleep, and strain data."
+        )
+        .tideCard()
     }
 
-    private var spo2Comparison: (String, Color) {
-        guard let spo2 = data.spo2 else {
-            return ("--", .tempoTextTertiary)
-        }
-        return spo2 >= 95 ? ("Normal", .tempoSuccess) : ("Low", .tempoError)
-    }
-
-    // MARK: - Recovery Hero
+    // MARK: - Hero
 
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Hero Section
 
-    private var recoveryHeroSection: some View {
-        VStack(spacing: TempoSpacing.sm) {
-            // Data source badge
+    private var heroSection: some View {
+        RecoveryHero {
+            TideDial(
+                score: data.recoveryScore.map { Int($0.rounded()) },
+                caption: "Recovery",
+                diameter: Tide.dialHero
+            )
+            .explains(
+                Explainer.bodyRecovery(zone: data.recoveryZone)
+                    .showing(data.recoveryScore.map { "\(Int($0.rounded())) percent" })
+            )
+        } side: {
             if data.dataSource != .none {
-                HStack(spacing: TempoSpacing.xs) {
-                    Image(systemName: data.dataSource == .whoop
-                        ? "sensor.tag.radiowaves.forward.fill"
-                        : "applewatch")
-                        .font(.tempoCaption2)
-                    Text(data.dataSource.rawValue)
-                        .font(.tempoCaption2)
-                }
-                .foregroundStyle(Color.tempoTextTertiary)
-                .padding(.horizontal, TempoSpacing.sm)
-                .padding(.vertical, 4)
-                .background(Color.tempoSurfaceCard)
-                .clipShape(Capsule())
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                TideStatusPill(
+                    text: data.dataSource.rawValue,
+                    tint: Tide.text2,
+                    systemImage: data.dataSource == .whoop ? "sensor.tag.radiowaves.forward.fill" : "applewatch"
+                )
             }
 
-            HStack(spacing: TempoSpacing.xl) {
-                // Recovery ring — 120pt
-                ZStack {
-                    Circle()
-                        .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    if let score = data.recoveryScore {
-                        Circle()
-                            .trim(from: 0, to: score / 100)
-                            .stroke(
-                                zoneColor,
-                                style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
-                    }
-                    VStack(spacing: 0) {
-                        Text(scoreDigits)
-                            .font(.tempoScoreDisplay)
-                            .foregroundStyle(zoneColor)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.5)
-                        Text("RECOVERY")
-                            .font(.tempoCaption2)
-                            .tracking(TempoTracking.drillLabel)
-                            .foregroundStyle(Color.tempoTextTertiary)
-                    }
-                    .frame(width: 96)
-                }
-                .frame(width: 120, height: 120)
-
-                VStack(alignment: .leading, spacing: TempoSpacing.xs) {
-                    Text("Recovery")
-                        .font(.tempoTitle3)
-                        .foregroundStyle(Color.tempoTextPrimary)
-
-                    Text(recoveryQuip)
-                        .font(.tempoBody)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .italic()
-
-                    // CTA when using HealthKit fallback (no Whoop recovery score)
-                    if data.dataSource == .healthKit, data.recoveryScore == nil {
-                        Text("Connect Whoop for full recovery data")
-                            .font(.tempoCaption1)
-                            .foregroundStyle(Color.tempoSignal)
-                    }
-                }
-
-                Spacer()
+            if let zone = data.recoveryZone {
+                Text("\(zone.displayName) zone")
+                    .font(Tide.title2)
+                    .foregroundStyle(zoneColor)
+                Text(recoveryQuip)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .italic()
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("No recovery yet")
+                    .font(Tide.title2)
+                    .foregroundStyle(Tide.text)
+                Text(
+                    data.dataSource == .healthKit
+                        ? "Health has no recovery score. Connect WHOOP for the full picture."
+                        : "Today's score lands once last night is processed."
+                )
+                .font(Tide.body)
+                .foregroundStyle(Tide.text2)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.top, TempoSpacing.lg)
+        .accessibilityElement(children: .contain)
     }
 
-    // MARK: - Metric Cards
+    // MARK: - Vitals
 
-    // Per MODULE_DASHBOARD.md Section 4.2 — Metric Cards Row
+    // Per MODULE_DASHBOARD.md Section 4.2 — Metric Cards. Each is today's value
+    // against the average of the days before it, once there are enough days.
 
-    private var metricCardsSection: some View {
+    private var vitalsSection: some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: TempoSpacing.sm), count: 4),
-            spacing: TempoSpacing.sm
+            columns: Array(
+                repeating: GridItem(.flexible(), spacing: Tide.s3),
+                count: typeSize.isAccessibilitySize ? 1 : 2
+            ),
+            spacing: Tide.s3
         ) {
-            metricCard(
-                value: hrvDigits,
-                label: "HRV · ms",
-                comparison: comparisonIndicator(current: data.hrv, average: avgHRV, higherIsBetter: true)
+            vitalTile(
+                label: "HRV", value: data.hrv.map { String(format: "%.0f", $0) }, unit: "ms",
+                explainer: .bodyHRV,
+                note: comparisonNote(current: data.hrv, baseline: baseline.hrv, higherIsBetter: true)
             )
-
-            metricCard(
-                value: rhrDigits,
-                label: "RHR · bpm",
-                comparison: comparisonIndicator(current: data.rhr, average: avgRHR, higherIsBetter: false)
+            vitalTile(
+                label: "Resting HR", value: data.rhr.map { "\(Int($0))" }, unit: "bpm",
+                explainer: .bodyRestingHeartRate,
+                note: comparisonNote(current: data.rhr, baseline: baseline.rhr, higherIsBetter: false)
             )
-
-            metricCard(
-                value: sleepDigits,
-                label: "Sleep · h",
-                comparison: comparisonIndicator(current: data.sleepHours, average: avgSleep, higherIsBetter: true)
+            vitalTile(
+                label: "Sleep", value: data.sleepHours.map { String(format: "%.1f", $0) }, unit: "h",
+                explainer: .bodySleep,
+                note: comparisonNote(current: data.sleepHours, baseline: baseline.sleepHours, higherIsBetter: true)
             )
-
-            metricCard(
-                value: spo2Digits,
-                label: "SpO2 · %",
-                comparison: spo2Comparison
+            vitalTile(
+                label: "SpO2", value: data.spo2.map { "\(Int($0))" }, unit: "%",
+                explainer: .bodyOxygen,
+                note: oxygenNote
             )
         }
     }
 
-    // MARK: - Recovery Trend Chart
+    private func vitalTile(
+        label: String, value: String?, unit: String, explainer: Explainer, note: (String, Color)
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tide.s2) {
+            Text(label)
+                .tideLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+            TideNumber(
+                value ?? "--", unit: value == nil ? nil : unit,
+                size: Tide.numeralS + Tide.s1, relativeTo: .title3,
+                color: value == nil ? Tide.text3 : Tide.text
+            )
+            Text(note.0)
+                .font(Tide.caption)
+                .foregroundStyle(note.1)
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .accessibilityElement(children: .combine)
+        .explains(explainer.showing(value.map { "\($0) \(unit)" }))
+    }
+
+    /// How today sits against the average of the days before. Silent without a
+    /// reading, and without enough days to average.
+    private func comparisonNote(current: Double?, baseline: Double?, higherIsBetter: Bool) -> (String, Color) {
+        guard let current else {
+            return ("No reading", Tide.text3)
+        }
+        guard let baseline else {
+            return ("No baseline yet", Tide.text3)
+        }
+        let verdict = BodyHistory.verdict(current: current, baseline: baseline, higherIsBetter: higherIsBetter)
+        switch verdict {
+        case .same:
+            return ("Near average", Tide.text2)
+        case .better:
+            return (higherIsBetter ? "Above average" : "Below average", TideTone.mint)
+        case .worse:
+            return (higherIsBetter ? "Below average" : "Above average", Tide.danger)
+        }
+    }
+
+    private var oxygenNote: (String, Color) {
+        guard let spo2 = data.spo2 else {
+            return ("No reading", Tide.text3)
+        }
+        return spo2 >= 95 ? ("Normal", TideTone.mint) : ("Low", Tide.danger)
+    }
+
+    // MARK: - Recovery Trend
 
     // Per MODULE_DASHBOARD.md Section 4.2 — Recovery Trend Chart (7 Days)
 
-    private var recoveryTrendSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("RECOVERY TREND")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+    private var trendSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Recovery trend", trailing: "7 days")
 
-            Chart(trendData) { point in
-                // Area fill
-                AreaMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Score", point.score)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.tempoTextPrimary.opacity(0.15), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
+            Group {
+                if week.count >= 2 {
+                    TideLineChart(
+                        data: [
+                            TempoLineChartData(
+                                id: "recovery", label: "Recovery", color: TideTone.mint,
+                                points: week.map { TempoLineChartData<String>.DataPoint(date: $0.date, value: $0.recovery) }
+                            ),
+                        ],
+                        height: Tide.chartHeight,
+                        valueFormat: .number.precision(.fractionLength(0))
                     )
-                )
-                .interpolationMethod(.catmullRom)
-
-                // Line
-                LineMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Score", point.score)
-                )
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineStyle(StrokeStyle(lineWidth: 2))
-                .interpolationMethod(.catmullRom)
-
-                // Points colored by zone
-                PointMark(
-                    x: .value("Day", point.date, unit: .day),
-                    y: .value("Score", point.score)
-                )
-                .foregroundStyle(RecoveryZone(score: point.score).color)
-                .symbolSize(36)
-
-                // Selection rule + annotation
-                if let selection = selectedTrendPoint,
-                   Calendar.current.isDate(selection.date, inSameDayAs: point.date)
-                {
-                    RuleMark(x: .value("Selected", selection.date, unit: .day))
-                        .foregroundStyle(Color.tempoTextSecondary.opacity(0.4))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .annotation(
-                            position: .top,
-                            spacing: 6,
-                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
-                        ) {
-                            tooltipCard(for: selection)
-                        }
-
-                    PointMark(
-                        x: .value("Day", selection.date, unit: .day),
-                        y: .value("Score", selection.score)
-                    )
-                    .foregroundStyle(RecoveryZone(score: selection.score).color)
-                    .symbolSize(120)
+                } else {
+                    RecoveryChartPlaceholder(message: "Need two days of recovery to draw a trend.")
                 }
             }
-            .chartXSelection(value: $selectedTrendDate)
-            .chartYScale(domain: 0 ... 100)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: [33, 67]) { _ in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        .foregroundStyle(Color.tempoDivider)
-                }
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(TempoDateFormatters.shortDayOfWeek.string(from: date))
-                                .font(.tempoCaption2)
-                                .foregroundStyle(Color.tempoTextTertiary)
-                        }
-                    }
-                }
-            }
-            .frame(height: 160)
+            .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .accessibilityIdentifier("body-trend")
     }
 
-    // MARK: - Sleep Breakdown
+    // MARK: - Sleep
 
     // Per MODULE_DASHBOARD.md Section 4.2 — Sleep Breakdown
 
-    private var sleepBreakdownSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("SLEEP BREAKDOWN")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
+    private var sleepSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Last night's sleep")
 
-            // Stacked bar
-            let total = Double(deepSleepMin + remSleepMin + lightSleepMin + awakeSleepMin)
-            GeometryReader { geo in
-                HStack(spacing: 0) {
-                    sleepSegment(
-                        width: geo.size.width * Double(deepSleepMin) / total,
-                        color: Color.tempoSleepDeep
-                    ) // #5856D6
-                    sleepSegment(
-                        width: geo.size.width * Double(remSleepMin) / total,
-                        color: Color.tempoSleepREM
-                    ) // #5AC8FA
-                    sleepSegment(
-                        width: geo.size.width * Double(lightSleepMin) / total,
-                        color: Color.tempoSleepLight
-                    ) // #D1D1D6
-                    sleepSegment(
-                        width: geo.size.width * Double(awakeSleepMin) / total,
-                        color: Color.tempoSleepAwake
-                    ) // #FF9500
+            if let stages {
+                VStack(alignment: .leading, spacing: Tide.s4) {
+                    RecoveryStagesBar(
+                        segments: stageSegments(stages),
+                        accessibilityValue: "Deep \(SleepStageMinutes.formatted(stages.deep)), REM \(SleepStageMinutes.formatted(stages.rem)), "
+                            + "light \(SleepStageMinutes.formatted(stages.light)), awake \(SleepStageMinutes.formatted(stages.awake))"
+                    )
+
+                    LazyVGrid(
+                        columns: Array(
+                            repeating: GridItem(.flexible(), spacing: Tide.s3, alignment: .leading),
+                            count: typeSize.isAccessibilitySize ? 1 : 2
+                        ),
+                        spacing: Tide.s3
+                    ) {
+                        stageLegend(name: "Deep", minutes: stages.deep, color: TideSleepStage.deep)
+                        stageLegend(name: "REM", minutes: stages.rem, color: TideSleepStage.rem)
+                        stageLegend(name: "Light", minutes: stages.light, color: TideSleepStage.light)
+                        stageLegend(name: "Awake", minutes: stages.awake, color: TideSleepStage.awake)
+                    }
+
+                    if data.sleepPerformance != nil {
+                        TideDivider()
+                        HStack {
+                            Text("Performance")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                            Spacer(minLength: Tide.s2)
+                            Text(data.formattedSleepPerformance)
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .explains(.bodySleepStages)
+            } else {
+                TideEmptyPanel(
+                    systemImage: "moon.zzz",
+                    title: "No sleep stages yet",
+                    message: "Last night's stages show up once WHOOP has processed it."
+                )
+                .tideCard()
             }
-            .frame(height: 24)
-
-            // Legend 2x2 grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                sleepLegendItem(
-                    color: Color.tempoSleepDeep,
-                    label: "Deep",
-                    duration: formatMinutes(deepSleepMin)
-                )
-                sleepLegendItem(
-                    color: Color.tempoSleepREM,
-                    label: "REM",
-                    duration: formatMinutes(remSleepMin)
-                )
-                sleepLegendItem(
-                    color: Color.tempoSleepLight,
-                    label: "Light",
-                    duration: formatMinutes(lightSleepMin)
-                )
-                sleepLegendItem(
-                    color: Color.tempoSleepAwake,
-                    label: "Awake",
-                    duration: formatMinutes(awakeSleepMin)
-                )
-            }
-
-            // Performance + bed time
-            Text("Performance: \(data.formattedSleepPerformance)")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("In bed: 11:15 PM → 6:45 AM")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
         }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
+        .accessibilityIdentifier("body-sleep")
     }
 
-    // MARK: - Strain Breakdown
+    private func stageSegments(_ stages: SleepStageMinutes) -> [(minutes: Int, color: Color)] {
+        [
+            (stages.deep, TideSleepStage.deep),
+            (stages.rem, TideSleepStage.rem),
+            (stages.light, TideSleepStage.light),
+            (stages.awake, TideSleepStage.awake),
+        ]
+    }
+
+    private func stageLegend(name: String, minutes: Int, color: Color) -> some View {
+        HStack(spacing: Tide.s2) {
+            Circle()
+                .fill(color)
+                .frame(width: Tide.s2, height: Tide.s2)
+                .accessibilityHidden(true)
+            Text(name)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text2)
+            Text(SleepStageMinutes.formatted(minutes))
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: - Strain
 
     // Per MODULE_DASHBOARD.md Section 4.2 — Strain Breakdown
 
-    private var strainBreakdownSection: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Text("STRAIN BREAKDOWN")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private var strainSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Strain")
 
-            // Semicircle gauge
-            ZStack {
-                // Arc background
-                SemiCircleArc(progress: 1.0)
-                    .stroke(Color.tempoBorder, style: StrokeStyle(lineWidth: 10, lineCap: .round))
-                    .frame(width: 160, height: 80)
-
-                // Arc fill with gradient
-                SemiCircleArc(progress: min((data.strain ?? 0) / 21.0, 1.0))
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.tempoSuccess, Color.tempoWarning, Color.tempoError],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                    )
-                    .frame(width: 160, height: 80)
-            }
-            .frame(height: 90)
-
-            Text("Strain zone: \(strainZoneLabel)")
-                .font(.tempoCallout)
-                .foregroundStyle(Color.tempoTextPrimary)
-
-            Text("Recommended: \(strainRecommendation) (recovery \(data.formattedRecovery))")
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    // MARK: - Historical Comparison
-
-    // Per MODULE_DASHBOARD.md Section 4.2 — Historical Comparison
-
-    private var historicalComparisonSection: some View {
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            Text("HISTORICAL COMPARISON")
-                .font(.tempoModuleTag)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextSecondary)
-
-            VStack(spacing: 0) {
-                comparisonRow(
-                    period: "Yesterday",
-                    metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "+5%", color: .tempoSuccess),
-                        ComparisonMetric(label: "HRV", delta: "-2 ms", color: .tempoError),
-                    ]
-                )
-                Divider().background(Color.tempoDivider)
-                comparisonRow(
-                    period: "Last Week",
-                    metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "+8%", color: .tempoSuccess),
-                        ComparisonMetric(label: "Sleep", delta: "+0.5h", color: .tempoSuccess),
-                    ]
-                )
-                Divider().background(Color.tempoDivider)
-                comparisonRow(
-                    period: "7-day avg",
-                    metrics: [
-                        ComparisonMetric(label: "Recovery", delta: "\(Int(avgRecovery))%", color: .tempoTextPrimary),
-                        ComparisonMetric(label: "HRV", delta: "\(Int(avgHRV)) ms", color: .tempoTextPrimary),
-                    ]
-                )
-            }
-        }
-        .padding(TempoSpacing.buttonPaddingV)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-        .tempoShadow(.card)
-    }
-
-    private func metricCard(value: String, label: String, comparison: (String, Color)) -> some View {
-        VStack(spacing: TempoSpacing.xs) {
-            Text(value)
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-
-            Text(label)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .lineLimit(1)
-
-            Text(comparison.0)
-                .font(.tempoCaption2)
-                .foregroundStyle(comparison.1)
-                .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 84)
-        .padding(10)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.lg, style: .continuous))
-    }
-
-    private func tooltipCard(for point: RecoveryTrendPoint) -> some View {
-        let zone = RecoveryZone(score: point.score)
-        let delta = point.score - avgRecovery
-        let deltaText = delta > 0
-            ? "+\(Int(delta)) vs 7-day avg"
-            : delta < 0 ? "\(Int(delta)) vs 7-day avg" : "= 7-day avg"
-        return VStack(alignment: .leading, spacing: 2) {
-            Text(TempoDateFormatters.shortDayOfWeek.string(from: point.date).uppercased())
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(Int(point.score))")
-                    .font(.tempoTitle3)
-                    .foregroundStyle(zone.color)
-                Text("%")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(zone.color)
-            }
-            Text(deltaText)
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextSecondary)
-        }
-        .padding(.horizontal, TempoSpacing.sm)
-        .padding(.vertical, TempoSpacing.xs)
-        .background(Color.tempoSurfaceElevated)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: TempoRadius.md, style: .continuous)
-                .stroke(Color.tempoBorder, lineWidth: 1)
-        )
-    }
-
-    private func sleepSegment(width: CGFloat, color: Color) -> some View {
-        Rectangle()
-            .fill(color)
-            .frame(width: max(width, 0), height: 24)
-    }
-
-    private func sleepLegendItem(color: Color, label: String, duration: String) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
-            Text("\(label)  \(duration)")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Spacer()
-        }
-    }
-
-    private func comparisonRow(period: String, metrics: [ComparisonMetric]) -> some View {
-        HStack(spacing: TempoSpacing.sm) {
-            Text(period.uppercased())
-                .font(.tempoCaption2)
-                .tracking(TempoTracking.drillLabel)
-                .foregroundStyle(Color.tempoTextTertiary)
-                .frame(width: 88, alignment: .leading)
-
-            ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
-                HStack(spacing: 4) {
-                    Text(metric.label)
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                    Text(metric.delta)
-                        .font(.tempoCallout)
-                        .monospacedDigit()
-                        .foregroundStyle(metric.color)
+            if let level = StrainLevel(strain: data.strain) {
+                RecoveryHero {
+                    RecoveryStrainGauge(strain: data.strain, color: level.tideColor, diameter: Tide.dialSheet)
+                } side: {
+                    Text(level.name)
+                        .font(Tide.title2)
+                        .foregroundStyle(level.tideColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let advice = StrainLevel.advice(recovery: data.recoveryScore) {
+                        Text("Recommended: \(advice)")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("Based on recovery \(data.formattedRecovery)")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "Strain \(String(format: "%.1f", data.strain ?? 0)) out of 21, \(level.name)"
+                )
+                .explains(Explainer.recoveryStrain.showing("\(String(format: "%.1f", data.strain ?? 0)) of 21"))
+            } else {
+                TideEmptyPanel(
+                    systemImage: "flame",
+                    title: "No strain yet today",
+                    message: "Strain shows up as WHOOP records your day."
+                )
+                .tideCard()
             }
         }
-        .padding(.vertical, TempoSpacing.xs)
+        .accessibilityIdentifier("body-strain")
     }
 
-    private func comparisonIndicator(current: Double?, average: Double, higherIsBetter: Bool) -> (String, Color) {
-        guard let current else {
-            return ("--", .tempoTextTertiary)
+    // MARK: - Comparison
+
+    // Per MODULE_DASHBOARD.md Section 4.2 — Historical Comparison. A line only
+    // appears when both days it compares have readings.
+
+    private var comparisonLines: [ComparisonLine] {
+        var lines = [ComparisonLine]()
+
+        let yesterday = BodyHistory.day(1, before: Date()).flatMap { BodyHistory.reading(on: $0, in: readings) }
+        let yesterdayCells = BodyHistory.changes(today: todayReading, other: yesterday, kinds: [.recovery, .hrv])
+        if !yesterdayCells.isEmpty {
+            lines.append(ComparisonLine(title: "Yesterday", cells: yesterdayCells.map(changeCell)))
         }
-        let ratio = current / average
-        if ratio > 1.05 {
-            return ("↑ vs avg", higherIsBetter ? Color.tempoSuccess : Color.tempoError)
-        } else if ratio < 0.95 {
-            return ("↓ vs avg", higherIsBetter ? Color.tempoError : Color.tempoSuccess)
+
+        let lastWeek = BodyHistory.day(7, before: Date()).flatMap { BodyHistory.reading(on: $0, in: readings) }
+        let weekCells = BodyHistory.changes(today: todayReading, other: lastWeek, kinds: [.recovery, .sleep])
+        if !weekCells.isEmpty {
+            lines.append(ComparisonLine(title: "Last week", cells: weekCells.map(changeCell)))
         }
-        return ("= avg", Color.tempoTextTertiary)
+
+        var averages = [ComparisonLine.Cell]()
+        if let recovery = baseline.recovery {
+            averages.append(.init(label: "Recovery", value: "\(Int(recovery.rounded()))%", color: Tide.text))
+        }
+        if let hrv = baseline.hrv {
+            averages.append(.init(label: "HRV", value: "\(Int(hrv.rounded())) ms", color: Tide.text))
+        }
+        if !averages.isEmpty {
+            lines.append(ComparisonLine(title: "7-day average", cells: averages))
+        }
+        return lines
     }
 
-    private func formatMinutes(_ minutes: Int) -> String {
-        let h = minutes / 60
-        let m = minutes % 60
-        if h > 0, m > 0 {
-            return "\(h)h \(m)m"
+    private func changeCell(_ change: BodyHistory.Change) -> ComparisonLine.Cell {
+        let label = switch change.kind {
+        case .recovery: "Recovery"
+        case .hrv: "HRV"
+        case .sleep: "Sleep"
         }
-        if h > 0 {
-            return "\(h)h"
+        let color: Color = switch change.verdict {
+        case .better: TideTone.mint
+        case .worse: Tide.danger
+        case .same: Tide.text
         }
-        return "\(m)m"
+        return .init(label: label, value: change.text, color: color)
+    }
+
+    private var comparisonSection: some View {
+        VStack(alignment: .leading, spacing: Tide.s4) {
+            TideSectionLabel(title: "Compared with")
+
+            let lines = comparisonLines
+            if lines.isEmpty {
+                TideEmptyPanel(
+                    systemImage: "chart.line.uptrend.xyaxis",
+                    title: "Not enough days yet",
+                    message: "Comparisons appear after a few days of readings."
+                )
+                .tideCard()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
+                        if index > 0 {
+                            TideDivider()
+                        }
+                        comparisonRow(line)
+                    }
+                }
+                .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+                .explains(.bodyComparison)
+            }
+        }
+        .accessibilityIdentifier("body-comparison")
+    }
+
+    private func comparisonRow(_ line: ComparisonLine) -> some View {
+        let title = Text(line.title)
+            .tideLabel(Tide.text3)
+        let cells = ForEach(line.cells) { cell in
+            HStack(spacing: Tide.s1) {
+                Text(cell.label)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text2)
+                Text(cell.value)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(cell.color)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: Tide.s2) {
+                title
+                    .lineLimit(1)
+                    .frame(width: Tide.hit * 2.4, alignment: .leading)
+                cells
+            }
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                title
+                cells
+            }
+        }
+        .padding(.vertical, Tide.s3)
+        .frame(maxWidth: .infinity, minHeight: Tide.hit, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }
 
-// MARK: - RecoveryTrendPoint
+// MARK: - Recent days
 
-struct RecoveryTrendPoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let score: Double
-}
-
-// MARK: - SemiCircleArc
-
-struct SemiCircleArc: Shape {
-    var progress: Double
-
-    var animatableData: Double {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let center = CGPoint(x: rect.midX, y: rect.maxY)
-        let radius = min(rect.width / 2, rect.height)
-        path.addArc(
-            center: center,
-            radius: radius,
-            startAngle: .degrees(180),
-            endAngle: .degrees(180 + 180 * progress),
-            clockwise: false
-        )
-        return path
-    }
+/// The last three weeks of stored days: enough for a 7-day baseline, last
+/// week's day and today.
+private func bodyRecentDescriptor() -> FetchDescriptor<DailyRecovery> {
+    var descriptor = FetchDescriptor<DailyRecovery>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+    descriptor.fetchLimit = 21
+    return descriptor
 }
 
 // MARK: - Preview
@@ -732,4 +600,8 @@ struct SemiCircleArc: Shape {
             )
         )
     }
+    .modelContainer(
+        for: [DailyRecovery.self, DailyPrescription.self, BodyComposition.self, UserSettings.self],
+        inMemory: true
+    )
 }

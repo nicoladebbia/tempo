@@ -40,6 +40,8 @@ struct SupplementBarcodeFlow: View {
     private var modelContext
     @Environment(ServiceContainer.self)
     private var services
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var scanState: ScanState = .scanning
     @State private var network = NetworkStatus()
@@ -84,7 +86,7 @@ struct SupplementBarcodeFlow: View {
 
     var body: some View {
         ZStack {
-            Color.tempoBgPrimary.ignoresSafeArea()
+            TidePageBackground()
             switch scanState {
             case .scanning:
                 ScanBarcodeSurface(
@@ -223,71 +225,61 @@ struct SupplementBarcodeFlow: View {
     }
 
     private func loadingContent(_ text: String) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            ProgressView().controlSize(.large)
-            Text(text)
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
+        KitchenStatePage {
+            KitchenStateHero(systemImage: "barcode.viewfinder", title: text, working: true)
         }
     }
 
     // MARK: - Confirm card
 
     private func foundContent(_ dto: SupplementLookupDTO) -> some View {
-        VStack(spacing: TempoSpacing.xxl) {
-            Spacer()
-            VStack(spacing: TempoSpacing.sm) {
-                Image(systemName: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(Color.tempoSignal)
-                    .padding(.bottom, TempoSpacing.xs)
-                if let brand = dto.brand, !brand.isEmpty {
-                    Text(brand.uppercased())
-                        .font(.tempoModuleTag)
-                        .foregroundStyle(Color.tempoTextTertiary)
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Add to Shelf", systemImage: "plus", role: .primary) { add(dto) },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
+        ]) {
+            VStack(spacing: Tide.s4) {
+                KitchenHeroDisc(systemImage: (SupplementKind(rawValue: dto.kind) ?? .other).icon)
+                VStack(spacing: Tide.s2) {
+                    if let brand = dto.brand, !brand.isEmpty {
+                        Text(brand)
+                            .tideLabel(Tide.text3)
+                    }
+                    Text(dto.name)
+                        .font(Tide.title2)
+                        .foregroundStyle(Tide.text)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(detailLine(dto))
+                        .font(Tide.body)
+                        .foregroundStyle(Tide.text2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(dto.name)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                    .multilineTextAlignment(.center)
-                Text(detailLine(dto))
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
                 if !dto.certifications.isEmpty {
-                    HStack(spacing: TempoSpacing.xs) {
+                    HStack(spacing: Tide.s1) {
                         ForEach(dto.certifications, id: \.self) { cert in
                             certBadge(cert)
                         }
                     }
-                    .padding(.top, TempoSpacing.xs)
                 }
-                if let source = Self.sourceName(dto) {
-                    Text(source)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(Color.tempoTextTertiary)
+                VStack(spacing: Tide.s1) {
+                    if let source = Self.sourceName(dto) {
+                        Text(source)
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text3)
+                            .multilineTextAlignment(.center)
+                    }
+                    if dto.source == "tempo", let catalogID = dto.catalogID {
+                        SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
+                    }
+                    Text("UPC \(dto.upc)")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text3)
+                        .monospacedDigit()
                 }
-                if dto.source == "tempo", let catalogID = dto.catalogID {
-                    SupplementReportButton(catalogID: catalogID, service: LiveSupplementLookupService(apiClient: services.apiClient))
-                }
-                Text("UPC \(dto.upc)")
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
-                    .padding(.top, TempoSpacing.xs)
             }
-            .padding(TempoSpacing.cardPadding)
             .frame(maxWidth: .infinity)
-            .background(Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
-            .padding(.horizontal, TempoSpacing.screenEdge)
-
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Add to Shelf") { add(dto) }
-                    .buttonStyle(.tempoPrimary)
-                Button("Scan again") { resetScanner() }
-                    .buttonStyle(.tempoGhost)
-            }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
         }
     }
 
@@ -305,14 +297,7 @@ struct SupplementBarcodeFlow: View {
     }
 
     private func certBadge(_ text: String) -> some View {
-        Text(text)
-            .font(.tempoCaption2)
-            .fontWeight(.semibold)
-            .foregroundStyle(Color.tempoSuccess)
-            .padding(.horizontal, TempoSpacing.sm)
-            .padding(.vertical, TempoSpacing.xxs)
-            .background(Color.tempoSuccess.opacity(0.15))
-            .clipShape(Capsule())
+        KitchenTag(text: text, tint: Tide.Kitchen.good)
     }
 
     private func detailLine(_ dto: SupplementLookupDTO) -> String {
@@ -321,7 +306,7 @@ struct SupplementBarcodeFlow: View {
             parts.append(dose)
         }
         if let servings = dto.servingsPerContainer, servings > 0 {
-            parts.append("\(Int(servings)) servings/container")
+            parts.append("\(Int(servings)) \(Int(servings) == 1 ? "serving" : "servings")/container")
         }
         return parts.joined(separator: " · ")
     }
@@ -329,29 +314,18 @@ struct SupplementBarcodeFlow: View {
     // MARK: - Duplicate
 
     private func duplicateContent(dto: SupplementLookupDTO, existing: Supplement) -> some View {
-        VStack(spacing: TempoSpacing.lg) {
-            Spacer()
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(Color.tempoAsh)
-            Text("Already on your shelf")
-                .font(.tempoTitle3)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("You already have \(existing.name). Restocked instead of adding a new item?")
-                .font(.tempoBody)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, TempoSpacing.xxxxl)
-            VStack(spacing: TempoSpacing.buttonStackVertical) {
-                Button("Restocked") { restock(dto: dto, existing: existing) }
-                    .buttonStyle(.tempoPrimary)
-                Button("Add as new anyway") { scanState = .found(dto) }
-                    .buttonStyle(.tempoSecondary)
-                Button("Scan again") { resetScanner() }
-                    .buttonStyle(.tempoGhost)
-            }
-            .padding(.horizontal, TempoSpacing.xxxxl)
-            Spacer()
+        KitchenStatePage(actions: [
+            KitchenStateAction(title: "Restocked", systemImage: "arrow.triangle.2.circlepath", role: .primary) {
+                restock(dto: dto, existing: existing)
+            },
+            KitchenStateAction(title: "Add as new anyway") { scanState = .found(dto) },
+            KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) { resetScanner() },
+        ]) {
+            KitchenStateHero(
+                systemImage: "arrow.triangle.2.circlepath",
+                title: "Already on your shelf",
+                message: "You already have \(existing.name). Restocked instead of adding a new item?"
+            )
         }
     }
 
@@ -365,74 +339,37 @@ struct SupplementBarcodeFlow: View {
         upc: String?,
         canRetry: Bool = false
     ) -> some View {
-        ScrollView {
-            VStack(spacing: TempoSpacing.lg) {
-                Image(systemName: icon)
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.tempoAsh)
-                    .padding(.top, TempoSpacing.xxxl)
-                Text(title)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Text(message)
-                    .font(.tempoBody)
-                    .foregroundStyle(Color.tempoTextSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, TempoSpacing.xxl)
-                VStack(spacing: TempoSpacing.buttonStackVertical) {
-                    if canRetry, let upc {
-                        Button {
-                            lookUp(upc)
-                        } label: {
-                            Label("Try again", systemImage: "arrow.clockwise")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.tempoPrimary)
-                        .accessibilityIdentifier("supplementRetryLookup")
-                    }
-                    if canRetry {
-                        photographButton(upc: upc).buttonStyle(.tempoSecondary)
-                    } else {
-                        photographButton(upc: upc).buttonStyle(.tempoPrimary)
-                    }
-                    Button {
-                        flowSheet = .search(upc: upc)
-                    } label: {
-                        Label("Search by name", systemImage: "magnifyingglass")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoSecondary)
-                    .accessibilityIdentifier("supplementSearchByName")
-                    Button {
-                        flowSheet = .manual(upc: upc)
-                    } label: {
-                        Label("Type it", systemImage: "square.and.pencil")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoSecondary)
-                    .accessibilityIdentifier("supplementTypeIt")
-                    Button {
-                        resetScanner()
-                    } label: {
-                        Label("Scan again", systemImage: "barcode.viewfinder")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.tempoGhost)
-                }
-                .padding(.horizontal, TempoSpacing.xxxxl)
-                .padding(.bottom, TempoSpacing.xxxl)
-            }
+        var actions: [KitchenStateAction] = []
+        if canRetry, let upc {
+            actions.append(KitchenStateAction(
+                title: "Try again",
+                systemImage: "arrow.clockwise",
+                role: .primary,
+                identifier: "supplementRetryLookup"
+            ) { lookUp(upc) })
         }
-    }
-
-    private func photographButton(upc: String?) -> some View {
-        Button {
-            flowSheet = .readLabel(upc: upc)
-        } label: {
-            Label("Photograph the label", systemImage: "camera.viewfinder")
-                .frame(maxWidth: .infinity)
+        actions.append(KitchenStateAction(
+            title: "Photograph the label",
+            systemImage: "camera.viewfinder",
+            role: canRetry ? .secondary : .primary,
+            identifier: "supplementPhotographLabel"
+        ) { flowSheet = .readLabel(upc: upc) })
+        actions.append(KitchenStateAction(
+            title: "Search by name",
+            systemImage: "magnifyingglass",
+            identifier: "supplementSearchByName"
+        ) { flowSheet = .search(upc: upc) })
+        actions.append(KitchenStateAction(
+            title: "Type it",
+            systemImage: "square.and.pencil",
+            identifier: "supplementTypeIt"
+        ) { flowSheet = .manual(upc: upc) })
+        actions.append(KitchenStateAction(title: "Scan again", systemImage: "barcode.viewfinder", role: .quiet) {
+            resetScanner()
+        })
+        return KitchenStatePage(actions: actions) {
+            KitchenStateHero(systemImage: icon, tint: Tide.Kitchen.warn, title: title, message: message)
         }
-        .accessibilityIdentifier("supplementPhotographLabel")
     }
 
     // MARK: - Actions

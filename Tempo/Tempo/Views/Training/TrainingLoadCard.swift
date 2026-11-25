@@ -62,39 +62,55 @@ struct TrainingLoadCard: View {
         let points = points
         let strainDays = dailyStrain.suffix(ReadinessAssembler.strainWindow).filter { $0.strain != nil }.count
 
-        VStack(alignment: .leading, spacing: TempoSpacing.md) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("TRAINING LOAD")
-                    .font(.tempoHeadline)
-                    .foregroundStyle(Color.tempoTextPrimary)
-                Spacer()
-                if let current = points.last?.ratio {
-                    Text(String(format: "%.2f · %@", current, zoneLabel(current)))
-                        .font(.tempoCaption1)
-                        .foregroundStyle(zoneColor(current))
-                }
-            }
+        VStack(alignment: .leading, spacing: Tide.s3) {
+            // Same small-caps label as every other Progress card.
+            Text("Training load")
+                .tideLabel()
+                .accessibilityAddTraits(.isHeader)
+
+            // The hero: this week against the last four, as one tinted figure.
+            currentReading(points.last?.ratio)
 
             if points.isEmpty {
-                Text(
-                    "Building your baseline — \(min(strainDays, Self.minStrainDays))/\(Self.minStrainDays) days of Whoop strain. Keep the strap on."
-                )
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .frame(maxWidth: .infinity, minHeight: 80, alignment: .leading)
+                let have = min(strainDays, Self.minStrainDays)
+                VStack(alignment: .leading, spacing: Tide.s2) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
+                        TideNumber("\(have)/\(Self.minStrainDays)", size: Tide.numeralM, relativeTo: .title)
+                        Text("days of Whoop strain")
+                            .font(Tide.caption)
+                            .foregroundStyle(Tide.text2)
+                    }
+                    .accessibilityElement(children: .combine)
+                    TideLevelBar(progress: Double(have) / Double(Self.minStrainDays))
+                    Text("Building your baseline. Keep the strap on.")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, minHeight: TideTrainSession.chartEmptyHeight, alignment: .leading)
             } else {
                 chart(points)
                 Text(
                     "Last 7 days vs last 4 weeks. Under 0.8 you're detraining; over \(String(format: "%.1f", TrainingSafetyFloor.acwrCompositeMax)) injury risk climbs and the coach blocks two-a-days."
                 )
-                .font(.tempoCaption2)
-                .foregroundStyle(Color.tempoTextTertiary)
+                .font(Tide.caption)
+                .foregroundStyle(Tide.text3)
                 .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(TempoSpacing.cardPadding)
-        .background(Color.tempoSurfaceCard)
-        .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xxxl, style: .continuous))
+        .tideCard(padding: Tide.s4)
+    }
+
+    @ViewBuilder
+    private func currentReading(_ ratio: Double?) -> some View {
+        if let current = ratio {
+            FlowLayout(spacing: Tide.s3, lineSpacing: Tide.s1) {
+                TideNumber(String(format: "%.2f", current), size: Tide.numeralL, relativeTo: .largeTitle, color: zoneColor(current))
+                TrainTag(text: zoneLabel(current), color: zoneColor(current))
+            }
+            .accessibilityElement(children: .combine)
+            .explains(TrainExplainers.trainingLoad.showing(String(format: "%.2f", current)))
+        }
     }
 
     private func chart(_ points: [Point]) -> some View {
@@ -105,18 +121,18 @@ struct TrainingLoadCard: View {
                 yStart: .value("Low", Self.lowBound),
                 yEnd: .value("High", high)
             )
-            .foregroundStyle(Color.tempoRecoveryGreen.opacity(0.12))
+            .foregroundStyle(TideTrain.positive.opacity(TideTrainSession.zoneBandOpacity))
 
             RuleMark(y: .value("Limit", high))
-                .foregroundStyle(Color.tempoRecoveryRed.opacity(0.6))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .foregroundStyle(Tide.danger.opacity(TideTrainSession.limitLineOpacity))
+                .lineStyle(StrokeStyle(lineWidth: TideTrainSession.rule, dash: TideTrainSession.limitDash))
 
             ForEach(points) { point in
                 LineMark(
                     x: .value("Day", point.date),
                     y: .value("ACWR", point.ratio)
                 )
-                .foregroundStyle(Color.tempoSignal)
+                .foregroundStyle(Color.accentColor)
                 .interpolationMethod(.monotone)
             }
             if let last = points.last {
@@ -131,20 +147,22 @@ struct TrainingLoadCard: View {
         .chartYAxis {
             AxisMarks(values: [0, Self.lowBound, high]) { _ in
                 AxisGridLine()
-                    .foregroundStyle(Color.tempoTextTertiary.opacity(0.2))
+                    .foregroundStyle(Tide.text3.opacity(TideTrainSession.gridOpacity))
                 AxisValueLabel()
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
         .chartXAxis {
             AxisMarks(values: .stride(by: .day, count: 7)) { _ in
                 AxisValueLabel(format: .dateTime.month(.abbreviated).day())
-                    .font(.tempoCaption2)
-                    .foregroundStyle(Color.tempoTextTertiary)
+                    .font(Tide.caption)
+                    .foregroundStyle(Tide.text3)
             }
         }
-        .frame(height: 140)
+        // Axis labels stop growing at xxxLarge: past that they overlap on a phone.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .frame(height: TideTrainSession.chartHeight)
         .accessibilityLabel("Training load, acute to chronic ratio")
         .accessibilityValue(points.last.map { String(format: "%.2f, %@", $0.ratio, zoneLabel($0.ratio)) } ?? "")
     }
@@ -161,11 +179,11 @@ struct TrainingLoadCard: View {
 
     private func zoneColor(_ ratio: Double) -> Color {
         if ratio > TrainingSafetyFloor.acwrCompositeMax {
-            return .tempoRecoveryRed
+            return Tide.danger
         }
         if ratio < Self.lowBound {
-            return .tempoRecoveryYellow
+            return TideTrain.caution
         }
-        return .tempoRecoveryGreen
+        return TideTrain.positive
     }
 }

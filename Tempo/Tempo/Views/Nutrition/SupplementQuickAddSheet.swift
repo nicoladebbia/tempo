@@ -23,6 +23,8 @@ struct SupplementQuickAddSheet: View {
 
     @Environment(\.dismiss)
     private var dismiss
+    @Environment(\.tideMood)
+    private var mood
 
     @State private var selectedIDs: Set<String> = []
     @State private var step: Step = .picking
@@ -71,104 +73,107 @@ struct SupplementQuickAddSheet: View {
                 }
             }
         }
+        .kitchenSheet()
     }
 
     // MARK: - Picking
 
     private var pickingContent: some View {
-        VStack(spacing: 0) {
+        Group {
             if available.isEmpty {
                 emptyAllOnShelf
             } else {
                 ScrollView(.vertical, showsIndicators: false) {
-                    Text("Tap what you already own. Your plan will decide each day whether to take it.")
-                        .font(.tempoCaption1)
-                        .foregroundStyle(Color.tempoTextSecondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, TempoSpacing.screenEdge)
-                        .padding(.top, TempoSpacing.md)
-                        .padding(.bottom, TempoSpacing.lg)
-
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 96), spacing: TempoSpacing.sm)],
-                        spacing: TempoSpacing.sm
-                    ) {
-                        ForEach(available) { item in
-                            quickAddChip(item)
+                    VStack(alignment: .leading, spacing: Tide.s4) {
+                        VStack(alignment: .leading, spacing: Tide.s1) {
+                            Text("Tap what you already own.")
+                                .font(Tide.title2)
+                                .foregroundStyle(Tide.text)
+                                .accessibilityAddTraits(.isHeader)
+                            Text("Your plan will decide each day whether to take it.")
+                                .font(Tide.body)
+                                .foregroundStyle(Tide.text2)
+                        }
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: Tide.Kitchen.suggestion), spacing: Tide.s3)],
+                            spacing: Tide.s3
+                        ) {
+                            ForEach(available) { item in
+                                quickAddChip(item)
+                            }
                         }
                     }
-                    .padding(.horizontal, TempoSpacing.screenEdge)
-                    .padding(.bottom, TempoSpacing.xxxxl)
+                    .padding(.horizontal, Tide.edge)
+                    .padding(.top, Tide.s3)
+                    .padding(.bottom, Tide.s6)
                 }
-
-                Button("Add \(selectedIDs.count)") {
-                    step = .details
+                .kitchenBottomBar {
+                    // Nothing picked yet: the button is disabled, and the bar style turns it to quiet glass.
+                    Button {
+                        step = .details
+                    } label: {
+                        Text(selectedIDs.isEmpty ? "Pick what you own" : "Add \(selectedIDs.count)")
+                            .contentTransition(.numericText())
+                    }
+                    .buttonStyle(.kitchenBar)
+                    .disabled(selectedIDs.isEmpty)
+                    .animation(Tide.snap, value: selectedIDs.count)
                 }
-                .buttonStyle(.tempoPrimary)
-                .disabled(selectedIDs.isEmpty)
-                .padding(.horizontal, TempoSpacing.screenEdge)
-                .padding(.vertical, TempoSpacing.md)
-                .background(Color.tempoBgPrimary)
             }
         }
-        .background(Color.tempoBgPrimary)
     }
 
     private var emptyAllOnShelf: some View {
-        VStack(spacing: TempoSpacing.md) {
-            Spacer()
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 40, weight: .ultraLight))
-                .foregroundStyle(Color.tempoAsh)
-            Text("You've already got every common one")
-                .font(.tempoHeadline)
-                .foregroundStyle(Color.tempoTextPrimary)
-            Text("Add anything else manually or by scanning its barcode.")
-                .font(.tempoCaption1)
-                .foregroundStyle(Color.tempoTextSecondary)
-                .multilineTextAlignment(.center)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, TempoSpacing.screenEdge)
+        KitchenEmpty(
+            systemImage: "checkmark.circle",
+            title: "You've already got every common one",
+            message: "Add anything else manually or by scanning its barcode."
+        )
+        .padding(.horizontal, Tide.edge)
+        .frame(maxHeight: .infinity)
     }
 
+    /// One tile per supplement: tap to own it. A chosen tile fills with the accent and shows a tick.
     private func quickAddChip(_ item: SupplementQuickAddItem) -> some View {
         let isSelected = selectedIDs.contains(item.id)
         return Button {
             HapticManager.selection()
-            if isSelected {
-                selectedIDs.remove(item.id)
-            } else {
-                selectedIDs.insert(item.id)
-            }
-        } label: {
-            VStack(spacing: TempoSpacing.xs) {
-                Image(systemName: item.icon)
-                    .font(.tempoTitle3)
-                    .foregroundStyle(isSelected ? Color.tempoTextInverse : Color.tempoSignal)
-                Text(item.name)
-                    .font(.tempoCaption2)
-                    .foregroundStyle(isSelected ? Color.tempoTextInverse : Color.tempoTextPrimary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                if let macros = item.macroSummary {
-                    Text(macros)
-                        .font(.tempoCaption2)
-                        .foregroundStyle(isSelected ? Color.tempoTextInverse.opacity(0.8) : Color.tempoTextSecondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+            withAnimation(Tide.snap) {
+                if isSelected {
+                    selectedIDs.remove(item.id)
+                } else {
+                    selectedIDs.insert(item.id)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 88)
-            .padding(TempoSpacing.sm)
-            .background(isSelected ? Color.tempoSignal : Color.tempoSurfaceCard)
-            .clipShape(RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous))
+        } label: {
+            VStack(spacing: Tide.s1) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : item.icon)
+                    .font(Tide.title2)
+                    .foregroundStyle(isSelected ? Tide.ink : mood.accent)
+                    .contentTransition(.symbolEffect(.replace))
+                Text(item.name)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(isSelected ? Tide.ink : Tide.text)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(item.name.contains(" ") ? 2 : 1)
+                    .minimumScaleFactor(Tide.labelShrink)
+                if let macros = item.macroSummary {
+                    Text(macros)
+                        .font(Tide.caption)
+                        .foregroundStyle(isSelected ? Tide.ink.opacity(0.8) : Tide.text2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(Tide.labelShrink)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tide.Kitchen.suggestion)
+            .padding(.horizontal, Tide.s1)
+            .padding(.vertical, Tide.s2)
+            .background(isSelected ? mood.accent : Tide.fill, in: .rect(cornerRadius: Tide.tileRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: TempoRadius.xl, style: .continuous)
-                    .strokeBorder(isSelected ? Color.clear : Color.tempoBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: Tide.tileRadius, style: .continuous)
+                    .strokeBorder(isSelected ? Color.clear : Tide.hairline, lineWidth: 1)
             )
+            .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
@@ -176,29 +181,41 @@ struct SupplementQuickAddSheet: View {
 
     // MARK: - Details
 
+    /// One card per pick, two optional facts each. Skippable as a whole.
     private var detailsContent: some View {
-        Form {
-            Section {
-                Text("Optional — skip this if you don't know it yet. Your plan doesn't need it.")
-                    .font(.tempoCaption1)
-                    .foregroundStyle(Color.tempoTextSecondary)
-            }
-            ForEach(chosenItems) { item in
-                Section(item.name) {
-                    TextField("Brand (optional)", text: bindingBrand(item.id))
-                    TextField("Servings in the container (optional)", text: bindingServings(item.id))
-                        .keyboardType(.numberPad)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: Tide.s4) {
+                Text("Optional. Skip this if you don't know it yet. Your plan doesn't need it.")
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(chosenItems) { item in
+                    VStack(alignment: .leading, spacing: Tide.s3) {
+                        HStack(spacing: Tide.s3) {
+                            KitchenIconTile(systemName: item.icon)
+                            Text(item.name)
+                                .font(Tide.headline)
+                                .foregroundStyle(Tide.text)
+                        }
+                        TextField("Brand (optional)", text: bindingBrand(item.id))
+                            .kitchenField()
+                        TextField("Servings in the container (optional)", text: bindingServings(item.id))
+                            .keyboardType(.numberPad)
+                            .kitchenField()
+                    }
+                    .tideCard()
                 }
             }
+            .padding(.horizontal, Tide.edge)
+            .padding(.top, Tide.s3)
+            .padding(.bottom, Tide.s6)
         }
-        .safeAreaInset(edge: .bottom) {
+        .scrollDismissesKeyboard(.interactively)
+        .kitchenBottomBar {
             Button("Add \(chosenItems.count) to Shelf") {
                 finish()
             }
-            .buttonStyle(.tempoPrimary)
-            .padding(.horizontal, TempoSpacing.screenEdge)
-            .padding(.vertical, TempoSpacing.md)
-            .background(Color.tempoBgPrimary)
+            .buttonStyle(.tidePrimary)
         }
     }
 
