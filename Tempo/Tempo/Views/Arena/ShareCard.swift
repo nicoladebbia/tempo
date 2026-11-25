@@ -138,7 +138,7 @@ extension ShareCardContent {
         let range = "\(weekStart.formatted(.dateTime.day().month(.abbreviated))) to \(end.formatted(.dateTime.day().month(.abbreviated)))"
         return ShareCardContent(
             layout: .week, eyebrow: "My week", title: range, hero: xp.formatted(), heroUnit: "XP", stats: stats,
-            footer: "Week of \(weekStart.formatted(.dateTime.year()))"
+            footer: "Week \(ArenaCalendar.calendar().component(.weekOfYear, from: weekStart)), \(weekStart.formatted(.dateTime.year()))"
         )
     }
 }

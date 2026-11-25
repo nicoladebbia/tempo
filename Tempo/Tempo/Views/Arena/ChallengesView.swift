@@ -215,6 +215,7 @@ struct ChallengesView: View {
         let joined = challenge.participants
             .filter { $0.status == "joined" }
             .sorted { ($0.rank ?? .max) < ($1.rank ?? .max) }
+        let waiting = challenge.participants.filter { $0.status == "invited" }
         let busy = busyIDs.contains(challenge.id)
         return VStack(alignment: .leading, spacing: Tide.s4) {
             HStack(alignment: .top, spacing: Tide.s2) {
@@ -265,7 +266,14 @@ struct ChallengesView: View {
                         participantRow(person, metric: metric)
                     }
                 }
-            } else {
+            }
+
+            if !waiting.isEmpty {
+                Text("Waiting for \(ListFormatter.localizedString(byJoining: waiting.map(\.displayName))) to join.")
+                    .font(Tide.caption).foregroundStyle(Tide.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("arena.challengeWaiting")
+            } else if joined.count <= 1 {
                 Text("Just you so far. Invite a friend from the Friends page.")
                     .font(Tide.caption).foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -570,7 +578,8 @@ struct ChallengeCreationSheet: View {
         defer { isCreating = false }
         let body = ArenaChallengeCreateDTO(
             title: trimmedTitle, description: nil, metric: metric.rawValue, durationDays: days,
-            startsOn: nil, maxParticipants: nil, inviteUserIds: Array(invited)
+            // The phone's own "today": the server's UTC day can already be tomorrow in the evening in the Americas.
+            startsOn: ArenaCalendar.dayKey(Date()), maxParticipants: nil, inviteUserIds: Array(invited)
         )
         do {
             try await arena.createChallenge(body)
