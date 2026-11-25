@@ -278,7 +278,8 @@ struct ExerciseDetailView: View {
             TrainStat(
                 value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
                 label: "Current 1RM",
-                size: Tide.numeralM
+                size: Tide.numeralM,
+                explainer: TrainExplainers.currentE1RM
             )
             if history.isEmpty {
                 Text("No sets logged yet. Your numbers fill in after your first session.")
@@ -295,7 +296,8 @@ struct ExerciseDetailView: View {
                 TrainStat(
                     value: volume30d > 0 ? formatVolume(volume30d) : "—",
                     label: "Volume (30d)",
-                    size: Tide.numeralS
+                    size: Tide.numeralS,
+                    explainer: TrainExplainers.volume30
                 )
                 TrainStat(
                     value: sessions30d > 0 ? "\(sessions30d)" : "—",

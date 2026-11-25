@@ -435,6 +435,7 @@ private struct GuidedRunHeartRateBadge: View {
             .font(Tide.caption)
             .foregroundStyle(Tide.text2)
             .accessibilityIdentifier("guidedRunHeartRateBadge")
+            .explains(TrainExplainers.heartRateZone)
         }
     }
 }

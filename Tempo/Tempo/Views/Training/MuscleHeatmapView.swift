@@ -410,10 +410,16 @@ struct MuscleHeatmapView: View {
         return Color.accentColor.opacity(0.45 + (value - 0.5) * 1.1)
     }
 
+    /// The heat scale, tappable for what the colours mean.
+    private func heatScale(vertical: Bool) -> some View {
+        heatScaleBody(vertical: vertical)
+            .explains(TrainExplainers.heatScale)
+    }
+
     /// A heat scale; the picked muscle's reading rides on it as a marker.
     /// Vertical beside the figure, horizontal under it at large text sizes.
     @ViewBuilder
-    private func heatScale(vertical: Bool) -> some View {
+    private func heatScaleBody(vertical: Bool) -> some View {
         let reading = selectedMuscle.map { heat[$0] ?? 0 }
         let bar = LinearGradient(
             colors: [Tide.fill, TideTrain.caution, Color.accentColor],
@@ -517,8 +523,14 @@ struct MuscleHeatmapView: View {
             }
 
             TrainStatGrid {
-                TrainStat(value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS)
-                TrainStat(value: "\(sets)", label: "working sets", size: Tide.numeralS)
+                TrainStat(
+                    value: volumeLabel(volume), label: "7-day volume", size: Tide.numeralS,
+                    explainer: TrainExplainers.heatVolume
+                )
+                TrainStat(
+                    value: "\(sets)", label: "working sets", size: Tide.numeralS,
+                    explainer: TrainExplainers.heatSets
+                )
                 TrainStat(value: "\(exercises.count)", label: TrainCount.noun(exercises.count, "session"), size: Tide.numeralS)
             }
 

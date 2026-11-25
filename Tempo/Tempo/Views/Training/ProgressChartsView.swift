@@ -84,6 +84,11 @@ struct ProgressChartsView: View {
         .tidePage()
         .navigationTitle("Progress")
         .navigationBarTitleDisplayMode(.inline)
+        .firstTip(
+            "train.progress",
+            "Switch tabs for your lifts, records, body and history, and tap a score or number to see how it is worked out.",
+            systemImage: "chart.line.uptrend.xyaxis"
+        )
         // NOTE: there is deliberately NO orphan-purge on appearance. A prior
         // purgeOrphanedHistory() ran here and DELETED valid ExerciseHistory on
         // every Progress open whenever the matching WorkoutPlan wasn't marked
@@ -521,6 +526,7 @@ struct ProgressChartsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .explains(TrainExplainers.pushPull)
         }
     }
 
@@ -534,7 +540,10 @@ struct ProgressChartsView: View {
                 TrainStatGrid {
                     TrainStat(value: "\(activitySessions.count)", label: TrainCount.noun(activitySessions.count, "Session"))
                     TrainStat(value: "\(Int(totalActiveMinutes))m", label: "Active")
-                    TrainStat(value: String(format: "%.0f", totalActivityStrain), label: "Total strain")
+                    TrainStat(
+                        value: String(format: "%.0f", totalActivityStrain), label: "Total strain",
+                        explainer: TrainExplainers.strain
+                    )
                 }
             }
 

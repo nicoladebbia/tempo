@@ -112,6 +112,11 @@ struct TrainerProgramView: View {
         }
         .tidePage()
         .navigationTitle("Trainer Program")
+        .firstTip(
+            "train.program",
+            "Import your trainer's program from a photo, PDF or pasted text and Tempo shows each day's session in Training.",
+            systemImage: "square.and.arrow.down"
+        )
         .navigationBarTitleDisplayMode(.inline)
         .task(id: complianceKey) {
             refreshCompliance()
@@ -253,7 +258,8 @@ struct TrainerProgramView: View {
             figure: complianceStats.map { "\($0.done)" } ?? "–",
             unit: scheduled > 0 ? "of \(scheduled)" : nil,
             caption: scheduled > 0 ? program.name : "\(program.name) · No sessions due yet.",
-            chips: chips
+            chips: chips,
+            figureExplainer: TrainExplainers.sessionsDone
         ) {
             if scheduled > 0 {
                 TrainRing(progress: complianceStats?.fraction ?? 0, diameter: TideTrain.heroRing) {

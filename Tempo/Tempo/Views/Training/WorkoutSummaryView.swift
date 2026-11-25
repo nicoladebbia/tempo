@@ -179,6 +179,7 @@ struct WorkoutSummaryView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sets done")
             .accessibilityValue("\(Int((completionFraction * 100).rounded())) percent")
+            .explains(TrainExplainers.setsDone.showing("\(Int((completionFraction * 100).rounded())) percent"))
             .onAppear {
                 if reduceMotion {
                     ringProgress = completionFraction
@@ -221,7 +222,9 @@ struct WorkoutSummaryView: View {
                 Text("\(viewModel.detectedPRs.count) Personal Record\(viewModel.detectedPRs.count > 1 ? "s" : "")!")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
+                Spacer(minLength: 0)
             }
+            .explains(TrainExplainers.personalRecord)
 
             ForEach(Array(viewModel.detectedPRs.enumerated()), id: \.element.id) { index, pr in
                 if index > 0 {
@@ -229,26 +232,26 @@ struct WorkoutSummaryView: View {
                 }
                 HStack(spacing: Tide.s3) {
                     HStack(spacing: Tide.s3) {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(pr.exercise?.name ?? "Exercise")
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(pr.exercise?.name ?? "Exercise")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
 
-                        // §15 fix — `pr.context` is a kg-only, unit-unaware
-                        // string from TrainingEngine ("82kg x 5 reps" even
-                        // for an lbs user). PRDisplay never renders that
-                        // embedded weight; the number on the right already
-                        // shows pr.value converted to the user's unit.
-                        Text(PRDisplay.subtitle(pr))
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
-                    }
+                            // §15 fix — `pr.context` is a kg-only, unit-unaware
+                            // string from TrainingEngine ("82kg x 5 reps" even
+                            // for an lbs user). PRDisplay never renders that
+                            // embedded weight; the number on the right already
+                            // shows pr.value converted to the user's unit.
+                            Text(PRDisplay.subtitle(pr))
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
 
-                    Spacer(minLength: Tide.s2)
+                        Spacer(minLength: Tide.s2)
 
-                    Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
-                        .font(TideTrain.figure(.title3))
-                        .foregroundStyle(TideTrain.record)
+                        Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
+                            .font(TideTrain.figure(.title3))
+                            .foregroundStyle(TideTrain.record)
                     }
                     .accessibilityElement(children: .combine)
 
@@ -307,7 +310,10 @@ struct WorkoutSummaryView: View {
         return VStack(alignment: .leading, spacing: Tide.s4) {
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
                 TrainStat(value: viewModel.formattedElapsedTime, label: "Duration", size: Tide.numeralM)
-                TrainStat(value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM)
+                TrainStat(
+                    value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM,
+                    explainer: TrainExplainers.volume
+                )
             }
             TrainSessionRule()
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {

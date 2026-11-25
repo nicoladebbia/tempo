@@ -300,6 +300,8 @@ struct TrainSessionContext: View {
         let label: String
         let value: String
         var highlight = false
+        /// Tap the cell to see what it means.
+        var explainer: Explainer?
         var id: String {
             label
         }
@@ -318,20 +320,30 @@ struct TrainSessionContext: View {
             : AnyLayout(HStackLayout(alignment: .top, spacing: Tide.s3))
         layout {
             ForEach(cells) { cell in
-                VStack(spacing: Tide.hair) {
-                    Text(cell.value)
-                        .font(TideTrain.figure(.headline))
-                        .foregroundStyle(cell.highlight ? mood.accent : Tide.text)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        .contentTransition(.numericText())
-                    Text(cell.label).tideLabel()
-                        .lineLimit(1)
-                        .minimumScaleFactor(Tide.labelShrink)
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .combine)
+                cellView(cell)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func cellView(_ cell: Cell) -> some View {
+        let content = VStack(spacing: Tide.hair) {
+            Text(cell.value)
+                .font(TideTrain.figure(.headline))
+                .foregroundStyle(cell.highlight ? mood.accent : Tide.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
+            Text(cell.label).tideLabel()
+                .lineLimit(1)
+                .minimumScaleFactor(Tide.labelShrink)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        if let explainer = cell.explainer {
+            content.explains(explainer.showing(cell.value == "—" ? nil : cell.value))
+        } else {
+            content
         }
     }
 }
@@ -813,6 +825,8 @@ struct TrainDayHero<Trailing: View, Footer: View>: View {
     var caption: String?
     var stats: [Stat] = []
     var chips: [String] = []
+    /// Tap the big figure to see what it means. Nil leaves it plain.
+    var figureExplainer: Explainer?
     private let trailing: Trailing
     private let footer: Footer
 
@@ -826,6 +840,7 @@ struct TrainDayHero<Trailing: View, Footer: View>: View {
         caption: String? = nil,
         stats: [Stat] = [],
         chips: [String] = [],
+        figureExplainer: Explainer? = nil,
         @ViewBuilder trailing: () -> Trailing,
         @ViewBuilder footer: () -> Footer
     ) {
@@ -835,8 +850,19 @@ struct TrainDayHero<Trailing: View, Footer: View>: View {
         self.caption = caption
         self.stats = stats
         self.chips = chips
+        self.figureExplainer = figureExplainer
         self.trailing = trailing()
         self.footer = footer()
+    }
+
+    @ViewBuilder
+    private var figureView: some View {
+        let number = TideNumber(figure, unit: unit, size: Tide.numeralL, relativeTo: .largeTitle)
+        if let figureExplainer {
+            number.explains(figureExplainer.showing(unit.map { "\(figure) \($0)" } ?? figure))
+        } else {
+            number
+        }
     }
 
     var body: some View {
@@ -847,7 +873,7 @@ struct TrainDayHero<Trailing: View, Footer: View>: View {
             split {
                 VStack(alignment: .leading, spacing: Tide.s2) {
                     Text(label).tideLabel()
-                    TideNumber(figure, unit: unit, size: Tide.numeralL, relativeTo: .largeTitle)
+                    figureView
                     if let caption {
                         Text(caption)
                             .font(Tide.caption)

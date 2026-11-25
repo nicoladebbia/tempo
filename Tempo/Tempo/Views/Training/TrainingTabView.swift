@@ -48,6 +48,11 @@ struct TrainingTabView: View {
             )
             .navigationTitle("Training")
             .navigationBarTitleDisplayMode(.inline)
+            .firstTip(
+                "train.home",
+                "Tap Start workout to begin today's session, and use the menu at the top left for your plan, routines and progress.",
+                systemImage: "figure.strengthtraining.traditional"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     moreMenu(viewModel: viewModel)

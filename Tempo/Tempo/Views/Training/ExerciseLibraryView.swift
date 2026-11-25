@@ -98,6 +98,11 @@ struct ExerciseLibraryView: View {
         }
         .tidePage()
         .navigationTitle("Exercises")
+        .firstTip(
+            "train.library",
+            "Search or filter to find a lift, then tap it to see how to do it and your own history.",
+            systemImage: "books.vertical"
+        )
         .navigationBarTitleDisplayMode(.inline)
         // Searching again from the app search while the library is already open.
         .onChange(of: initialSearch) { _, new in

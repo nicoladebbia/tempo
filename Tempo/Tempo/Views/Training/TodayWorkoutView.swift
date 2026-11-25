@@ -877,11 +877,14 @@ struct TodayWorkoutView: View {
                 value: isDone ? "\(plan.performedExerciseCount)/\(total)" : "\(total)",
                 label: TrainCount.noun(total, "exercise")
             )],
-            chips: Array(muscles.prefix(4))
+            chips: Array(muscles.prefix(4)),
+            figureExplainer: isDone ? nil : TrainExplainers.estimatedTime
         ) {
             TrainSetsRing(done: plan.completedSets, total: plan.totalSets, tint: isDone ? TideTrain.positive : nil)
+                .explains(TrainExplainers.setsDone.showing("\(plan.completedSets) of \(plan.totalSets)"))
         } footer: {
             recoveryStatusLine(plan: plan)
+                .explains(TrainExplainers.recoveryColour)
         }
     }
 

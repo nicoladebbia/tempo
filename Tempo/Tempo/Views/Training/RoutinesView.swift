@@ -99,6 +99,11 @@ struct RoutinesView: View {
             .padding(.bottom, Tide.s2)
         }
         .navigationTitle("My Routines")
+        .firstTip(
+            "train.routines",
+            "A routine is a saved workout: build one here or save today's from the Training tab, and Tempo still sets the weights.",
+            systemImage: "list.bullet.rectangle"
+        )
         .tempoToast($toast, placement: .bottom)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
