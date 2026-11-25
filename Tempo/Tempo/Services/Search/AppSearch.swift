@@ -474,16 +474,24 @@ enum AppSearchMatcher {
         let keywordWords = keywordTexts.flatMap { $0.split(separator: " ").map(String.init) }
 
         var total = 0
+        var allInTitle = true
         for word in words {
             if titleWords.contains(where: { $0.hasPrefix(word) }) {
                 total += titleWords.first.map { $0.hasPrefix(word) } == true ? 40 : 30
             } else if keywordTexts.contains(where: { $0.hasPrefix(word) }) || keywordWords.contains(where: { $0.hasPrefix(word) }) {
                 total += 20
+                allInTitle = false
             } else if title.contains(word) {
                 total += 10
+                allInTitle = false
             } else {
                 return nil
             }
+        }
+        // What is in the name beats what is only in the keywords ("bench" finds Bench Press
+        // before a core move that merely uses a bench).
+        if allInTitle {
+            total += 25
         }
         if title == query {
             total += 100

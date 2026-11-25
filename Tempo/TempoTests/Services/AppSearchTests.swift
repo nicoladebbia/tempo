@@ -114,6 +114,19 @@ final class AppSearchTests: XCTestCase {
         XCTAssertEqual(titles("press", in: rows).count, 2)
     }
 
+    func testAWordInTheNameBeatsAKeywordThatOnlyUsesIt() {
+        // "bench" is the equipment of a core move and part of the name of a press.
+        let core = AppSearchEntry(
+            id: "e1", title: "Decline Crunch", subtitle: nil, section: .exercises, icon: "x",
+            keywords: ["core", "bench"], destination: .askTempo
+        )
+        let press = AppSearchEntry(
+            id: "e2", title: "Barbell Bench Press", subtitle: nil, section: .exercises, icon: "x",
+            keywords: ["chest", "barbell"], destination: .askTempo
+        )
+        XCTAssertEqual(titles("bench", in: [core, press]), ["Barbell Bench Press", "Decline Crunch"])
+    }
+
     // MARK: The catalog
 
     func testEveryEntryHasAUniqueId() {
