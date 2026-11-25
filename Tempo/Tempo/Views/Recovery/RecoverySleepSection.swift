@@ -52,6 +52,11 @@ struct RecoverySleepSection: View {
                 caption: "Sleep",
                 diameter: Tide.dialSheet
             )
+            .explains(
+                Explainer.sleepScore.showing(
+                    viewModel.todayRecovery?.sleepScore.map { "\(Int($0.rounded())) percent" }
+                )
+            )
         } side: {
             TideNumber(viewModel.formattedSleepHours, unit: "asleep", size: Tide.numeralM, relativeTo: .title2)
             if let efficiency = viewModel.todayRecovery?.sleepEfficiency {
@@ -59,6 +64,7 @@ struct RecoverySleepSection: View {
                     text: "Efficiency \(String(format: "%.1f", efficiency))%",
                     tint: efficiencyColor(efficiency)
                 )
+                .explains(Explainer.sleepEfficiency.showing("\(String(format: "%.1f", efficiency)) percent"))
             }
         }
         .accessibilityElement(children: .contain)
@@ -89,6 +95,7 @@ struct RecoverySleepSection: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+        .explains(.sleepStages)
     }
 
     private var stageColumns: [GridItem] {
@@ -209,6 +216,7 @@ struct RecoverySleepSection: View {
             }
         }
         .tideCard()
+        .explains(Explainer.sleepDebt.showing("\(String(format: "%.1f", viewModel.calculatedSleepDebt)) hours"))
     }
 
     private func scaleLabel(_ text: String) -> some View {
@@ -251,12 +259,14 @@ struct RecoverySleepSection: View {
                 unit: viewModel.todayRecovery?.sleepConsistency == nil ? nil : "%",
                 systemImage: "clock.arrow.2.circlepath"
             )
+            .explains(.sleepConsistency)
             TideMetricTile(
                 label: "Respiratory rate",
                 value: viewModel.todayRecovery?.respiratoryRate.map { String(format: "%.1f", $0) } ?? "--",
                 unit: "br/min",
                 systemImage: "lungs"
             )
+            .explains(.respiratoryRate)
         }
     }
 

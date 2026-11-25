@@ -115,6 +115,7 @@ struct RecoveryPeriodView: View {
         let zone = RecoveryZone(score: stats.avgRecovery)
         return RecoveryHero {
             TideDial(score: Int(stats.avgRecovery), caption: "\(periodName) avg", diameter: Tide.dialHero)
+                .explains(Explainer.recoveryAverage.showing("\(Int(stats.avgRecovery)) percent"))
         } side: {
             Text("Recovery").tideLabel(Tide.text3)
             Text("\(zone.displayName) zone")
@@ -124,13 +125,15 @@ struct RecoveryPeriodView: View {
                 current: stats.avgRecovery, previous: stats.previous?.recovery,
                 unit: "%", higherIsBetter: true, withComparison: true
             )
-            Text("\(stats.dayCount) days with readings")
+            Text(stats.dayCount == 1 ? "1 day with a reading" : "\(stats.dayCount) days with readings")
                 .font(Tide.caption)
                 .foregroundStyle(Tide.text3)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "Average recovery \(Int(stats.avgRecovery)) percent over \(stats.dayCount) days, \(zone.displayName) zone"
+            stats.dayCount == 1
+                ? "Average recovery \(Int(stats.avgRecovery)) percent over 1 day, \(zone.displayName) zone"
+                : "Average recovery \(Int(stats.avgRecovery)) percent over \(stats.dayCount) days, \(zone.displayName) zone"
         )
         .accessibilityIdentifier("recovery-period-hero")
     }
@@ -168,6 +171,7 @@ struct RecoveryPeriodView: View {
                 )
             }
             .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
+            .explains(.periodAverages)
         }
     }
 
@@ -519,6 +523,7 @@ struct RecoveryPeriodView: View {
                 }
             }
             .tideCard()
+            .explains(.strainBalance)
         }
     }
 
@@ -610,6 +615,7 @@ struct RecoveryPeriodView: View {
                 distributionTile(label: "Yellow", count: stats.yellowDays, total: stats.dayCount, color: TideTone.amber)
                 distributionTile(label: "Red", count: stats.redDays, total: stats.dayCount, color: Tide.danger)
             }
+            .explains(.recoveryDistribution)
         }
     }
 

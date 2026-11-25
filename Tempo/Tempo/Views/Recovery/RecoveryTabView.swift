@@ -96,6 +96,11 @@ struct RecoveryTabView: View {
         }
         .animation(Tide.snap, value: viewModel.selectedRange)
         .tidePage(energy: 1)
+        .firstTip(
+            "recovery.home",
+            "Tap the dial, the sleep and strain cards or a driver row to see what each number means.",
+            systemImage: "heart.text.square"
+        )
         // One load for the whole page, whichever view is showing.
         .task {
             if viewModel.loadState != .loaded {

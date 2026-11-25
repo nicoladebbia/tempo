@@ -153,6 +153,7 @@
 		17C50549FF8AFCCDCF477948 /* MealPlanIntakeWizardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10A19AF5DB220C1CC349F936 /* MealPlanIntakeWizardView.swift */; };
 		17D455BD7C11096562732BBC /* cue_ex_mountain_climber.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 45156782F7DE09668CFF8EE7 /* cue_ex_mountain_climber.mp3 */; };
 		1804F38497FD1C716435B961 /* MealTimeHints.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9E295299D6116CE0893A38F /* MealTimeHints.swift */; };
+		180E67A64FA20B015E624726 /* RecoveryExplainers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F391F194896E175B1461A9 /* RecoveryExplainers.swift */; };
 		1841839ABE681280A8ABE4CD /* WidgetSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 850A670BE69721FF450168DB /* WidgetSyncService.swift */; };
 		189B9114910822C12AD86B06 /* BodyProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1153439D95FF90D159665E /* BodyProgressTests.swift */; };
 		1926D115A4B3332150CFC26B /* TestServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F74E16CD09D164A6620E6 /* TestServer.swift */; };
@@ -235,6 +236,7 @@
 		2821DBF494C3AB281F83C9E0 /* AIProgramReconcileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 836DA2F2EF4B0792BC102B0E /* AIProgramReconcileTests.swift */; };
 		28E8A15E184219A003718F5C /* HarnessGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EFA9609627726F5C5BAB5A8 /* HarnessGateTests.swift */; };
 		295588EB64E9FBB3E5106DE4 /* TrainerReportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CC9F79925424BEE998F4BE /* TrainerReportSheet.swift */; };
+		298D2E3587BAFDB32C1FD762 /* ShowTipsAgainRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 717A6B521BC5033AA35A27FF /* ShowTipsAgainRow.swift */; };
 		29D48DA593EAD423DA20FCFD /* cue_move_glute_bridges_deep_squat_hold.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = C267293A4569425309277413 /* cue_move_glute_bridges_deep_squat_hold.mp3 */; };
 		29DFDAD3216429D972CA6E34 /* SupplementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D38A25FAEC946A4776F3B1F7 /* SupplementTests.swift */; };
 		2A2E5CFBFD98790C5FDC33D6 /* ExerciseDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E362BE5C475B6354C827C7CE /* ExerciseDetailView.swift */; };
@@ -2060,6 +2062,7 @@
 		681ADF7090F4A690B25CA6DD /* ReceiptReviewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptReviewModel.swift; sourceTree = "<group>"; };
 		6836D959AFE7DBD91F52B0CB /* SupplementLabelPhotoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplementLabelPhotoTests.swift; sourceTree = "<group>"; };
 		688D014F7B6D1795AE6325C9 /* EatenMealHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EatenMealHistoryTests.swift; sourceTree = "<group>"; };
+		68F391F194896E175B1461A9 /* RecoveryExplainers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryExplainers.swift; sourceTree = "<group>"; };
 		68F4768A07CB80464021C670 /* cue_ex_barbell_row.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = cue_ex_barbell_row.mp3; sourceTree = "<group>"; };
 		691F3A98D8CE1E8B6577033B /* EatenMealHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EatenMealHistory.swift; sourceTree = "<group>"; };
 		69794E810A6B0CD604D371B5 /* ReadinessPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadinessPicture.swift; sourceTree = "<group>"; };
@@ -2120,6 +2123,7 @@
 		70913C707C021F5F62E36277 /* RecoveryCoachCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoachCard.swift; sourceTree = "<group>"; };
 		71060ABD07FFE380B04808A1 /* TempoNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TempoNotificationDelegate.swift; sourceTree = "<group>"; };
 		712084D2D92ABC4364C06347 /* PoundsUITestSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoundsUITestSeed.swift; sourceTree = "<group>"; };
+		717A6B521BC5033AA35A27FF /* ShowTipsAgainRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTipsAgainRow.swift; sourceTree = "<group>"; };
 		719CE6170A29E0483537762A /* ReceiptAliasSyncDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceiptAliasSyncDTOs.swift; sourceTree = "<group>"; };
 		71AB9B3CDE583329359B5395 /* PreferenceExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceExtractor.swift; sourceTree = "<group>"; };
 		72119FFACC8A2FD7FD23F303 /* SettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSheet.swift; sourceTree = "<group>"; };
@@ -4009,6 +4013,7 @@
 				023C019680BC53106577B716 /* NotificationInboxView.swift */,
 				037607D7C6D9246FBD64C95F /* SettingsComponents.swift */,
 				946C0FE11D2F5A44ABF501EB /* SettingsSignInCard.swift */,
+				717A6B521BC5033AA35A27FF /* ShowTipsAgainRow.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -4209,6 +4214,7 @@
 				8496A891EE4A0A65F57C62AD /* MorningCheckInCard.swift */,
 				874B304D1F9AC8A9D6898FDF /* RecoveryAIInsightView.swift */,
 				D501592F0F540F0FF2A964CF /* RecoveryDayView.swift */,
+				68F391F194896E175B1461A9 /* RecoveryExplainers.swift */,
 				85D2555B0AF94878D1CBB410 /* RecoveryMetricSheet.swift */,
 				DB6226BB24838FFA3463DFE7 /* RecoveryPeriodView.swift */,
 				F7B02773AD964FA5240BF5E3 /* RecoverySleepSection.swift */,
@@ -6907,6 +6913,7 @@
 				D84CC2957BB67E011956FA26 /* RecoveryEngine.swift in Sources */,
 				E412B0782E9640A744820174 /* RecoveryEngineProtocol.swift in Sources */,
 				7DE57B7828A5E39CEBC09558 /* RecoveryEnums.swift in Sources */,
+				180E67A64FA20B015E624726 /* RecoveryExplainers.swift in Sources */,
 				C2CC87BBE7FACED7E8CEAA60 /* RecoveryInsight.swift in Sources */,
 				4DE3F9405A4FEBCFC56C2924 /* RecoveryMetricSheet.swift in Sources */,
 				7158C8D680EA656812597323 /* RecoveryOverrideStepView.swift in Sources */,
@@ -6949,6 +6956,7 @@
 				CCBC24F90BE85AA6381BF42F /* SharedGroceryListService.swift in Sources */,
 				313765058A3D97D8775F34BD /* ShelfLifeAIEstimator.swift in Sources */,
 				AEA377C83B0299922C86B0E8 /* ShelfLifeEstimator.swift in Sources */,
+				298D2E3587BAFDB32C1FD762 /* ShowTipsAgainRow.swift in Sources */,
 				A6F737518EA06F74F8DC4AA5 /* SideRepsFormat.swift in Sources */,
 				9EEF46AEA59FC58B0A322CDB /* SignInPromptCard.swift in Sources */,
 				C2E3A3E9764CE95801DE105A /* SoundManager.swift in Sources */,
