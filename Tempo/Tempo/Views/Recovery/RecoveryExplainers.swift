@@ -53,7 +53,7 @@ extension Explainer {
     // MARK: Vitals
 
     static let hrv = Explainer(
-        id: "hrv",
+        id: "recovery-hrv",
         title: "HRV",
         what: "Heart rate variability: how much the time between your heartbeats changes, in milliseconds. Higher usually means a well recovered body.",
         how: """
@@ -65,7 +65,7 @@ extension Explainer {
     )
 
     static let restingHeartRate = Explainer(
-        id: "resting-hr",
+        id: "recovery-resting-hr",
         title: "Resting heart rate",
         what: "Your heart rate at rest, in beats per minute. A lower number than usual means your body is recovered.",
         how: """
@@ -77,7 +77,7 @@ extension Explainer {
     )
 
     static let bloodOxygen = Explainer(
-        id: "spo2",
+        id: "recovery-spo2",
         title: "Blood oxygen",
         what: "How much oxygen your blood carries overnight, as a percentage. Most healthy people sit around 95 to 100.",
         how: "WHOOP measures it while you sleep. Tempo compares it with the average of your last 30 days and shows if tonight was above or below it.",
@@ -86,7 +86,7 @@ extension Explainer {
     )
 
     static let skinTemperature = Explainer(
-        id: "skin-temp",
+        id: "recovery-skin-temp",
         title: "Skin temperature",
         what: "The temperature of your skin overnight, in degrees Celsius.",
         how: """
@@ -109,7 +109,7 @@ extension Explainer {
     // MARK: What drove the score
 
     static let sleepAgainstNeed = Explainer(
-        id: "sleep-vs-need",
+        id: "recovery-sleep-vs-need",
         title: "Sleep against what you need",
         what: "The hours you slept last night compared with the hours your body needs.",
         how: """
@@ -124,7 +124,7 @@ extension Explainer {
     // MARK: Sleep
 
     static let sleepScore = Explainer(
-        id: "sleep-score",
+        id: "recovery-sleep-score",
         title: "Sleep score",
         what: "How much of the sleep your body needed you actually got, as a percentage.",
         how: "It is WHOOP's sleep performance number: hours slept against the hours WHOOP says you needed. Tempo shows it as sent and does not recalculate it.",
@@ -133,7 +133,7 @@ extension Explainer {
     )
 
     static let sleepEfficiency = Explainer(
-        id: "sleep-efficiency",
+        id: "recovery-sleep-efficiency",
         title: "Sleep efficiency",
         what: "The share of your time in bed that you were actually asleep.",
         how: "WHOOP measures it. Tempo shows it green at 90 percent or more, amber from 80 to 89 and red below 80.",
@@ -142,7 +142,7 @@ extension Explainer {
     )
 
     static let sleepStages = Explainer(
-        id: "sleep-stages",
+        id: "recovery-sleep-stages",
         title: "Sleep stages",
         what: "How your night split between awake, light sleep, deep sleep and REM sleep.",
         how: """
@@ -154,7 +154,7 @@ extension Explainer {
     )
 
     static let sleepDebt = Explainer(
-        id: "sleep-debt",
+        id: "recovery-sleep-debt",
         title: "Sleep debt",
         what: "How many hours short of your sleep need you have been over the last 7 recorded days.",
         how: """
@@ -168,7 +168,7 @@ extension Explainer {
     )
 
     static let sleepConsistency = Explainer(
-        id: "sleep-consistency",
+        id: "recovery-sleep-consistency",
         title: "Sleep consistency",
         what: "How regular your bed and wake times are from one day to the next, as a percentage.",
         how: "WHOOP calculates it from your recent sleep and wake times. Tempo shows it as sent.",
@@ -177,7 +177,7 @@ extension Explainer {
     )
 
     static let respiratoryRate = Explainer(
-        id: "respiratory-rate",
+        id: "recovery-respiratory-rate",
         title: "Respiratory rate",
         what: "How many breaths you take per minute while you sleep.",
         how: "WHOOP measures it overnight. Tempo shows it as sent. It is one of the signals WHOOP uses for your recovery.",
@@ -187,8 +187,8 @@ extension Explainer {
 
     // MARK: Strain
 
-    static let strain = Explainer(
-        id: "strain",
+    static let recoveryStrain = Explainer(
+        id: "recovery-strain",
         title: "Strain",
         what: "How hard your day has been on your body, on a scale from 0 to 21.",
         how: """
@@ -200,7 +200,7 @@ extension Explainer {
     )
 
     static let dayHeartRate = Explainer(
-        id: "day-heart-rate",
+        id: "recovery-day-heart-rate",
         title: "Average and max heart rate",
         what: "Your average and your highest heart rate so far today, in beats per minute.",
         how: """
@@ -214,7 +214,7 @@ extension Explainer {
     // MARK: Week and Month
 
     static let periodAverages = Explainer(
-        id: "period-averages",
+        id: "recovery-period-averages",
         title: "Period averages",
         what: "Your HRV, resting heart rate and sleep averaged over this period, with the change against the period before.",
         how: """
@@ -226,7 +226,7 @@ extension Explainer {
     )
 
     static let strainBalance = Explainer(
-        id: "strain-balance",
+        id: "recovery-strain-balance",
         title: "Strain against recovery",
         what: "Whether the load you put on your body matches how recovered it was.",
         how: """
@@ -250,7 +250,7 @@ extension Explainer {
     // MARK: Morning check-in
 
     static let morningCheckIn = Explainer(
-        id: "check-in",
+        id: "recovery-check-in",
         title: "Morning check-in",
         what: "How you feel, in your own words: energy from 1 to 5, stress from 1 to 10 and soreness from 1 to 10.",
         how: """

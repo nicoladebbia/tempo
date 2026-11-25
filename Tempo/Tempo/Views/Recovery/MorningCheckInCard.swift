@@ -110,7 +110,7 @@ struct MorningCheckInCard: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("About the morning check-in")
-                .accessibilityIdentifier("explain.check-in")
+                .accessibilityIdentifier("explain.recovery-check-in")
                 // The info target is 44pt; the row stays slim.
                 .padding(.vertical, -Tide.s3)
                 Spacer(minLength: Tide.s2)

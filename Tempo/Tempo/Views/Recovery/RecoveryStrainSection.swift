@@ -70,7 +70,7 @@ struct RecoveryStrainSection: View {
             "Strain \(strain.map { String(format: "%.1f", $0) } ?? "none") out of 21, \(strainClassification)"
         )
         // The whole card, not just the gauge: the card reads as one element above.
-        .explains(Explainer.strain.showing(strain.map { "\(String(format: "%.1f", $0)) of 21" }))
+        .explains(Explainer.recoveryStrain.showing(strain.map { "\(String(format: "%.1f", $0)) of 21" }))
     }
 
     // MARK: - Heart rate
