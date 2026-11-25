@@ -131,6 +131,8 @@ struct LeaderboardView: View {
                     Text("Resets Monday").font(Tide.caption).foregroundStyle(Tide.text3)
                 }
             }
+            .contentShape(.rect)
+            .explains(Explainer.arenaRank.showing(board.myRank.map { "#\($0)" }))
             if let rank = board.myRank {
                 Button {
                     let start = ArenaCalendar.weekStart(containing: Date())

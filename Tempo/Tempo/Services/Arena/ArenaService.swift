@@ -32,17 +32,39 @@ final class ArenaService {
     }
 
     private(set) var phase: Phase = .idle
-    private(set) var friends: [ArenaFriendDTO] = []
-    private(set) var requests: [ArenaFriendRequestDTO] = []
     private(set) var leaderboard: ArenaLeaderboardDTO?
-    private(set) var challenges: [ArenaChallengeDTO] = []
     /// A refresh failed but older data is on screen.
     private(set) var isStale = false
+
+    /// What the server last said. The lists below leave out an item whose removal is
+    /// waiting out its Undo window, so a refresh never brings it back early.
+    private(set) var fetchedFriends: [ArenaFriendDTO] = []
+    private(set) var fetchedRequests: [ArenaFriendRequestDTO] = []
+    private(set) var fetchedChallenges: [ArenaChallengeDTO] = []
+
+    /// Set when a removal that already left the screen failed on the server. The
+    /// item is back on screen; this says why.
+    private(set) var removalFailure: String?
+    private var pendingRemoval = PendingRemoval<ArenaRemoval>()
+    /// Removals whose Undo window is over and whose server call is still running.
+    private var committing: Set<ArenaRemoval> = []
 
     private let apiClient: APIClient
 
     init(apiClient: APIClient) {
         self.apiClient = apiClient
+    }
+
+    var friends: [ArenaFriendDTO] {
+        fetchedFriends.filter { !isHidden(.init(kind: .friend, id: $0.id)) }
+    }
+
+    var requests: [ArenaFriendRequestDTO] {
+        fetchedRequests.filter { !isHidden(.init(kind: .request, id: $0.id)) }
+    }
+
+    var challenges: [ArenaChallengeDTO] {
+        fetchedChallenges.filter { !isHidden(.init(kind: .challenge, id: $0.id)) }
     }
 
     var incomingRequests: [ArenaFriendRequestDTO] {
@@ -86,12 +108,7 @@ final class ArenaService {
             let (friends, requests, board, challenges) = try await (
                 friendsRequest, requestsRequest, boardRequest, challengesRequest
             )
-            self.friends = friends
-            self.requests = requests
-            leaderboard = board
-            self.challenges = challenges
-            isStale = false
-            phase = .ready
+            apply(friends: friends, requests: requests, leaderboard: board, challenges: challenges)
         } catch {
             if phase == .loading || isFailed {
                 phase = .failed(Self.message(for: error))
@@ -99,6 +116,19 @@ final class ArenaService {
                 isStale = true
             }
         }
+    }
+
+    /// Takes what the server sent as the current state.
+    func apply(
+        friends: [ArenaFriendDTO], requests: [ArenaFriendRequestDTO],
+        leaderboard: ArenaLeaderboardDTO?, challenges: [ArenaChallengeDTO]
+    ) {
+        fetchedFriends = friends
+        fetchedRequests = requests
+        self.leaderboard = leaderboard
+        fetchedChallenges = challenges
+        isStale = false
+        phase = .ready
     }
 
     private var isFailed: Bool {
@@ -174,13 +204,14 @@ final class ArenaService {
         _ = try await call {
             try await self.apiClient.request(APIEndpoint<EmptyResponse>.declineFriendRequest(id: request.id))
         }
-        requests.removeAll { $0.id == request.id }
+        fetchedRequests.removeAll { $0.id == request.id }
     }
 
     func remove(_ friend: ArenaFriendDTO) async throws {
         _ = try await call {
             try await self.apiClient.request(APIEndpoint<EmptyResponse>.removeFriend(friendshipId: friend.friendshipId))
         }
+        fetchedFriends.removeAll { $0.id == friend.id }
         await refresh()
     }
 
@@ -203,7 +234,75 @@ final class ArenaService {
     /// Leaves a challenge, or declines an invitation to one.
     func leave(_ challenge: ArenaChallengeDTO) async throws {
         _ = try await call { try await self.apiClient.request(APIEndpoint<EmptyResponse>.leaveChallenge(id: challenge.id)) }
+        fetchedChallenges.removeAll { $0.id == challenge.id }
         await refresh()
+    }
+
+    // MARK: - Removal with Undo
+
+    // Removing a friend, declining a request and leaving a challenge cannot be taken
+    // back on the server, so they wait: the item leaves the screen at once, the page
+    // offers Undo, and only when that window ends does the call go out. One removal
+    // waits at a time; starting another makes the first final. If the app is closed
+    // inside the window nothing was sent, so the item is simply still there.
+
+    private func isHidden(_ removal: ArenaRemoval) -> Bool {
+        pendingRemoval.hides(removal) || committing.contains(removal)
+    }
+
+    /// Hides the item and starts its Undo window.
+    func beginRemoval(_ removal: ArenaRemoval) {
+        guard !committing.contains(removal) else {
+            return
+        }
+        removalFailure = nil
+        if let replaced = pendingRemoval.begin(removal) {
+            startCommit(replaced)
+        }
+    }
+
+    /// Puts the item back. Nothing was sent to the server.
+    func undoRemoval() {
+        pendingRemoval.undo()
+    }
+
+    /// The Undo window ended: the removal goes to the server.
+    func finishRemoval() {
+        if let removal = pendingRemoval.finish() {
+            startCommit(removal)
+        }
+    }
+
+    func clearRemovalFailure() {
+        removalFailure = nil
+    }
+
+    private func startCommit(_ removal: ArenaRemoval) {
+        // Still hidden while the call runs, so the item does not flash back.
+        committing.insert(removal)
+        Task { await commit(removal) }
+    }
+
+    private func commit(_ removal: ArenaRemoval) async {
+        defer { committing.remove(removal) }
+        do {
+            switch removal.kind {
+            case .friend:
+                if let friend = fetchedFriends.first(where: { $0.id == removal.id }) {
+                    try await remove(friend)
+                }
+            case .request:
+                if let request = fetchedRequests.first(where: { $0.id == removal.id }) {
+                    try await decline(request)
+                }
+            case .challenge:
+                if let challenge = fetchedChallenges.first(where: { $0.id == removal.id }) {
+                    try await leave(challenge)
+                }
+            }
+        } catch {
+            removalFailure = error.localizedDescription
+        }
     }
 
     // MARK: - Errors
@@ -242,6 +341,21 @@ final class ArenaService {
             return "Something went wrong. Try again."
         }
     }
+}
+
+// MARK: - ArenaRemoval
+
+/// One thing the user removed that can still be taken back: a friend, a friend
+/// request or a challenge, by the id the server gave it.
+struct ArenaRemoval: Hashable {
+    enum Kind: Hashable {
+        case friend
+        case request
+        case challenge
+    }
+
+    let kind: Kind
+    let id: String
 }
 
 // MARK: - ArenaServiceError
