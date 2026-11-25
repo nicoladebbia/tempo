@@ -37,6 +37,11 @@ final class CoachViewModel {
     /// Last error surfaced to the user (network / coding). nil when clear.
     var pendingError: String?
 
+    /// Why the last turn was refused by the account rather than by the
+    /// network: "AI is off" (consent) or "needs Pro". The chat shows an
+    /// `AIBlockerCard` for it instead of the generic error banner.
+    var blocker: AIBlocker?
+
     /// Label for the Undo button. nil when stack is empty.
     private(set) var undoLabel: String?
 
@@ -119,6 +124,7 @@ final class CoachViewModel {
             return
         }
         pendingError = nil
+        blocker = nil
         isThinking = true
         defer { isThinking = false }
         do {
@@ -132,7 +138,8 @@ final class CoachViewModel {
             refreshMirror()
             refreshUndoLabel()
             switch report.capReached {
-            case .turns, .toolCalls:
+            case .turns,
+                 .toolCalls:
                 pendingError = "I've hit my limit for this chat. End it to start fresh."
             case nil:
                 break
@@ -142,6 +149,12 @@ final class CoachViewModel {
             // before the network call): show it, so a retry doesn't look like
             // a second message.
             refreshMirror()
+            if let blocked = AIBlocker(error) {
+                // Not a failure: the account has to allow it first. The
+                // message stays in the transcript and is sent again after.
+                blocker = blocked
+                return
+            }
             // 503 from the backend means sub-cap exhausted.
             pendingError = mapError(error)
             if case .critical = budgetState {
@@ -156,7 +169,7 @@ final class CoachViewModel {
     /// user's own message (or a tool result) and an error is showing, so
     /// "Retry" has something to resend.
     var canRetry: Bool {
-        pendingError != nil && !isThinking
+        (pendingError != nil || blocker != nil) && !isThinking
             && Self.lastUnansweredUserText(in: activeConversation?.messages ?? []) != nil
     }
 
@@ -190,7 +203,9 @@ final class CoachViewModel {
     /// Closes the active conversation. Caller (Phase 8) wires the
     /// post-chat extractor invocation here.
     func endConversation(context: ModelContext) {
-        guard let conv = activeConversation else { return }
+        guard let conv = activeConversation else {
+            return
+        }
         conv.isActive = false
         // Snapshot the transcript before clearing — extractor runs in a
         // background Task and shouldn't race UI state.
@@ -219,8 +234,12 @@ final class CoachViewModel {
     /// system_summary pseudo-messages — they're not user/agent turns.
     static func transcript(from conversation: CoachConversation) -> CoachTranscript {
         let turns = conversation.messages.compactMap { msg -> CoachTranscript.Turn? in
-            guard msg.role == "user" || msg.role == "assistant" else { return nil }
-            guard let text = msg.text, !text.isEmpty else { return nil }
+            guard msg.role == "user" || msg.role == "assistant" else {
+                return nil
+            }
+            guard let text = msg.text, !text.isEmpty else {
+                return nil
+            }
             return CoachTranscript.Turn(role: msg.role, text: text)
         }
         return CoachTranscript(id: conversation.id, turns: turns)

@@ -9,6 +9,8 @@
 
 import SwiftUI
 
+// MARK: - Tide
+
 enum Tide {
     // MARK: Colour
 
@@ -88,7 +90,7 @@ enum Tide {
     /// How lively the background field is behind a sheet (1 = a full page).
     static let sheetEnergy: Double = 0.6
     /// The "+" sheet at rest.
-    static let captureHeight: CGFloat = 430
+    static let captureHeight: CGFloat = 530
     /// Leading symbol in a card or row.
     static let icon: CGFloat = 28
     /// Level bars: standard and slim.
@@ -129,12 +131,14 @@ enum Tide {
     static let settle = Animation.spring(duration: 0.9, bounce: 0.0)
 }
 
-// MARK: - Contrast maths (used by tests)
+// MARK: - TideContrast
 
 enum TideContrast {
     /// WCAG relative luminance of an sRGB colour.
     static func luminance(r: Double, g: Double, b: Double) -> Double {
-        func lin(_ c: Double) -> Double { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+        func lin(_ c: Double) -> Double {
+            c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+        }
         return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
     }
 

@@ -35,6 +35,8 @@ struct CoachChatView: View {
     /// Mic interaction mode. Sourced from UserSettings.coachVoiceMode
     /// at the call site; default tapToggle per the locked Q2 decision.
     var voiceMode: CoachVoiceMode = .tapToggle
+    /// The name in the top bar and the empty state ("Ask Tempo" from the "+" sheet).
+    var title: String = "Coach"
 
     @Environment(\.dynamicTypeSize)
     private var typeSize
@@ -65,13 +67,15 @@ struct CoachChatView: View {
         systemPromptBuilder: @escaping () -> String,
         emptyStateSeeds: [String] = CoachChatView.defaultSeeds,
         voice: any CoachVoiceControlling = CoachVoiceController(),
-        voiceMode: CoachVoiceMode = .tapToggle
+        voiceMode: CoachVoiceMode = .tapToggle,
+        title: String = "Coach"
     ) {
         self.viewModel = viewModel
         self.systemPromptBuilder = systemPromptBuilder
         self.emptyStateSeeds = emptyStateSeeds
         self.voice = voice
         self.voiceMode = voiceMode
+        self.title = title
     }
 
     /// Default empty-state seeds — one simple action, one deeper ask,
@@ -96,6 +100,7 @@ struct CoachChatView: View {
                 }
         }
         .animation(reduceMotion ? nil : Tide.snap, value: viewModel.pendingError)
+        .animation(reduceMotion ? nil : Tide.snap, value: viewModel.blocker)
         .onChange(of: viewModel.pendingError) { _, message in
             if let message {
                 AccessibilityNotification.Announcement(message).post()
@@ -121,7 +126,7 @@ struct CoachChatView: View {
     private var topBar: some View {
         HStack(spacing: Tide.s3) {
             TideCoachAvatar()
-            Text("Coach")
+            Text(title)
                 .font(Tide.title2)
                 .foregroundStyle(Tide.text)
                 .accessibilityAddTraits(.isHeader)
@@ -189,7 +194,7 @@ struct CoachChatView: View {
     @ViewBuilder
     private var transcript: some View {
         if viewModel.messages.isEmpty, !viewModel.isThinking, pendingBubbleText == nil {
-            CoachEmptyState(seeds: emptyStateSeeds) { seed in
+            CoachEmptyState(seeds: emptyStateSeeds, heading: "Ask \(title) anything") { seed in
                 inputText = seed
                 send()
             }
@@ -250,7 +255,17 @@ struct CoachChatView: View {
     /// The input bar and the disclaimer under it. Messages scroll beneath.
     private var bottomBar: some View {
         VStack(spacing: Tide.s2) {
-            if let message = viewModel.pendingError {
+            if let blocker = viewModel.blocker {
+                // AI is off or needs Pro: say so here, with the one button
+                // that fixes it. After consent the unanswered message is sent again.
+                AIBlockerCard(blocker: blocker) {
+                    Task {
+                        await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                    }
+                }
+                .padding(.horizontal, Tide.edge)
+                .transition(rowTransition)
+            } else if let message = viewModel.pendingError {
                 errorBanner(message)
                     .transition(rowTransition)
             }
@@ -731,6 +746,7 @@ struct CoachThinkingBubble: View {
 
 struct CoachEmptyState: View {
     let seeds: [String]
+    var heading = "Ask Coach anything"
     let onSeedTap: (String) -> Void
 
     /// One symbol per seed, in order: a plan, a feeling, something to remember.
@@ -744,7 +760,7 @@ struct CoachEmptyState: View {
             VStack(spacing: Tide.s6) {
                 VStack(spacing: Tide.s3) {
                     TideStateMark(systemName: "bubble.left.and.text.bubble.right.fill")
-                    Text("Ask Coach anything")
+                    Text(heading)
                         .font(Tide.title2)
                         .foregroundStyle(Tide.text)
                     Text("I know enough to start. Try one of these, or say something else.")
