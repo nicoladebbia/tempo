@@ -20,13 +20,17 @@ struct GoalEditorView: View {
     @Environment(\.tideMood)
     private var mood
 
-    @Query(filter: #Predicate<Goal> { $0.isActive == true }, sort: \Goal.createdAt, order: .reverse)
-    private var goals: [Goal]
     @Query
     private var allSettings: [UserSettings]
-    @Query(sort: \Exercise.name)
-    private var exercises: [Exercise]
 
+    /// The goal being edited, fetched once when the screen opens. A `@Query`
+    /// for it here, next to the same query on the Profile screen that pushes
+    /// this one, made both screens redraw forever.
+    @State
+    private var existing: Goal?
+    /// Lifts the person has logged come first; the rest of the library follows.
+    @State
+    private var liftChoices: [String] = []
     @State
     private var draft = GoalDraft(targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
     @State
@@ -35,19 +39,20 @@ struct GoalEditorView: View {
     private var showRemove = false
     @State
     private var saved = 0
+    /// The reading the goal starts from, read when the screen opens and again
+    /// when the type, lift or distance changes. Never fetched in `body`: a
+    /// fetch there made the screen redraw itself forever.
+    @State
+    private var reading: Double?
+    /// The first day a goal can end. Fixed when the screen opens so the date
+    /// picker's range does not move on every redraw.
+    @State
+    private var earliestDate = Calendar.current.startOfDay(
+        for: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+    )
 
     private var unit: WeightUnit {
         allSettings.first?.weightUnit ?? .kg
-    }
-
-    private var existing: Goal? {
-        goals.first
-    }
-
-    /// Lifts the person has logged come first; the rest of the library follows.
-    private var liftChoices: [String] {
-        let logged = exercises.filter { !($0.history ?? []).isEmpty }.map(\.name)
-        return logged.isEmpty ? exercises.filter(\.isCompound).map(\.name) : logged
     }
 
     private var problem: GoalDraft.Problem? {
@@ -73,7 +78,7 @@ struct GoalEditorView: View {
                 SettingsControlRow(label: "By", icon: "calendar") {
                     DatePicker(
                         "By", selection: $draft.targetDate,
-                        in: (Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date())...,
+                        in: earliestDate...,
                         displayedComponents: .date
                     )
                     .labelsHidden()
@@ -114,12 +119,18 @@ struct GoalEditorView: View {
         } message: {
             Text("Your readings stay. Only the target goes.")
         }
-        .onAppear(perform: load)
+        .onAppear {
+            load()
+            reading = readCurrent()
+        }
         .onChange(of: draft.kind) { _, kind in
             if kind == .liftE1RM, draft.exercise == nil {
                 draft.exercise = liftChoices.first
             }
+            reading = readCurrent()
         }
+        .onChange(of: draft.exercise) { _, _ in reading = readCurrent() }
+        .onChange(of: draft.runDistanceKm) { _, _ in reading = readCurrent() }
     }
 
     // MARK: Rows
@@ -188,7 +199,7 @@ struct GoalEditorView: View {
 
     // MARK: Words
 
-    private var currentReading: Double? {
+    private func readCurrent() -> Double? {
         switch draft.kind {
         case .bodyWeight: GoalReader.latestWeightKg(in: modelContext)
         case .liftE1RM: GoalReader.bestE1RM(named: draft.exercise, in: modelContext)
@@ -197,11 +208,11 @@ struct GoalEditorView: View {
     }
 
     private var currentText: String {
-        currentReading.map { GoalFormat.value($0, kind: draft.kind, unit: unit) } ?? "No reading yet"
+        reading.map { GoalFormat.value($0, kind: draft.kind, unit: unit) } ?? "No reading yet"
     }
 
     private var startFootnote: String {
-        currentReading == nil
+        reading == nil
             ? "Your first reading after you set this becomes the starting point."
             : "This is where your line starts. Tempo tells you if you are ahead, on track or behind it."
     }
@@ -222,9 +233,18 @@ struct GoalEditorView: View {
             return
         }
         loaded = true
+        var latest = FetchDescriptor<Goal>(
+            predicate: #Predicate<Goal> { $0.isActive == true },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        latest.fetchLimit = 1
+        existing = (try? modelContext.fetch(latest))?.first
         if let existing {
             draft = GoalDraft(goal: existing, unit: unit)
         }
+        let library = (try? modelContext.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)]))) ?? []
+        let logged = library.filter { !($0.history ?? []).isEmpty }.map(\.name)
+        liftChoices = logged.isEmpty ? library.filter(\.isCompound).map(\.name) : logged
     }
 
     private func save() {
@@ -232,7 +252,7 @@ struct GoalEditorView: View {
             return
         }
         let now = Date()
-        let start = currentReading
+        let start = readCurrent()
         if let existing {
             draft.apply(to: existing, unit: unit, start: start, now: now)
         } else {
