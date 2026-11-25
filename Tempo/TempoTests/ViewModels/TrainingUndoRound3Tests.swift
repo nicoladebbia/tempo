@@ -181,7 +181,7 @@ final class TrainingUndoRound3Tests: XCTestCase {
         vm.resetState()
     }
 
-    func testUndoKeepsTheWorkoutClockAndAnOpenPause() throws {
+    func testUndoKeepsTheWorkoutClock() throws {
         let context = try makeContext()
         let vm = makeVM()
         let (plan, _) = seed(sets: 2, context: context)
@@ -205,6 +205,28 @@ final class TrainingUndoRound3Tests: XCTestCase {
         XCTAssertNil(plan.pausedAt)
         XCTAssertEqual(vm.totalPauseDuration, plan.pausedSeconds, accuracy: 0.001)
         XCTAssertEqual(vm.elapsedSeconds, 1800 - 120, accuracy: 5)
+        vm.resetState()
+    }
+
+    func testAWorkoutDiscardedMidPauseComesBackWithThePauseOffTheClock() throws {
+        let context = try makeContext()
+        let vm = makeVM()
+        let (plan, _) = seed(sets: 2, context: context)
+        vm.todayPlan = plan
+        plan.status = .inProgress
+        plan.startedAt = Date().addingTimeInterval(-900)
+        enterSetActive(vm)
+        vm.logSet(weight: 80, reps: 8, modelContext: context)
+        // Paused for the last 60 seconds when it was discarded.
+        plan.pausedAt = Date().addingTimeInterval(-60)
+        let undo = try XCTUnwrap(vm.discardActiveWorkoutCapturingUndo(modelContext: context))
+        vm.sessionState = .idle
+        XCTAssertTrue(vm.undoDiscardedWorkout(undo, modelContext: context))
+
+        // It comes back running, and the 60 s it sat paused stay off the clock.
+        XCTAssertNil(plan.pausedAt)
+        XCTAssertEqual(plan.pausedSeconds, 60, accuracy: 5)
+        XCTAssertEqual(vm.elapsedSeconds, 900 - 60, accuracy: 5)
         vm.resetState()
     }
 
