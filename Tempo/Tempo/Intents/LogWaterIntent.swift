@@ -9,6 +9,12 @@
 // the app saves through `WaterStore` (the store every screen uses, so Health
 // and the Today number follow), the extension hands the entry to the app.
 //
+// `LiveActivityIntent` is what makes the widget button run in the app's
+// process (checked on the simulator, with the app running and not running):
+// without it the system runs `perform()` in the widget extension, which cannot
+// reach the app's database. The extension's queue is the safety net for a
+// surface that still runs it there.
+//
 
 import AppIntents
 import Foundation
@@ -46,7 +52,7 @@ enum WaterIntentError: Error, CustomLocalizedStringResourceConvertible {
 
 // MARK: - LogWaterIntent
 
-struct LogWaterIntent: AppIntent {
+struct LogWaterIntent: AppIntent, LiveActivityIntent {
     static let title: LocalizedStringResource = "Log water"
     static let description = IntentDescription(
         "Adds water to today's total and to Apple Health, without opening Tempo.",
