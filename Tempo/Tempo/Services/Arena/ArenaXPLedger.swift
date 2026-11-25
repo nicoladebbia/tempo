@@ -258,27 +258,33 @@ enum ArenaXPLedger {
         let longestStreak = max(streak?.longestCount ?? 0, streak?.currentCount ?? 0)
         let targets = Dictionary(tracked.map { ($0.badgeID, $0.targetValue) }, uniquingKeysWith: { first, _ in first })
 
-        // What the days alone were worth, oldest first: dates the level badges to the day they were reached.
+        // What the days were worth: dates the level badges to the day their level was reached.
         var activityByDay: [Date: Int] = [:]
         for entry in desired.values {
             activityByDay[entry.day, default: 0] += entry.amount
         }
-        let activityXPByDay = activityByDay.map { (day: $0.key, xp: $0.value) }
 
         var progress: [String: ArenaAchievementTracker.Progress] = [:]
         var earned = Set(tracked.filter { $0.earnedAt != nil }.map(\.badgeID))
-        // Level badges depend on XP, and achievement XP raises the level, so run until steady.
-        for _ in 0 ..< 3 {
+        // Level badges depend on XP, and achievement XP raises the level (and the day it was reached),
+        // so run until steady. The first pass settles who is earned, the second their days.
+        for pass in 0 ..< 4 {
             let achievementXP = tracked.filter { earned.contains($0.badgeID) }.reduce(0) { $0 + $1.effectiveXPReward }
+            var byDay = activityByDay
+            for achievement in tracked where !achievement.badgeID.hasPrefix("level_") {
+                if let day = achievement.earnedAt ?? progress[achievement.badgeID]?.earnedOn {
+                    byDay[calendar.startOfDay(for: day), default: 0] += achievement.effectiveXPReward
+                }
+            }
             progress = ArenaAchievementTracker.evaluate(
                 records: records,
                 level: engine.currentLevel(totalXP: activityXP + achievementXP + foreignXP),
                 longestStreak: longestStreak, currentStreak: streak?.currentCount ?? 0,
-                activityXPByDay: activityXPByDay, xpForLevel: { engine.xpForLevel($0) },
+                activityXPByDay: byDay.map { (day: $0.key, xp: $0.value) }, xpForLevel: { engine.xpForLevel($0) },
                 now: now, targets: targets, calendar: calendar
             )
             let next = Set(tracked.filter { $0.earnedAt != nil || progress[$0.badgeID]?.earnedOn != nil }.map(\.badgeID))
-            if next == earned {
+            if next == earned, pass >= 1 {
                 break
             }
             earned = next
