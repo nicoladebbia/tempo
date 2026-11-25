@@ -246,7 +246,6 @@ struct TodayWorkoutView: View {
             .padding(.bottom, Tide.s6)
         }
         .tidePage(energy: 1)
-        .discardedWorkoutUndoToast(viewModel)
         .tempoToast($undoToast)
         .scrollEdgeEffectStyle(.soft, for: .all)
         // §2.16 — pull-to-refresh: full reload through the same coalesced

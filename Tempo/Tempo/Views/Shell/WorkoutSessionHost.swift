@@ -69,6 +69,9 @@ struct WorkoutSessionHost: ViewModifier {
                     WorkoutSummaryView(viewModel: viewModel)
                 }
             }
+            // Hosted here, not on Train home: a workout started from Today or Move
+            // closes onto another tab and still gets its Undo.
+            .discardedWorkoutUndoToast(viewModel)
             .onChange(of: viewModel.sessionState) { _, state in
                 session.sessionStateChanged(to: state, modelContext: modelContext)
             }
