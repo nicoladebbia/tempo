@@ -35,6 +35,12 @@ struct TodayView: View {
     private var settings: [UserSettings]
     @Query
     private var nonNegotiables: [NonNegotiable]
+    @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
+    private var activeDietProfiles: [DietaryProfile]
+    @Query
+    private var trainerPrograms: [TrainerProgram]
+    @Query(filter: #Predicate<Goal> { $0.isActive == true })
+    private var activeGoals: [Goal]
 
     /// Owns the load, the refreshes and the saved copy. Its first load runs
     /// outside this view's tasks, so leaving the tab cannot cancel it.
@@ -62,6 +68,9 @@ struct TodayView: View {
     private var openMeal: PlannedMeal?
     @State
     private var pushes = 0
+    /// The day's items, tomorrow and the week, for the cards under the next step.
+    @State
+    private var dayModel = TodayDayModel()
 
     @Namespace
     private var zoom
@@ -98,6 +107,14 @@ struct TodayView: View {
             cached: model.cached,
             day: Calendar.current.startOfDay(for: Date())
         )
+    }
+
+    /// The snapshot on screen, saved or live; the day's items reload when it changes.
+    private var shownSnapshot: TodaySnapshot? {
+        if case let .content(snapshot, _) = phase {
+            return snapshot
+        }
+        return nil
     }
 
     private var shownScore: Int? {
@@ -162,6 +179,11 @@ struct TodayView: View {
         }
         .onAppear {
             model.start(services: services, modelContext: modelContext)
+        }
+        // The day's items follow the page: a meal logged, a session ended, a task ticked.
+        .task(id: shownSnapshot) { await reloadDay() }
+        .onReceive(NotificationCenter.default.publisher(for: .tempoWorkoutChanged)) { _ in
+            dayModel.invalidateWeek()
         }
         .onReceive(NotificationCenter.default.publisher(for: .tempoSessionEnded)) { _ in
             model.sessionEnded()
@@ -264,26 +286,32 @@ struct TodayView: View {
                     snapshot: snapshot,
                     dateLine: TempoDateFormatters.dashboardHeader.string(from: Date()),
                     weather: viewModel?.weather.map { ($0.conditionSymbol, $0.formattedTemperature) },
+                    openSearch: { services.appState.searchRequested = true },
                     openSettings: { showSettings = true }
                 )
                 TodayHero(snapshot: snapshot, actions: actions)
-                prompts
-                TodayNextCard(
-                    action: TodayNextAction.choose(
-                        for: snapshot,
-                        hour: Calendar.current.component(.hour, from: Date())
-                    ),
-                    snapshot: snapshot,
-                    actions: actions
-                )
+                let now = TodayClock.now
+                let next = NextStepEngine.choose(for: snapshot, hour: Calendar.current.component(.hour, from: now))
+                prompts(now: now)
+                TodayNextCard(action: next, snapshot: snapshot, actions: actions)
+                let later = DayTimeline.upcoming(dayModel.items, limit: 3, excluding: Self.itemIDs(of: next))
+                if !later.isEmpty {
+                    TodayLaterCard(
+                        items: later, onOpen: openDayItem, onFullDay: { actions.open(.day) }
+                    )
+                }
                 TodayBodyRow(snapshot: snapshot, actions: actions, namespace: zoom)
                 TodayFuelCard(fuel: snapshot.fuel, actions: actions)
                     .matchedTransitionSource(id: TodayRoute.fuel, in: zoom)
                 TodayTasksCard(snapshot: snapshot, actions: actions, namespace: zoom)
                 TodayMindMoveRow(snapshot: snapshot, actions: actions, namespace: zoom)
+                if !activeGoals.isEmpty {
+                    TodayGoalCard { services.appState.requestedSettings = SettingsRequest(page: .goal) }
+                }
                 if isLive, let viewModel {
                     notes(viewModel)
                 }
+                TodayQuietLinks(links: quietLinks(later: !later.isEmpty, now: now))
             }
             .padding(.horizontal, Tide.edge)
             .padding(.top, Tide.s2)
@@ -398,12 +426,76 @@ struct TodayView: View {
             } else {
                 DailyNutritionSummaryView()
             }
-        case .day: Color.clear
-        case .weekReview: Color.clear
+        case .day:
+            DayTimelineView(model: dayModel, reload: reloadDay, onOpen: openDayItem)
+        case .weekReview:
+            WeekReviewView(model: dayModel, reload: reloadDay)
         }
     }
 
-    // MARK: - Prompts (sign-in, setup)
+    // MARK: Setup checklist
+
+    /// The "Get set up" lines, read from the app's real state each time the page draws.
+    private var checklist: SetupChecklist {
+        SetupChecklist(.init(
+            healthAllowed: healthKitAuthorized,
+            whoopConnected: services.whoop.providesRealData,
+            hasDietProfile: !activeDietProfiles.isEmpty,
+            hasChosenTraining: settings.first?.experienceLevelRaw != nil || !trainerPrograms.isEmpty
+                || SetupChecklistLoader.hasCompletedSession(in: modelContext),
+            taskCount: nonNegotiables.count(where: \.isActive),
+            resolved: model.isLive
+        ))
+    }
+
+    private func runSetupStep(_ step: SetupStep) {
+        switch step {
+        case .health: actions.allowHealth()
+        case .whoop: showWhoopConnect = true
+        case .food: services.appState.requestedSettings = SettingsRequest(page: .dietProfile)
+        case .training: services.appState.requestedSettings = SettingsRequest(page: .training)
+        case .tasks: showNonNegotiableSetup = true
+        }
+    }
+
+    // MARK: Day, tomorrow, week
+
+    private func reloadDay() async {
+        await dayModel.reload(services: services, context: modelContext, now: TodayClock.now)
+    }
+
+    /// Day items the Next card already shows, so "later today" does not repeat them.
+    private static func itemIDs(of action: TodayNextAction) -> Set<String> {
+        switch action {
+        case .workout: ["workout"]
+        case let .meal(meal): ["meal.\(meal.id.uuidString)"]
+        default: []
+        }
+    }
+
+    private func openDayItem(_ item: DayItem) {
+        switch item.target {
+        case .workout:
+            services.appState.activeTab = .train
+        case let .meal(id):
+            // The meal's own page when it is still in the plan, else the Fuel tab.
+            if let meal = CanonicalMeals.meals(on: TodayClock.now, in: modelContext).first(where: { $0.id == id }) {
+                openMeal = meal
+            } else {
+                services.appState.activeTab = .fuel
+            }
+        case .fuel:
+            services.appState.activeTab = .fuel
+        case .study:
+            if services.appState.pushOnToday(.mind) {
+                pushes += 1
+            }
+        case .none:
+            break
+        }
+    }
+
+    // MARK: - Prompts (sign-in, then the one card that asks for attention)
 
     /// Signed-out users get a nudge to sign in. Hidden in ordinary UI tests
     /// (they run signed out) unless a test asks for it, and for 24 h after
@@ -419,45 +511,70 @@ struct TodayView: View {
         return Date().timeIntervalSince1970 - signInNudgeDismissedAt > 24 * 60 * 60
     }
 
+    private func promptFacts(checklist: SetupChecklist) -> TodayPromptPlanner.Facts {
+        TodayPromptPlanner.Facts(
+            setupVisible: checklist.isVisible(dismissed: hasCompletedSetup),
+            hasWeekData: dayModel.hasWeekData,
+            tomorrowHasContent: dayModel.tomorrow?.hasContent == true,
+            leisureMinutes: dayModel.leisureMinutes
+        )
+    }
+
+    /// At most one of: the setup checklist, the week in review, tomorrow. The
+    /// rest wait as quiet links at the bottom of the page.
     @ViewBuilder
-    private var prompts: some View {
+    private func prompts(now: Date) -> some View {
         if showSignInNudge {
             SignInPromptCard(style: .tide, onDismiss: { signInNudgeDismissedAt = Date().timeIntervalSince1970 })
                 .transition(.opacity)
         }
-        if !hasCompletedSetup {
-            let whoopDone = services.whoop.connectionState == .connected
-            let tasksDone = !nonNegotiables.isEmpty
-            let trainingDone = !settings.isEmpty
-            if !(whoopDone && tasksDone && trainingDone) {
-                TodaySetupCard(
-                    steps: [
-                        .init(
-                            id: "whoop", title: "Connect Whoop",
-                            detail: "Recovery, sleep and strain, read for you.",
-                            icon: "waveform.path.ecg", done: whoopDone,
-                            action: { showWhoopConnect = true }
-                        ),
-                        .init(
-                            id: "training", title: "Set up training",
-                            detail: "Choose your split and training days.",
-                            icon: "dumbbell.fill", done: trainingDone,
-                            action: { showSettings = true }
-                        ),
-                        .init(
-                            id: "tasks", title: "Choose daily tasks",
-                            detail: "The few things you do every day.",
-                            icon: "checklist", done: tasksDone,
-                            action: { showNonNegotiableSetup = true }
-                        ),
-                    ],
-                    onSkip: {
-                        withAnimation(Tide.snap) { hasCompletedSetup = true }
-                    }
-                )
-                .transition(.opacity)
+        let checklist = checklist
+        switch TodayPromptPlanner.prominent(promptFacts(checklist: checklist), now: now) {
+        case .setup:
+            SetupChecklistCard(
+                checklist: checklist,
+                onStep: runSetupStep,
+                onLater: { withAnimation(Tide.snap) { hasCompletedSetup = true } }
+            )
+            .transition(.opacity)
+        case .weekReview:
+            if let review = dayModel.week {
+                TodayWeekReviewCard(review: review) { actions.open(.weekReview) }
+                    .transition(.opacity)
             }
+        case .tomorrow:
+            if let preview = dayModel.tomorrow {
+                TodayTomorrowCard(preview: preview)
+                    .transition(.opacity)
+            }
+        case nil:
+            EmptyView()
         }
+    }
+
+    private func quietLinks(later: Bool, now: Date) -> [TodayQuietLinks.Link] {
+        let checklist = checklist
+        let facts = promptFacts(checklist: checklist)
+        let prominent = TodayPromptPlanner.prominent(facts, now: now)
+        let quiet = TodayPromptPlanner.quietLinks(
+            prominent: prominent, hasWeekData: facts.hasWeekData, hasGoal: !activeGoals.isEmpty,
+            isConfigured: checklist.isConfigured
+        )
+        var links: [TodayQuietLinks.Link] = []
+        if !later, !dayModel.items.isEmpty {
+            links.append(.init(id: "day", title: "Your day", icon: "list.bullet") { actions.open(.day) })
+        }
+        if quiet.weekReview {
+            links.append(.init(id: "weekReview", title: "Week in review", icon: "chart.bar.fill") {
+                actions.open(.weekReview)
+            })
+        }
+        if quiet.setGoal {
+            links.append(.init(id: "goal", title: "Set a goal", icon: "target") {
+                services.appState.requestedSettings = SettingsRequest(page: .goal)
+            })
+        }
+        return links
     }
 
     // MARK: - Notes

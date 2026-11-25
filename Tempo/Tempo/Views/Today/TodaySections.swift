@@ -29,6 +29,7 @@ struct TodayHeader: View {
     let snapshot: TodaySnapshot
     let dateLine: String
     var weather: (symbol: String, temperature: String)?
+    var openSearch: () -> Void = {}
     var openSettings: () -> Void = {}
 
     @Environment(\.dynamicTypeSize)
@@ -36,48 +37,73 @@ struct TodayHeader: View {
 
     var body: some View {
         if typeSize.isAccessibilitySize {
-            // The greeting needs the whole line: streak and settings go above it.
+            // The greeting needs the whole line: the controls go above it.
             VStack(alignment: .leading, spacing: Tide.s3) {
                 HStack(spacing: Tide.s2) {
                     streak
                     Spacer(minLength: Tide.s2)
-                    settingsButton
+                    controls
                 }
                 titleBlock
             }
         } else {
-            HStack(alignment: .top, spacing: Tide.s2) {
-                titleBlock
-                Spacer(minLength: Tide.s2)
-                streak
-                settingsButton
+            // Controls on the top line with the date, the greeting and the streak below.
+            VStack(alignment: .leading, spacing: Tide.s1) {
+                HStack(alignment: .center, spacing: Tide.s2) {
+                    dateBlock
+                    Spacer(minLength: Tide.s2)
+                    controls
+                }
+                HStack(alignment: .center, spacing: Tide.s2) {
+                    greeting
+                    Spacer(minLength: Tide.s2)
+                    streak
+                }
             }
         }
     }
 
+    private var controls: some View {
+        HStack(spacing: Tide.s2) {
+            searchButton
+            NotificationBell(glass: true)
+            settingsButton
+        }
+    }
+
+    private var dateBlock: some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s2))
+        return layout {
+            TideLabel(dateLine)
+            if let weather {
+                Label(weather.temperature, systemImage: weather.symbol)
+                    .labelStyle(.titleAndIcon)
+                    .tideLabel()
+                    .accessibilityLabel("Weather \(weather.temperature)")
+            }
+        }
+    }
+
+    private var greeting: some View {
+        TimelineView(.everyMinute) { context in
+            Text(TodayGreeting.text(
+                hour: Calendar.current.component(.hour, from: context.date),
+                name: snapshot.firstName
+            ))
+            .font(Tide.title)
+            .foregroundStyle(Tide.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    /// The date and the greeting together, for the stacked accessibility layout.
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: Tide.s1) {
-            let layout = typeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
-                : AnyLayout(HStackLayout(spacing: Tide.s2))
-            layout {
-                TideLabel(dateLine)
-                if let weather {
-                    Label(weather.temperature, systemImage: weather.symbol)
-                        .labelStyle(.titleAndIcon)
-                        .tideLabel()
-                        .accessibilityLabel("Weather \(weather.temperature)")
-                }
-            }
-            TimelineView(.everyMinute) { context in
-                Text(TodayGreeting.text(
-                    hour: Calendar.current.component(.hour, from: context.date),
-                    name: snapshot.firstName
-                ))
-                .font(Tide.title)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-            }
+            dateBlock
+            greeting
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -97,6 +123,19 @@ struct TodayHeader: View {
             .accessibilityLabel("\(snapshot.streakDays) day streak")
             .accessibilityIdentifier("today.streak")
         }
+    }
+
+    private var searchButton: some View {
+        Button(action: openSearch) {
+            Image(systemName: "magnifyingglass")
+                .font(Tide.bodyStrong)
+                .foregroundStyle(Tide.text)
+                .frame(width: Tide.hit, height: Tide.hit)
+                .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Search")
+        .accessibilityIdentifier("today.search")
     }
 
     private var settingsButton: some View {
@@ -164,25 +203,32 @@ struct TodayNextCard: View {
     @State
     private var taps = 0
 
+    /// Every word comes from `NextStepEngine`, the same place the "what next"
+    /// bar after a workout, a meal or a focus session takes its words from.
+    private var step: NextStep {
+        NextStepEngine.step(for: action, snapshot: snapshot)
+    }
+
     var body: some View {
+        let step = step
         VStack(alignment: .leading, spacing: Tide.s4) {
             TideSectionLabel(title: "Next up", trailing: trailing)
             VStack(alignment: .leading, spacing: Tide.s1) {
-                Text(title)
+                Text(step.title)
                     .font(Tide.title)
                     .foregroundStyle(Tide.text)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(detail)
+                Text(step.detail)
                     .font(Tide.body)
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if let button {
+            if let title = step.buttonTitle, let icon = step.buttonIcon {
                 Button {
                     taps += 1
                     run()
                 } label: {
-                    Label(button.title, systemImage: button.icon)
+                    Label(title, systemImage: icon)
                 }
                 .buttonStyle(.tidePrimary)
                 .workoutZoomSource(.today)
@@ -200,53 +246,6 @@ struct TodayNextCard: View {
         case .workout:
             snapshot.workout.durationMinutes.map { "\($0) min" }
         default: nil
-        }
-    }
-
-    private var title: String {
-        switch action {
-        case let .workout(name, _): name
-        case let .meal(meal): meal.name
-        case .rest: "Rest day"
-        case .firstMeal: "Log today's first meal"
-        case .focus: "Study block"
-        case let .tasks(left): left == 1 ? "1 task left" : "\(left) tasks left"
-        case .setUpTasks: "Set your daily tasks"
-        case .allDone: "Day complete"
-        }
-    }
-
-    private var detail: String {
-        switch action {
-        case let .workout(_, resume):
-            resume ? "You started this session. Pick it up where you left off." : "Today's session is ready."
-        case let .meal(meal):
-            "\(meal.calories.formatted()) kcal · \(meal.protein) g protein"
-        case .rest:
-            "No session today. Recovery sets up tomorrow."
-        case .firstMeal:
-            "Nothing logged yet today. One meal starts your score and your targets."
-        case let .focus(left):
-            "\(left) min left to reach today's study target."
-        case .tasks:
-            "Finish them to unlock the day."
-        case .setUpTasks:
-            "Pick the few things you do every day, no matter what."
-        case .allDone:
-            "Session, tasks and study are all done. Nothing else is due."
-        }
-    }
-
-    private var button: (title: String, icon: String)? {
-        switch action {
-        case let .workout(_, resume): (resume ? "Resume session" : "Start session", "play.fill")
-        case .meal: ("Open meal", "fork.knife")
-        case .rest: ("Open recovery", "heart.fill")
-        case .firstMeal: ("Log a meal", "fork.knife")
-        case .focus: ("Start focus timer", "timer")
-        case .tasks: ("Open tasks", "checklist")
-        case .setUpTasks: ("Choose tasks", "plus")
-        case .allDone: nil
         }
     }
 
@@ -751,73 +750,5 @@ struct TodayNoteCard: View {
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
-    }
-}
-
-// MARK: - TodaySetupCard
-
-/// First-days checklist: what is still worth connecting or choosing.
-struct TodaySetupCard: View {
-    struct Step: Identifiable {
-        let id: String
-        let title: String
-        let detail: String
-        let icon: String
-        let done: Bool
-        let action: () -> Void
-    }
-
-    let steps: [Step]
-    let onSkip: () -> Void
-
-    @Environment(\.tideMood)
-    private var mood
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Tide.s3) {
-            HStack(alignment: .firstTextBaseline) {
-                TideSectionLabel(
-                    title: "Finish setting up",
-                    trailing: "\(steps.count(where: \.done)) of \(steps.count)"
-                )
-            }
-            VStack(spacing: 0) {
-                ForEach(steps) { step in
-                    Button(action: step.action) {
-                        HStack(spacing: Tide.s3) {
-                            Image(systemName: step.done ? "checkmark.circle.fill" : step.icon)
-                                .font(Tide.headline)
-                                .foregroundStyle(step.done ? Tide.text2 : mood.accent)
-                                .frame(minWidth: Tide.icon, alignment: .leading)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(step.title).font(Tide.bodyStrong)
-                                    .foregroundStyle(step.done ? Tide.text2 : Tide.text)
-                                if !step.done {
-                                    Text(step.detail).font(Tide.caption).foregroundStyle(Tide.text2)
-                                        .multilineTextAlignment(.leading)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            Spacer(minLength: Tide.s2)
-                            if !step.done {
-                                Image(systemName: "chevron.right").font(Tide.label).foregroundStyle(Tide.text3)
-                                    .accessibilityHidden(true)
-                            }
-                        }
-                        .frame(minHeight: Tide.hit + Tide.s2)
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(TodayPressStyle())
-                    .disabled(step.done)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("today.setup.\(step.id)")
-                }
-            }
-            Button("Skip for now", action: onSkip)
-                .buttonStyle(.tideGlass)
-                .accessibilityIdentifier("today.setup.skip")
-        }
-        .tideCard()
     }
 }

@@ -86,6 +86,25 @@ struct WeekReview: Equatable {
     var discipline: String {
         WeekReviewWords.discipline(thisWeek, lastWeek)
     }
+
+    /// One short line for the card on Today: the numbers worth a glance.
+    var headline: String {
+        var parts: [String] = []
+        if thisWeek.sessions > 0 {
+            parts.append(WeekReviewWords.count(thisWeek.sessions, "session"))
+        }
+        if thisWeek.perfectDays > 0 {
+            parts.append(WeekReviewWords.count(thisWeek.perfectDays, "day") + " with every task done")
+        }
+        if let recovery = thisWeek.avgRecovery {
+            parts.append("recovery \(recovery)%")
+        }
+        guard let first = parts.first else {
+            return "A look at how the week went."
+        }
+        let line = ([first.prefix(1).uppercased() + first.dropFirst()] + parts.dropFirst()).joined(separator: ", ")
+        return line + "."
+    }
 }
 
 // MARK: - WeekReviewBuilder

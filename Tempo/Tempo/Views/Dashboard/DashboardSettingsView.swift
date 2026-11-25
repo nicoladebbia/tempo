@@ -114,6 +114,17 @@ struct DashboardSettingsView: View {
                 }
                 .buttonStyle(.tideSettingsRow)
                 .accessibilityIdentifier("settingsWeeklyHabits")
+
+                NavigationLink {
+                    SetupChecklistPage()
+                } label: {
+                    SettingsStatusRow(
+                        icon: "checklist", title: "Get set up",
+                        status: setupStatusText, statusColor: setupStatusColor
+                    )
+                }
+                .buttonStyle(.tideSettingsRow)
+                .accessibilityIdentifier("settingsGetSetUp")
             }
 
             SettingsGroupCard(title: "Connections & alerts") {
@@ -472,6 +483,26 @@ struct DashboardSettingsView: View {
         return count > 0 ? "Configured" : "Not Set Up"
     }
 
+    /// The "Get set up" lines, from the same real state the Today card reads.
+    private var setupChecklist: SetupChecklist {
+        SetupChecklist(SetupChecklistLoader.signals(
+            healthAllowed: healthKitAuthorized,
+            whoopConnected: services.whoop.providesRealData,
+            resolved: true,
+            in: modelContext
+        ))
+    }
+
+    private var setupStatusText: String {
+        let checklist = setupChecklist
+        return checklist.doneCount == checklist.total ? "All done" : "\(checklist.doneCount) of \(checklist.total)"
+    }
+
+    private var setupStatusColor: Color {
+        let checklist = setupChecklist
+        return checklist.doneCount == checklist.total ? Tide.settingsOK : Tide.text3
+    }
+
     private var dietProfileStatusColor: Color {
         let descriptor = FetchDescriptor<DietaryProfile>(
             predicate: #Predicate { $0.isActive == true }
@@ -523,6 +554,9 @@ struct ProfileSettingsDetailView: View {
     /// the "Refresh from Health" flow). Profile shows these read-only.
     @Query(filter: #Predicate<DietaryProfile> { $0.isActive == true })
     private var activeDietProfiles: [DietaryProfile]
+    /// The one target (a weight, a lift or a run time) with its date.
+    @Query(filter: #Predicate<Goal> { $0.isActive == true }, sort: \Goal.createdAt, order: .reverse)
+    private var activeGoals: [Goal]
 
     private var profile: UserProfile? {
         allProfiles.first
@@ -555,6 +589,7 @@ struct ProfileSettingsDetailView: View {
             statsCard
             trainingSummaryCard
             identityCard
+            goalTargetCard
             biometricsCard
         }
         .navigationTitle("Profile")
@@ -718,6 +753,27 @@ struct ProfileSettingsDetailView: View {
             SettingsRowDivider(underTitle: false)
             goalRow
         }
+    }
+
+    /// A measurable target with a date. Today and the progress screens show how it is going.
+    private var goalTargetCard: some View {
+        SettingsGroupCard {
+            NavigationLink {
+                GoalEditorView()
+            } label: {
+                SettingsNavRow(icon: "target", title: "Target and date", subtitle: goalTargetSubtitle)
+            }
+            .buttonStyle(.tideSettingsRow)
+            .accessibilityIdentifier("settingsGoalTarget")
+        }
+    }
+
+    private var goalTargetSubtitle: String {
+        guard let goal = activeGoals.first else {
+            return "A weight, a lift or a run time, and when"
+        }
+        let by = goal.targetDate.formatted(.dateTime.day().month(.abbreviated))
+        return "\(GoalFormat.headline(for: goal, unit: settings?.weightUnit ?? .kg)) by \(by)"
     }
 
     /// The goal picked in onboarding, changeable here.

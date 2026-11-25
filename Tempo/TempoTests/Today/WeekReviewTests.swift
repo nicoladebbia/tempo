@@ -190,4 +190,19 @@ final class WeekReviewTests: XCTestCase {
         XCTAssertEqual(WeekReviewWords.count(1, "day"), "1 day")
         XCTAssertEqual(WeekReviewWords.count(2, "day"), "2 days")
     }
+
+    func testTheHeadlineNamesWhatHappened() {
+        let result = review([
+            day(thisMonday, 0) { $0.sessions = 1; $0.tasksTotal = 3; $0.tasksDone = 3 },
+            day(thisMonday, 1) { $0.sessions = 1; $0.recoveryScore = 70 },
+            day(thisMonday, 2) { $0.tasksTotal = 3; $0.tasksDone = 1 },
+        ])
+        XCTAssertEqual(result.headline, "2 sessions, 1 day with every task done, recovery 70%.")
+    }
+
+    func testTheHeadlineStartsWithACapitalAndSurvivesAnEmptyWeek() {
+        let onlyRecovery = review([day(thisMonday, 1) { $0.recoveryScore = 64 }])
+        XCTAssertEqual(onlyRecovery.headline, "Recovery 64%.")
+        XCTAssertEqual(review([]).headline, "A look at how the week went.")
+    }
 }

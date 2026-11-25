@@ -43,6 +43,11 @@ enum SetupChecklistLoader {
         if ((try? context.fetchCount(program)) ?? 0) > 0 {
             return true
         }
+        return hasCompletedSession(in: context)
+    }
+
+    /// At least one session was finished.
+    static func hasCompletedSession(in context: ModelContext) -> Bool {
         let completed = WorkoutStatus.completed.rawValue
         var session = FetchDescriptor<WorkoutPlan>(predicate: #Predicate<WorkoutPlan> { $0.statusRaw == completed })
         session.fetchLimit = 1

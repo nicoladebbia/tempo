@@ -84,7 +84,7 @@ struct NotificationRouterTests {
         #expect(route("TRAINING_REMINDER", "VIEW_WORKOUT")?.tab == .train)
         #expect(route("RECOVERY_REPORT", "VIEW_WORKOUT")?.tab == .train)
         #expect(route("ARENA_SOCIAL")?.tab == .arena)
-        #expect(route("WEEKLY_SUMMARY") == .tab(.today))
+        #expect(route("WEEKLY_SUMMARY") == .today(.weekReview))
         #expect(route("MORNING_BRIEFING") == .tab(.today))
     }
 
@@ -114,7 +114,7 @@ struct NotificationRouterTests {
         #expect(push("training_reminder") == .tab(.train))
         #expect(push("recovery_morning") == .today(.recovery))
         #expect(push("bedtime_reminder") == .today(.recovery))
-        #expect(push("weekly_summary") == .tab(.today))
+        #expect(push("weekly_summary") == .today(.weekReview))
         for type in ["streak_warning", "accountability_tier1", "accountability_tier2", "accountability_tier3", "accountability_tier4"] {
             #expect(push(type) == .today(.lockdown))
         }
