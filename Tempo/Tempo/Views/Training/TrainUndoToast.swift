@@ -18,17 +18,16 @@ private struct DiscardedWorkoutToast: ViewModifier {
     var viewModel: TrainingViewModel
     @Environment(\.modelContext)
     private var modelContext
-    @State
-    private var toast: ToastData?
 
+    // Posted to the app shell's toast, which the tab on screen shows above the
+    // tab bar: the logger can close onto any tab (Train, Today, a Move page).
     func body(content: Content) -> some View {
         content
-            .tempoToast($toast)
             .onChange(of: viewModel.discardUndo?.id) { _, id in
                 guard id != nil, let undo = viewModel.discardUndo else {
                     return
                 }
-                toast = ToastData(
+                FuelLogToast.post(ToastData(
                     message: "Workout discarded",
                     style: .info,
                     actionTitle: "Undo"
@@ -38,10 +37,10 @@ private struct DiscardedWorkoutToast: ViewModifier {
                         viewModel.forgetDiscardedWorkout()
                         if !restored {
                             // Say so, rather than leave a dead button.
-                            toast = ToastData(message: "Can't undo that now", style: .warning)
+                            FuelLogToast.post(ToastData(message: "Can't undo that now", style: .warning))
                         }
                     }
-                }
+                })
             }
             .task(id: viewModel.discardUndo?.id) {
                 // The offer ends a moment after the toast does.
