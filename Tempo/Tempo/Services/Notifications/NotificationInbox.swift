@@ -206,8 +206,16 @@ final class NotificationInbox {
         case loaded
     }
 
-    /// Today's notifications, newest first.
-    private(set) var items: [InboxNotification] = []
+    /// Today's notifications as the record has them, newest first.
+    private var storedItems: [InboxNotification] = []
+    /// Notifications "Clear today" took off the list while Undo is still offered. They are
+    /// only removed from the record and from Notification Centre when that window ends.
+    private var hiddenIDs: Set<String> = []
+
+    /// Today's notifications that are on the list, newest first.
+    var items: [InboxNotification] {
+        hiddenIDs.isEmpty ? storedItems : storedItems.filter { !hiddenIDs.contains($0.id) }
+    }
     private(set) var load: Load = .idle
     /// What iOS says about permission, so the page can explain an empty list.
     private(set) var authorization: UNAuthorizationStatus?
@@ -241,7 +249,7 @@ final class NotificationInbox {
         self.authorizationStatus = authorizationStatus
         self.clearDelivered = clearDelivered
         self.now = now
-        items = NotificationInboxStore.today(store.load(), now: now())
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
     }
 
     /// Reads what iOS still holds, merges it into the record and refreshes the list.
@@ -252,14 +260,14 @@ final class NotificationInbox {
         let seen = await delivered()
         authorization = await authorizationStatus()
         let all = store.record(seen, now: now())
-        items = NotificationInboxStore.today(all, now: now())
+        storedItems = NotificationInboxStore.today(all, now: now())
         load = .loaded
     }
 
     /// A notification that arrived while the app was open.
     func noteDelivered(_ notification: UNNotification) {
         let all = store.record([InboxNotification(notification)], now: now())
-        items = NotificationInboxStore.today(all, now: now())
+        storedItems = NotificationInboxStore.today(all, now: now())
     }
 
     /// Opened from its banner or Notification Centre.
@@ -271,33 +279,64 @@ final class NotificationInbox {
         )
         store.record([item], now: now())
         store.markRead(requestID: requestID)
-        items = NotificationInboxStore.today(store.load(), now: now())
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
     }
 
     /// Opened from this list: it reads as seen, and leaves Notification Centre like a tapped banner does.
     func markRead(_ item: InboxNotification) {
         store.markRead(requestID: item.requestID)
         clearDelivered([item.requestID])
-        items = NotificationInboxStore.today(store.load(), now: now())
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
     }
 
     func markAllRead() {
         store.markAllRead(on: now())
-        items = NotificationInboxStore.today(store.load(), now: now())
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
     }
 
     /// Sign-out or account deletion: the next person on this phone must not see this person's reminders.
     func reset() {
-        clearDelivered(items.map(\.requestID))
+        clearDelivered(storedItems.map(\.requestID))
         store.wipe()
-        items = []
+        storedItems = []
+        hiddenIDs = []
         load = .idle
     }
 
     /// Empties today's list, and takes the same notifications out of Notification Centre so they don't come back.
     func clearToday() {
-        clearDelivered(items.map(\.requestID))
+        clearDelivered(storedItems.map(\.requestID))
         store.clear(on: now())
-        items = NotificationInboxStore.today(store.load(), now: now())
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
+    }
+
+    // MARK: Clear today, with Undo
+
+    // Taking a notification out of Notification Centre cannot be put back, so "Clear today"
+    // only hides the list while the Undo toast is up, and does the real clearing when it ends.
+
+    /// Takes everything on today's list off it. Nothing is deleted yet.
+    func beginClearToday() {
+        // A clear still waiting on its own Undo becomes final first.
+        finishClearToday()
+        hiddenIDs = Set(storedItems.map(\.id))
+    }
+
+    /// Puts the hidden notifications back on the list.
+    func undoClearToday() {
+        hiddenIDs = []
+    }
+
+    /// The Undo window ended: the hidden notifications leave the record and Notification Centre.
+    /// One that arrived during the window is not touched.
+    func finishClearToday() {
+        guard !hiddenIDs.isEmpty else {
+            return
+        }
+        let gone = hiddenIDs
+        hiddenIDs = []
+        clearDelivered(storedItems.filter { gone.contains($0.id) }.map(\.requestID))
+        store.save(store.load().filter { !gone.contains($0.id) })
+        storedItems = NotificationInboxStore.today(store.load(), now: now())
     }
 }

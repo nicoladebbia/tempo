@@ -130,6 +130,11 @@ struct ConnectionsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, Tide.s2)
         }
+        .firstTip(
+            "settings.connections",
+            "Each card shows whether that connection is working. Its button is the one thing to tap to fix it.",
+            systemImage: "link"
+        )
         .navigationTitle("Connections")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $showWhoop) {

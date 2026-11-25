@@ -25,7 +25,7 @@ struct NotificationInboxView: View {
     private var scenePhase
 
     @State
-    private var confirmClear = false
+    private var toast: ToastData?
 
     private let inbox = NotificationInbox.shared
 
@@ -51,7 +51,7 @@ struct NotificationInboxView: View {
                         }
                         .disabled(inbox.unreadCount == 0)
                         Button(role: .destructive) {
-                            confirmClear = true
+                            clearToday()
                         } label: {
                             Label("Clear today", systemImage: "trash")
                         }
@@ -65,17 +65,26 @@ struct NotificationInboxView: View {
                 }
             }
         }
-        .confirmationDialog("Clear today's notifications?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Clear today", role: .destructive) { inbox.clearToday() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("They also leave Notification Centre.")
+        // They only leave the list now; they leave Notification Centre when the Undo toast ends.
+        .tempoToast($toast)
+        .onChange(of: toast) { _, newValue in
+            if newValue == nil {
+                inbox.finishClearToday()
+            }
         }
+        .onDisappear { inbox.finishClearToday() }
         .task { await inbox.refresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await inbox.refresh() }
             }
+        }
+    }
+
+    private func clearToday() {
+        inbox.beginClearToday()
+        toast = ToastData(message: "Cleared today's notifications.", style: .info, actionTitle: "Undo") {
+            inbox.undoClearToday()
         }
     }
 

@@ -262,6 +262,85 @@ struct NotificationInboxModelTests {
     }
 
     @Test
+    func clearTodayWithUndoHidesAtOnceButTouchesNothingUntilItEnds() async {
+        let cleared = ClearedBox()
+        let defaults = defaults()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults)
+        await model.refresh()
+        model.beginClearToday()
+
+        #expect(model.items.isEmpty)
+        #expect(model.unreadCount == 0)
+        #expect(cleared.ids.isEmpty, "still in Notification Centre")
+        #expect(NotificationInboxStore(defaults: defaults).load().count == 2, "still in the record")
+
+        // A refresh in the window (the app coming back to the front) does not bring them back.
+        await model.refresh()
+        #expect(model.items.isEmpty)
+    }
+
+    @Test
+    func undoBringsTheClearedNotificationsBackAndNothingWasDeleted() async {
+        let cleared = ClearedBox()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults())
+        await model.refresh()
+        model.beginClearToday()
+        model.undoClearToday()
+        // The toast then ends: there is nothing left to clear.
+        model.finishClearToday()
+
+        #expect(model.items.map(\.requestID) == ["b", "a"])
+        #expect(cleared.ids.isEmpty)
+    }
+
+    @Test
+    func whenTheUndoWindowEndsTheHiddenOnesLeaveTheRecordAndNotificationCentre() async {
+        let cleared = ClearedBox()
+        let defaults = defaults()
+        let model = model(delivered: [row("a", minutesAgo: 30), row("b", minutesAgo: 5)], cleared: cleared, defaults: defaults)
+        await model.refresh()
+        model.beginClearToday()
+        model.finishClearToday()
+
+        #expect(Set(cleared.ids) == ["a", "b"])
+        #expect(model.items.isEmpty)
+        #expect(NotificationInboxStore(defaults: defaults).load().isEmpty)
+
+        // Finishing twice clears nothing more.
+        model.finishClearToday()
+        #expect(cleared.ids.count == 2)
+    }
+
+    @Test
+    func aNotificationThatArrivesInTheUndoWindowIsNotCleared() async {
+        let cleared = ClearedBox()
+        let delivered = DeliveredBox()
+        delivered.rows = [row("a", minutesAgo: 30)]
+        let now = now
+        let model = NotificationInbox(
+            store: NotificationInboxStore(defaults: defaults()),
+            delivered: { delivered.rows },
+            authorizationStatus: { .authorized },
+            clearDelivered: { cleared.ids += $0 },
+            now: { now }
+        )
+        await model.refresh()
+        model.beginClearToday()
+
+        delivered.rows.append(row("late", minutesAgo: 1))
+        await model.refresh()
+        model.finishClearToday()
+
+        #expect(cleared.ids == ["a"])
+        #expect(model.items.map(\.requestID) == ["late"])
+    }
+
+    @MainActor
+    final class DeliveredBox {
+        var rows: [InboxNotification] = []
+    }
+
+    @Test
     func signingOutForgetsTheListEvenAfterARelaunch() async {
         let store = defaults()
         let cleared = ClearedBox()
