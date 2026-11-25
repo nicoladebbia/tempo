@@ -472,8 +472,8 @@ final class LocalGroceryListService: GroceryListServiceProtocol {
     }
 
     /// Puts back the Reminders entry of a row that Undo restored (a delete removes it).
-    /// Quiet on purpose: without Reminders access, or without the "Tempo Groceries" list,
-    /// there is nothing to put back, and the next export covers it.
+    /// Quiet on purpose: without Reminders access there is nothing to put back, and the next
+    /// export covers it. The "Tempo Groceries" list is made again if it was removed meanwhile.
     func restoreReminder(for item: GroceryListItem) async {
         guard EKEventStore.authorizationStatus(for: .reminder) == .fullAccess, !item.isBought,
               let list = item.list,

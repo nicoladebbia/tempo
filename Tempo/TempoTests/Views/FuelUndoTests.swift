@@ -87,6 +87,22 @@ final class FuelUndoTests: XCTestCase {
         XCTAssertEqual(result.meal.foods.count, 3)
     }
 
+    func testRestoringAFoodIntoAMealThatIsNoLongerEatenSaysSoInsteadOfDoingNothing() throws {
+        let result = try EatenMealRecorder.record(
+            [food("Chicken", kcal: 300), food("Rice", kcal: 200)],
+            type: .lunch, eatenAt: Date(), source: .manual, modelContext: context
+        )
+        let meal = result.meal
+        let removed = meal.foods[1]
+        try MealOutcomeService.removeFood(at: 1, from: meal, env: env)
+        meal.status = .planned
+
+        XCTAssertThrowsError(try MealOutcomeService.restoreFood(removed, at: 1, to: meal, env: env)) { error in
+            XCTAssertEqual(error as? MealOutcomeService.OutcomeError, .mealNotEaten)
+        }
+        XCTAssertEqual(meal.foods.map(\.name), ["Chicken"], "nothing was changed")
+    }
+
     // MARK: Saved meals
 
     func testDeletedSavedMealComesBackWithItsStarFoodsAndUseCount() throws {

@@ -47,10 +47,12 @@ enum MealOutcomeService {
 
     enum OutcomeError: LocalizedError {
         case mealGone
+        case mealNotEaten
 
         var errorDescription: String? {
             switch self {
             case .mealGone: "Couldn't restore. That meal no longer exists."
+            case .mealNotEaten: "Couldn't put that food back. The meal is no longer marked eaten."
             }
         }
     }
@@ -594,7 +596,7 @@ enum MealOutcomeService {
     /// linked meal log. This is what Undo does after removing one food of several.
     static func restoreFood(_ food: PlannedFood, at index: Int, to meal: PlannedMeal, env: Env) throws {
         guard meal.status == .eaten else {
-            return
+            throw OutcomeError.mealNotEaten
         }
         var foods = meal.foods
         foods.insert(food, at: min(max(index, 0), foods.count))
