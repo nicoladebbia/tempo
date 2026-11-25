@@ -275,7 +275,10 @@ final class KitchenUndoTests: XCTestCase {
         }, finished: {})
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Receipt>()), 1, "still there while Undo is open")
 
-        try await Task.sleep(for: .seconds(0.9))
+        // Poll rather than sleep a fixed time: a loaded machine runs the timer late.
+        for _ in 0 ..< 100 where try context.fetchCount(FetchDescriptor<Receipt>()) > 0 {
+            try await Task.sleep(for: .seconds(0.1))
+        }
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Receipt>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ReceiptLineItem>()), 0)
     }
