@@ -264,7 +264,13 @@ struct ActiveWorkoutView: View {
             warmupContent
 
         case .exercise(.setActive):
+            // The tip waits for the first set: warm-up has no Finish Set to point at.
             setActiveContent
+                .firstTip(
+                    "train.logger",
+                    "Check the weight and reps, tap the yellow button to log the set, and Tempo times your rest, with Undo for a few seconds if you slip.",
+                    systemImage: "checkmark.circle"
+                )
 
         case .exercise(.resting):
             RestTimerView(viewModel: viewModel)
@@ -303,11 +309,6 @@ struct ActiveWorkoutView: View {
         .animation(reduceMotion ? nil : Tide.snap, value: phaseKey)
         // The cover is opened from inside a page: draw its own field.
         .trainSheetRoot(energy: 0.8)
-        .firstTip(
-            "train.logger",
-            "Check the weight and reps, tap Finish Set, and Tempo times your rest, with Undo for a few seconds if you slip.",
-            systemImage: "checkmark.circle"
-        )
         // §12 — the PR moment lands on the set that earned it, not later on
         // the summary. logSet appends to detectedPRs when one fires.
         .overlay(alignment: .top) {
