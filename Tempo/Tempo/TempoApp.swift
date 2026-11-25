@@ -193,6 +193,9 @@ struct TempoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Invite links open in a sheet; friends' boards stay current.
+                // Before `.environment(services)`: the modifier reads it.
+                .arenaConnected()
                 .environment(services)
                 .task {
                     // Entitlement at launch + Transaction.updates listener.
