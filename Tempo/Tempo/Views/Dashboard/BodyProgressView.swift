@@ -99,7 +99,7 @@ struct BodyProgressView: View {
         }
         .firstTip(
             "body.progress",
-            "Tap Weight, Body fat or Lean mass to change the chart, and tap the headline to see how the trend is worked out.",
+            "Tap the trend headline to see how it is worked out.",
             systemImage: "figure.stand"
         )
         .navigationTitle("Body progress")

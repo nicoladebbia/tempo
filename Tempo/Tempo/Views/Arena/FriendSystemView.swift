@@ -82,7 +82,7 @@ struct FriendSystemView: View {
         .arenaUndoToast($undoToast)
         .firstTip(
             "arena.friends",
-            "Invite a friend with your link. They only see your name, level and XP this week.",
+            "Invite a friend with your link. They only see your name, level and XP.",
             systemImage: "person.2.fill"
         )
     }

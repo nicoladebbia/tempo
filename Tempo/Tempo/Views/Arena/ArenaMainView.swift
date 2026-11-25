@@ -83,7 +83,7 @@ struct ArenaMainView: View {
         }
         .firstTip(
             "arena.home",
-            "Tap the level ring or today's XP to see how it is worked out.",
+            "Tap the level ring or XP to see how it is worked out.",
             systemImage: "trophy.fill"
         )
     }

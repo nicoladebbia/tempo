@@ -167,7 +167,7 @@ struct LockdownMainView: View {
         }
         .firstTip(
             "lockdown.home",
-            "Tap a task to mark it done or skip it: when every task is done, the day unlocks.",
+            "Tap a task to finish or skip it. All done unlocks the day.",
             systemImage: "lock.open.fill"
         )
     }

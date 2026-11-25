@@ -170,7 +170,7 @@ struct MindQuadrantDetailView: View {
         .task { reloadExams() }
         .firstTip(
             "study.home",
-            "Press Start study session to run a timer, and tap any score to see how it is worked out.",
+            "Press Start to run a timer. Tap a score to see how it works.",
             systemImage: "book.fill"
         )
         .accessibilityIdentifier("study-page")

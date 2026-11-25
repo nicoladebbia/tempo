@@ -132,7 +132,7 @@ struct ConnectionsView: View {
         }
         .firstTip(
             "settings.connections",
-            "Each card shows if that connection works. Tap its button to fix it.",
+            "Tap a card's button to fix or connect it.",
             systemImage: "link"
         )
         .navigationTitle("Connections")

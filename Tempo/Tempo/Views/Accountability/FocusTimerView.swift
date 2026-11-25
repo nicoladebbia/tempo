@@ -141,7 +141,7 @@ struct FocusTimerView: View {
         }
         .firstTip(
             "study.timer",
-            "Press Start and stay in the app: leaving it counts as a distraction.",
+            "Press Start. Leaving the app counts as a distraction.",
             systemImage: "timer"
         )
     }

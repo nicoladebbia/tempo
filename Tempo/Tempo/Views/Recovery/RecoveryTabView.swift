@@ -98,7 +98,7 @@ struct RecoveryTabView: View {
         .tidePage(energy: 1)
         .firstTip(
             "recovery.home",
-            "Tap the dial, the sleep and strain cards or a driver row to see what each number means.",
+            "Tap the dial or any card to see what its number means.",
             systemImage: "heart.text.square"
         )
         // One load for the whole page, whichever view is showing.

@@ -83,7 +83,7 @@ struct ChallengesView: View {
         .arenaUndoToast($undoToast)
         .firstTip(
             "arena.challenges",
-            "Pick a goal, invite friends or go solo. The bar shows how much of the time is gone, not your score.",
+            "Pick a goal, invite friends or go solo. The bar shows time passed, not score.",
             systemImage: "flag.2.crossed.fill"
         )
     }
