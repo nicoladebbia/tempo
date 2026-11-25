@@ -231,6 +231,23 @@ extension WeeklyRoutine {
     }
 }
 
+// MARK: - Goal from onboarding
+
+extension DietaryGoal {
+    /// The food goal that fits the one goal onboarding asked ("what are you fighting for?").
+    /// Only a starting answer: the Goal step still shows it, and the user can change it.
+    /// Performance, staying healthy and all-around keep today's weight.
+    init(primary: PrimaryGoal) {
+        switch primary {
+        case .buildMuscle: self = .leanGain
+        case .loseFat: self = .cut
+        case .performance,
+             .stayHealthy,
+             .allAround: self = .maintain
+        }
+    }
+}
+
 // MARK: - Load / save
 
 extension FuelSetupDraft {
@@ -283,6 +300,10 @@ extension FuelSetupDraft {
             }
         }
         if let settings {
+            // No profile yet: the goal question starts from what onboarding asked, not blank.
+            if profile == nil, draft.goal == nil, let picked = settings.primaryGoal {
+                draft.goal = DietaryGoal(primary: picked)
+            }
             // One "won't eat" list: fold in the retired AI Meals exclusions.
             if MealPlanIntake.migrateLegacyExclusions(settings: settings, profile: profile) {
                 draft.dislikedFoods = profile?.dislikedFoods ?? draft.dislikedFoods
