@@ -61,8 +61,9 @@ final class FoodScannerFlowTests: XCTestCase {
 
         let rating = app.staticTexts["foodScoreRating"]
         XCTAssertTrue(rating.waitForExistence(timeout: 30), "Product screen with a score")
-        XCTAssertTrue(["POOR", "BAD"].contains(rating.label), "Nutella rates poor or bad, got \(rating.label)")
-        XCTAssertTrue(app.staticTexts["NUTRITION"].exists || app.staticTexts["NUTRITION"].waitForExistence(timeout: 5))
+        XCTAssertTrue(["Poor", "Bad"].contains(rating.label), "Nutella rates poor or bad, got \(rating.label)")
+        // Drawn in capitals, but read as "Nutrition" (the capitals come from the text style).
+        XCTAssertTrue(app.staticTexts["Nutrition"].firstMatch.waitForExistence(timeout: 5))
         _ = app.images.firstMatch.waitForExistence(timeout: 5) // product photo loads async
         attach("02-product-score")
 
@@ -99,7 +100,13 @@ final class FoodScannerFlowTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         name.typeText("Test Protein Bar")
-        for (id, value) in [("addProductKcal", "380"), ("addProductProtein", "30"), ("addProductCarbs", "35"), ("addProductFat", "12"), ("addProductSalt", "0.4")] {
+        for (id, value) in [
+            ("addProductKcal", "380"),
+            ("addProductProtein", "30"),
+            ("addProductCarbs", "35"),
+            ("addProductFat", "12"),
+            ("addProductSalt", "0.4"),
+        ] {
             let field = app.textFields[id]
             if !field.isHittable {
                 app.swipeUp()

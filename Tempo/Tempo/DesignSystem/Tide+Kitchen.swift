@@ -566,7 +566,7 @@ struct KitchenShelfBar: View {
     }
 }
 
-// MARK: - KitchenFrame
+// MARK: - KitchenBrackets
 
 /// The corner brackets of a camera frame.
 private struct KitchenBrackets: Shape {
@@ -591,6 +591,8 @@ private struct KitchenBrackets: Shape {
         return path
     }
 }
+
+// MARK: - KitchenFrame
 
 /// A camera frame: lit corner brackets, a soft glow and, while it is looking,
 /// a band of light that sweeps it. Holds still under Reduce Motion. Decoration
@@ -844,7 +846,6 @@ struct KitchenRowPressStyle: ButtonStyle {
     }
 }
 
-
 // MARK: - KitchenListeningRing
 
 /// Soft rings that swell out from a mic button while it listens, so a quiet room still looks alive.
@@ -881,7 +882,6 @@ struct KitchenListeningRing: View {
         .accessibilityHidden(true)
     }
 }
-
 
 // MARK: - KitchenLevelMeter
 
@@ -1050,7 +1050,9 @@ struct KitchenBarButtonStyle: ButtonStyle {
 }
 
 extension ButtonStyle where Self == KitchenBarButtonStyle {
-    static var kitchenBar: KitchenBarButtonStyle { KitchenBarButtonStyle() }
+    static var kitchenBar: KitchenBarButtonStyle {
+        KitchenBarButtonStyle()
+    }
 }
 
 // MARK: - KitchenPair
@@ -1090,7 +1092,6 @@ struct KitchenIconTile: View {
             .dynamicTypeSize(.large)
     }
 }
-
 
 // MARK: - KitchenModeBar
 
@@ -1174,7 +1175,9 @@ struct KitchenModeBar<Value: Hashable>: View {
 /// text link.
 struct KitchenStateAction: Identifiable {
     enum Role {
-        case primary, secondary, quiet
+        case primary
+        case secondary
+        case quiet
         /// A quiet link in the danger colour: stop, remove, delete.
         case destructive
     }
@@ -1446,5 +1449,105 @@ struct KitchenGlassIcon: View {
         .frame(width: size, height: size)
         .glassEffect(.regular.tint(Tide.glassControl).interactive(), in: .circle)
         .contentShape(.circle)
+    }
+}
+
+// MARK: - KitchenSpendTrend
+
+/// Weeks of spend as bars, oldest first, the way the Spending page reads them:
+/// tap a bar to read that week above. A week over its budget is red, the chosen
+/// week is lit, and a dashed line marks the budget. Each bar is a button with
+/// the week, the total and "over budget" in its VoiceOver label.
+struct KitchenSpendTrend: View {
+    let weeks: [GroceryWeeklySpend]
+    /// The chosen week (its `id`).
+    @Binding var selection: Date?
+
+    @Environment(\.tideMood)
+    private var mood
+    @Environment(\.dynamicTypeSize)
+    private var typeSize
+    @ScaledMetric(relativeTo: .body)
+    private var plotHeight: CGFloat = 96
+
+    private var cap: Double? {
+        weeks.last?.budgetCapUSD.map(Double.init)
+    }
+
+    /// The tallest bar, or the budget when that is higher, so the budget line is always on the chart.
+    private var scaleMax: Double {
+        max(weeks.map(\.totalUSD).max() ?? 0, cap ?? 0, 1)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            HStack(alignment: .top, spacing: Tide.s2) {
+                ForEach(weeks) { week in
+                    column(week)
+                }
+            }
+            if let cap {
+                BudgetLine()
+                    .stroke(Tide.text3, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .frame(height: 1)
+                    .offset(y: plotHeight * (1 - cap / scaleMax))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .animation(Tide.snap, value: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Weekly spend")
+    }
+
+    private func column(_ week: GroceryWeeklySpend) -> some View {
+        let isSelected = week.id == selection
+        return Button {
+            selection = week.id
+        } label: {
+            VStack(spacing: Tide.s1) {
+                ZStack(alignment: .bottom) {
+                    Capsule().fill(Tide.track)
+                    Capsule()
+                        .fill(color(week, isSelected: isSelected))
+                        .frame(height: week.totalUSD > 0 ? max(Tide.s1, plotHeight * week.totalUSD / scaleMax) : 0)
+                }
+                .frame(height: plotHeight)
+                // The date of the week is in the line above when a week is chosen;
+                // the day number only helps to tell the bars apart at normal sizes.
+                if !typeSize.isAccessibilitySize {
+                    Text(week.weekStartDate.formatted(.dateTime.day()))
+                        .font(Tide.caption)
+                        .foregroundStyle(isSelected ? Tide.text : Tide.text3)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Self.accessibilityLabel(for: week))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func color(_ week: GroceryWeeklySpend, isSelected: Bool) -> Color {
+        let base = week.isOverBudget ? Tide.danger : mood.accent
+        return isSelected ? base : base.opacity(0.4)
+    }
+
+    /// "Week of Nov 3, $73.45, over budget".
+    static func accessibilityLabel(for week: GroceryWeeklySpend) -> String {
+        let date = week.weekStartDate.formatted(date: .abbreviated, time: .omitted)
+        let over = week.isOverBudget ? ", over budget" : ""
+        return "Week of \(date), \(SpendingSummary.money(week.totalUSD))\(over)"
+    }
+
+    private struct BudgetLine: Shape {
+        func path(in rect: CGRect) -> Path {
+            var path = Path()
+            path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+            return path
+        }
     }
 }

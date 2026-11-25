@@ -213,13 +213,14 @@ extension NutritionTabViewModel {
     // MARK: - Weekly spend history
 
     /// Loads the last 8 weeks' actual spend (PantryPriceEntry + Receipt)
-    /// vs. the budget cap into `groceryStoreModeState.weeklySpend`.
-    func loadGroceryWeeklySpendHistory() {
+    /// vs. the budget cap into `groceryStoreModeState.weeklySpend`. Receipts in
+    /// `hiding` (deleted, waiting out their Undo) no longer count.
+    func loadGroceryWeeklySpendHistory(hiding hidden: Set<UUID> = []) {
         guard let context = pantryModelContext else {
             return
         }
         let entries = (try? context.fetch(FetchDescriptor<PantryPriceEntry>())) ?? []
-        let receipts = (try? context.fetch(FetchDescriptor<Receipt>())) ?? []
+        let receipts = ((try? context.fetch(FetchDescriptor<Receipt>())) ?? []).filter { !hidden.contains($0.id) }
         groceryStoreModeState.weeklySpend = GroceryWeeklySpendCalculator.compute(
             priceEntries: entries,
             receipts: receipts,

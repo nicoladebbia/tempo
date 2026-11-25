@@ -306,7 +306,7 @@ struct SupplementBarcodeFlow: View {
             parts.append(dose)
         }
         if let servings = dto.servingsPerContainer, servings > 0 {
-            parts.append("\(Int(servings)) servings/container")
+            parts.append("\(Int(servings)) \(Int(servings) == 1 ? "serving" : "servings")/container")
         }
         return parts.joined(separator: " · ")
     }

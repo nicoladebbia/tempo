@@ -39,10 +39,6 @@ struct GroceryListView: View {
     @State
     private var showDoneShopping = false
 
-    /// Weekly spend vs. budget history.
-    @State
-    private var showSpendHistory = false
-
     /// Cheaper-swaps suggestion sheet (over-budget path).
     @State
     private var showCheaperSwaps = false
@@ -54,7 +50,7 @@ struct GroceryListView: View {
 
     /// Something is presented over the page: its shaders stop.
     private var isCovered: Bool {
-        showAddItem || showStoreMode || showDoneShopping || showSpendHistory || showCheaperSwaps
+        showAddItem || showStoreMode || showDoneShopping || showCheaperSwaps
     }
 
     var body: some View {
@@ -77,9 +73,6 @@ struct GroceryListView: View {
             if let list = viewModel.groceryState.latest {
                 GroceryDoneShoppingView(viewModel: viewModel, list: list)
             }
-        }
-        .sheet(isPresented: $showSpendHistory) {
-            GroceryWeeklySpendView(viewModel: viewModel)
         }
         .sheet(isPresented: $showCheaperSwaps) {
             CheaperSwapsSheet(viewModel: viewModel)
@@ -174,9 +167,9 @@ struct GroceryListView: View {
                 Label("Sync with Pantry", systemImage: "arrow.triangle.2.circlepath")
             }
             Button {
-                showSpendHistory = true
+                viewModel.openKitchen(.receipts)
             } label: {
-                Label("Spend History", systemImage: "chart.bar.fill")
+                Label("Spending", systemImage: "chart.bar.fill")
             }
             storePickerMenu
         } label: {
@@ -346,6 +339,7 @@ struct GroceryListView: View {
                     ticks += 1
                     if item.isChecked {
                         viewModel.recordGroceryCategoryTick(item.category)
+                        viewModel.offerUndoCheck(of: item)
                     }
                 } label: {
                     itemRow(item)
@@ -358,7 +352,7 @@ struct GroceryListView: View {
                 // target and matches iOS's expected long-press affordance.
                 .contextMenu {
                     Button(role: .destructive) {
-                        viewModel.deleteGroceryItem(item)
+                        viewModel.deleteGroceryItemWithUndo(item)
                         HapticManager.notification(.warning)
                     } label: {
                         Label("Remove from List", systemImage: "trash")
@@ -379,7 +373,7 @@ struct GroceryListView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 // "4 breasts chicken" already carries its amount.
                 if !item.displayNameEmbedsQuantity {
-                    Text("\(formatQuantity(item.quantity))\(item.unit.displayName)")
+                    Text(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit))
                         .font(Tide.caption)
                         .foregroundStyle(Tide.text2)
                 }
@@ -442,10 +436,6 @@ struct GroceryListView: View {
                 }
             }
         }
-    }
-
-    private func formatQuantity(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }
 

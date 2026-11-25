@@ -1,94 +1,12 @@
 //
-// GroceryWeeklySpendView.swift
+// CheaperSwapsSheet.swift
 // Tempo
 //
-// Weekly spend history (BUILD item 4): actual spend per week (from
-// PantryPriceEntry + Receipts) vs. the budget cap, for the last ~8 weeks.
-// Simple bar-per-week rows in the app's existing progress-bar visual
-// language (see GroceryListView.progressBar) rather than a chart library —
-// Tempo ships only 3 third-party deps and none of them is a chart kit.
+// The "Cheaper swaps" suggestions the Groceries page offers when the list is
+// over budget.
 //
 
 import SwiftUI
-
-// MARK: - GroceryWeeklySpendView
-
-struct GroceryWeeklySpendView: View {
-    @Bindable
-    var viewModel: NutritionTabViewModel
-
-    @Environment(\.dismiss)
-    private var dismiss
-    @Environment(\.tideMood)
-    private var mood
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tide.s3) {
-                    if viewModel.groceryStoreModeState.weeklySpend.isEmpty {
-                        KitchenEmpty(
-                            systemImage: "dollarsign.circle",
-                            title: "No purchases yet",
-                            message: "Finish a shop and your weekly spend shows up here."
-                        )
-                    } else {
-                        ForEach(viewModel.groceryStoreModeState.weeklySpend.reversed()) { week in
-                            weekRow(week)
-                        }
-                    }
-                }
-                .padding(.horizontal, Tide.edge)
-                .padding(.vertical, Tide.s4)
-            }
-            .scrollIndicators(.hidden)
-            .navigationTitle("Spend History")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        .kitchenSheet()
-        .onAppear {
-            viewModel.loadGroceryWeeklySpendHistory()
-        }
-    }
-
-    private func weekRow(_ week: GroceryWeeklySpend) -> some View {
-        let cap = week.budgetCapUSD.map(Double.init)
-        let fraction = cap.map { min(1, week.totalUSD / max(1, $0)) } ?? 0
-        let date = week.weekStartDate.formatted(date: .abbreviated, time: .omitted)
-        return VStack(alignment: .leading, spacing: Tide.s3) {
-            Text("Week of \(date)").tideLabel()
-            HStack(alignment: .firstTextBaseline, spacing: Tide.s2) {
-                TideNumber(
-                    "$" + String(format: "%.2f", week.totalUSD),
-                    size: Tide.numeralM,
-                    relativeTo: .title,
-                    color: week.isOverBudget ? Tide.danger : Tide.text
-                )
-                if let cap = week.budgetCapUSD {
-                    Text("of $\(cap)")
-                        .font(Tide.caption)
-                        .foregroundStyle(Tide.text3)
-                }
-                Spacer(minLength: 0)
-                if week.isOverBudget {
-                    KitchenTag(text: "Over", tint: Tide.danger)
-                }
-            }
-            if cap != nil {
-                TideLevelBar(progress: fraction, color: week.isOverBudget ? Tide.danger : mood.accent, height: Tide.bar)
-                    .accessibilityLabel("Share of budget spent")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .tideCard(padding: Tide.s4)
-        .accessibilityElement(children: .combine)
-    }
-}
 
 // MARK: - CheaperSwapsSheet
 
