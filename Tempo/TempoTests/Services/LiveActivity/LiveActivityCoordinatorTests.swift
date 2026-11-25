@@ -51,6 +51,18 @@ final class LiveActivityCoordinatorTests: XCTestCase {
         try await super.tearDown()
     }
 
+    // MARK: - Is a session running (read by the Siri "Start focus" intent)
+
+    func testHasLiveSessionFollowsTheRegisteredParticipant() {
+        XCTAssertFalse(coordinator.hasLiveSession(.focusTimer), "nothing registered")
+        let focus = FakeLiveActivityParticipant()
+        coordinator.register(focus, for: .focusTimer)
+        XCTAssertTrue(coordinator.hasLiveSession(.focusTimer))
+        XCTAssertFalse(coordinator.hasLiveSession(.gymWorkout), "another kind is unaffected")
+        focus.hasActiveLiveSession = false
+        XCTAssertFalse(coordinator.hasLiveSession(.focusTimer), "a finished session no longer counts")
+    }
+
     // MARK: - Priority: a higher-priority start suspends the lower one
 
     func testHigherPriorityStartSuspendsLowerAndBecomesActive() async {

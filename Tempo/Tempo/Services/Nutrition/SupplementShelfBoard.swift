@@ -53,10 +53,10 @@ struct SupplementShelfRow: Identifiable {
     var stockLine: String? {
         if let daysLeft {
             if daysLeft <= 0 { return "Out" }
-            return "\(daysLeft) day\(daysLeft == 1 ? "" : "s") left"
+            return "\(FuelWords.count(daysLeft, "day")) left"
         }
         if supplement.servingsRemaining > 0 {
-            return "\(Int(supplement.servingsRemaining)) servings left"
+            return "\(FuelWords.count(Int(supplement.servingsRemaining), "serving")) left"
         }
         return nil
     }

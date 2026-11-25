@@ -101,14 +101,10 @@ enum FoodProductActions {
         let canonical = FoodCanonicalizer.canonicalize(product.name)
         var atHome: String?
         if let item = try? LocalPantryService(modelContext: modelContext).find(canonicalName: canonical), item.quantity > 0 {
-            atHome = "\(format(item.quantity)) \(item.unit.displayName) at home"
+            atHome = "\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit)) at home"
         }
         let list = try? LocalGroceryListService(modelContext: modelContext).fetchLatest()
         let onList = (list?.activeItems ?? []).contains { $0.canonicalFoodName == canonical }
         return Inventory(atHome: atHome, onList: onList)
-    }
-
-    private static func format(_ value: Double) -> String {
-        value == value.rounded() ? "\(Int(value))" : String(format: "%.1f", value)
     }
 }

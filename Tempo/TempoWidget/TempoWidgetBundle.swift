@@ -16,8 +16,10 @@ import WidgetKit
 @main
 struct TempoWidgetBundle: WidgetBundle {
     var body: some Widget {
-        TempoWidget()
-        TempoLockScreenWidget()
+        TempoScoreWidget()
+        TempoNextWidget()
+        TempoWaterWidget()
+        TempoMacrosWidget()
         FocusTimerLiveActivity()
         WorkoutLiveActivity()
         GuidedRunLiveActivity()

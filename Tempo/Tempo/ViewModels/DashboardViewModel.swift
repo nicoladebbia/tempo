@@ -674,7 +674,6 @@ final class DashboardViewModel {
         loadState = .loaded
         updateScoreTrend()
         refreshInsights()
-        pushWidgetSnapshot()
     }
 
     /// Carry today's in-memory Fuel state across refreshBody's rebuild
@@ -812,7 +811,6 @@ final class DashboardViewModel {
     // Shows workout type and completion from SwiftData WorkoutPlan.
 
     func refreshTrainingStatus(modelContext: ModelContext) {
-        defer { pushWidgetSnapshot() }
         #if DEBUG
             let started = Date()
             defer {
@@ -902,7 +900,6 @@ final class DashboardViewModel {
     // Per BUILD_PLAN step 10.8 — Connect accountability data to Dashboard.
 
     func refreshAccountability(modelContext: ModelContext) {
-        defer { pushWidgetSnapshot() }
         let today = Calendar.current.startOfDay(for: Date())
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today)!
 

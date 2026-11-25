@@ -95,12 +95,18 @@ struct SupplementDetailView: View {
         }
         .confirmationDialog("Delete \(supplement.name)?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                let id = supplement.id
+                let name = supplement.name
+                let context = modelContext
                 supplement.isArchived = true
                 supplement.updatedAt = Date()
                 try? modelContext.save()
                 notify()
                 HapticManager.warning()
                 dismiss()
+                KitchenUndo.offer("\(name) deleted.") {
+                    KitchenUndo.restoreSupplement(id: id, in: context)
+                }
             }
             Button("Keep it", role: .cancel) {}
         } message: {
@@ -206,16 +212,16 @@ struct SupplementDetailView: View {
     private func stockSection(daysLeft: Int?, low: Bool) -> some View {
         KitchenFormSection("Stock") {
             LabeledContent("Left in container") {
-                Text(supplement.servingsRemaining > 0 ? "\(Int(supplement.servingsRemaining)) servings" : "Not tracked")
+                Text(supplement.servingsRemaining > 0 ? FuelWords.count(Int(supplement.servingsRemaining), "serving") : "Not tracked")
             }
             if let daysLeft {
                 LabeledContent("Lasts about") {
-                    Text(daysLeft <= 0 ? "Out" : "\(daysLeft) days")
+                    Text(daysLeft <= 0 ? "Out" : FuelWords.count(daysLeft, "day"))
                         .foregroundStyle(low ? Tide.Kitchen.warn : Tide.text)
                 }
             }
             if let per = supplement.servingsPerContainer, per > 0 {
-                LabeledContent("Full container", value: "\(Int(per)) servings")
+                LabeledContent("Full container", value: FuelWords.count(Int(per), "serving"))
             }
             Button {
                 showReorder = true

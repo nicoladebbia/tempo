@@ -105,7 +105,7 @@ struct PantryView: View {
             titleVisibility: .visible
         ) {
             Button("Remove all \(viewModel.pantryState.items.count) items", role: .destructive) {
-                viewModel.emptyPantry()
+                viewModel.emptyPantryWithUndo()
                 HapticManager.success()
             }
         } message: {
@@ -371,7 +371,7 @@ struct PantryView: View {
             tint: Tide.Kitchen.warn
         ) {
             ForEach(viewModel.pantryState.expiringSoon, id: \.id) { item in
-                pantryRow(item)
+                pantryRow(item, showsLocation: true)
             }
         }
     }
@@ -380,7 +380,9 @@ struct PantryView: View {
 
     @ViewBuilder
     private func section(for location: PantryStorageLocation) -> some View {
-        let items = viewModel.pantryState.items.filter { $0.storageLocation == location }
+        // An item that is about to expire lives in "Expiring soon" only; it never shows twice.
+        let soon = Set(viewModel.pantryState.expiringSoon.map(\.id))
+        let items = viewModel.pantryState.items.filter { $0.storageLocation == location && !soon.contains($0.id) }
         if !items.isEmpty {
             KitchenGroup(
                 title: location.displayName,
@@ -394,7 +396,8 @@ struct PantryView: View {
         }
     }
 
-    private func pantryRow(_ item: PantryItem) -> some View {
+    /// `showsLocation`: the row is not under its own shelf (Expiring soon), so it says where the item is.
+    private func pantryRow(_ item: PantryItem, showsLocation: Bool = false) -> some View {
         HStack(spacing: Tide.s2) {
             Button {
                 editingItem = item
@@ -430,7 +433,7 @@ struct PantryView: View {
                                     }
                                 }
                             }
-                            detailLine(item)
+                            detailLine(item, showsLocation: showsLocation)
                         }
                         if !typeSize.isAccessibilitySize {
                             Spacer(minLength: Tide.s2)
@@ -450,7 +453,7 @@ struct PantryView: View {
             .buttonStyle(.plain)
             .accessibilityHint("Edit")
             Button(role: .destructive) {
-                viewModel.archivePantryItem(item)
+                viewModel.archivePantryItemWithUndo(item)
             } label: {
                 Image(systemName: "trash")
                     .font(Tide.bodyStrong)
@@ -468,7 +471,7 @@ struct PantryView: View {
         }
         .contextMenu {
             Button {
-                viewModel.updatePantryItem(item, quantity: 0)
+                viewModel.markPantryItemUsedUp(item)
             } label: {
                 Label("Used up", systemImage: "checkmark.circle")
             }
@@ -499,12 +502,13 @@ struct PantryView: View {
 
     /// Use-by date, receipt mark and last price under the name.
     @ViewBuilder
-    private func detailLine(_ item: PantryItem) -> some View {
+    private func detailLine(_ item: PantryItem, showsLocation: Bool) -> some View {
         let paid = viewModel.pantryState.latestPriceByFood[item.canonicalName] ?? 0
         if item.useBy != nil || item.purchaseSource == .receiptScan || paid > 0 {
             HStack(spacing: Tide.s2) {
                 if let useBy = item.useBy {
-                    Text("by \(useBy.formatted(date: .abbreviated, time: .omitted))")
+                    let by = "by \(useBy.formatted(date: .abbreviated, time: .omitted))"
+                    Text(showsLocation ? "\(item.storageLocation.displayName) · \(by)" : by)
                         .foregroundStyle(item.isExpiringSoon ? Tide.Kitchen.warn : Tide.text2)
                 }
                 if item.purchaseSource == .receiptScan {
@@ -740,7 +744,7 @@ struct PantryManualAddSheet: View {
                         KitchenTag(text: item.brand)
                     }
                 }
-                Text("\(Self.formatQuantity(item.quantity)) \(item.unit.displayName) · \(item.location.displayName)")
+                Text("\(PantryQuantityFormatter.text(quantity: item.quantity, unit: item.unit)) · \(item.location.displayName)")
                     .font(Tide.caption)
                     .foregroundStyle(Tide.text2)
             }
@@ -801,10 +805,6 @@ struct PantryManualAddSheet: View {
         transcriber.stop()
         onAdd(staged)
         dismiss()
-    }
-
-    private static func formatQuantity(_ value: Double) -> String {
-        PantryQuantityFormatter.number(value)
     }
 
     private var micButton: some View {

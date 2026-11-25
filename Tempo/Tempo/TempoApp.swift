@@ -193,6 +193,8 @@ struct TempoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Siri / Shortcuts / widget start requests and `tempo://` links.
+                .tempoSystemRequests()
                 .environment(services)
                 .task {
                     // Entitlement at launch + Transaction.updates listener.

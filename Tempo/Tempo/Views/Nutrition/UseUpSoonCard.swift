@@ -133,7 +133,7 @@ struct UseUpSoonCard: View {
             }
             Spacer(minLength: Tide.s2)
             if let first = urgentIngredients.first {
-                KitchenTag(text: urgencyLabel(days: first.days), tint: urgencyChipColor(days: first.days))
+                KitchenTag(text: Self.urgencyLabel(days: first.days), tint: urgencyChipColor(days: first.days))
             }
             Image(systemName: "chevron.right")
                 .font(Tide.label)
@@ -145,12 +145,9 @@ struct UseUpSoonCard: View {
         .contentShape(.rect)
     }
 
-    private func urgencyLabel(days: Int) -> String {
-        switch days {
-        case 0: "today"
-        case 1: "1 day"
-        default: "\(days) days"
-        }
+    /// "today", "1 day", "3 days".
+    static func urgencyLabel(days: Int) -> String {
+        days == 0 ? "today" : FuelWords.count(days, "day")
     }
 
     private func urgencyChipColor(days: Int) -> Color {
