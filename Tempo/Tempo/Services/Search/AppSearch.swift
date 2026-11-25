@@ -515,7 +515,9 @@ enum AppSearchLoader {
 
     static func exercises(in context: ModelContext) -> [AppSearchEntry] {
         let rows = (try? context.fetch(FetchDescriptor<Exercise>())) ?? []
-        return rows.map { exercise in
+        // The library opens filtered by name, so two rows with one name are one result.
+        var seen = Set<String>()
+        return rows.filter { seen.insert($0.name).inserted }.map { exercise in
             AppSearchEntry(
                 id: "exercise.\(exercise.name)",
                 title: exercise.name,

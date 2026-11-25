@@ -39,8 +39,14 @@ struct NextStepBar: View {
 
     @State
     private var step: NextStep?
+    /// The line the person closed. The same line stays closed through a reload;
+    /// a different suggestion is new and shows.
     @State
-    private var dismissed = false
+    private var dismissedLine: String?
+
+    private var dismissed: Bool {
+        step != nil && step?.line == dismissedLine
+    }
 
     var body: some View {
         // A concrete container hosts the loading task, so it runs while nothing is drawn.
@@ -90,7 +96,7 @@ struct NextStepBar: View {
                 }
             }
             Button {
-                dismissed = true
+                dismissedLine = step.line
             } label: {
                 Image(systemName: "xmark")
                     .font(Tide.label)
@@ -117,7 +123,6 @@ struct NextStepBar: View {
             step = nil
             return
         }
-        dismissed = false
         let saved = await Task.detached { TodayCache.shared.load() }.value
         guard let saved else {
             return
@@ -128,10 +133,10 @@ struct NextStepBar: View {
     }
 }
 
-extension NextStepBar {
+private extension NextStepBar {
     /// After a meal or a focus session the bar is for the minutes just after it.
     /// Everywhere else it sits on a screen that is itself the end of something.
-    fileprivate var isFresh: Bool {
+    var isFresh: Bool {
         if ignoresFreshness {
             return true
         }

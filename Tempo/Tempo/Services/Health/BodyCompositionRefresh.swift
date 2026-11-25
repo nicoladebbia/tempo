@@ -50,7 +50,12 @@ enum BodyCompositionRefresh {
                 measurementDate: data.measurementDate
             ))
         }
-        return (try? context.save()) != nil
+        let saved = (try? context.save()) != nil
+        if saved {
+            // A new weight can move a body-weight goal: the Today card and the chips read it again.
+            NotificationCenter.default.post(name: .tempoGoalChanged, object: nil)
+        }
+        return saved
     }
 
     /// Reads Health and keeps the result. Health being unavailable or empty is

@@ -37,8 +37,11 @@ struct ExerciseLibraryView: View {
 
     /// `initialSearch` opens the library already searching (from app search).
     init(initialSearch: String = "") {
+        self.initialSearch = initialSearch
         _searchText = State(initialValue: initialSearch)
     }
+
+    private let initialSearch: String
 
     private var weightUnit: WeightUnit {
         userSettings.first?.weightUnit ?? .kg
@@ -96,6 +99,10 @@ struct ExerciseLibraryView: View {
         .tidePage()
         .navigationTitle("Exercises")
         .navigationBarTitleDisplayMode(.inline)
+        // Searching again from the app search while the library is already open.
+        .onChange(of: initialSearch) { _, new in
+            searchText = new
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
