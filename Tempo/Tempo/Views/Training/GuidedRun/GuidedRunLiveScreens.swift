@@ -434,6 +434,8 @@ private struct GuidedRunHeartRateBadge: View {
             }
             .font(Tide.caption)
             .foregroundStyle(Tide.text2)
+            .explains(TrainExplainers.heartRateZone)
+            // After the explainer, so the badge keeps the id it has always had.
             .accessibilityIdentifier("guidedRunHeartRateBadge")
         }
     }

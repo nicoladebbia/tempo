@@ -72,6 +72,9 @@ struct WorkoutSummaryView: View {
                 // Stats
                 statsCard
 
+                // A picture of the session to send to a friend.
+                shareWorkoutButton
+
                 // What to do next: saves the session, closes this page, then goes there.
                 NextStepBar(place: .workoutSummary) { step in
                     Task {
@@ -176,6 +179,7 @@ struct WorkoutSummaryView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sets done")
             .accessibilityValue("\(Int((completionFraction * 100).rounded())) percent")
+            .explains(TrainExplainers.setsDone.showing("\(Int((completionFraction * 100).rounded())) percent"))
             .onAppear {
                 if reduceMotion {
                     ringProgress = completionFraction
@@ -218,35 +222,51 @@ struct WorkoutSummaryView: View {
                 Text("\(viewModel.detectedPRs.count) Personal Record\(viewModel.detectedPRs.count > 1 ? "s" : "")!")
                     .font(Tide.headline)
                     .foregroundStyle(Tide.text)
+                Spacer(minLength: 0)
             }
+            .explains(TrainExplainers.personalRecord)
 
             ForEach(Array(viewModel.detectedPRs.enumerated()), id: \.element.id) { index, pr in
                 if index > 0 {
                     TrainSessionRule()
                 }
                 HStack(spacing: Tide.s3) {
-                    VStack(alignment: .leading, spacing: Tide.hair) {
-                        Text(pr.exercise?.name ?? "Exercise")
-                            .font(Tide.bodyStrong)
-                            .foregroundStyle(Tide.text)
+                    HStack(spacing: Tide.s3) {
+                        VStack(alignment: .leading, spacing: Tide.hair) {
+                            Text(pr.exercise?.name ?? "Exercise")
+                                .font(Tide.bodyStrong)
+                                .foregroundStyle(Tide.text)
 
-                        // §15 fix — `pr.context` is a kg-only, unit-unaware
-                        // string from TrainingEngine ("82kg x 5 reps" even
-                        // for an lbs user). PRDisplay never renders that
-                        // embedded weight; the number on the right already
-                        // shows pr.value converted to the user's unit.
-                        Text(PRDisplay.subtitle(pr))
-                            .font(Tide.caption)
-                            .foregroundStyle(Tide.text2)
+                            // §15 fix — `pr.context` is a kg-only, unit-unaware
+                            // string from TrainingEngine ("82kg x 5 reps" even
+                            // for an lbs user). PRDisplay never renders that
+                            // embedded weight; the number on the right already
+                            // shows pr.value converted to the user's unit.
+                            Text(PRDisplay.subtitle(pr))
+                                .font(Tide.caption)
+                                .foregroundStyle(Tide.text2)
+                        }
+
+                        Spacer(minLength: Tide.s2)
+
+                        Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
+                            .font(TideTrain.figure(.title3))
+                            .foregroundStyle(TideTrain.record)
                     }
+                    .accessibilityElement(children: .combine)
 
-                    Spacer(minLength: Tide.s2)
-
-                    Text(PRDisplay.valueLabel(pr, unit: viewModel.weightUnit))
-                        .font(TideTrain.figure(.title3))
-                        .foregroundStyle(TideTrain.record)
+                    Button {
+                        shareRecord(pr)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(Tide.body)
+                            .foregroundStyle(Tide.text2)
+                            .frame(width: Tide.hit, height: Tide.hit)
+                            .contentShape(.rect)
+                    }
+                    .accessibilityLabel("Share this record")
+                    .accessibilityIdentifier("summary.shareRecord")
                 }
-                .accessibilityElement(children: .combine)
             }
         }
         .tideCard(padding: Tide.s4, radius: Tide.tileRadius)
@@ -290,7 +310,10 @@ struct WorkoutSummaryView: View {
         return VStack(alignment: .leading, spacing: Tide.s4) {
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
                 TrainStat(value: viewModel.formattedElapsedTime, label: "Duration", size: Tide.numeralM)
-                TrainStat(value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM)
+                TrainStat(
+                    value: viewModel.formattedVolume, label: "Volume", size: Tide.numeralM,
+                    explainer: TrainExplainers.volume
+                )
             }
             TrainSessionRule()
             LazyVGrid(columns: columns, alignment: .leading, spacing: Tide.s4) {
@@ -300,6 +323,37 @@ struct WorkoutSummaryView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .tideCard(padding: Tide.s5, radius: Tide.tileRadius)
+    }
+
+    // MARK: - Share
+
+    private var shareWorkoutButton: some View {
+        Button {
+            ShareCard.present(
+                TrainShare.workoutCard(
+                    title: viewModel.todayPlan.map { "\($0.type.displayName) day" } ?? "Workout",
+                    elapsedSeconds: viewModel.elapsedSeconds,
+                    exercises: viewModel.performedExercises,
+                    sets: viewModel.completedSets,
+                    volumeKg: viewModel.totalVolume
+                )
+            )
+        } label: {
+            Label("Share workout", systemImage: "square.and.arrow.up")
+        }
+        .buttonStyle(.tideGlass)
+        .frame(maxWidth: .infinity)
+        .accessibilityIdentifier("summary.shareWorkout")
+    }
+
+    private func shareRecord(_ record: PersonalRecord) {
+        ShareCard.present(
+            TrainShare.recordCard(
+                record,
+                unit: viewModel.weightUnit,
+                before: TrainShare.previousBest(of: record)
+            )
+        )
     }
 
     // MARK: - Trainer Adjustments (§4)

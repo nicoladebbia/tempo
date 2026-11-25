@@ -36,6 +36,9 @@ struct MatchScheduleView: View {
 
     @State
     private var showingAdd = false
+    /// The Undo toast after a match is deleted.
+    @State
+    private var toast: ToastData?
 
     private var upcoming: [Match] {
         let cutoff = Calendar.current.startOfDay(for: Date())
@@ -91,6 +94,7 @@ struct MatchScheduleView: View {
                     addMatch(kickoff: kickoff, opponent: opponent, competitive: competitive)
                 }
             }
+            .tempoToast($toast, placement: .bottom)
         }
     }
 
@@ -142,11 +146,24 @@ struct MatchScheduleView: View {
         persistAndReplan()
     }
 
+    /// Deletes the matches and offers Undo for a few seconds. They are copied
+    /// first and put back with their old ids by Undo.
     private func deleteUpcoming(at offsets: IndexSet) {
-        for index in offsets {
+        let snapshots = offsets.filter { upcoming.indices.contains($0) }.sorted().map { MatchSnapshot(upcoming[$0]) }
+        for index in offsets where upcoming.indices.contains(index) {
             modelContext.delete(upcoming[index])
         }
         persistAndReplan()
+        guard let first = snapshots.first else {
+            return
+        }
+        let message = snapshots.count == 1 ? first.message : "Deleted \(TrainCount.text(snapshots.count, "match"))"
+        toast = ToastData(message: message, style: .info, actionTitle: "Undo") {
+            for snapshot in snapshots {
+                snapshot.restore(in: modelContext)
+            }
+            persistAndReplan()
+        }
     }
 
     private func persistAndReplan() {

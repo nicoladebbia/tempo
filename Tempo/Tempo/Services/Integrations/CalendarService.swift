@@ -165,7 +165,11 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
     // the 08:00–22:00 waking window. All-day events are ignored (they don't
     // block a real time slot). Requests access lazily on first use.
 
-    func suggestWorkoutWindow(for date: Date, preferring preference: TrainingTimePreference = .anyFree) async -> DateInterval? {
+    func suggestWorkoutWindow(
+        for date: Date,
+        preferring preference: TrainingTimePreference = .anyFree,
+        notBefore: Date? = nil
+    ) async -> DateInterval? {
         if !isAuthorized {
             try? await requestAuthorization()
         }
@@ -226,8 +230,28 @@ final class CalendarService: CalendarServiceProtocol, @unchecked Sendable {
             freeGaps.append(DateInterval(start: cursor, end: windowEnd))
         }
 
+        // Today's morning is gone by the evening: keep only what is still ahead.
+        if let notBefore {
+            freeGaps = Self.gaps(freeGaps, notBefore: notBefore)
+        }
+
         let daypart = Self.preferredDaypart(for: preference, on: day, calendar: cal)
         return Self.bestWindow(freeGaps: freeGaps, preferred: daypart, minimumDuration: minimumDuration)
+    }
+
+    /// The free gaps with everything before `notBefore` cut off, so the best
+    /// window is never in the past. A gap that straddles the moment starts at
+    /// the next 5 minutes after it; a gap that is over is dropped. The length
+    /// filter in `bestWindow` then throws out what is too short to train in.
+    static func gaps(_ gaps: [DateInterval], notBefore: Date) -> [DateInterval] {
+        let step: TimeInterval = 5 * 60
+        let earliest = Date(timeIntervalSinceReferenceDate: (notBefore.timeIntervalSinceReferenceDate / step).rounded(.up) * step)
+        return gaps.compactMap { gap in
+            guard gap.end > earliest else {
+                return nil
+            }
+            return DateInterval(start: max(gap.start, earliest), end: gap.end)
+        }
     }
 
     /// The waking-hours sub-window matching the user's training-time preference,

@@ -105,6 +105,11 @@ struct AwayModeSheet: View {
             .trainSheetRoot()
             .navigationTitle("Away from the gym")
             .navigationBarTitleDisplayMode(.inline)
+            .firstTip(
+                "train.away",
+                "Sick, travelling or taking a break? Pick one here and Tempo plans your training around it.",
+                systemImage: "airplane"
+            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

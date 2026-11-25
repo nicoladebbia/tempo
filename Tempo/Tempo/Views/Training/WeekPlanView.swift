@@ -462,6 +462,7 @@ struct WeekPlanView: View {
         ) {
             EmptyView()
         }
+        .explains(TrainExplainers.deload)
     }
 
     // MARK: - Coach Review (Phase 4)
@@ -488,6 +489,7 @@ struct WeekPlanView: View {
                     color: accent
                 )
             }
+            .explains(TrainExplainers.weekScore.showing("\(Int((outcome.qualityScore * 100).rounded())) percent"))
 
             Text(coachReviewSummary(outcome))
                 .font(Tide.bodyStrong)

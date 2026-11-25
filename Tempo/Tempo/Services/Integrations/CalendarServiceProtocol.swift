@@ -28,8 +28,14 @@ protocol CalendarServiceProtocol: Sendable {
     /// Largest free contiguous block of >= 45 minutes within the waking
     /// window (08:00-22:00) of the given day, derived from the user's
     /// calendar events. Returns nil if no qualifying gap exists or access
-    /// is denied. Requests calendar access lazily on first use.
-    func suggestWorkoutWindow(for date: Date, preferring preference: TrainingTimePreference) async -> DateInterval?
+    /// is denied. Requests calendar access lazily on first use. With
+    /// `notBefore`, nothing earlier than that moment is ever suggested (pass
+    /// "now" so the best window is never in the past).
+    func suggestWorkoutWindow(
+        for date: Date,
+        preferring preference: TrainingTimePreference,
+        notBefore: Date?
+    ) async -> DateInterval?
 
     /// The user's saved workout event for `date` whose start is still in
     /// the future. Drives the live countdown banner. Resolution order:
@@ -54,6 +60,13 @@ struct CalendarEvent {
     /// conflicting event forces a "portable only" meal. nil / empty /
     /// containing "home" means the user can cook through it.
     var location: String? = nil
+}
+
+extension CalendarServiceProtocol {
+    /// The whole day's best window, with no "not before" cut (planning callers).
+    func suggestWorkoutWindow(for date: Date, preferring preference: TrainingTimePreference) async -> DateInterval? {
+        await suggestWorkoutWindow(for: date, preferring: preference, notBefore: nil)
+    }
 }
 
 // MARK: - CalendarExam

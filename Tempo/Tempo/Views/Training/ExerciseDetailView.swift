@@ -32,6 +32,8 @@ struct ExerciseDetailView: View {
     /// §10.6 — delete confirmation for custom exercises.
     @State
     private var showDeleteConfirm = false
+    @Environment(\.offerExerciseUndo)
+    private var offerExerciseUndo
     /// §10.6/§1 — blocks the delete when the exercise is in today's
     /// unfinished plan (deleting it mid-plan would nullify a slot the active
     /// session is about to read).
@@ -121,6 +123,9 @@ struct ExerciseDetailView: View {
                     Button(role: .destructive) {
                         if isInTodaysActivePlan {
                             showActivePlanBlock = true
+                        } else if offerExerciseUndo != nil {
+                            // Undo is on offer, so no question first.
+                            deleteCustomExercise()
                         } else {
                             showDeleteConfirm = true
                         }
@@ -170,9 +175,11 @@ struct ExerciseDetailView: View {
         guard exercise.isCustom, !isInTodaysActivePlan else {
             return
         }
+        let snapshot = ExerciseSnapshot(exercise)
         modelContext.delete(exercise)
         modelContext.saveOrAlert("exercise")
         HapticManager.notification(.success)
+        offerExerciseUndo?(snapshot)
         dismiss()
     }
 
@@ -278,7 +285,8 @@ struct ExerciseDetailView: View {
             TrainStat(
                 value: current1RM.map { WeightFormat.text(kg: $0, unit: weightUnit) } ?? "—",
                 label: "Current 1RM",
-                size: Tide.numeralM
+                size: Tide.numeralM,
+                explainer: TrainExplainers.currentE1RM
             )
             if history.isEmpty {
                 Text("No sets logged yet. Your numbers fill in after your first session.")
@@ -295,7 +303,8 @@ struct ExerciseDetailView: View {
                 TrainStat(
                     value: volume30d > 0 ? formatVolume(volume30d) : "—",
                     label: "Volume (30d)",
-                    size: Tide.numeralS
+                    size: Tide.numeralS,
+                    explainer: TrainExplainers.volume30
                 )
                 TrainStat(
                     value: sessions30d > 0 ? "\(sessions30d)" : "—",
@@ -532,66 +541,6 @@ struct ExerciseDetailView: View {
         case .pullUpBar: "Pull-Up Bar"
         case .bench: "Bench"
         case .none: "None"
-        }
-    }
-}
-
-// MARK: - ExerciseDemoImage
-
-/// Reference photo for an exercise, loaded remotely from the bundled free-exercise-db
-/// map. `demoAsset` is a relative path (e.g. "Barbell_Bench_Press_-_Medium_Grip/0.jpg")
-/// served via jsDelivr and cached by URLCache. Falls back to a muscle-group SF Symbol
-/// when the exercise has no mapped image or the fetch fails. Shared by ExerciseDetailView
-/// (demo area) and ActiveWorkoutView (session header).
-struct ExerciseDemoImage: View {
-    let demoAsset: String?
-    let muscleGroup: MuscleGroup
-    var symbolSize: CGFloat = 48
-
-    /// jsDelivr CDN — rate-limit-friendly for repeated in-app fetches vs raw.githubusercontent.
-    private static let cdnBase = "https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/"
-
-    private var url: URL? {
-        guard let demoAsset, !demoAsset.isEmpty else {
-            return nil
-        }
-        return URL(string: Self.cdnBase + demoAsset)
-    }
-
-    var body: some View {
-        if let url {
-            AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.2))) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                case .empty:
-                    ProgressView()
-                        .tint(Tide.text3)
-                case .failure:
-                    fallback
-                @unknown default:
-                    fallback
-                }
-            }
-        } else {
-            fallback
-        }
-    }
-
-    private var fallback: some View {
-        Image(systemName: fallbackSymbol)
-            .trainGlyph(symbolSize, relativeTo: .title)
-            .foregroundStyle(Tide.text3)
-    }
-
-    private var fallbackSymbol: String {
-        switch muscleGroup {
-        case .core: "figure.core.training"
-        case .fullBody: "figure.strengthtraining.functional"
-        case .cardio: "figure.run"
-        default: "figure.strengthtraining.traditional"
         }
     }
 }

@@ -197,9 +197,11 @@ struct TrainStat: View {
     let label: String
     var size: CGFloat = 28
     var color: Color = Tide.text
+    /// Tap the stat to see what it means. Left nil where the stat already navigates.
+    var explainer: Explainer?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tide.hair) {
+        let stat = VStack(alignment: .leading, spacing: Tide.hair) {
             TideNumber(value, unit: unit, size: size, relativeTo: .title, color: color)
             Text(label)
                 .font(Tide.caption)
@@ -209,6 +211,11 @@ struct TrainStat: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+        if let explainer {
+            stat.explains(explainer.showing(unit.map { "\(value) \($0)" } ?? value))
+        } else {
+            stat
+        }
     }
 }
 

@@ -33,6 +33,9 @@ struct TrainingTabView: View {
     /// The exercise search opened the library on.
     @State
     private var librarySearch = ""
+    /// The Undo toast after a custom exercise is deleted from any page in Train.
+    @State
+    private var undoToast: ToastData?
 
     var body: some View {
         // The session (view model and its screens) is owned by the app, not
@@ -48,6 +51,11 @@ struct TrainingTabView: View {
             )
             .navigationTitle("Training")
             .navigationBarTitleDisplayMode(.inline)
+            .firstTip(
+                "train.home",
+                "Tap Start workout to begin today's session, and use the menu at the top left for your plan, routines and progress.",
+                systemImage: "figure.strengthtraining.traditional"
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     moreMenu(viewModel: viewModel)
@@ -76,6 +84,13 @@ struct TrainingTabView: View {
                 .persistenceAlert()
             }
         }
+        .environment(\.offerExerciseUndo) { snapshot in
+            undoToast = ToastData(message: "Deleted \(snapshot.name)", style: .info, actionTitle: "Undo") {
+                snapshot.restore(in: modelContext)
+                modelContext.saveOrAlert("exercise restore")
+            }
+        }
+        .tempoToast($undoToast)
         .sensoryFeedback(.selection, trigger: opened)
         // Search asked for a page here: open it, then clear the request.
         .onChange(of: path) { _, path in

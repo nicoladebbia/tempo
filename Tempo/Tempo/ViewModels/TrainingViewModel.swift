@@ -105,6 +105,7 @@ final class TrainingViewModel {
             setText: String,
             isResting: Bool = false,
             restEndsAt: Date? = nil,
+            restStartedAt: Date? = nil,
             isPaused: Bool = false
         ) -> WorkoutActivityAttributes.ContentState {
             WorkoutActivityAttributes.ContentState(
@@ -115,6 +116,7 @@ final class TrainingViewModel {
                 totalSets: totalSets,
                 isResting: isResting,
                 restEndsAt: restEndsAt,
+                restStartedAt: restStartedAt,
                 startedAt: workoutStartTime,
                 isPaused: isPaused
             )
@@ -130,7 +132,8 @@ final class TrainingViewModel {
                 exerciseName: restContext.exercise?.name ?? currentName,
                 setText: setCountText,
                 isResting: true,
-                restEndsAt: restEndDate
+                restEndsAt: restEndDate,
+                restStartedAt: restStartDate
             )
         case .exercise(.betweenExercises):
             return state(exerciseName: currentName, setText: "Next exercise")
@@ -240,6 +243,9 @@ final class TrainingViewModel {
     /// kept so callers/tests can await it.
     var healthKitWriteTask: Task<Void, Never>?
     var detectedPRs: [PersonalRecord] = []
+    /// The workout just discarded, while its Undo is on offer. The toast that
+    /// shows it sits on the Train home page (the logger has closed by then).
+    var discardUndo: DiscardedWorkoutUndo?
     /// trainer-feedback-tests — "New max: Squat 120 kg — your trainer's 75%
     /// is now 90 kg." style lines, populated in `persistCompletion` for any
     /// trainer-flagged TEST exercise. Shown on `WorkoutSummaryView` alongside
@@ -888,7 +894,10 @@ final class TrainingViewModel {
         // `.saved` / `.discarded` are terminal leftovers of an earlier session
         // this launch; they must not block a legitimate new start.
         switch sessionState {
-        case .idle, .crashedRecovery, .saved, .discarded:
+        case .idle,
+             .crashedRecovery,
+             .saved,
+             .discarded:
             break
         default:
             return false

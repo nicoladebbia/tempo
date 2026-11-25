@@ -144,7 +144,8 @@ struct ProgressRecordsView: View {
             stats: [
                 .init(value: "\(lastMonth)", label: "in the last 30 days"),
                 .init(value: "\(best.count)", label: TrainCount.noun(best.count, "lift")),
-            ]
+            ],
+            figureExplainer: TrainExplainers.personalRecord
         ) {
             Image(systemName: "star.fill")
                 .font(Tide.title)

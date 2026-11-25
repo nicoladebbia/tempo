@@ -109,6 +109,7 @@ struct TrainingLoadCard: View {
                 TrainTag(text: zoneLabel(current), color: zoneColor(current))
             }
             .accessibilityElement(children: .combine)
+            .explains(TrainExplainers.trainingLoad.showing(String(format: "%.2f", current)))
         }
     }
 

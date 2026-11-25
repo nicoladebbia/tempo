@@ -135,6 +135,7 @@ struct TrainRPECard: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+        .explains(TrainExplainers.rpe.showing("\(value) of 10"))
     }
 
     private var ask: some View {
@@ -146,6 +147,8 @@ struct TrainRPECard: View {
                     .foregroundStyle(Tide.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .explains(TrainExplainers.rpe)
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: Tide.s2), count: typeSize.isAccessibilitySize ? 3 : 5),
                 spacing: Tide.s2
