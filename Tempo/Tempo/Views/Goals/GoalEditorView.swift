@@ -31,6 +31,9 @@ struct GoalEditorView: View {
     /// Lifts the person has logged come first; the rest of the library follows.
     @State
     private var liftChoices: [String] = []
+    /// The type the typed numbers belong to; a different type starts them empty.
+    @State
+    private var textKind: GoalKind = .bodyWeight
     @State
     private var draft = GoalDraft(targetDate: Calendar.current.date(byAdding: .month, value: 3, to: Date()) ?? Date())
     @State
@@ -124,6 +127,10 @@ struct GoalEditorView: View {
             reading = readCurrent()
         }
         .onChange(of: draft.kind) { _, kind in
+            if kind != textKind {
+                draft.clearTarget()
+                textKind = kind
+            }
             if kind == .liftE1RM, draft.exercise == nil {
                 draft.exercise = liftChoices.first
             }
@@ -218,11 +225,14 @@ struct GoalEditorView: View {
     }
 
     private var problemHint: String? {
-        switch problem {
+        if problem == nil, draft.alreadyReached(current: reading, unit: unit) {
+            return "You are already there. Pick a harder target."
+        }
+        return switch problem {
         case .needsExercise: "Choose a lift."
         case .needsTarget: draft.kind == .runTime ? "Enter a time." : "Enter a target."
         case .needsDate: "Pick a date after today."
-        case nil: nil
+        case nil: String?.none
         }
     }
 
@@ -242,6 +252,7 @@ struct GoalEditorView: View {
         if let existing {
             draft = GoalDraft(goal: existing, unit: unit)
         }
+        textKind = draft.kind
         let library = (try? modelContext.fetch(FetchDescriptor<Exercise>(sortBy: [SortDescriptor(\.name)]))) ?? []
         let logged = library.filter { !($0.history ?? []).isEmpty }.map(\.name)
         liftChoices = logged.isEmpty ? library.filter(\.isCompound).map(\.name) : logged

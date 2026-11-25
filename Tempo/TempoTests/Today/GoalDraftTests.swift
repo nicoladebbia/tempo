@@ -32,6 +32,36 @@ final class GoalDraftTests: XCTestCase {
         XCTAssertNil(GoalDraft.number("nan"))
     }
 
+    func testAGoalTheReadingAlreadyMeetsIsFlagged() {
+        var lift = draft(.liftE1RM)
+        lift.exercise = "Squat"
+        lift.weightText = "140"
+        XCTAssertTrue(lift.alreadyReached(current: 145.7, unit: .kg))
+        XCTAssertFalse(lift.alreadyReached(current: 120, unit: .kg))
+
+        var run = draft(.runTime)
+        run.minutesText = "25"
+        XCTAssertTrue(run.alreadyReached(current: 24 * 60, unit: .kg), "a faster time than the target is already there")
+        XCTAssertFalse(run.alreadyReached(current: 27 * 60, unit: .kg))
+
+        var weight = draft(.bodyWeight)
+        weight.weightText = "81.8"
+        XCTAssertTrue(weight.alreadyReached(current: 81.8, unit: .kg))
+        XCTAssertFalse(weight.alreadyReached(current: 85, unit: .kg), "losing or gaining toward it is a real goal")
+        XCTAssertFalse(weight.alreadyReached(current: nil, unit: .kg))
+    }
+
+    func testChangingTheTypeClearsTheTypedTarget() {
+        var weight = draft(.bodyWeight)
+        weight.weightText = "83.8"
+        weight.minutesText = "20"
+        weight.clearTarget()
+        XCTAssertEqual(weight.weightText, "")
+        XCTAssertEqual(weight.minutesText, "")
+        XCTAssertEqual(weight.secondsText, "")
+        XCTAssertEqual(weight.kind, .bodyWeight, "only the numbers go")
+    }
+
     func testBodyWeightNeedsATarget() {
         var weight = draft(.bodyWeight)
         XCTAssertEqual(weight.problem(now: now, unit: .kg, calendar: calendar), .needsTarget)

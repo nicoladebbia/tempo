@@ -38,7 +38,7 @@ Gotchas:
 - On a brand-new simulator the calendar "full access" prompt still appears once (`simctl privacy` can't grant full access): `axe tap --label "Allow Full Access" --udid "$UDID"`. Notification and HealthKit prompts also can't be pre-granted. Never run `simctl privacy` while the app is running: it kills the app.
 
 - The ActiveWorkoutView full-screen cover and the ☰ menu are NOT in the AX tree (it shows the Training screen underneath). Drive them by screenshot coordinates. Menu rows sit at y≈93/135/177/219/261/303 (Week Plan, My Routines, Trainer Program, Away from the gym, Exercise Library, Progress). History now lives inside Progress, as a tab.
-- A view that shows a SwiftData `@Query` must not sit next to a second view with the identical `@Query` that pushes it (Settings > Profile and the Goal editor did): both redraw forever at 100% CPU and the AX tree comes back empty. `ps -o %cpu -p <pid>` and `sample <pid> 3` tell you. Fetch once in `onAppear` instead.
+- A frozen screen with an empty AX tree is usually a redraw loop: `ps -o %cpu -p <pid>` shows 100% and `sample <pid> 3` shows the view bodies. Seen once: the Goal editor had its own `@Query` for active goals while the Profile screen that pushes it had the same one, and both spun forever. Fetching the goal once in `onAppear` fixed it.
 - Kill only your own simulator's app: `xcrun simctl terminate $UDID app.tempo.Tempo.dev`. `pkill -f "Tempo Dev"` also stops the apps of every other worktree's simulator.
 - A swipe often registers as a tap; for scrolling, start the swipe on empty space.
 - The Undo toast lasts 5 s. Tap it right away.

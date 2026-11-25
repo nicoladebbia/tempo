@@ -78,6 +78,28 @@ struct GoalDraft: Equatable {
         return nil
     }
 
+    /// True when today's reading already meets the target, so the goal would
+    /// start finished: a lift at or above it, a run at or under it, a body
+    /// weight within 50 g of it. `current` is in kilograms or seconds.
+    func alreadyReached(current: Double?, unit: WeightUnit) -> Bool {
+        guard let current, let target = targetValue(unit: unit) else {
+            return false
+        }
+        switch kind {
+        case .bodyWeight: return abs(current - target) < 0.05
+        case .liftE1RM: return current >= target
+        case .runTime: return current <= target
+        }
+    }
+
+    /// Clears the typed target when the type changes: 83.8 kg of body weight
+    /// is not an 83.8 kg squat.
+    mutating func clearTarget() {
+        weightText = ""
+        minutesText = ""
+        secondsText = ""
+    }
+
     /// Reads "82,5" and "82.5" alike; anything else is not a number.
     static func number(_ text: String) -> Double? {
         let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
