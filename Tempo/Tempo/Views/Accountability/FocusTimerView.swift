@@ -83,6 +83,8 @@ struct FocusTimerView: View {
         .tidePage(energy: 1)
         // The field rests while a sheet is over the timer.
         .tideCovered(showSettings || showSubjectPicker)
+        // A running timer cannot be put back, so stopping it asks first, with Stop & Save
+        // next to Stop & Discard. Closing the timer asks the same question.
         .confirmationDialog(
             "Stop this session?",
             isPresented: $showStopConfirmation,
@@ -90,22 +92,16 @@ struct FocusTimerView: View {
         ) {
             stopConfirmationButtons
         } message: {
-            if elapsedMinutes >= 5 {
-                Text("\(elapsedMinutes) minutes of study will be saved.")
-            }
+            stopConfirmationMessage
         }
         .confirmationDialog(
-            "Timer is running.",
+            "Stop this session?",
             isPresented: $showCloseConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Keep Going", role: .cancel) {}
-            Button("Stop & Discard", role: .destructive) {
-                viewModel.cancelFocus(modelContext: modelContext)
-                dismiss()
-            }
+            stopConfirmationButtons
         } message: {
-            Text("Stop and discard this session?")
+            stopConfirmationMessage
         }
         .sheet(isPresented: $showSettings) {
             focusSettingsSheet
@@ -138,6 +134,11 @@ struct FocusTimerView: View {
             // Always release the screen lock when the timer view leaves.
             UIApplication.shared.isIdleTimerDisabled = false
         }
+        .firstTip(
+            "study.timer",
+            "Press Start and stay in the app: leaving it counts as a distraction.",
+            systemImage: "timer"
+        )
     }
 
     // MARK: - Timer Screen
@@ -230,7 +231,7 @@ struct FocusTimerView: View {
         } else if isBreakState {
             breakMessageView
         } else {
-            Color.clear.frame(height: Tide.s5)
+            Color.clear.frame(height: Tide.hit)
         }
     }
 
@@ -681,6 +682,9 @@ struct FocusTimerView: View {
             .font(Tide.bodyStrong)
             .monospacedDigit()
             .foregroundStyle(Tide.text)
+            .frame(minHeight: Tide.hit)
+            .contentShape(.rect)
+            .explains(Explainer.focusScoreLive.showing("\(score) of 100"))
     }
 
     // MARK: - Break Message
@@ -883,8 +887,16 @@ struct FocusTimerView: View {
         }
 
         Button("Stop & Discard", role: .destructive) {
-            viewModel.cancelFocus(modelContext: modelContext)
+            // The user chose to throw it away, so it is thrown away.
+            viewModel.cancelFocus(modelContext: modelContext, keepingPartial: false)
             dismiss()
+        }
+    }
+
+    @ViewBuilder
+    private var stopConfirmationMessage: some View {
+        if elapsedMinutes >= 5 {
+            Text("Stop & Save keeps these \(elapsedMinutes) minutes. Stop & Discard throws them away.")
         }
     }
 
@@ -964,6 +976,7 @@ struct FocusTimerView: View {
                 // Focus score dial
                 VStack(spacing: Tide.s2) {
                     TideDial(score: score, caption: "Focus score", diameter: Tide.dialDetail)
+                        .explains(Explainer.focusScoreLive.showing("\(score) of 100"))
 
                     Text(scoreLabel(score))
                         .font(Tide.headline)

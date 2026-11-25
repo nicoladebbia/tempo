@@ -168,6 +168,11 @@ struct MindQuadrantDetailView: View {
         }
         .onDisappear { commitPendingDeletion() }
         .task { reloadExams() }
+        .firstTip(
+            "study.home",
+            "Press Start study session to run a timer, and tap any score to see how it is worked out.",
+            systemImage: "book.fill"
+        )
         .accessibilityIdentifier("study-page")
     }
 
@@ -182,6 +187,7 @@ struct MindQuadrantDetailView: View {
             TideDial(score: percent, caption: "Target", diameter: Tide.dialHero)
                 .accessibilityLabel("Study target")
                 .accessibilityValue("\(percent) percent")
+                .explains(Explainer.studyTarget.showing("\(percent) percent"))
         } side: {
             Text("Studied today").tideLabel()
             TideNumber(hero.formattedStudyTime, size: Tide.numeralL, relativeTo: .largeTitle)
@@ -203,6 +209,7 @@ struct MindQuadrantDetailView: View {
                     tint: hero.currentStreakDays >= 7 ? Tide.streak : Tide.text2,
                     systemImage: "flame.fill"
                 )
+                .explains(Explainer.studyStreak.showing("\(hero.currentStreakDays) days"))
             }
         }
         .accessibilityIdentifier("study-hero")
@@ -256,6 +263,7 @@ struct MindQuadrantDetailView: View {
                 "\(session.effectiveFocusScore)", unit: "%", size: Tide.numeralS, relativeTo: .headline,
                 weight: .semibold, color: focusScoreColor(session.effectiveFocusScore)
             )
+            .explains(Explainer.focusScore.showing("\(session.effectiveFocusScore) percent"))
             : nil
 
         return HStack(alignment: stacks ? .top : .center, spacing: Tide.s3) {
@@ -299,7 +307,7 @@ struct MindQuadrantDetailView: View {
     }
 
     @ViewBuilder
-    private func durationAndScore(_ session: StudySession, score: TideNumber?) -> some View {
+    private func durationAndScore(_ session: StudySession, score: (some View)?) -> some View {
         let layout = typeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
             : AnyLayout(HStackLayout(spacing: Tide.s3))
@@ -308,11 +316,11 @@ struct MindQuadrantDetailView: View {
                 "\(session.durationMinutes)", unit: "m", size: Tide.numeralS, relativeTo: .headline,
                 weight: .semibold
             )
+            // Its own element, so the score's explainer can be reached on its own.
             if let score {
                 score
             }
         }
-        .accessibilityElement(children: .combine)
     }
 
     private func sessionMenu(_ session: StudySession) -> some View {
@@ -505,6 +513,7 @@ struct MindQuadrantDetailView: View {
                     tint: average.map(focusScoreColor) ?? Tide.text3,
                     systemImage: "brain.head.profile"
                 )
+                .explains(Explainer.averageFocus.showing(average.map { "\($0) percent" }))
                 TideMetricTile(
                     label: "Best day",
                     value: best.map { $0.date.formatted(.dateTime.weekday(.abbreviated)) } ?? "--",
@@ -512,6 +521,7 @@ struct MindQuadrantDetailView: View {
                     tint: TideTone.gold,
                     systemImage: "trophy.fill"
                 )
+                .explains(Explainer.bestDay.showing(best.map { StudyHistory.formatMinutes($0.minutes) }))
             }
         }
         .accessibilityIdentifier("study-stats")
@@ -626,6 +636,7 @@ struct MindQuadrantDetailView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Study time by weekday and hour, last 30 days")
                 .accessibilityValue("Busiest slot \(busiestSlot(grid))")
+                .explains(.studyHeatmap)
             } else {
                 TideEmptyPanel(systemImage: "clock", title: "No sessions in the last 30 days")
                     .tideCard()
