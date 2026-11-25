@@ -101,7 +101,11 @@ struct CoachChatView: View {
                 // Top of the transcript: under the title bar, clear of the input bar.
                 .tempoToast($toast, placement: .top)
                 // On the transcript, so it rests above the input bar instead of under it.
-                .firstTip("coach.chat", "Ask a question, or tell me something to remember, like \"I never eat before 11am\".", systemImage: "sparkles")
+                .firstTip(
+                    "coach.chat",
+                    "Ask a question, or tell me something to remember, like \"I never eat before 11am\".",
+                    systemImage: "sparkles"
+                )
                 .safeAreaBar(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
@@ -187,6 +191,8 @@ struct CoachChatView: View {
                 }
             }
         }
+        // Title bar chrome: bigger text would push the End button off the top of the sheet.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .padding(.horizontal, Tide.edge)
         .padding(.vertical, Tide.s2)
     }
@@ -336,39 +342,51 @@ struct CoachChatView: View {
     /// Why the last message didn't get an answer, in place of a pop-up. Your
     /// message stays in the transcript; the banner just says what happened.
     private func errorBanner(_ message: String) -> some View {
-        HStack(spacing: Tide.s3) {
-            Image(systemName: "exclamationmark.bubble.fill")
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.danger)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(Tide.body)
-                .foregroundStyle(Tide.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: Tide.s2)
-            if viewModel.canRetry {
-                Button("Retry") {
-                    Task {
-                        await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+        // At accessibility sizes the message gets the whole width and the buttons sit under it,
+        // instead of squeezing the words into a column of two letters.
+        let stacked = typeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tide.s1))
+            : AnyLayout(HStackLayout(spacing: Tide.s3))
+        return layout {
+            HStack(spacing: Tide.s3) {
+                Image(systemName: "exclamationmark.bubble.fill")
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.danger)
+                    .accessibilityHidden(true)
+                Text(message)
+                    .font(Tide.body)
+                    .foregroundStyle(Tide.text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !stacked {
+                Spacer(minLength: Tide.s2)
+            }
+            HStack(spacing: Tide.s3) {
+                if viewModel.canRetry {
+                    Button("Retry") {
+                        Task {
+                            await viewModel.retryLast(systemPrompt: systemPromptBuilder(), context: modelContext)
+                        }
                     }
-                }
-                .font(Tide.bodyStrong)
-                .foregroundStyle(Tide.text)
-                .frame(minHeight: Tide.hit)
-                .contentShape(.rect)
-                .accessibilityIdentifier("coachRetryButton")
-            }
-            Button {
-                viewModel.pendingError = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(Tide.caption)
-                    .foregroundStyle(Tide.text2)
-                    .frame(width: Tide.hit, height: Tide.hit)
+                    .font(Tide.bodyStrong)
+                    .foregroundStyle(Tide.text)
+                    .frame(minHeight: Tide.hit)
                     .contentShape(.rect)
+                    .accessibilityIdentifier("coachRetryButton")
+                }
+                Button {
+                    viewModel.pendingError = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(Tide.caption)
+                        .foregroundStyle(Tide.text2)
+                        .frame(width: Tide.hit, height: Tide.hit)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss")
         }
         .padding(.leading, Tide.s4)
         .padding(.vertical, Tide.s1)
@@ -500,6 +518,8 @@ struct CoachChatView: View {
             .foregroundStyle(Tide.text2)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
+            // A footnote: at the biggest sizes it would eat a quarter of the screen.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .padding(.horizontal, Tide.edge)
             .frame(maxWidth: .infinity, alignment: .center)
     }
